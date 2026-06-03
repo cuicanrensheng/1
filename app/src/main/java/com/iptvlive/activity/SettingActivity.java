@@ -1,4 +1,6 @@
 package com.iptvlive.activity;
+import com.tv.live.R;
+
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
