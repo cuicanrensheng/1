@@ -1,4 +1,5 @@
 package com.iptvlive.activity;
+import com.tv.live.R;
 
 import android.app.Dialog;
 import android.content.Context;
