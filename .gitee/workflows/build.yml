@@ -1,43 +1,85 @@
-name: TVAPP云编译-FMMG播放器
-# 触发条件：推送代码、手动点击运行工作流
+name: Build TV Live APK
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
-jobs:
-  build_apk:
-    runs-on: ubuntu-latest
-    steps:
-      # 1.拉取项目源码
-      - name: 拉取源码
-        uses: gitee/actions/checkout@v3
+permissions:
+  contents: write
 
-      # 2.配置JDK11（安卓编译标配）
-      - name: 配置Java环境
-        uses: actions/setup-java@v3
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: 拉取仓库代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 JDK 11 + Gradle缓存
+        uses: actions/setup-java@v4
         with:
           java-version: '11'
           distribution: 'temurin'
+          cache: gradle
 
-      # 3.配置Android SDK，最低Android5.0(API21)
-      - name: 安装AndroidSDK
-        run: |
-          mkdir -p ~/.android
-          echo "sdk.manager.auto.accept=yes" > ~/.android/sdkmanager.conf
-          sdkmanager --install "platforms;android-21" "build-tools;30.0.3"
-
-      # 4.Gradle打包正式包（Release）
-      - name: Gradle编译打包
-        run: |
-          chmod +x gradlew
-          ./gradlew clean assembleRelease
-
-      # 5.上传编译好的APK到编译产物
-      - name: 归档APK安装包
-        uses: actions/upload-artifact@v3
+      - name: 缓存 Gradle 分发文件
+        uses: actions/cache@v4
         with:
-          name: TV-手机电视通用APK
+          path: ~/.gradle/wrapper
+          key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: 配置gradle签名参数（对应你的keystore信息）
+        run: |
+          echo "MY_STORE_FILE=../release.keystore" >> gradle.properties
+          echo "MY_STORE_PASSWORD=admin123" >> gradle.properties
+          echo "MY_KEY_ALIAS=myreleasekey" >> gradle.properties
+          echo "MY_KEY_PASSWORD=admin123" >> gradle.properties
+
+      - name: 赋予gradlew执行权限
+        run: chmod +x gradlew
+
+      - name: 编译 Release 签名APK
+        run: ./gradlew clean assembleRelease --stacktrace
+
+      - name: 生成 update.json
+        run: |
+          VERSION_CODE=${{ github.run_number }}
+          VERSION_NAME="1.0.$VERSION_CODE"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION_CODE/app-release.apk"
+          cat > update.json << EOF
+          {
+            "versionCode": $VERSION_CODE,
+            "versionName": "$VERSION_NAME",
+            "message": "版本自动更新",
+            "downloadUrl": "$DOWNLOAD_URL"
+          }
+          EOF
+
+      - name: 上传成品 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TVLive-直播APP
           path: app/build/outputs/apk/release/*.apk
 
-      # 6.自动打包上传至Release（可选，需要Gitee个人令牌）
+      - name: 上传更新配置
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-config
+          path: update.json
+
+      - name: 创建发布Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: IPTV播放器-v${{ github.run_number }}
+          body: |
+            ✅ 自动编译+正式签名打包
+            📌 版本：v${{ github.run_number }}
+          files: |
+            app/build/outputs/apk/release/app-release.apk
+            update.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
