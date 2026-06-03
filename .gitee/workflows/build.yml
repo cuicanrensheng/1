@@ -37,11 +37,11 @@ jobs:
           echo "MY_STORE_PASSWORD=admin123" >> gradle.properties
           echo "MY_KEY_ALIAS=myreleasekey" >> gradle.properties
           echo "MY_KEY_PASSWORD=admin123" >> gradle.properties
-          
-        # 新增：云端生成gradle wrapper
--       name: 生成Gradle Wrapper
+
+      # 新增：云端生成gradle wrapper（缩进对齐）
+      - name: 生成Gradle Wrapper
         run: gradle wrapper 
-        
+
       - name: 赋予gradlew执行权限
         run: chmod +x gradlew
 
