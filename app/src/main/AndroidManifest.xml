@@ -26,13 +26,13 @@
         <activity android:name=".activity.SettingActivity"/>
         <!--EPG弹窗页面-->
         <activity android:name=".activity.EpgDialog"/>
-        <!--开机自启广播接收器-->
-        <receiver android:name=".receiver.BootReceiver">
+        <!--开机自启广播接收器【加exported="true"】-->
+        <receiver android:name=".receiver.BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
-        <!--定时刷新M3U/EPG广播-->
+        <!--定时刷新M3U/EPG广播，无过滤器不用加exported-->
         <receiver android:name=".receiver.RefreshSubReceiver"/>
     </application>
 </manifest>
