@@ -39,7 +39,11 @@ dependencies {
     //安卓X基础兼容库
     implementation 'androidx.appcompat:appcompat:1.6.1'
     //Exo播放器核心【纯系统HTTP，注释下行okhttp依赖，自动URLConnection】
-    implementation 'com.google.android.exoplayer2:exoplayer:2.19.1'
+    // ExoPlayer 纯播放器（无 VLC）
+    implementation "com.google.android.exoplayer:exoplayer:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-ui:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-hls:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-dash:2.19.1"
     //需要OKHTTP取消注释下行
     //implementation 'com.google.android.exoplayer2:exoplayer-okhttp:2.19.1'
     //二维码核心
