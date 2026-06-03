@@ -7,7 +7,7 @@ android {
         applicationId "com.iptvlive"
         // 新增 namespace 和包名一致
         namespace "com.iptvlive"
-        minSdk 21
+        minSdk 26
         targetSdk 33
         versionCode 1
         versionName "1.0"
