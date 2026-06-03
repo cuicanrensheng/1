@@ -24,6 +24,7 @@ android {
         versionCode 20
         versionName "2.0"
         multiDexEnabled true
+        coreLibraryDesugaringEnabled true
 
         buildConfigField "int", "VERSION_CODE", "${versionCode}"
         buildConfigField "String", "VERSION_NAME", "\"${versionName}\""
@@ -100,4 +101,5 @@ dependencies {
 
     //脱糖依赖（最后一行新增）
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    
 }
