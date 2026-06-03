@@ -4,11 +4,9 @@
     android:layout_height="match_parent"
     android:padding="12dp"
     android:background="#CC000000">
-
     <ListView
         android:id="@+id/lv_epg"
         android:textColor="#ffffff"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
-
 </LinearLayout>
