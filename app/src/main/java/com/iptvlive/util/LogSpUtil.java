@@ -2,7 +2,7 @@ package com.iptvlive.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import com.alibaba.fastjson2.JSON;
+import com.google.gson.Gson;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -21,6 +21,7 @@ public class LogSpUtil {
     private static final String KEY_PARSE = "parse_log_list";
     private static final String KEY_OPER = "oper_log_list";
     private static final int MAX_LOG = 200;
+    private static final Gson gson = new Gson();
 
     public static void init(Context ctx) {
         sp = ctx.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
@@ -36,11 +37,11 @@ public class LogSpUtil {
         List<String> list = getParseLogList();
         list.add(0, getNowTime() + " | " + msg);
         if (list.size() > MAX_LOG) list = list.subList(0, MAX_LOG);
-        sp.edit().putString(KEY_PARSE, JSON.toJSONString(list)).apply();
+        sp.edit().putString(KEY_PARSE, gson.toJson(list)).apply();
     }
     public static List<String> getParseLogList() {
         String json = sp.getString(KEY_PARSE, "[]");
-        return JSON.parseArray(json, String.class);
+        return gson.fromJson(json, ArrayList.class);
     }
 
     //新增操作日志
@@ -48,10 +49,10 @@ public class LogSpUtil {
         List<String> list = getOperCrashLogList();
         list.add(0, getNowTime() + " | " + msg);
         if (list.size() > MAX_LOG) list = list.subList(0, MAX_LOG);
-        sp.edit().putString(KEY_OPER, JSON.toJSONString(list)).apply();
+        sp.edit().putString(KEY_OPER, gson.toJson(list)).apply();
     }
     public static List<String> getOperCrashLogList() {
         String json = sp.getString(KEY_OPER, "[]");
-        return JSON.parseArray(json, String.class);
+        return gson.fromJson(json, ArrayList.class);
     }
 }
