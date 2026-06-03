@@ -24,8 +24,7 @@ android {
         versionCode 20
         versionName "2.0"
         multiDexEnabled true
-        coreLibraryDesugaringEnabled true
-
+      
         buildConfigField "int", "VERSION_CODE", "${versionCode}"
         buildConfigField "String", "VERSION_NAME", "\"${versionName}\""
     }
