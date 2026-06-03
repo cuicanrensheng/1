@@ -13,9 +13,8 @@ public class PlayErrClassUtil {
             case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT:
             case PlaybackException.ERROR_CODE_IO_UNSPECIFIED:
                 return "【网络异常】";
-            //媒体格式错误
+            //媒体格式错误（删除不存在的 ERROR_CODE_PARSING_FORMAT_UNSUPPORTED）
             case PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED:
-            case PlaybackException.ERROR_CODE_PARSING_FORMAT_UNSUPPORTED:
             case PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED:
                 return "【格式异常】";
             //解码错误
