@@ -1,5 +1,4 @@
 package com.iptvlive.activity;
-
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -16,22 +15,36 @@ import com.iptvlive.util.LogSpUtil;
 import java.io.File;
 
 /**
- * 设置页面：Header配置、WEB服务、日志、清除缓存、自动刷新开关
+ * 设置页面：Header配置、WEB服务、日志、清除缓存、自动刷新开关、M3U/EPG源配置
  */
 public class SettingActivity extends AppCompatActivity {
     private EditText etUa, etRef, etCk;
+    //新增源输入框
+    private EditText etM3uUrl, etEpgUrl;
     private CheckBox cbAutoRefresh;
     private LocalHttpServer webServer;
+
+    //默认源（加速地址）
+    public static final String DEFAULT_M3U = "https://mirror.ghproxy.com/https://raw.githubusercontent.com/cuicanrensheng/IPTV/refs/heads/main/playlist1.m3u";
+    public static final String DEFAULT_EPG = "https://epg.catvod.com/epg.xml";
+    //sp存储key
+    public static final String KEY_M3U = "m3u_url";
+    public static final String KEY_EPG = "epg_url";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_setting);
         bindView();
-        //回填已有配置
+
+        //header回填
         etUa.setText(HttpHeaderSpUtil.getUA());
         etRef.setText(HttpHeaderSpUtil.getReferer());
         etCk.setText(HttpHeaderSpUtil.getCookie());
+        //源地址回填，没有则填充默认链接
+        etM3uUrl.setText(AppSpUtil.getString(KEY_M3U, DEFAULT_M3U));
+        etEpgUrl.setText(AppSpUtil.getString(KEY_EPG, DEFAULT_EPG));
+
         cbAutoRefresh.setChecked(AppSpUtil.getAutoRefreshSub());
     }
 
@@ -39,15 +52,19 @@ public class SettingActivity extends AppCompatActivity {
         etUa = findViewById(R.id.et_ua);
         etRef = findViewById(R.id.et_ref);
         etCk = findViewById(R.id.et_ck);
-        cbAutoRefresh = findViewById(R.id.cb_auto_refresh);
+        //绑定新增控件
+        etM3uUrl = findViewById(R.id.et_m3u_url);
+        etEpgUrl = findViewById(R.id.et_epg_url);
 
+        cbAutoRefresh = findViewById(R.id.cb_auto_refresh);
         Button btnSaveHeader = findViewById(R.id.btn_save_header);
+        Button btnSaveSource = findViewById(R.id.btn_save_source);
         Button btnOpenWeb = findViewById(R.id.btn_open_web);
         Button btnParseLog = findViewById(R.id.btn_parse_log);
         Button btnOptLog = findViewById(R.id.btn_opt_log);
         Button btnClearCache = findViewById(R.id.btn_clear_cache);
 
-        //保存Header
+        //保存header
         btnSaveHeader.setOnClickListener(v -> {
             HttpHeaderSpUtil.setUA(etUa.getText().toString().trim());
             HttpHeaderSpUtil.setReferer(etRef.getText().toString().trim());
@@ -55,7 +72,16 @@ public class SettingActivity extends AppCompatActivity {
             Toast.makeText(this, "Header保存成功", Toast.LENGTH_SHORT).show();
         });
 
-        //启动WEB 10481
+        //保存M3U+EPG源
+        btnSaveSource.setOnClickListener(v -> {
+            String m3u = etM3uUrl.getText().toString().trim();
+            String epg = etEpgUrl.getText().toString().trim();
+            AppSpUtil.putString(KEY_M3U, m3u);
+            AppSpUtil.putString(KEY_EPG, epg);
+            Toast.makeText(this, "源地址保存成功", Toast.LENGTH_SHORT).show();
+        });
+
+        //启动web服务
         btnOpenWeb.setOnClickListener(v -> {
             try {
                 if (webServer == null) {
@@ -80,14 +106,14 @@ public class SettingActivity extends AppCompatActivity {
             new AlertDialog.Builder(this).setMessage(log).show();
         });
 
-        //删除EPG缓存
+        //清除epg缓存
         btnClearCache.setOnClickListener(v -> {
             File cache = new File(getFilesDir(), "epg_cache.xml");
             if (cache.exists()) cache.delete();
             Toast.makeText(this, "EPG缓存已清除", Toast.LENGTH_SHORT).show();
         });
 
-        //自动刷新勾选
+        //自动刷新开关
         cbAutoRefresh.setOnCheckedChangeListener((buttonView, isChecked) -> {
             AppSpUtil.setAutoRefreshSub(isChecked);
             if (isChecked) {
