@@ -31,6 +31,6 @@ IPTV_LIVE
       │     └─ PlayHeaderUtil.java          //Header优先级工具：频道私有>全局
       └─ res/layout
          ├─ activity_play.xml    //播放页布局（Surface+右上角频道号+底部OSD嵌入）
-         ├─ activity_setting.xml //设置页面布局
+         ├─ activity_setting.xml //设置页面布局【已新增M3U、EPG输入框+保存按钮】
          ├─ dialog_epg.xml       //EPG弹窗布局
          └─ osd_info.xml         //底部OSD信息栏布局
