@@ -31,6 +31,13 @@ jobs:
         with:
           path: ~/.gradle/wrapper
           key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+          
+        - name: 自动生成默认图标
+        run: |
+          mkdir -p app/src/main/res/mipmap-mdpi
+          # 生成最小合法png占位图
+          apt update && apt install -y imagemagick
+          convert -size 96x96 xc:#3F51B5 app/src/main/res/mipmap-mdpi/ic_launcher.png
 
       - name: 配置gradle签名参数
         run: |
