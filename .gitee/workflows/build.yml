@@ -18,10 +18,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 设置 JDK 11 + Gradle缓存
+      # 修改：java-version改为17
+      - name: 设置 JDK 17 + Gradle缓存
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
           cache: gradle
 
