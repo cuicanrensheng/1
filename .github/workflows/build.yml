@@ -44,6 +44,9 @@ jobs:
           echo "MY_KEY_ALIAS=myreleasekey" >> gradle.properties
           echo "MY_KEY_PASSWORD=admin123" >> gradle.properties
 
+      - name: 扩充Gradle内存防止OOM
+        run: echo "org.gradle.jvmargs=-Xmx4g" >> gradle.properties
+
       - name: 赋予gradlew执行权限
         run: chmod +x gradlew
 
