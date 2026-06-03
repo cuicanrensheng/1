@@ -38,15 +38,8 @@ jobs:
           echo "MY_KEY_ALIAS=myreleasekey" >> gradle.properties
           echo "MY_KEY_PASSWORD=admin123" >> gradle.properties
 
-      # 新增：云端生成gradle wrapper（缩进对齐）
-      - name: 生成Gradle Wrapper
-        run: gradle wrapper 
-
-      - name: 赋予gradlew执行权限
-        run: chmod +x gradlew
-
       - name: 编译 Release 签名APK
-        run: ./gradlew clean assembleRelease --stacktrace
+        run: gradle clean assembleRelease --stacktrace
 
       - name: 生成 update.json
         run: |
