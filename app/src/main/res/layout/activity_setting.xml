@@ -78,23 +78,28 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
-        <!--新增 直播源+EPG配置-->
+        <!--新增 订阅源+EPG配置（xml内置默认地址）-->
         <TextView
             android:text="订阅源配置"
             android:textSize="18sp"
             android:layout_marginTop="12dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
+
         <EditText
             android:id="@+id/et_m3u_url"
+            android:text="https://mirror.ghproxy.com/https://raw.githubusercontent.com/cuicanrensheng/IPTV/refs/heads/main/playlist1.m3u"
             android:hint="M3U直播源地址"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
+
         <EditText
             android:id="@+id/et_epg_url"
+            android:text="https://epg.catvod.com/epg.xml"
             android:hint="EPG节目单地址"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
+
         <Button
             android:id="@+id/btn_save_source"
             android:text="保存源地址"
