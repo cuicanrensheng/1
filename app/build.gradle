@@ -6,6 +6,13 @@ android {
     namespace "com.tv.live"
     compileSdk 34
 
+    //新增Java8+脱糖配置
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
+    }
+
     buildFeatures {
         buildConfig true
     }
@@ -63,22 +70,18 @@ dependencies {
     implementation "com.google.android.material:material:1.11.0"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     implementation "androidx.recyclerview:recyclerview:1.3.2"
-    // ========== 新增：ExoPlayer UI组件（可选，用于调试） ==========
-    implementation "com.google.android.exoplayer:exoplayer-ui:2.19.1"
-     // ExoPlayer 播放器（纯播放器）
+
+    //Exo 去重，只保留一份
     implementation "com.google.android.exoplayer:exoplayer:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-ui:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-hls:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-dash:2.19.1"
 
     // 二维码
     implementation 'com.google.zxing:core:3.5.1'
 
     // JSON
     implementation 'com.google.code.gson:gson:2.10.1'
-
-    // ExoPlayer 纯播放器（无 VLC）
-    implementation "com.google.android.exoplayer:exoplayer:2.19.1"
-    implementation "com.google.android.exoplayer:exoplayer-ui:2.19.1"
-    implementation "com.google.android.exoplayer:exoplayer-hls:2.19.1"
-    implementation "com.google.android.exoplayer:exoplayer-dash:2.19.1"
 
     // 网络
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
@@ -93,11 +96,8 @@ dependencies {
     implementation "org.apache.commons:commons-lang3:3.14.0"
     implementation "com.blankj:utilcodex:1.31.1"
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
-    
-    //fastjson2序列化SP日志
     implementation 'com.alibaba.fastjson2:fastjson2:2.0.32'
-    //约束布局
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    //NanoHttpd局域网WEB 10481端口
-    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+
+    //脱糖依赖（最后一行新增）
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }
