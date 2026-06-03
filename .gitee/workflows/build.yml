@@ -31,15 +31,18 @@ jobs:
           path: ~/.gradle/wrapper
           key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
 
-      - name: 配置gradle签名参数（对应你的keystore信息）
+      - name: 配置gradle签名参数
         run: |
           echo "MY_STORE_FILE=../release.keystore" >> gradle.properties
           echo "MY_STORE_PASSWORD=admin123" >> gradle.properties
           echo "MY_KEY_ALIAS=myreleasekey" >> gradle.properties
           echo "MY_KEY_PASSWORD=admin123" >> gradle.properties
 
+      - name: 赋予gradlew执行权限
+        run: chmod +x gradlew
+
       - name: 编译 Release 签名APK
-        run: gradle clean assembleRelease --stacktrace
+        run: ./gradlew clean assembleRelease --stacktrace
 
       - name: 生成 update.json
         run: |
