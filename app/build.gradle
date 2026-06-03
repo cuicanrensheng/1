@@ -1,0 +1,36 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    compileSdk 33
+    defaultConfig {
+        applicationId "com.iptvlive"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+    buildFeatures {
+        viewBinding true
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+dependencies {
+    //安卓X基础兼容库
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    //Exo播放器核心【纯系统HTTP，注释下行okhttp依赖，自动URLConnection】
+    implementation 'com.google.android.exoplayer2:exoplayer:2.19.1'
+    //需要OKHTTP取消注释下行
+    //implementation 'com.google.android.exoplayer2:exoplayer-okhttp:2.19.1'
+    //二维码核心
+    implementation 'com.google.zxing:core:3.5.3'
+    //fastjson2序列化SP日志
+    implementation 'com.alibaba.fastjson2:fastjson2:2.0.32'
+    //约束布局
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    //NanoHttpd局域网WEB 10481端口
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+}
