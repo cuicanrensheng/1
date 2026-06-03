@@ -17,6 +17,23 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    //=====新增签名配置开始=====
+    signingConfigs {
+        release {
+            storeFile file(project.hasProperty('MY_STORE_FILE') ? project.property('MY_STORE_FILE') : '../release.keystore')
+            storePassword project.hasProperty('MY_STORE_PASSWORD') ? project.property('MY_STORE_PASSWORD') : 'admin123'
+            keyAlias project.hasProperty('MY_KEY_ALIAS') ? project.property('MY_KEY_ALIAS') : 'myreleasekey'
+            keyPassword project.hasProperty('MY_KEY_PASSWORD') ? project.property('MY_KEY_PASSWORD') : 'admin123'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    //=====新增签名配置结束=====
 }
 dependencies {
     //安卓X基础兼容库
