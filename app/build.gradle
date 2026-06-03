@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace "com.tvlive"
+    namespace "com.tv.live"
     compileSdk 34
 
     buildFeatures {
