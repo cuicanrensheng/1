@@ -1,40 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="#CC000000"
-    android:padding="12dp"
-    android:orientation="vertical">
+    android:layout_height="match_parent">
+
+    <SurfaceView
+        android:id="@+id/surface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
 
     <TextView
-        android:id="@+id/tv_ch_name"
+        android:id="@+id/tv_top_ch_num"
+        android:textColor="#FFFFFF"
+        android:textSize="56sp"
+        android:visibility="gone"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="24dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#FFF"
-        android:textSize="20sp"/>
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
-    <LinearLayout
-        android:layout_width="wrap_content"
+    <include
+        android:id="@+id/ll_osd_root"
+        layout="@layout/osd_info"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
-        <TextView
-            android:id="@+id/tv_ch_no"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#FFF"/>
-        <TextView
-            android:id="@+id/tv_fhd"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="HD"
-            android:textColor="#0F0"
-            android:layout_marginStart="8dp"/>
-    </LinearLayout>
+        app:layout_constraintBottom_toBottomOf="parent"/>
 
-    <TextView
-        android:id="@+id/tv_epg_info"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="#DDDDDD"
-        android:textSize="14sp"/>
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
