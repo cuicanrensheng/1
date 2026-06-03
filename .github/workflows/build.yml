@@ -1,7 +1,7 @@
 name: Build TV Live APK
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 permissions:
@@ -44,7 +44,6 @@ jobs:
           echo "MY_KEY_ALIAS=myreleasekey" >> gradle.properties
           echo "MY_KEY_PASSWORD=admin123" >> gradle.properties
 
-      # ==========新增布局自动生成步骤 start==========
       - name: 批量生成全部layout布局
         run: |
           mkdir -p app/src/main/res/layout
@@ -107,7 +106,6 @@ EOF
 <ListView android:id="@+id/lv_epg" android:textColor="#ffffff" android:layout_width="match_parent" android:layout_height="match_parent"/>
 </LinearLayout>
 EOF
-      # ==========新增布局自动生成步骤 end==========
 
       - name: 赋予gradlew执行权限
         run: chmod +x gradlew
