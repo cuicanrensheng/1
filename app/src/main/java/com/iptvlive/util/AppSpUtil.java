@@ -97,4 +97,13 @@ public class AppSpUtil {
     public static void setCurEpgUrl(String u) {
         sp.edit().putString("cur_epg", u).apply();
     }
+        //补充双参数getString、putString
+    public static String getString(String key, String defValue) {
+        return sp.getString(key, defValue);
+    }
+
+    public static void putString(String key, String value) {
+        sp.edit().putString(key, value).apply();
+    }
+
 }
