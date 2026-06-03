@@ -1,1 +1,37 @@
-# 1
+项目整体目录（按路径新建所有文件）
+IPTV_LIVE
+├─ settings.gradle          //项目模块配置
+├─ gradle.properties        //编译参数配置
+├─ build.gradle             //项目根构建脚本
+└─ app
+   ├─ build.gradle          //APP模块依赖配置
+   └─ src/main
+      ├─ AndroidManifest.xml//清单、权限、四大组件注册
+      ├─ java/com/iptvlive/
+      │  ├─ App.java                        //Application全局初始化
+      │  ├─ activity/
+      │  │  ├─ PlayActivity.java            //主播放页面+OSD弹窗+换台逻辑
+      │  │  ├─ SettingActivity.java         //设置页+二维码+日志查看+Header配置
+      │  │  └─ EpgDialog.java               //EPG节目弹窗
+      │  ├─ bean/
+      │  │  ├─ ChannelBean.java             //频道实体（单频道独立Refer/Cookie、分辨率、码率）
+      │  │  └─ EpgInfoBean.java             //EPG节目实体
+      │  ├─ receiver/
+      │  │  ├─ BootReceiver.java            //开机自启广播
+      │  │  └─ RefreshSubReceiver.java      //定时刷新M3U+EPG广播、全局频道缓存
+      │  └─ util/
+      │     ├─ AppSpUtil.java               //全局设置SP存储工具
+      │     ├─ AutoRefreshUtil.java         //定时闹钟管理工具
+      │     ├─ DomainLineUtil.java          //域名优选排序工具
+      │     ├─ EpgXmlParserUtil.java        //EPG-XML下载+解析工具
+      │     ├─ EpgTimeUtil.java             //EPG时间格式化工具
+      │     ├─ HttpHeaderSpUtil.java        //全局UA/Refer/Cookie存储（默认UA:ExoPlayer）
+      │     ├─ LogSpUtil.java               //日志存储（解析日志+操作日志上限200条）
+      │     ├─ M3UParserUtil.java           //M3U订阅源解析工具（识别tvg-id/分辨率/码率）
+      │     ├─ PlayErrClassUtil.java        //播放异常分类：网络/格式/解码/其他
+      │     └─ PlayHeaderUtil.java          //Header优先级工具：频道私有>全局
+      └─ res/layout
+         ├─ activity_play.xml    //播放页布局（Surface+右上角频道号+底部OSD嵌入）
+         ├─ activity_setting.xml //设置页面布局
+         ├─ dialog_epg.xml       //EPG弹窗布局
+         └─ osd_info.xml         //底部OSD信息栏布局
