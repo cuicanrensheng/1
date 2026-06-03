@@ -33,7 +33,7 @@ jobs:
           key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
           
         - name: 自动生成默认图标
-        run: |
+          run: |
           mkdir -p app/src/main/res/mipmap-mdpi
           # 生成最小合法png占位图
           apt update && apt install -y imagemagick
