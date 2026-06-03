@@ -8,7 +8,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:spacing="8dp">
+        android:layout_marginBottom="8dp">
 
         <TextView
             android:text="全局Header配置"
@@ -78,7 +78,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
-        <!--新增 订阅源+EPG配置（xml内置默认地址）-->
         <TextView
             android:text="订阅源配置"
             android:textSize="18sp"
