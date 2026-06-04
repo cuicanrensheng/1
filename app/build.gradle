@@ -3,7 +3,6 @@ plugins {
 }
 
 android {
-    //【关键修改】namespace与applicationId统一改成com.iptvlive
     namespace "com.iptvlive"
     compileSdk 34
 
@@ -18,12 +17,12 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.iptvlive" //和源码目录com/iptvlive、Manifest包名完全一致
+        applicationId "com.iptvlive"
         minSdk 21
         targetSdk 34
         versionCode 20
         versionName "2.0"
-        multiDexEnabled true
+        //multiDexEnabled true  //【注释关闭分包】
       
         buildConfigField "int", "VERSION_CODE", "${versionCode}"
         buildConfigField "String", "VERSION_NAME", "\"${versionName}\""
@@ -46,7 +45,7 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false //当前关闭混淆，先解决ClassNotFound崩溃
+            minifyEnabled false
             shrinkResources false
             crunchPngs false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -65,8 +64,8 @@ android {
 }
 
 dependencies {
-    // 新增multidex分包依赖（解决DexPathList类加载异常）
-    implementation 'androidx.multidex:multidex:2.0.1'
+    //【删除下面这行multidex依赖】
+    //implementation 'androidx.multidex:multidex:2.0.1'
 
     // Android 基础
     implementation "androidx.appcompat:appcompat:1.6.1"
@@ -88,7 +87,7 @@ dependencies {
 
     // 网络
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
-    implementation "com.squareup.retrofit2:retrofit:2.11.0"
+    implementation "com.squareup.retrofit2:retrofit2:2.11.0"
     implementation "com.squareup.retrofit2:converter-gson:2.11.0"
 
     // 图片加载
