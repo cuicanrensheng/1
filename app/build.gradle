@@ -3,10 +3,10 @@ plugins {
 }
 
 android {
-    namespace "com.tv.live"
+    //【关键修改】namespace与applicationId统一改成com.iptvlive
+    namespace "com.iptvlive"
     compileSdk 34
 
-    //新增Java8+脱糖配置
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -18,7 +18,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.tv.live"
+        applicationId "com.iptvlive" //和源码目录com/iptvlive、Manifest包名完全一致
         minSdk 21
         targetSdk 34
         versionCode 20
@@ -46,7 +46,7 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled false //当前关闭混淆，先解决ClassNotFound崩溃
             shrinkResources false
             crunchPngs false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -65,13 +65,16 @@ android {
 }
 
 dependencies {
+    // 新增multidex分包依赖（解决DexPathList类加载异常）
+    implementation 'androidx.multidex:multidex:2.0.1'
+
     // Android 基础
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "com.google.android.material:material:1.11.0"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     implementation "androidx.recyclerview:recyclerview:1.3.2"
 
-    //Exo 去重，只保留一份
+    //ExoPlayer
     implementation "com.google.android.exoplayer:exoplayer:2.19.1"
     implementation "com.google.android.exoplayer:exoplayer-ui:2.19.1"
     implementation "com.google.android.exoplayer:exoplayer-hls:2.19.1"
