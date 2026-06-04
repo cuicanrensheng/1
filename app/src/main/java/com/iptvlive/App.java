@@ -1,6 +1,6 @@
 package com.iptvlive;
 
-import android.app.Application;
+import androidx.multidex.MultiDexApplication;
 import android.util.Log;
 import com.iptvlive.util.AppSpUtil;
 import com.iptvlive.util.HttpHeaderSpUtil;
@@ -10,7 +10,8 @@ import com.iptvlive.util.LogSpUtil;
  * APP全局Application，程序启动最先初始化
  * 初始化全部SP存储工具、全局崩溃捕获
  */
-public class App extends Application {
+// 父类从Application改为MultiDexApplication
+public class App extends MultiDexApplication {
     @Override
     public void onCreate() {
         super.onCreate();
