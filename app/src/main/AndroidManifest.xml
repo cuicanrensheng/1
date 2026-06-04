@@ -8,11 +8,11 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
 
-    <application android:name="com.iptvlive.App"
+    <application android:name="com.iptvlive"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
         <activity android:name=".activity.PlayActivity" android:exported="true">
             <intent-filter>
@@ -21,7 +21,6 @@
             </intent-filter>
         </activity>
         <activity android:name=".activity.SettingActivity"/>
-
 
         <receiver android:name=".receiver.BootReceiver" android:exported="true">
             <intent-filter>
