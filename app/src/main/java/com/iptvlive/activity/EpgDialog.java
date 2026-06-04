@@ -21,6 +21,12 @@ public class EpgDialog extends Dialog {
     private String chName;
     private ListView lvEpg;
 
+    // 单参构造（兼容系统规范）
+    public EpgDialog(Context context) {
+        this(context, "");
+    }
+
+    // 原有双参构造保留
     public EpgDialog(Context context, String name) {
         super(context);
         mCtx = context;
