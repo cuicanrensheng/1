@@ -21,7 +21,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".activity.SettingActivity"/>
-        <activity android:name=".activity.EpgDialog"/>
+
 
         <receiver android:name=".receiver.BootReceiver" android:exported="true">
             <intent-filter>
