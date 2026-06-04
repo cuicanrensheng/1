@@ -1,5 +1,6 @@
 package com.iptvlive.activity;
-import com.tv.live.R;
+import com.iptvlive.R;
+
 
 import android.os.Bundle;
 import android.view.View;
