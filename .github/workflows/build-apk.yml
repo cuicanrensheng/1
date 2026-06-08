@@ -1,36 +1,56 @@
-name: Build TV Live APK
- on:
-   push:
-     branches: [ main ]
-   # 推送tag触发发布Release
-   push:
-     tags:
-       - 'v*'
- jobs:
-   build:
-     runs-on: ubuntu-latest
-     steps:
-       - name: 拉取源码
-         uses: actions/checkout@v4
-       - name: 设置JDK17（Android Gradle推荐）
-         uses: actions/setup-java@v4
-         with:
-           java-version: '17'
-           distribution: 'temurin'
-           cache: gradle
-       - name: 赋予gradle脚本执行权限
-         run: chmod +x gradlew
-       - name: 编译Release APK
-         run: ./gradlew assembleRelease
-       - name: 上传编译产物到工作流Artifacts
-         uses: actions/upload-artifact@v4
-         with:
-           name: TVLive-APK
-           path: app/build/outputs/apk/release/app-release-unsigned.apk
-       # 打版本tag时自动创建Release并上传APK
-       - name: 发布Release安装包
-         if: startsWith(github.ref, 'refs/tags/v')
-         uses: softprops/action-gh-release@v2
-         with:
-           files: app/build/outputs/apk/release/app-release-unsigned.apk
-           generate_release_notes: true
+name: Build Signed TV Live APK
+on:
+  push:
+    branches: [ main ]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取源码
+        uses: actions/checkout@v4
+
+      - name: 设置JDK17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # 还原签名文件
+      - name: 还原release.keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+
+      # 写入gradle签名配置
+      - name: 注入签名配置到gradle.properties
+        run: |
+          echo "KEY_STORE_FILE=../release.keystore" >> gradle.properties
+          echo "KEY_STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> gradle.properties
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> gradle.properties
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> gradle.properties
+
+      - name: 赋予脚本执行权限
+        run: chmod +x gradlew
+
+      # 编译带签名Release包
+      - name: 编译签名APK
+        run: ./gradlew assembleRelease
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: TVLive-Signed-APK
+          path: app/build/outputs/apk/release/app-release.apk
+
+      - name: 发布Release（打tag触发）
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/app-release.apk
+          generate_release_notes: true
