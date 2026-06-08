@@ -1,4 +1,4 @@
-}package com.tvlive
+package com.tvlive
 
 import android.os.Bundle
 import android.view.KeyEvent
@@ -6,9 +6,9 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
-import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.ui.PlayerView
 
 class MainActivity : AppCompatActivity() {
 
@@ -40,7 +40,6 @@ class MainActivity : AppCompatActivity() {
         player = ExoPlayer.Builder(this).build()
         playerView.player = player
 
-        // 换成你自己的直播源地址
         val mediaItem = MediaItem.fromUri("http://your-stream-url.com/stream.m3u8")
         player?.setMediaItem(mediaItem)
         player?.prepare()
@@ -48,7 +47,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openSetting() {
-        // 空实现，不崩溃
+      
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
