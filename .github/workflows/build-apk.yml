@@ -1,0 +1,36 @@
+name: Build TV Live APK
+ on:
+   push:
+     branches: [ main ]
+   # 推送tag触发发布Release
+   push:
+     tags:
+       - 'v*'
+ jobs:
+   build:
+     runs-on: ubuntu-latest
+     steps:
+       - name: 拉取源码
+         uses: actions/checkout@v4
+       - name: 设置JDK17（Android Gradle推荐）
+         uses: actions/setup-java@v4
+         with:
+           java-version: '17'
+           distribution: 'temurin'
+           cache: gradle
+       - name: 赋予gradle脚本执行权限
+         run: chmod +x gradlew
+       - name: 编译Release APK
+         run: ./gradlew assembleRelease
+       - name: 上传编译产物到工作流Artifacts
+         uses: actions/upload-artifact@v4
+         with:
+           name: TVLive-APK
+           path: app/build/outputs/apk/release/app-release-unsigned.apk
+       # 打版本tag时自动创建Release并上传APK
+       - name: 发布Release安装包
+         if: startsWith(github.ref, 'refs/tags/v')
+         uses: softprops/action-gh-release@v2
+         with:
+           files: app/build/outputs/apk/release/app-release-unsigned.apk
+           generate_release_notes: true
