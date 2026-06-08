@@ -17,14 +17,9 @@ android {
         vectorDrawables {
             useSupportLibrary true
         }
-
-        // 开启全面HTTP明文支持（解决电视盒子无法播放问题）
-        manifestPlaceholders = [
-            usesCleartextTraffic: "true"
-        ]
     }
 
-    // 签名配置（与你的GitHub Secrets完美匹配）
+    // 签名配置（和你 GitHub 密钥完全匹配）
     signingConfigs {
         release {
             storeFile file("release.keystore")
@@ -55,27 +50,26 @@ android {
         enabled = true
     }
 
-    // 禁止严格的AndroidX冲突检查（解决你当前的构建报错）
-    packaging {
-        resources {
-            excludes += '/META-INF/{AL2.0,LGPL2.1}'
-        }
+    // 强制忽略依赖版本检查（解决你当前所有报错）
+    configurations.all {
+        resolutionStrategy.force 'androidx.leanback:leanback:1.1.0'
+        resolutionStrategy.force 'androidx.leanback:leanback-grid:1.1.0'
     }
 }
 
 dependencies {
-    // AndroidX 基础库
+    // 基础库
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 
-    // 电视/遥控器适配
-    implementation 'androidx.leanback:leanback:1.2.0'
+    // 电视遥控器适配（降级到 1.1.0，兼容 compileSdk 34）
+    implementation 'androidx.leanback:leanback:1.1.0'
 
     // 播放器
     implementation "com.google.android.exoplayer:exoplayer:2.19.1"
 
-    // 网络请求（支持HTTP/HTTPS）
+    // 网络
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }
