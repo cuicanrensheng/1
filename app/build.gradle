@@ -50,22 +50,23 @@ android {
         enabled = true
     }
 
-    // 强制忽略依赖版本检查（解决你当前所有报错）
-    configurations.all {
-        resolutionStrategy.force 'androidx.leanback:leanback:1.1.0'
-        resolutionStrategy.force 'androidx.leanback:leanback-grid:1.1.0'
+    // 修复依赖冲突
+    packaging {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
     }
 }
 
 dependencies {
-    // 基础库
+    // 基础 AndroidX
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 
-    // 电视遥控器适配（降级到 1.1.0，兼容 compileSdk 34）
-    implementation 'androidx.leanback:leanback:1.1.0'
+    // 电视盒子 兼容版（不会报错！）
+    implementation 'androidx.leanback:leanback:1.0.0'
 
     // 播放器
     implementation "com.google.android.exoplayer:exoplayer:2.19.1"
