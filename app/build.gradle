@@ -3,13 +3,20 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// ---------- 新增：加载签名配置（兼容本地+GitHub Actions） ----------
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "com.tvlive"
     compileSdk 34
 
     defaultConfig {
         applicationId "com.tvlive"
-        minSdk 21 // 兼容老旧电视盒子
+        minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -19,10 +26,25 @@ android {
         }
     }
 
+    // ---------- 新增：签名配置（和你密钥对应） ----------
+    signingConfigs {
+        release {
+            // 本地用 keystore.properties，CI 用环境变量
+            storeFile keystorePropertiesFile.exists()
+                ? file(keystoreProperties['storeFile'])
+                : file(System.getenv("KEYSTORE_PATH") ?: "release.keystore")
+            storePassword keystoreProperties['storePassword'] ?: System.getenv("STORE_PASSWORD")
+            keyAlias keystoreProperties['keyAlias'] ?: System.getenv("KEY_ALIAS")
+            keyPassword keystoreProperties['keyPassword'] ?: System.getenv("KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // ---------- 新增：绑定 release 签名 ----------
+            signingConfig signingConfigs.release
         }
     }
     compileOptions {
