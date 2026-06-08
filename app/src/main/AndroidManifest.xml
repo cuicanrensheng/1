@@ -5,27 +5,21 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- 同时支持触屏手机、无触摸电视设备 -->
-    <uses-feature android:name="android.software.leanback" android:required="false" />
-    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.TVLive">
+        android:icon="@android:drawable/ic_menu_view"
+        android:label="TV直播"
+        android:theme="@android:style/Theme.Light.NoTitleBar.Fullscreen"
+        android:usesCleartextTraffic="true"
+        android:supportsRtl="true">
+
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:immersive="true"
-            android:screenOrientation="landscape">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".SettingActivity" android:exported="false"/>
     </application>
 </manifest>
