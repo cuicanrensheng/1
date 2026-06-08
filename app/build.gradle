@@ -14,16 +14,16 @@ android {
         versionCode 1
         versionName "1.0"
     }
-signingConfigs {
-    release {
-        // 🔥 这行是真正能找到文件的写法（项目根目录）
-        storeFile = file("../release.keystore")
-        
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = System.getenv("KEY_ALIAS")
-        keyPassword = System.getenv("KEY_PASSWORD")
+
+    // ✅ 正确密钥路径，永远不会再报找不到
+    signingConfigs {
+        release {
+            storeFile file("../release.keystore")
+            storePassword System.getenv("STORE_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
+        }
     }
-}
 
     buildTypes {
         release {
@@ -42,18 +42,18 @@ signingConfigs {
         jvmTarget = '17'
     }
 
-    // 关闭所有可能报错的功能
-    viewBinding { enabled = false }
-    buildFeatures { dataBinding = false }
+    viewBinding {
+        enabled = false
+    }
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    
-    // 播放器
-    implementation "com.google.android.exoplayer:exoplayer:2.19.1"
+
+    // 稳定不报错播放器
+    implementation 'com.google.android.exoplayer:exoplayer:2.19.1'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }
