@@ -15,12 +15,13 @@ android {
         versionName "1.0"
     }
 
-    signingConfigs {
-        release {
-            storeFile file("release.keystore")
-            storePassword System.getenv("STORE_PASSWORD")
-            keyAlias System.getenv("KEY_ALIAS")
-            keyPassword System.getenv("KEY_PASSWORD")
+   signingConfigs {
+    release {
+        // 👇 这行是修复关键：从项目根目录读取密钥，不再报错
+        storeFile rootProject.file("release.keystore")
+        storePassword System.getenv("STORE_PASSWORD")
+        keyAlias System.getenv("KEY_ALIAS")
+        keyPassword System.getenv("KEY_PASSWORD")
         }
     }
 
