@@ -33,7 +33,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 强制全屏
         window.setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN
@@ -52,7 +51,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         tvEpg = findViewById(R.id.tvEpg)
         gestureDetector = GestureDetector(this, this)
 
-        // ✅【修复黑屏】启动就把播放器铺满全屏
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
         playerView.keepScreenOn = true
 
@@ -91,44 +89,38 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private fun loadChannelList() {
         CoroutineScope(Dispatchers.IO).launch {
             channelList = M3UHelper.getChannelList()
-            if (channelList.isNotEmpty()) {
-                launch(Dispatchers.Main) {
-                    playChannel(0) // 自动播放第一个频道
-                }
-            } else {
-                launch(Dispatchers.Main) {
+            // ✅ 修复黑屏：确保切台运行在主线程
+            launch(Dispatchers.Main) {
+                if (channelList.isNotEmpty()) {
+                    playChannel(0)
+                } else {
                     tvEpg.text = "未获取到频道"
                 }
             }
         }
     }
 
-    // ✅【修复黑屏】正确初始化 ExoPlayer，绝不黑屏
+    // ✅ 核心修复：所有播放器操作 强制运行在主线程
     private fun playChannel(pos: Int) {
-        if (channelList.isEmpty()) return
+        runOnUiThread {
+            if (channelList.isEmpty()) return@runOnUiThread
 
-        val safePos = pos.coerceIn(0, channelList.size - 1)
-        currentPosition = safePos
-        val channel = channelList[safePos]
+            val safePos = pos.coerceIn(0, channelList.size - 1)
+            currentPosition = safePos
+            val channel = channelList[safePos]
 
-        // 释放旧播放器
-        player?.release()
+            player?.release()
+            player = ExoPlayer.Builder(this).build()
+            playerView.player = player
 
-        // ✅ 新建播放器并绑定
-        player = ExoPlayer.Builder(this).apply {
-            setSeekBackIncrementMs(5000)
-        }.build()
+            val mediaItem = MediaItem.fromUri(channel.streamUrl)
+            player!!.setMediaItem(mediaItem)
+            player!!.prepare()
+            player!!.playWhenReady = true
 
-        playerView.player = player
-
-        // 播放
-        val mediaItem = MediaItem.fromUri(channel.streamUrl)
-        player!!.setMediaItem(mediaItem)
-        player!!.prepare()
-        player!!.playWhenReady = true
-
-        tvEpg.text = "正在播放：${channel.name}"
-        loadEpg()
+            tvEpg.text = "正在播放：${channel.name}"
+            loadEpg()
+        }
     }
 
     private fun loadEpg() {
@@ -151,8 +143,15 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    private fun previousChannel() = playChannel(if (currentPosition > 0) currentPosition - 1 else channelList.size - 1)
-    private fun nextChannel() = playChannel(if (currentPosition < channelList.size - 1) currentPosition + 1 else 0)
+    private fun previousChannel() {
+        val newPos = if (currentPosition > 0) currentPosition - 1 else channelList.size - 1
+        playChannel(newPos)
+    }
+
+    private fun nextChannel() {
+        val newPos = if (currentPosition < channelList.size - 1) currentPosition + 1 else 0
+        playChannel(newPos)
+    }
 
     private fun showScreenRatioDialog() {
         val items = arrayOf("正常", "拉伸", "填充")
