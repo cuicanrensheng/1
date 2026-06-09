@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private lateinit var playerView: PlayerView
     private lateinit var tvEpg: TextView
@@ -29,13 +29,11 @@ class MainActivity : AppCompatActivity() {
 
     private val EPG_URL = "https://epg.112114.xyz/epg.xml"
     private lateinit var gestureDetector: GestureDetector
-    private var lastClickTime = 0L
-    private val DOUBLE_CLICK_DELAY = 300
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 最强全屏：通知栏 + 导航栏 彻底永久隐藏
+        // 全屏
         window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -49,33 +47,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         playerView = findViewById(R.id.playerView)
         tvEpg = findViewById(R.id.tvEpg)
-
-        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-
-            // 单击 = OK 键
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                showChannelListDialog()
-                return true
-            }
-
-            // 滑动 = 方向键
-            override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dX: Float, dY: Float): Boolean {
-                if (dY < -10) previousChannel()
-                if (dY > 10) nextChannel()
-                return true
-            }
-
-            // 长按 = 长按OK键 → 设置
-            override fun onLongPress(e: MotionEvent) {
-                showScreenRatioDialog()
-            }
-
-            // 双击 = 菜单键 → 设置
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                showScreenRatioDialog()
-                return true
-            }
-        })
+        gestureDetector = GestureDetector(this, this)
 
         loadChannelList()
     }
@@ -92,6 +64,40 @@ class MainActivity : AppCompatActivity() {
                 or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             )
         }
+    }
+
+    // ==================== 触摸事件转发（关键修复）=====================
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        gestureDetector.onTouchEvent(event)
+        return true
+    }
+
+    // ==================== 手势实现 ====================
+    override fun onDown(e: MotionEvent): Boolean = true
+    override fun onShowPress(e: MotionEvent) {}
+    override fun onSingleTapUp(e: MotionEvent): Boolean = false
+
+    // 单击 = OK（频道列表）
+    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+        showChannelListDialog()
+        return true
+    }
+
+    // 滑动 = 上下切台
+    override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dX: Float, dY: Float): Boolean {
+        if (dY < -15) previousChannel()
+        if (dY > 15) nextChannel()
+        return true
+    }
+
+    // 长按 = 设置
+    override fun onLongPress(e: MotionEvent) {
+        showScreenRatioDialog()
+    }
+
+    override fun onFling(e1: MotionEvent?, e2: MotionEvent, vX: Float, vY: Float): Boolean {
+        if (e2.y < e1?.y ?: 0f) previousChannel() else nextChannel()
+        return true
     }
 
     // ==================== 频道播放 ====================
@@ -148,7 +154,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ==================== 屏幕比例设置 ====================
+    // ==================== 屏幕比例 ====================
     private fun showScreenRatioDialog() {
         val items = arrayOf("正常", "拉伸", "填充")
         AlertDialog.Builder(this)
@@ -157,13 +163,13 @@ class MainActivity : AppCompatActivity() {
                 when (which) {
                     0 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     1 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    2 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL // 填充 = 铺满全面屏
+                    2 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                 }
             }
             .show()
     }
 
-    // ==================== 电视遥控器 ====================
+    // ==================== 遥控器 ====================
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> previousChannel()
@@ -181,12 +187,6 @@ class MainActivity : AppCompatActivity() {
             .setTitle("频道列表")
             .setItems(names) { _, pos -> playChannel(pos) }
             .show()
-    }
-
-    // ==================== 手机触摸 ====================
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        gestureDetector.onTouchEvent(event)
-        return true
     }
 
     override fun onDestroy() {
