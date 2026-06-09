@@ -27,14 +27,19 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private var channelList = mutableListOf<Channel>()
     private var currentPosition = 0
 
-    private val EPG_URL = "https://epg.112114.xyz/epg.xml"
+    // ✅ 这里换成你自己的 EPG XML 链接即可
+    private val EPG_URL = "https://epg.catvod.com/epg.xml"
+
     private lateinit var gestureDetector: GestureDetector
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 全屏：隐藏状态栏 + 导航栏
-        window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        // 全屏（状态栏+导航栏永久隐藏）
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+            WindowManager.LayoutParams.FLAG_FULLSCREEN
+        )
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
             or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -52,52 +57,47 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         loadChannelList()
     }
 
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) {
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            )
-        }
+    // 触摸事件全局生效（手势核心）
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        gestureDetector.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
     }
 
-    // 触摸事件
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        gestureDetector.onTouchEvent(event)
-        return true
-    }
-
-    // 手势必须实现的方法
+    // 手势实现
     override fun onDown(e: MotionEvent): Boolean = true
     override fun onShowPress(e: MotionEvent) {}
     override fun onSingleTapUp(e: MotionEvent): Boolean {
         showChannelListDialog()
         return true
     }
-    override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dX: Float, dY: Float): Boolean {
-        if (dY < -15) previousChannel()
-        if (dY > 15) nextChannel()
+    override fun onScroll(
+        e1: MotionEvent?,
+        e2: MotionEvent,
+        distanceX: Float,
+        distanceY: Float
+    ): Boolean {
+        if (distanceY < -15) previousChannel()
+        if (distanceY > 15) nextChannel()
         return true
     }
     override fun onLongPress(e: MotionEvent) {
         showScreenRatioDialog()
     }
-    override fun onFling(e1: MotionEvent?, e2: MotionEvent, vX: Float, vY: Float): Boolean {
-        if (e2.y < (e1?.y ?: 0f)) previousChannel() else nextChannel()
+    override fun onFling(
+        e1: MotionEvent?,
+        e2: MotionEvent,
+        velocityX: Float,
+        velocityY: Float
+    ): Boolean {
         return true
     }
 
-    // 加载频道
+    // 加载频道列表
     private fun loadChannelList() {
         CoroutineScope(Dispatchers.IO).launch {
             channelList = M3UHelper.getChannelList()
             if (channelList.isNotEmpty()) {
-                runOnUiThread {
+                launch(Dispatchers.Main) {
                     playChannel(0)
                 }
             }
@@ -120,33 +120,35 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         player!!.playWhenReady = true
 
         tvEpg.text = "正在播放：${channel.name}"
-        loadEpg()
+        loadEpgFromNetwork() // ✅ 切台自动刷新 EPG
     }
 
-    // 切台
-    private fun previousChannel() = playChannel(if (currentPosition > 0) currentPosition - 1 else channelList.size - 1)
-    private fun nextChannel() = playChannel(if (currentPosition < channelList.size - 1) currentPosition + 1 else 0)
-
-    // EPG
-    private fun loadEpg() {
+    // ✅ 从网络链接自动获取 EPG XML
+    private fun loadEpgFromNetwork() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val client = OkHttpClient()
                 val request = Request.Builder().url(EPG_URL).build()
-                val xml = client.newCall(request).execute().body?.string() ?: ""
-                val list = EpgHelper.parseXml(xml)
-                val now = System.currentTimeMillis()
-                val program = list.firstOrNull { now in it.startTime..it.endTime }
-                runOnUiThread {
-                    tvEpg.text = program?.title ?: "正在播放：${channelList[currentPosition].name}"
+                val response = client.newCall(request).execute()
+                val xmlContent = response.body?.string() ?: ""
+
+                val programs = EpgHelper.parseXml(xmlContent)
+                val currentProgram = programs.firstOrNull()
+
+                launch(Dispatchers.Main) {
+                    tvEpg.text = currentProgram?.title ?: "正在播放：${channelList[currentPosition].name}"
                 }
             } catch (e: Exception) {
-                runOnUiThread {
+                launch(Dispatchers.Main) {
                     tvEpg.text = "正在播放：${channelList[currentPosition].name}"
                 }
             }
         }
     }
+
+    // 切台
+    private fun previousChannel() = playChannel(if (currentPosition > 0) currentPosition - 1 else channelList.size - 1)
+    private fun nextChannel() = playChannel(if (currentPosition < channelList.size - 1) currentPosition + 1 else 0)
 
     // 屏幕比例
     private fun showScreenRatioDialog() {
