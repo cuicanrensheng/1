@@ -33,7 +33,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 全屏
+        // 全屏：隐藏状态栏 + 导航栏
         window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -66,41 +66,33 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    // ==================== 触摸事件转发（关键修复）=====================
+    // 触摸事件
     override fun onTouchEvent(event: MotionEvent): Boolean {
         gestureDetector.onTouchEvent(event)
         return true
     }
 
-    // ==================== 手势实现 ====================
+    // 手势必须实现的方法
     override fun onDown(e: MotionEvent): Boolean = true
     override fun onShowPress(e: MotionEvent) {}
-    override fun onSingleTapUp(e: MotionEvent): Boolean = false
-
-    // 单击 = OK（频道列表）
-    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+    override fun onSingleTapUp(e: MotionEvent): Boolean {
         showChannelListDialog()
         return true
     }
-
-    // 滑动 = 上下切台
     override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dX: Float, dY: Float): Boolean {
         if (dY < -15) previousChannel()
         if (dY > 15) nextChannel()
         return true
     }
-
-    // 长按 = 设置
     override fun onLongPress(e: MotionEvent) {
         showScreenRatioDialog()
     }
-
     override fun onFling(e1: MotionEvent?, e2: MotionEvent, vX: Float, vY: Float): Boolean {
-        if (e2.y < e1?.y ?: 0f) previousChannel() else nextChannel()
+        if (e2.y < (e1?.y ?: 0f)) previousChannel() else nextChannel()
         return true
     }
 
-    // ==================== 频道播放 ====================
+    // 加载频道
     private fun loadChannelList() {
         CoroutineScope(Dispatchers.IO).launch {
             channelList = M3UHelper.getChannelList()
@@ -112,6 +104,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
+    // 播放频道
     private fun playChannel(pos: Int) {
         if (pos < 0 || pos >= channelList.size) return
         currentPosition = pos
@@ -130,10 +123,11 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         loadEpg()
     }
 
+    // 切台
     private fun previousChannel() = playChannel(if (currentPosition > 0) currentPosition - 1 else channelList.size - 1)
     private fun nextChannel() = playChannel(if (currentPosition < channelList.size - 1) currentPosition + 1 else 0)
 
-    // ==================== EPG ====================
+    // EPG
     private fun loadEpg() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -154,7 +148,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    // ==================== 屏幕比例 ====================
+    // 屏幕比例
     private fun showScreenRatioDialog() {
         val items = arrayOf("正常", "拉伸", "填充")
         AlertDialog.Builder(this)
@@ -169,7 +163,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             .show()
     }
 
-    // ==================== 遥控器 ====================
+    // 遥控器
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> previousChannel()
@@ -180,7 +174,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         return super.onKeyDown(keyCode, event)
     }
 
-    // ==================== 频道列表 ====================
+    // 频道列表
     private fun showChannelListDialog() {
         val names = channelList.map { it.name }.toTypedArray()
         AlertDialog.Builder(this)
