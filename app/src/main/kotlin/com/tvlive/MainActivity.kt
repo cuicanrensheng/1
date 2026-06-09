@@ -27,7 +27,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private var channelList = mutableListOf<Channel>()
     private var currentPosition = 0
 
-    // 你提供的源地址
     private val LIVE_SOURCE = "https://raw.githubusercontent.com/cuicanrensheng/IPTV/refs/heads/main/playlist1.m3u"
     private val EPG_URL = "https://epg.catvod.com/epg.xml"
     private lateinit var gestureDetector: GestureDetector
@@ -35,7 +34,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 全屏沉浸
         window.setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN
@@ -68,13 +66,11 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     override fun onDown(e: MotionEvent): Boolean = true
     override fun onShowPress(e: MotionEvent) {}
 
-    // 单击屏幕 → 弹出频道列表
     override fun onSingleTapUp(e: MotionEvent): Boolean {
         showChannelListDialog()
         return true
     }
 
-    // 上下滑动切台
     override fun onScroll(
         e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float
     ): Boolean {
@@ -84,7 +80,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         return true
     }
 
-    // 长按屏幕 → 弹出完整设置面板
     override fun onLongPress(e: MotionEvent) {
         showSettingDialog()
     }
@@ -93,7 +88,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float
     ): Boolean = true
 
-    // ========== 设置弹窗（画面比例、重载源） ==========
     private fun showSettingDialog() {
         val menuItems = arrayOf(
             "画面比例 - 原始适配",
@@ -116,7 +110,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             .show()
     }
 
-    // ========== 频道列表弹窗（点击切换播放） ==========
     private fun showChannelListDialog() {
         if (channelList.isEmpty()) {
             tvEpg.text = "暂无可用频道"
@@ -132,7 +125,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             .show()
     }
 
-    // 加载m3u频道源
     private fun loadChannelList() {
         tvEpg.text = "正在加载频道列表..."
         CoroutineScope(Dispatchers.IO).launch {
@@ -147,7 +139,9 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    // 播放频道，强制主线程渲染防黑屏
+    // ======================
+    // 🔥 核心修复：多线路播放
+    // ======================
     private fun playChannel(pos: Int) = runOnUiThread {
         if (channelList.isEmpty()) return@runOnUiThread
         val safePos = pos.coerceIn(0, channelList.size - 1)
@@ -158,7 +152,10 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         player = ExoPlayer.Builder(this@MainActivity).build()
         playerView.player = player
 
-        val mediaItem = MediaItem.fromUri(targetChannel.streamUrl)
+        // ✅ 修复：从 streamUrls 列表获取当前线路
+        val playUrl = targetChannel.streamUrls[targetChannel.currentLineIndex]
+        val mediaItem = MediaItem.fromUri(playUrl)
+
         player!!.setMediaItem(mediaItem)
         player!!.prepare()
         player!!.playWhenReady = true
@@ -167,7 +164,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         loadEpgInfo(targetChannel.name)
     }
 
-    // 加载EPG节目信息
     private fun loadEpgInfo(channelName: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -188,7 +184,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private fun previousChannel() = playChannel(if (currentPosition > 0) currentPosition - 1 else channelList.size - 1)
     private fun nextChannel() = playChannel(if (currentPosition < channelList.size - 1) currentPosition + 1 else 0)
 
-    // 遥控器按键逻辑
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> previousChannel()
