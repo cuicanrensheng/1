@@ -1,6 +1,5 @@
 package com.tvlive
 
-import android.os.Build
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.KeyEvent
@@ -13,7 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.ui.PlayerView
-import com.google.android.exoplayer2.util.AspectRatioFrameLayout
+import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,7 +33,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 最强全屏：彻底干掉状态栏 / 通知栏 / 导航栏
+        // 最强全屏：永久隐藏状态栏、通知栏、导航栏
         window.setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN
@@ -58,7 +57,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        // 只要回到界面，立刻强制全屏（永远不显示状态栏）
         if (hasFocus) {
             window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -123,6 +121,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
+    // 屏幕比例（修复 找不到类 错误）
     private fun showScreenRatioDialog() {
         val items = arrayOf("正常", "拉伸", "填充")
         AlertDialog.Builder(this)
@@ -137,6 +136,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             .show()
     }
 
+    // 遥控器
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> previousChannel()
@@ -167,6 +167,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         return true
     }
 
+    // 修复 空安全 报错
     override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dX: Float, dY: Float): Boolean {
         if (dY > 10) nextChannel()
         if (dY < -10) previousChannel()
@@ -178,7 +179,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     override fun onFling(e1: MotionEvent?, e2: MotionEvent, vX: Float, vY: Float): Boolean {
-        if (e2.y < e1.y) previousChannel() else nextChannel()
+        if (e2.y < (e1?.y ?: 0f)) previousChannel() else nextChannel()
         return true
     }
 
