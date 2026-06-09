@@ -24,34 +24,26 @@ class MainActivity : AppCompatActivity() {
         webView = findViewById(R.id.webView)
 
         initWebView()
-        initPlayer()
+        // 关闭自动播放，避免闪退
+        // initPlayer()
     }
 
     private fun initWebView() {
         val settings: WebSettings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
-        settings.allowFileAccess = true
-        settings.allowContentAccess = true
         webView.webViewClient = WebViewClient()
     }
 
     private fun initPlayer() {
         player = ExoPlayer.Builder(this).build()
         playerView.player = player
-
-        val mediaItem = MediaItem.fromUri("http://your-stream-url.com/stream.m3u8")
-        player?.setMediaItem(mediaItem)
-        player?.prepare()
-        player?.play()
     }
 
-    private fun openSetting() {
-      
-    }
+    private fun openSetting() {}
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
             openSetting()
             return true
         }
