@@ -14,74 +14,89 @@ object M3UHelper {
         .retryOnConnectionFailure(true)
         .hostnameVerifier { _, _ -> true }
         .addInterceptor { chain ->
-            val req = chain.request().newBuilder()
-                .header("User-Agent", "ExoPlayer")
+            val original = chain.request()
+            val request = original.newBuilder()
+                .header("User-Agent", "Media3-Player")
                 .header("Accept", "*/*")
                 .header("Connection", "close")
+                .method(original.method, original.body)
                 .build()
-            chain.proceed(req)
+            chain.proceed(request)
         }
         .build()
 
-    // 解析m3u/tvbox 支持多线路（逗号分隔同频道多url）
-    suspend fun parseM3u(url: String): MutableList<Channel> {
+    suspend fun getChannelList(sourceUrl: String): MutableList<Channel> {
         val list = mutableListOf<Channel>()
         try {
-            val req = Request.Builder().url(url).header("User-Agent", "ExoPlayer").build()
-            val resp = client.newCall(req).execute()
-            val body = resp.body?.string() ?: return list
+            val request = Request.Builder()
+                .url(sourceUrl)
+                .header("User-Agent", "Media3-Player")
+                .build()
+
+            val response = client.newCall(request).execute()
+            val body = response.body?.string() ?: return list
             val lines = body.lines()
-            var currName = ""
-            lines.forEach { l ->
-                val line = l.trim()
-                if(line.startsWith("#EXTINF:", ignoreCase = true)){
-                    currName = line.split(",").lastOrNull()?.trim() ?: "未知频道"
+
+            var currentName = ""
+
+            lines.forEach { line ->
+                val l = line.trim()
+
+                if (l.startsWith("#EXTINF:", ignoreCase = true)) {
+                    currentName = l.split(",").lastOrNull()?.trim() ?: "未知频道"
                 }
-                if(isPlayUrl(line)){
-                    val finalUrl = getFinalRedirectUrl(line)
-                    // 多线路分割
-                    val urls = finalUrl.split(",").filter { it.isNotBlank() }.toMutableList()
-                    val fav = FavoriteManager.isFav(currName)
-                    list.add(Channel(name = currName, streamUrls = urls, isFavorite = fav))
+
+                if (isValidUrl(l)) {
+                    val finalUrl = getFinalRedirectUrl(l)
+                    list.add(Channel(currentName, finalUrl))
                 }
             }
-            // 拉取成功存入历史订阅源
-            val sources = AppConfig.m3uSources.toMutableSet()
-            sources.add(url)
-            AppConfig.m3uSources = sources
-        }catch (e: Exception){
-            // 拉取失败移除该订阅源
-            val sources = AppConfig.m3uSources.toMutableSet()
-            sources.remove(url)
-            AppConfig.m3uSources = sources
+        } catch (e: Exception) {
             e.printStackTrace()
         }
         return list
     }
 
-    private fun isPlayUrl(url: String): Boolean {
-        val low = url.lowercase()
-        return url.startsWith("http") && (low.contains("m3u8") || low.contains("huya.com") || low.contains("ts") || low.contains("mp4") || low.contains("live"))
+    private fun isValidUrl(url: String): Boolean {
+        val lower = url.lowercase()
+        return url.startsWith("http", ignoreCase = true) &&
+                (lower.contains("m3u8") ||
+                        lower.contains("live") ||
+                        lower.contains("huya.com") ||
+                        lower.contains(".mp4") ||
+                        lower.contains(".ts"))
     }
 
-    // 最多10次301/302重定向
     private fun getFinalRedirectUrl(url: String): String {
-        var curr = url
-        repeat(10){
-            val req = Request.Builder().url(curr).header("UA", "ExoPlayer").build()
-            client.newCall(req).execute().use { res ->
-                if(res.isRedirect){
-                    val loc = res.header("Location") ?: return curr
-                    curr = resolveRelativeRedirect(curr, loc)
-                }else return curr
+        return try {
+            var currentUrl = url
+            repeat(10) {
+                val request = Request.Builder()
+                    .url(currentUrl)
+                    .header("User-Agent", "Media3-Player")
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (response.isRedirect) {
+                        val location = response.header("Location") ?: return currentUrl
+                        currentUrl = resolveRedirect(currentUrl, location)
+                    } else {
+                        return currentUrl
+                    }
+                }
             }
+            currentUrl
+        } catch (e: Exception) {
+            url
         }
-        return curr
     }
 
-    private fun resolveRelativeRedirect(origin: String, loc: String): String {
-        if(loc.startsWith("http")) return loc
-        val httpUrl = origin.toHttpUrlOrNull() ?: return origin
-        return httpUrl.newBuilder().encodedPath(loc).build().toString()
+    private fun resolveRedirect(original: String, location: String): String {
+        if (location.startsWith("http")) return location
+        val originalHttpUrl = original.toHttpUrlOrNull() ?: return original
+        return originalHttpUrl.newBuilder()
+            .encodedPath(location)
+            .build()
+            .toString()
     }
 }
