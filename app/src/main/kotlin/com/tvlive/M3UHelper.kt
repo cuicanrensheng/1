@@ -93,10 +93,14 @@ object M3UHelper {
 
     /**
      * 递归获取最终重定向地址（解决 301/302 跳转）
+     * 🔥 已增加到 10 次重定向
      */
     private fun getFinalRedirectUrl(url: String): String {
         return try {
             var currentUrl = url
+            // ==============================
+            // 🔥 关键：重复 10 次重定向解析
+            // ==============================
             repeat(10) {
                 val request = Request.Builder()
                     .url(currentUrl)
