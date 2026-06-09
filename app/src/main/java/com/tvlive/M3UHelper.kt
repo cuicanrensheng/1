@@ -9,14 +9,14 @@ object M3UHelper {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
-        .followRedirects(true)         // 支持重定向
-        .followSslRedirects(true)       // 支持 HTTPS 重定向
+        .followRedirects(true)
+        .followSslRedirects(true)
         .retryOnConnectionFailure(true)
-        .hostnameVerifier { _, _ -> true } // 忽略证书问题（支持全部 HTTPS）
+        .hostnameVerifier { _, _ -> true }
         .addInterceptor { chain ->
             val original = chain.request()
             val request = original.newBuilder()
-                .header("User-Agent", "ExoPlayer") // UA = ExoPlayer
+                .header("User-Agent", "ExoPlayer")
                 .header("Accept", "*/*")
                 .header("Connection", "close")
                 .method(original.method, original.body)
@@ -44,14 +44,12 @@ object M3UHelper {
             lines.forEach { line ->
                 val l = line.trim()
 
-                // 解析频道名
                 if (l.startsWith("#EXTINF:", ignoreCase = true)) {
                     currentName = l.split(",").lastOrNull()?.trim() ?: "未知频道"
                 }
 
-                // 匹配所有有效直播源
                 if (isValidUrl(l)) {
-                    val finalUrl = getFinalRedirectUrl(l) // 自动追 10 次重定向
+                    val finalUrl = getFinalRedirectUrl(l)
                     list.add(Channel(currentName, finalUrl))
                 }
             }
@@ -61,23 +59,21 @@ object M3UHelper {
         return list
     }
 
-    // 判断是否为有效播放地址
     private fun isValidUrl(url: String): Boolean {
         val lower = url.lowercase()
         return url.startsWith("http", ignoreCase = true) &&
                (lower.contains("m3u8") ||
                 lower.contains("live") ||
-                lower.contains("huya.com") ||  // 虎牙
+                lower.contains("huya.com") ||
                 lower.contains("youtube.com") ||
                 lower.contains(".mp4") ||
                 lower.contains(".ts"))
     }
 
-    // 自动获取最终重定向地址（支持 10 次 301/302/307）
     private fun getFinalRedirectUrl(url: String): String {
         return try {
             var currentUrl = url
-            repeat(10) { // 最多追 10 次
+            repeat(10) {
                 val request = Request.Builder()
                     .url(currentUrl)
                     .header("User-Agent", "ExoPlayer")
@@ -98,7 +94,6 @@ object M3UHelper {
         }
     }
 
-    // 处理相对路径重定向
     private fun resolveRedirect(original: String, location: String): String {
         if (location.startsWith("http")) return location
         val originalHttpUrl = original.toHttpUrlOrNull() ?: return original
