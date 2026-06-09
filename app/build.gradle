@@ -15,7 +15,6 @@ android {
         versionName "1.0"
     }
 
-    // ✅ 正确密钥路径，永远不会再报找不到
     signingConfigs {
         release {
             storeFile file("../release.keystore")
@@ -41,24 +40,17 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    viewBinding {
-        enabled = false
-    }
 }
 
 dependencies {
-    // 最新Media3（ExoPlayer的继任者）
+    // Media3 最新稳定版
     implementation "androidx.media3:media3-exoplayer:1.10.1"
     implementation "androidx.media3:media3-ui:1.10.1"
     implementation "androidx.media3:media3-common:1.10.1"
-    // 网络请求
+
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
-    // 本地HTTP网页服务
     implementation "org.nanohttpd:nanohttpd:2.3.1"
-    // 协程
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
-    // 基础兼容
     implementation "androidx.core:core-ktx:1.13.1"
     implementation "androidx.appcompat:appcompat:1.6.1"
 }
