@@ -42,6 +42,13 @@ android {
         jvmTarget = '17'
     }
 }
+    // ✅ 强制输出 APK 路径（解决找不到 app-release.apk）
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "app-release.apk"
+        }
+    }
+}
 
 dependencies {
     implementation "androidx.media3:media3-exoplayer:1.5.0"
