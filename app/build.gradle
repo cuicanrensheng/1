@@ -13,7 +13,6 @@ android {
         targetSdk 35
         versionCode 1
         versionName "1.0"
-        // 确保 Kotlin 支持
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -28,7 +27,6 @@ android {
 
     buildTypes {
         release {
-            // 关键：关闭混淆和资源压缩，防止类被误删
             minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -43,6 +41,14 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    // 关键：强制编译 java 目录下的 Kotlin 文件（解决找不到类）
+    sourceSets {
+        main {
+            java.srcDirs = ["src/main/java"]
+            kotlin.srcDirs = ["src/main/java"]
+        }
     }
 }
 
