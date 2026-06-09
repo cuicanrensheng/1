@@ -1,6 +1,6 @@
 plugins {
     id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.android' // 必须保留
 }
 
 android {
@@ -13,7 +13,6 @@ android {
         targetSdk 35
         versionCode 1
         versionName "1.0"
-        vectorDrawables.useSupportLibrary = true
     }
 
     signingConfigs {
@@ -28,7 +27,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            shrinkResources false
             signingConfig signingConfigs.release
         }
     }
@@ -39,14 +38,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = '17'
-    }
-
-    // 正确位置：在 android {} 内部
-    applicationVariants.all { variant ->
-        variant.outputs.each { output ->
-            output.outputFileName = "app-release.apk"
-        }
+        jvmTarget = "17"
     }
 }
 
@@ -56,7 +48,6 @@ dependencies {
     implementation "androidx.media3:media3-common:1.5.0"
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
-    implementation "org.nanohttpd:nanohttpd:2.3.1"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     implementation "androidx.core:core-ktx:1.13.1"
     implementation "androidx.appcompat:appcompat:1.6.1"
