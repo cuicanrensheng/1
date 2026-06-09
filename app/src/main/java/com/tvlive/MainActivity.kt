@@ -6,7 +6,6 @@ import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.Window
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
@@ -34,10 +33,22 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 全局强制全屏，屏蔽状态栏/通知栏、导航栏
-        setFullScreen()
-        setContentView(R.layout.activity_main)
 
+        // 最强全屏：彻底干掉状态栏 / 通知栏 / 导航栏
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+            WindowManager.LayoutParams.FLAG_FULLSCREEN
+        )
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            or View.SYSTEM_UI_FLAG_FULLSCREEN
+            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        )
+
+        setContentView(R.layout.activity_main)
         playerView = findViewById(R.id.playerView)
         tvEpg = findViewById(R.id.tvEpg)
         gestureDetector = GestureDetector(this, this)
@@ -45,42 +56,21 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         loadChannelList()
     }
 
-    // 核心：沉浸式全屏，彻底屏蔽状态栏、通知栏、导航栏（全版本兼容）
-    private fun setFullScreen() {
-        val window: Window = window
-        // 禁止屏幕变暗、锁屏
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // 基础全屏Flag
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-            WindowManager.LayoutParams.FLAG_FULLSCREEN
-        )
-
-        val decorView = window.decorView
-        // 粘性沉浸模式：滑动边缘弹出系统栏后自动重新隐藏
-        val uiOptions = (
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION       // 隐藏导航栏
-                        or View.SYSTEM_UI_FLAG_FULLSCREEN             // 隐藏状态栏/通知栏
-                        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY       // 粘性沉浸（自动复原）
-                )
-        decorView.systemUiVisibility = uiOptions
-
-        // Android 11+ 新版系统栏控制（兼容高版本）
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // 只要回到界面，立刻强制全屏（永远不显示状态栏）
+        if (hasFocus) {
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
         }
     }
 
-    // 页面恢复前台时，重新强制全屏（防止切应用后状态栏重现）
-    override fun onResume() {
-        super.onResume()
-        setFullScreen()
-    }
-
-    // 加载频道列表
     private fun loadChannelList() {
         CoroutineScope(Dispatchers.IO).launch {
             channelList = M3UHelper.getChannelList()
@@ -92,7 +82,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    // 播放指定频道
     private fun playChannel(pos: Int) {
         if (pos < 0 || pos >= channelList.size) return
         currentPosition = pos
@@ -111,12 +100,9 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         loadEpg()
     }
 
-    // 上一个频道
     private fun previousChannel() = playChannel(if (currentPosition > 0) currentPosition - 1 else channelList.size - 1)
-    // 下一个频道
     private fun nextChannel() = playChannel(if (currentPosition < channelList.size - 1) currentPosition + 1 else 0)
 
-    // 加载EPG节目信息
     private fun loadEpg() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -137,22 +123,20 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    // 屏幕比例设置弹窗
     private fun showScreenRatioDialog() {
         val items = arrayOf("正常", "拉伸", "填充")
         AlertDialog.Builder(this)
             .setTitle("屏幕比例")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT       // 正常：保留比例，有黑边
-                    1 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM     // 拉伸：强制拉伸，可能变形
-                    2 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL     // 填充：等比例铺满全面屏，无黑边
+                    0 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    1 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    2 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                 }
             }
             .show()
     }
 
-    // 电视遥控器按键监听
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> previousChannel()
@@ -163,7 +147,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         return super.onKeyDown(keyCode, event)
     }
 
-    // 频道列表选择弹窗
     private fun showChannelListDialog() {
         val names = channelList.map { it.name }.toTypedArray()
         AlertDialog.Builder(this)
@@ -172,7 +155,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             .show()
     }
 
-    // 触摸事件分发
     override fun onTouchEvent(event: MotionEvent): Boolean {
         gestureDetector.onTouchEvent(event)
         return true
@@ -180,21 +162,17 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     override fun onDown(e: MotionEvent): Boolean = true
     override fun onShowPress(e: MotionEvent) {}
-
-    // 单击屏幕 = 打开频道列表
     override fun onSingleTapUp(e: MotionEvent): Boolean {
         showChannelListDialog()
         return true
     }
 
-    // 滑动切换频道
     override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dX: Float, dY: Float): Boolean {
         if (dY > 10) nextChannel()
         if (dY < -10) previousChannel()
         return true
     }
 
-    // 长按屏幕 = 打开屏幕比例设置
     override fun onLongPress(e: MotionEvent) {
         showScreenRatioDialog()
     }
