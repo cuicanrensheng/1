@@ -9,9 +9,12 @@
         android:allowBackup="true"
         android:icon="@android:drawable/ic_menu_view"
         android:label="TV直播"
-        android:theme="@android:style/Theme.Light.NoTitleBar.Fullscreen"
+        android:supportsRtl="true"
         android:usesCleartextTraffic="true"
-        android:supportsRtl="true">
+        android:name="androidx.multidex.MultiDexApplication"
+
+        <!-- 👇 这里必须用 AppCompat 主题，绝对不能用系统原生！！ -->
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
         <activity
             android:name=".MainActivity"
@@ -22,4 +25,5 @@
             </intent-filter>
         </activity>
     </application>
+
 </manifest>
