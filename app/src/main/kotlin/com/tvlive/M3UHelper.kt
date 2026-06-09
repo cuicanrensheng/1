@@ -48,6 +48,8 @@ object M3UHelper {
 
                 if (isValidUrl(l)) {
                     val finalUrl = getFinalRedirectUrl(l)
+                    // ✅ 关键修复：包装成 MutableList
+                    val urls = mutableListOf(finalUrl)
                     list.add(Channel(currentName, finalUrl))
                 }
             }
