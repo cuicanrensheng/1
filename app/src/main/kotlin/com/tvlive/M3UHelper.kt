@@ -3,72 +3,72 @@ package com.tvlive
 import okhttp3.*
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
 
 object M3UHelper {
 
-    // 配置 OkHttp 客户端（用于网络请求）
+    // 信任所有 SSL 证书（解决 GitHub 访问失败）
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)   // 连接超时
-        .readTimeout(15, TimeUnit.SECONDS)      // 读取超时
-        .writeTimeout(15, TimeUnit.SECONDS)     // 写入超时
-        .followRedirects(true)                  // 允许重定向
-        .followSslRedirects(true)               // 允许 SSL 重定向
-        .retryOnConnectionFailure(true)         // 连接失败自动重试
-        .hostnameVerifier { _, _ -> true }      // 信任所有证书（解决 https 问题）
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .retryOnConnectionFailure(true)
+        .sslSocketFactory(
+            SSLContext.getInstance("TLS").apply {
+                init(null, arrayOf(object : X509TrustManager {
+                    override fun checkClientTrusted(p0: Array<X509Certificate>?, p1: String?) {}
+                    override fun checkServerTrusted(p0: Array<X509Certificate>?, p1: String?) {}
+                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                }), null)
+            }.socketFactory,
+            object : X509TrustManager {
+                override fun checkClientTrusted(p0: Array<X509Certificate>?, p1: String?) {}
+                override fun checkServerTrusted(p0: Array<X509Certificate>?, p1: String?) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+            }
+        )
+        .hostnameVerifier { _, _ -> true }
         .addInterceptor { chain ->
-            // 统一添加请求头
             val original = chain.request()
             val request = original.newBuilder()
-                .header("User-Agent", "Media3-Player")
+                .header("User-Agent", "Mozilla/5.0 (Android TV)")
                 .header("Accept", "*/*")
-                .header("Connection", "close")
-                .method(original.method, original.body)
                 .build()
             chain.proceed(request)
         }
         .build()
 
-    /**
-     * 从网络获取 M3U 频道列表
-     * @param sourceUrl 订阅地址
-     * @return 频道列表（MutableList<Channel>）
-     */
     suspend fun getChannelList(sourceUrl: String): MutableList<Channel> {
         val list = mutableListOf<Channel>()
         try {
-            // 构建网络请求
             val request = Request.Builder()
                 .url(sourceUrl)
-                .header("User-Agent", "Media3-Player")
+                .header("User-Agent", "Mozilla/5.0 (Android TV)")
                 .build()
 
-            // 执行请求并获取返回数据
             val response = client.newCall(request).execute()
             val body = response.body?.string() ?: return list
             val lines = body.lines()
 
-            var currentName = ""
+            var currentName = "未知频道"
 
             // 逐行解析 M3U
-            lines.forEach { line ->
+            for (line in lines) {
                 val l = line.trim()
 
-                // 解析频道名称
+                // 解析频道名
                 if (l.startsWith("#EXTINF:", ignoreCase = true)) {
                     currentName = l.split(",").lastOrNull()?.trim() ?: "未知频道"
                 }
 
-                // 解析播放地址
+                // 解析播放地址（不再过滤！只要是 http 就认！）
                 if (isValidUrl(l)) {
                     val finalUrl = getFinalRedirectUrl(l)
-
-                    // ======================
-                    // 🔥 核心修复：多线路适配
-                    // 把单个地址包装成 MutableList<String>
-                    // ======================
                     val urlList = mutableListOf(finalUrl)
-
-                    // 构造 Channel 对象（4个参数：名称、多线路、当前线路索引、是否收藏）
                     list.add(Channel(currentName, urlList, 0, false))
                 }
             }
@@ -78,33 +78,18 @@ object M3UHelper {
         return list
     }
 
-    /**
-     * 判断是否为合法的直播地址
-     */
+    // 🔥 关键修复：不再过滤任何直播地址！
     private fun isValidUrl(url: String): Boolean {
-        val lower = url.lowercase()
-        return url.startsWith("http", ignoreCase = true) &&
-                (lower.contains("m3u8") ||
-                        lower.contains("live") ||
-                        lower.contains("huya.com") ||
-                        lower.contains(".mp4") ||
-                        lower.contains(".ts"))
+        return url.startsWith("http", ignoreCase = true)
     }
 
-    /**
-     * 递归获取最终重定向地址（解决 301/302 跳转）
-     * 🔥 已增加到 10 次重定向
-     */
     private fun getFinalRedirectUrl(url: String): String {
         return try {
             var currentUrl = url
-            // ==============================
-            // 🔥 关键：重复 10 次重定向解析
-            // ==============================
             repeat(10) {
                 val request = Request.Builder()
                     .url(currentUrl)
-                    .header("User-Agent", "Media3-Player")
+                    .header("User-Agent", "Mozilla/5.0 (Android TV)")
                     .build()
 
                 client.newCall(request).execute().use { response ->
@@ -122,9 +107,6 @@ object M3UHelper {
         }
     }
 
-    /**
-     * 处理相对路径重定向
-     */
     private fun resolveRedirect(original: String, location: String): String {
         if (location.startsWith("http")) return location
         val originalHttpUrl = original.toHttpUrlOrNull() ?: return original
