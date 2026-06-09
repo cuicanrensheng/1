@@ -13,10 +13,9 @@ android {
         targetSdk 35
         versionCode 1
         versionName "1.0"
-
-        // 🔥 自动生成图标，解决 ic_launcher 缺失
         vectorDrawables.useSupportLibrary = true
     }
+
     signingConfigs {
         release {
             storeFile file("../release.keystore")
@@ -30,6 +29,7 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 
@@ -41,11 +41,11 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-}
-    // ✅ 强制输出 APK 路径（解决找不到 app-release.apk）
+
+    // 正确位置：在 android {} 内部
     applicationVariants.all { variant ->
-        variant.outputs.all { output ->
-            outputFileName = "app-release.apk"
+        variant.outputs.each { output ->
+            output.outputFileName = "app-release.apk"
         }
     }
 }
@@ -56,6 +56,7 @@ dependencies {
     implementation "androidx.media3:media3-common:1.5.0"
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    implementation "org.nanohttpd:nanohttpd:2.3.1"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     implementation "androidx.core:core-ktx:1.13.1"
     implementation "androidx.appcompat:appcompat:1.6.1"
