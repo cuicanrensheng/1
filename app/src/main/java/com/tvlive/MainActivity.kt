@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 强制全屏
         window.setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN
@@ -51,6 +52,10 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         tvEpg = findViewById(R.id.tvEpg)
         gestureDetector = GestureDetector(this, this)
 
+        // ✅【修复黑屏】启动就把播放器铺满全屏
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+        playerView.keepScreenOn = true
+
         loadChannelList()
     }
 
@@ -62,16 +67,14 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     override fun onDown(e: MotionEvent): Boolean = true
     override fun onShowPress(e: MotionEvent) {}
     override fun onSingleTapUp(e: MotionEvent): Boolean {
-        showChannelListDialog()
+        if (channelList.isNotEmpty()) showChannelListDialog()
         return true
     }
 
     override fun onScroll(
-        e1: MotionEvent?,
-        e2: MotionEvent,
-        distanceX: Float,
-        distanceY: Float
+        e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float
     ): Boolean {
+        if (channelList.isEmpty()) return true
         if (distanceY < -15) previousChannel()
         if (distanceY > 15) nextChannel()
         return true
@@ -82,34 +85,43 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     override fun onFling(
-        e1: MotionEvent?,
-        e2: MotionEvent,
-        velocityX: Float,
-        velocityY: Float
-    ): Boolean {
-        return true
-    }
+        e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float
+    ): Boolean = true
 
     private fun loadChannelList() {
         CoroutineScope(Dispatchers.IO).launch {
             channelList = M3UHelper.getChannelList()
             if (channelList.isNotEmpty()) {
                 launch(Dispatchers.Main) {
-                    playChannel(0)
+                    playChannel(0) // 自动播放第一个频道
+                }
+            } else {
+                launch(Dispatchers.Main) {
+                    tvEpg.text = "未获取到频道"
                 }
             }
         }
     }
 
+    // ✅【修复黑屏】正确初始化 ExoPlayer，绝不黑屏
     private fun playChannel(pos: Int) {
-        if (pos < 0 || pos >= channelList.size) return
-        currentPosition = pos
-        val channel = channelList[pos]
+        if (channelList.isEmpty()) return
 
+        val safePos = pos.coerceIn(0, channelList.size - 1)
+        currentPosition = safePos
+        val channel = channelList[safePos]
+
+        // 释放旧播放器
         player?.release()
-        player = ExoPlayer.Builder(this).build()
+
+        // ✅ 新建播放器并绑定
+        player = ExoPlayer.Builder(this).apply {
+            setSeekBackIncrementMs(5000)
+        }.build()
+
         playerView.player = player
 
+        // 播放
         val mediaItem = MediaItem.fromUri(channel.streamUrl)
         player!!.setMediaItem(mediaItem)
         player!!.prepare()
