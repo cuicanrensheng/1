@@ -11,15 +11,15 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.ui.PlayerView
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
+import com.google.android.exoplayer2.ui.PlayerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var playerView: PlayerView
     private lateinit var tvEpg: TextView
@@ -29,15 +29,14 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private val EPG_URL = "https://epg.112114.xyz/epg.xml"
     private lateinit var gestureDetector: GestureDetector
+    private var lastClickTime = 0L
+    private val DOUBLE_CLICK_DELAY = 300
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 最强全屏：永久隐藏状态栏、通知栏、导航栏
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-            WindowManager.LayoutParams.FLAG_FULLSCREEN
-        )
+        // 最强全屏：通知栏 + 导航栏 彻底永久隐藏
+        window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
             or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -50,7 +49,33 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         setContentView(R.layout.activity_main)
         playerView = findViewById(R.id.playerView)
         tvEpg = findViewById(R.id.tvEpg)
-        gestureDetector = GestureDetector(this, this)
+
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+
+            // 单击 = OK 键
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                showChannelListDialog()
+                return true
+            }
+
+            // 滑动 = 方向键
+            override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dX: Float, dY: Float): Boolean {
+                if (dY < -10) previousChannel()
+                if (dY > 10) nextChannel()
+                return true
+            }
+
+            // 长按 = 长按OK键 → 设置
+            override fun onLongPress(e: MotionEvent) {
+                showScreenRatioDialog()
+            }
+
+            // 双击 = 菜单键 → 设置
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                showScreenRatioDialog()
+                return true
+            }
+        })
 
         loadChannelList()
     }
@@ -69,6 +94,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
+    // ==================== 频道播放 ====================
     private fun loadChannelList() {
         CoroutineScope(Dispatchers.IO).launch {
             channelList = M3UHelper.getChannelList()
@@ -101,6 +127,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private fun previousChannel() = playChannel(if (currentPosition > 0) currentPosition - 1 else channelList.size - 1)
     private fun nextChannel() = playChannel(if (currentPosition < channelList.size - 1) currentPosition + 1 else 0)
 
+    // ==================== EPG ====================
     private fun loadEpg() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -121,7 +148,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    // 屏幕比例（修复 找不到类 错误）
+    // ==================== 屏幕比例设置 ====================
     private fun showScreenRatioDialog() {
         val items = arrayOf("正常", "拉伸", "填充")
         AlertDialog.Builder(this)
@@ -130,13 +157,13 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 when (which) {
                     0 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     1 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    2 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    2 -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL // 填充 = 铺满全面屏
                 }
             }
             .show()
     }
 
-    // 遥控器
+    // ==================== 电视遥控器 ====================
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> previousChannel()
@@ -147,6 +174,7 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         return super.onKeyDown(keyCode, event)
     }
 
+    // ==================== 频道列表 ====================
     private fun showChannelListDialog() {
         val names = channelList.map { it.name }.toTypedArray()
         AlertDialog.Builder(this)
@@ -155,31 +183,9 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             .show()
     }
 
+    // ==================== 手机触摸 ====================
     override fun onTouchEvent(event: MotionEvent): Boolean {
         gestureDetector.onTouchEvent(event)
-        return true
-    }
-
-    override fun onDown(e: MotionEvent): Boolean = true
-    override fun onShowPress(e: MotionEvent) {}
-    override fun onSingleTapUp(e: MotionEvent): Boolean {
-        showChannelListDialog()
-        return true
-    }
-
-    // 修复 空安全 报错
-    override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dX: Float, dY: Float): Boolean {
-        if (dY > 10) nextChannel()
-        if (dY < -10) previousChannel()
-        return true
-    }
-
-    override fun onLongPress(e: MotionEvent) {
-        showScreenRatioDialog()
-    }
-
-    override fun onFling(e1: MotionEvent?, e2: MotionEvent, vX: Float, vY: Float): Boolean {
-        if (e2.y < (e1?.y ?: 0f)) previousChannel() else nextChannel()
         return true
     }
 
