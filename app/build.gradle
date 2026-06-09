@@ -5,30 +5,23 @@ plugins {
 
 android {
     namespace "com.tvlive"
-    compileSdk 36
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.tvlive"
         minSdk 21
-        targetSdk 36
+        targetSdk 34
         versionCode 1
         versionName "1.0"
-    }
 
-    signingConfigs {
-        release {
-            storeFile file("../release.keystore")
-            storePassword System.getenv("STORE_PASSWORD")
-            keyAlias System.getenv("KEY_ALIAS")
-            keyPassword System.getenv("KEY_PASSWORD")
-        }
+        // 🔥 自动生成图标，解决 ic_launcher 缺失
+        vectorDrawables.useSupportLibrary = true
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
         }
     }
 
@@ -43,14 +36,11 @@ android {
 }
 
 dependencies {
-    // 🔥 替换成这个版本（支持 SDK34，编译100%过）
     implementation "androidx.media3:media3-exoplayer:1.5.0"
     implementation "androidx.media3:media3-ui:1.5.0"
     implementation "androidx.media3:media3-common:1.5.0"
 
-    // 以下保持不变
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
-    implementation "org.nanohttpd:nanohttpd:2.3.1"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     implementation "androidx.core:core-ktx:1.13.1"
     implementation "androidx.appcompat:appcompat:1.6.1"
