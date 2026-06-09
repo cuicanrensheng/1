@@ -12,13 +12,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+// 假设：
+// data class Channel(val name: String, val url: String)
+// data class EpgProgram(val title: String, val startTime: Long, val endTime: Long)
+// object M3UHelper { fun parseM3U(url: String): List<Channel> }
+// object EpgHelper { fun parseXml(url: String): List<EpgProgram> }
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var playerView: PlayerView
     private lateinit var tvEpgInfo: TextView
     private var player: ExoPlayer? = null
 
-    // 你可以在这里替换成自己的地址
+    // 你的直播源/EPG地址
     private val m3uUrl = "https://example.com/iptv.m3u"
     private val epgUrl = "https://example.com/epg.xml"
 
@@ -26,20 +32,22 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        playerView = findViewById(R.id.playerView)
-        tvEpgInfo = findViewById(R.id.tvEpg)
+        playerView = findViewById<PlayerView>(R.id.playerView)
+        tvEpgInfo = findViewById<TextView>(R.id.tvEpg)
 
-        // 启动自动加载并播放直播
+        // 启动即加载播放第一个频道
         loadAndPlayFirstChannel()
-        // 启动自动加载并显示EPG
+        // 启动即加载EPG
         loadEpgForCurrentChannel()
     }
 
-    // ------------------ 调用 M3UHelper 加载并播放第一个频道 ------------------
+    // 加载M3U并播放第一个频道（兼容你helper方法名）
     private fun loadAndPlayFirstChannel() {
         CoroutineScope(Dispatchers.IO).launch {
-            val channels = try {
-                M3UHelper.parse(m3uUrl)
+            val channels: List<Channel> = try {
+                // 你原来如果是 M3UHelper.parse(...) 报错，
+                // 请改成你真实方法名，例如 parseM3U / fromUrl
+                M3UHelper.parseM3U(m3uUrl)
             } catch (e: Exception) {
                 emptyList()
             }
@@ -53,25 +61,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ------------------ 调用 EpgHelper 加载当前频道的EPG ------------------
+    // 加载EPG
     private fun loadEpgForCurrentChannel() {
         CoroutineScope(Dispatchers.IO).launch {
-            val epgList = try {
+            val epgList: List<EpgProgram> = try {
                 EpgHelper.parseXml(epgUrl)
             } catch (e: Exception) {
                 emptyList()
             }
 
             val currentTime = System.currentTimeMillis()
-            val currentProgram = epgList.find {
+            val currentProgram = epgList.firstOrNull {
                 currentTime in it.startTime..it.endTime
             }
 
-            val epgText = if (currentProgram != null) {
-                "正在播放：${currentProgram.title}"
-            } else {
-                "暂无节目信息"
-            }
+            val epgText = currentProgram?.let {
+                "正在播放：${it.title}"
+            } ?: "暂无节目信息"
 
             withContext(Dispatchers.Main) {
                 tvEpgInfo.text = epgText
@@ -79,7 +85,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ------------------ 初始化播放器 ------------------
+    // 初始化播放器
     private fun initPlayer(streamUrl: String) {
         player = ExoPlayer.Builder(this).build()
         playerView.player = player
@@ -90,7 +96,7 @@ class MainActivity : AppCompatActivity() {
         player?.playWhenReady = true
     }
 
-    // ------------------ 遥控器按键支持 ------------------
+    // 遥控器按键（修复KEYCODE_CENTER）
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         return when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT,
@@ -98,8 +104,7 @@ class MainActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_DPAD_DOWN,
             KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_CENTER -> {
-                // 遥控器按键交给播放器处理
+            KeyEvent.KEYCODE_DPAD_CENTER -> { // 修复：正确常量
                 if (playerView.onKeyDown(keyCode, event)) true
                 else super.onKeyDown(keyCode, event)
             }
