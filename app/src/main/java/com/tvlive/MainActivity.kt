@@ -27,15 +27,12 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private var channelList = mutableListOf<Channel>()
     private var currentPosition = 0
 
-    // ✅ 这里换成你自己的 EPG XML 链接即可
-    private val EPG_URL = "https://epg.catvod.com/epg.xml"
-
+    private val EPG_URL = "https://epg.112114.xyz/epg.xml"
     private lateinit var gestureDetector: GestureDetector
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 全屏（状态栏+导航栏永久隐藏）
         window.setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN
@@ -57,19 +54,18 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         loadChannelList()
     }
 
-    // 触摸事件全局生效（手势核心）
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         gestureDetector.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
     }
 
-    // 手势实现
     override fun onDown(e: MotionEvent): Boolean = true
     override fun onShowPress(e: MotionEvent) {}
     override fun onSingleTapUp(e: MotionEvent): Boolean {
         showChannelListDialog()
         return true
     }
+
     override fun onScroll(
         e1: MotionEvent?,
         e2: MotionEvent,
@@ -80,9 +76,11 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         if (distanceY > 15) nextChannel()
         return true
     }
+
     override fun onLongPress(e: MotionEvent) {
         showScreenRatioDialog()
     }
+
     override fun onFling(
         e1: MotionEvent?,
         e2: MotionEvent,
@@ -92,7 +90,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         return true
     }
 
-    // 加载频道列表
     private fun loadChannelList() {
         CoroutineScope(Dispatchers.IO).launch {
             channelList = M3UHelper.getChannelList()
@@ -104,7 +101,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    // 播放频道
     private fun playChannel(pos: Int) {
         if (pos < 0 || pos >= channelList.size) return
         currentPosition = pos
@@ -120,23 +116,20 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         player!!.playWhenReady = true
 
         tvEpg.text = "正在播放：${channel.name}"
-        loadEpgFromNetwork() // ✅ 切台自动刷新 EPG
+        loadEpg()
     }
 
-    // ✅ 从网络链接自动获取 EPG XML
-    private fun loadEpgFromNetwork() {
+    private fun loadEpg() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val client = OkHttpClient()
                 val request = Request.Builder().url(EPG_URL).build()
-                val response = client.newCall(request).execute()
-                val xmlContent = response.body?.string() ?: ""
-
-                val programs = EpgHelper.parseXml(xmlContent)
-                val currentProgram = programs.firstOrNull()
-
+                val xml = client.newCall(request).execute().body?.string() ?: ""
+                val list = EpgHelper.parseXml(xml)
+                val now = System.currentTimeMillis()
+                val program = list.firstOrNull { now in it.startTime..it.endTime }
                 launch(Dispatchers.Main) {
-                    tvEpg.text = currentProgram?.title ?: "正在播放：${channelList[currentPosition].name}"
+                    tvEpg.text = program?.title ?: "正在播放：${channelList[currentPosition].name}"
                 }
             } catch (e: Exception) {
                 launch(Dispatchers.Main) {
@@ -146,11 +139,9 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    // 切台
     private fun previousChannel() = playChannel(if (currentPosition > 0) currentPosition - 1 else channelList.size - 1)
     private fun nextChannel() = playChannel(if (currentPosition < channelList.size - 1) currentPosition + 1 else 0)
 
-    // 屏幕比例
     private fun showScreenRatioDialog() {
         val items = arrayOf("正常", "拉伸", "填充")
         AlertDialog.Builder(this)
@@ -165,7 +156,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             .show()
     }
 
-    // 遥控器
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> previousChannel()
@@ -176,7 +166,6 @@ class MainActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         return super.onKeyDown(keyCode, event)
     }
 
-    // 频道列表
     private fun showChannelListDialog() {
         val names = channelList.map { it.name }.toTypedArray()
         AlertDialog.Builder(this)
