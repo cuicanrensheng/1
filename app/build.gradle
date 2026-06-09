@@ -48,12 +48,16 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.13.1'
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'com.google.android.material:material:1.12.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-
-    // 稳定不报错播放器
-    implementation 'com.google.android.exoplayer:exoplayer:2.19.1'
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+            // ExoPlayer 播放器
+    implementation "com.google.android.exoplayer2:exoplayer-core:2.19.1"
+    implementation "com.google.android.exoplayer2:exoplayer-ui:2.19.1"
+    // 网络请求
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    // 本地HTTP网页服务
+    implementation "org.nanohttpd:nanohttpd:2.3.1"
+    // 协程
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+    // 基础兼容
+    implementation "androidx.core:core-ktx:1.13.1"
+    implementation "androidx.appcompat:appcompat:1.6.1"
 }
