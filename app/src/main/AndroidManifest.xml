@@ -5,7 +5,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- 电视设备兼容声明 -->
     <uses-feature android:name="android.software.leanback" android:required="false"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
 
@@ -20,7 +19,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            <!-- 强制横屏，解决竖屏显示 -->
             android:screenOrientation="landscape"
             android:resizeableActivity="false">
             <intent-filter>
@@ -30,4 +28,5 @@
             </intent-filter>
         </activity>
     </application>
+
 </manifest>
