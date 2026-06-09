@@ -17,6 +17,14 @@ android {
         // 🔥 自动生成图标，解决 ic_launcher 缺失
         vectorDrawables.useSupportLibrary = true
     }
+    signingConfigs {
+        release {
+            storeFile file("../release.keystore")
+            storePassword System.getenv("STORE_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
+        }
+    }
 
     buildTypes {
         release {
