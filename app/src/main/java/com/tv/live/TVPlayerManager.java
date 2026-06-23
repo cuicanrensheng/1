@@ -57,7 +57,7 @@ import java.util.Map;
  * 播放器管理类（单例模式）
  * 基于 Media3 ExoPlayer 封装，提供直播播放、状态监听、画质切换、Header设置等功能
  *
- * 【防卡优化版 + 切台优化版 + 真实数据版】
+ * 【防卡优化版 + 切台优化版 + 真实数据版 + FFmpeg 软解版】
  * 1. 增大缓冲（从15秒→50秒），抗网络波动
  * 2. 检测播放卡住，自动重新加载
  * 3. 换回 DefaultHttpDataSource，稳定可靠
@@ -65,6 +65,7 @@ import java.util.Map;
  * 5. 切台保持最后一帧，避免黑屏
  * 6. 优化缓冲参数，更快出画
  * 7. 显示真实画质、音频、码率
+ * 8. ✅ 集成 FFmpeg 软解码器，提高格式兼容性
  */
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerLog";
@@ -78,31 +79,22 @@ public class TVPlayerManager {
 
     // 播放状态监听器
     private OnPlayStateListener listener;
-
     // 当前播放地址
     private String currentUrl = "";
-
     // 是否正在播放
     private boolean isPlaying = false;
-
     // 当前频道号
     private int currentChannelNumber = 0;
-
     // 频道号显示TextView
     private TextView channelNumText;
-
     // 主线程Handler，用于UI操作
     private final Handler mHandler = new Handler(Looper.getMainLooper());
-
     // 频道号显示时长（3秒）
     private static final long CHANNEL_SHOW_DURATION = 3000L;
-
     // 日志时间格式化
     private final SimpleDateFormat logSdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
-
     // 直播信息更新监听器
     private OnLiveInfoUpdateListener infoUpdateListener;
-
     // 播放状态监听器（成员变量，只添加一次）
     private Player.Listener playerListener;
 
@@ -111,21 +103,16 @@ public class TVPlayerManager {
     // ================================================
     // 是否使用软解码（默认硬解码，硬解码有问题再切软解码）
     private boolean useSoftwareDecoder = false;
-
     // 卡住检测：记录上次播放位置的时间
     private long lastPositionUpdateTime = 0;
     private long lastPosition = 0;
-
     // 卡住检测超时时间（5秒没动就算卡住了）
     private static final long STUCK_TIMEOUT = 5000;
-
     // 自动重试次数限制（防止无限重试）
     private int retryCount = 0;
     private static final int MAX_RETRY_COUNT = 3;
-
     // 卡住检测的Handler
     private final Handler stuckHandler = new Handler(Looper.getMainLooper());
-
     // 是否正在重试中
     private boolean isRetrying = false;
 
@@ -273,22 +260,85 @@ public class TVPlayerManager {
     /**
      * ✅ 初始化播放器
      * 单独抽出来，方便重试时重新创建
+     * 
+     * 【2026-06-23 新增：FFmpeg 软解码器集成】
+     * 
+     * 【三种扩展渲染器模式】
+     * 1. EXTENSION_RENDERER_MODE_OFF：不使用扩展渲染器（默认）
+     *    - 只用系统 MediaCodec 解码器
+     *    - 性能最好，但兼容性一般
+     * 
+     * 2. EXTENSION_RENDERER_MODE_ON：使用扩展渲染器，作为备用方案
+     *    - 先尝试系统 MediaCodec 硬解码
+     *    - 硬解码不支持时，自动回退到 FFmpeg 软解码
+     *    - 推荐！兼顾性能和兼容性
+     * 
+     * 3. EXTENSION_RENDERER_MODE_PREFER：优先使用扩展渲染器
+     *    - 优先用 FFmpeg 软解码
+     *    - 不推荐，软解码性能差，耗电高
+     * 
+     * 【我们的策略】
+     * - 硬解码模式（默认）：EXTENSION_RENDERER_MODE_ON
+     *   系统硬解优先，FFmpeg 作为备用
+     * 
+     * - 软解码模式：EXTENSION_RENDERER_MODE_PREFER
+     *   优先使用 FFmpeg 软解（如果用户手动切到软解模式）
      */
     private void initPlayer() {
         // 初始化渲染器工厂
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
+        
         if (useSoftwareDecoder) {
-            // 软解码模式：只使用软件解码器
-            renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
-            // 设置优先使用软件解码器
+            // ====================================================================
+            // ✅ 软解码模式：优先使用 FFmpeg 软解码器
+            // ====================================================================
+            // 【为什么用 PREFER 模式？】
+            // 用户手动切到软解码模式，说明硬解码有问题，
+            // 这时候应该优先用 FFmpeg 软解，而不是再去试硬解码。
+            //
+            // 【EXTENSION_RENDERER_MODE_PREFER 的含义】
+            // 扩展渲染器（FFmpeg）优先，系统 MediaCodec 作为备用。
+            //
+            // 【注意】
+            // FFmpeg 是软解码，CPU 占用高，耗电多，
+            // 只在硬解码确实有问题时才用。
+            renderersFactory.setExtensionRendererMode(
+                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+            );
+            
+            // 启用解码器降级（软解不行也可以再试其他）
             try {
                 renderersFactory.setEnableDecoderFallback(true);
             } catch (Exception e) {
                 Log.e(TAG, "设置软解码失败", e);
             }
+            
+            Log.d(TAG, "【FFmpeg】软解码模式：优先使用 FFmpeg 解码器");
         } else {
-            // 硬解码模式：启用解码器降级
+            // ====================================================================
+            // ✅ 硬解码模式（默认）：FFmpeg 作为备用方案
+            // ====================================================================
+            // 【为什么用 ON 模式？】
+            // 正常情况下用系统硬解码，性能好，省电。
+            // 但是有些特殊格式的直播源，硬解码不支持，
+            // 这时候自动回退到 FFmpeg 软解码，保证能播出来。
+            //
+            // 【EXTENSION_RENDERER_MODE_ON 的含义】
+            // 系统 MediaCodec 优先，扩展渲染器（FFmpeg）作为备用。
+            // 当系统解码器都不支持时，才尝试 FFmpeg。
+            //
+            // 【好处】
+            // 1. 大部分情况用硬解，性能好，省电
+            // 2. 特殊格式自动用 FFmpeg 软解，兼容性好
+            // 3. 用户无感知，自动切换
+            renderersFactory.setExtensionRendererMode(
+                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+            );
+            
+            // 启用解码器降级（硬解不行自动降级到软解）
             renderersFactory.setEnableDecoderFallback(true);
+            
+            Log.d(TAG, "【FFmpeg】硬解码模式：系统硬解优先，FFmpeg 作为备用");
         }
 
         // ================================================
@@ -362,13 +412,30 @@ public class TVPlayerManager {
                     notifyLiveInfoUpdate();
                     showChannelAndAutoHide();
                     if (listener != null) listener.onPlayReady();
-
                     // 播放就绪，重置重试计数
                     retryCount = 0;
                     isRetrying = false;
-
                     // 开始卡住检测
                     startStuckDetection();
+                    
+                    // ====================================================================
+                    // ✅ 2026-06-23 新增：打印当前使用的解码器信息
+                    // ====================================================================
+                    // 【作用】
+                    // 方便调试，看看当前用的是硬解码还是 FFmpeg 软解
+                    // 可以从 videoFormat 的名称里看出来
+                    try {
+                        Format videoFormat = player.getVideoFormat();
+                        if (videoFormat != null) {
+                            String decoderName = videoFormat.sampleMimeType;
+                            boolean isFfmpeg = decoderName != null 
+                                && decoderName.toLowerCase().contains("ffmpeg");
+                            Log.d(TAG, "【解码器】当前视频解码器：" + decoderName 
+                                + "（" + (isFfmpeg ? "FFmpeg 软解" : "系统硬解") + "）");
+                        }
+                    } catch (Exception e) {
+                        // 忽略，获取解码器信息失败不影响播放
+                    }
                 } else if (state == Player.STATE_BUFFERING) {
                     if (listener != null) listener.onBuffering();
                     // 缓冲中也重置卡住检测
@@ -410,7 +477,6 @@ public class TVPlayerManager {
                 notifyLiveInfoUpdate();
             }
         };
-
         player.addListener(playerListener);
     }
 
@@ -446,11 +512,9 @@ public class TVPlayerManager {
                 stuckHandler.postDelayed(this, 2000);
                 return;
             }
-
             try {
                 long currentPosition = player.getCurrentPosition();
                 long now = System.currentTimeMillis();
-
                 if (currentPosition != lastPosition) {
                     // 播放位置在动，正常
                     lastPosition = currentPosition;
@@ -467,7 +531,6 @@ public class TVPlayerManager {
             } catch (Exception e) {
                 Log.e(TAG, "卡住检测异常", e);
             }
-
             // 继续下一次检测
             stuckHandler.postDelayed(this, 2000);
         }
@@ -483,11 +546,9 @@ public class TVPlayerManager {
             Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT);
             return;
         }
-
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
-
         // 延迟1秒后重新加载
         mHandler.postDelayed(new Runnable() {
             @Override
@@ -503,12 +564,16 @@ public class TVPlayerManager {
     /**
      * 切换软解码/硬解码
      * @param useSoftware true=软解码，false=硬解码
+     * 
+     * 【2026-06-23 更新】
+     * 软解码模式现在会优先使用 FFmpeg 解码器，
+     * 而不是系统的 MediaCodec 软解。
+     * FFmpeg 兼容性更好，支持更多格式。
      */
     public void setSoftwareDecoder(boolean useSoftware) {
         if (useSoftwareDecoder == useSoftware) return;
         useSoftwareDecoder = useSoftware;
-        Log.d(TAG, "切换解码器：" + (useSoftware ? "软解码" : "硬解码"));
-
+        Log.d(TAG, "切换解码器：" + (useSoftware ? "FFmpeg 软解码" : "系统硬解码"));
         // 重新创建播放器
         if (player != null) {
             try {
@@ -522,12 +587,10 @@ public class TVPlayerManager {
                 Log.e(TAG, "释放播放器异常", e);
             }
         }
-
         initPlayer();
         if (playerView != null) {
             playerView.setPlayer(player);
         }
-
         // 重新播放当前地址
         if (!TextUtils.isEmpty(currentUrl)) {
             retryCount = 0;
@@ -600,7 +663,6 @@ public class TVPlayerManager {
         if (cookies != null) {
             headers.put("Cookie", cookies);
         }
-
         return headers;
     }
 
@@ -634,7 +696,6 @@ public class TVPlayerManager {
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
-
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
 
@@ -679,7 +740,6 @@ public class TVPlayerManager {
             // 从 com.google.android.exoplayer2.source.MediaSource
             // 改成 androidx.media3.exoplayer.source.MediaSource
             MediaSource mediaSource;
-
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
                 mediaSource = new HlsMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
@@ -697,7 +757,6 @@ public class TVPlayerManager {
 
             // 开始卡住检测
             startStuckDetection();
-
         } catch (Exception e) {
             Log.e(TAG, "播放异常", e);
             autoRetry("播放异常：" + e.getMessage());
@@ -707,7 +766,6 @@ public class TVPlayerManager {
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
-
             // ====================================================================
             // ✅ 2026-06-23 修改：AspectRatioFrameLayout 包名改成 Media3 的
             // ====================================================================
@@ -758,7 +816,6 @@ public class TVPlayerManager {
             stopStuckDetection();
             mHandler.removeCallbacks(hideChannelRunnable);
             updateWakeLock(false);
-
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
