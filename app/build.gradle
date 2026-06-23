@@ -60,6 +60,7 @@ android {
 
         versionCode 20
         versionName "2.0"
+
         multiDexEnabled true
 
         buildConfigField "int", "VERSION_CODE", "${versionCode}"
@@ -103,16 +104,32 @@ android {
             pickFirsts += ['META-INF/com.android.tools/proguard/coroutines.pro']
         }
     }
+
+    // ====================================================================
+    // ✅ 2026-06-23 新增：配置 libs 目录为 AAR 仓库
+    // ====================================================================
+    // 【为什么需要？】
+    // 我们的 FFmpeg 解码器是 AAR 文件，放在 app/libs/ 目录下。
+    // 需要告诉 Gradle 从这个目录查找 AAR 依赖。
+    //
+    // 【注意】
+    // 如果你的项目里已经有 flatDir 配置了，就不需要再加了。
+    // 直接用 implementation files(...) 引用也行。
+    repositories {
+        flatDir {
+            dirs 'libs'
+        }
+    }
 }
 
 dependencies {
-
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "com.google.android.material:material:1.11.0"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     implementation "androidx.recyclerview:recyclerview:1.3.2"
+
     implementation 'com.google.zxing:core:3.5.1'
     implementation 'com.google.code.gson:gson:2.10.1'
 
@@ -140,8 +157,28 @@ dependencies {
     // ✅ Media3 数据源
     implementation "androidx.media3:media3-datasource:1.10.1"
 
-    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    // ====================================================================
+    // ✅ 2026-06-23 新增：FFmpeg 解码器扩展
+    // ====================================================================
+    // 【文件位置】
+    // app/libs/lib-decoder-ffmpeg-release.aar
+    //
+    // 【作用】
+    // 集成 FFmpeg 软解码器，当系统硬解码不支持某些格式时，
+    // 自动回退到 FFmpeg 软解码，提高兼容性。
+    //
+    // 【两种引用方式】
+    // 方式一：implementation files('libs/lib-decoder-ffmpeg-release.aar')
+    //         直接引用文件，简单直接
+    //
+    // 方式二：implementation(name: 'lib-decoder-ffmpeg-release', ext: 'aar')
+    //         需要配合上面的 flatDir 配置使用
+    //
+    // 这里用方式一，最直接，不容易出错。
+    // ====================================================================
+    implementation files('libs/lib-decoder-ffmpeg-release.aar')
 
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "com.squareup.retrofit2:retrofit:2.11.0"
     implementation "com.squareup.retrofit2:converter-gson:2.11.0"
 
@@ -150,6 +187,7 @@ dependencies {
 
     implementation "org.apache.commons:commons-lang3:3.14.0"
     implementation "com.blankj:utilcodex:1.31.1"
+
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'
 }
