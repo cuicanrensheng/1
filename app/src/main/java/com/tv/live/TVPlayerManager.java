@@ -1,5 +1,7 @@
 package com.tv.live;
+
 import com.tv.live.RedirectLoggingHttpDataSource;
+
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -9,25 +11,51 @@ import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
 import android.widget.TextView;
-import com.google.android.exoplayer2.DefaultLoadControl;
-import com.google.android.exoplayer2.DefaultRenderersFactory;
-import com.google.android.exoplayer2.ExoPlayer;
-import com.google.android.exoplayer2.Format;
-import com.google.android.exoplayer2.MediaItem;
-import com.google.android.exoplayer2.PlaybackException;
-import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.source.ProgressiveMediaSource;
-import com.google.android.exoplayer2.source.hls.HlsMediaSource;
-import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.video.VideoSize;
+
+// ====================================================================
+// ✅ 2026-06-23 修改：升级到 Media3 1.10.1
+// ====================================================================
+// 所有 import 从 com.google.android.exoplayer2.*
+// 改成对应的 androidx.media3.* 包名
+//
+// 【包名迁移对照表】
+// 旧包名 (ExoPlayer 2.x)                → 新包名 (Media3 1.x)
+// com.google.android.exoplayer2.DefaultLoadControl → androidx.media3.exoplayer.DefaultLoadControl
+// com.google.android.exoplayer2.DefaultRenderersFactory → androidx.media3.exoplayer.DefaultRenderersFactory
+// com.google.android.exoplayer2.ExoPlayer → androidx.media3.exoplayer.ExoPlayer
+// com.google.android.exoplayer2.Format → androidx.media3.common.Format
+// com.google.android.exoplayer2.MediaItem → androidx.media3.common.MediaItem
+// com.google.android.exoplayer2.PlaybackException → androidx.media3.common.PlaybackException
+// com.google.android.exoplayer2.Player → androidx.media3.common.Player
+// com.google.android.exoplayer2.source.ProgressiveMediaSource → androidx.media3.exoplayer.source.ProgressiveMediaSource
+// com.google.android.exoplayer2.source.hls.HlsMediaSource → androidx.media3.exoplayer.hls.HlsMediaSource
+// com.google.android.exoplayer2.ui.PlayerView → androidx.media3.ui.PlayerView
+// com.google.android.exoplayer2.video.VideoSize → androidx.media3.common.VideoSize
+// com.google.android.exoplayer2.ui.AspectRatioFrameLayout → androidx.media3.ui.AspectRatioFrameLayout
+// com.google.android.exoplayer2.source.MediaSource → androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.common.Format;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.VideoSize;
+import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.hls.HlsMediaSource;
+import androidx.media3.exoplayer.source.MediaSource;
+import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.ui.AspectRatioFrameLayout;
+import androidx.media3.ui.PlayerView;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
 /**
  * 播放器管理类（单例模式）
- * 基于ExoPlayer封装，提供直播播放、状态监听、画质切换、Header设置等功能
+ * 基于 Media3 ExoPlayer 封装，提供直播播放、状态监听、画质切换、Header设置等功能
  *
  * 【防卡优化版 + 切台优化版 + 真实数据版】
  * 1. 增大缓冲（从15秒→50秒），抗网络波动
@@ -44,45 +72,63 @@ public class TVPlayerManager {
     private ExoPlayer player;
     private Context context;
     private PlayerView playerView;
+
     // 屏幕缩放模式枚举
     public enum ScaleMode { FIT, FILL, ZOOM }
+
     // 播放状态监听器
     private OnPlayStateListener listener;
+
     // 当前播放地址
     private String currentUrl = "";
+
     // 是否正在播放
     private boolean isPlaying = false;
+
     // 当前频道号
     private int currentChannelNumber = 0;
+
     // 频道号显示TextView
     private TextView channelNumText;
+
     // 主线程Handler，用于UI操作
     private final Handler mHandler = new Handler(Looper.getMainLooper());
+
     // 频道号显示时长（3秒）
     private static final long CHANNEL_SHOW_DURATION = 3000L;
+
     // 日志时间格式化
     private final SimpleDateFormat logSdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+
     // 直播信息更新监听器
     private OnLiveInfoUpdateListener infoUpdateListener;
+
     // 播放状态监听器（成员变量，只添加一次）
     private Player.Listener playerListener;
+
     // ================================================
     // ✅ 防卡优化相关成员变量
     // ================================================
     // 是否使用软解码（默认硬解码，硬解码有问题再切软解码）
     private boolean useSoftwareDecoder = false;
+
     // 卡住检测：记录上次播放位置的时间
     private long lastPositionUpdateTime = 0;
     private long lastPosition = 0;
+
     // 卡住检测超时时间（5秒没动就算卡住了）
     private static final long STUCK_TIMEOUT = 5000;
+
     // 自动重试次数限制（防止无限重试）
     private int retryCount = 0;
     private static final int MAX_RETRY_COUNT = 3;
+
     // 卡住检测的Handler
     private final Handler stuckHandler = new Handler(Looper.getMainLooper());
+
     // 是否正在重试中
     private boolean isRetrying = false;
+
     /**
      * 直播信息实体类
      * 所有数据都从播放器实时获取，不再写死
@@ -95,12 +141,15 @@ public class TVPlayerManager {
         public int videoWidth;      // 视频宽度（真实分辨率）
         public int videoHeight;     // 视频高度（真实分辨率）
     }
+
     public interface OnLiveInfoUpdateListener {
         void onLiveInfoUpdate(LiveInfo info);
     }
+
     public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) {
         this.infoUpdateListener = listener;
     }
+
     public LiveInfo getLiveInfo() {
         LiveInfo info = new LiveInfo();
         info.channelNum = currentChannelNumber;
@@ -176,18 +225,22 @@ public class TVPlayerManager {
         
         return info;
     }
+
     public void setCurrentChannelNumber(int num) {
         this.currentChannelNumber = num;
     }
+
     private void notifyLiveInfoUpdate() {
         if (infoUpdateListener != null) {
             new Handler(Looper.getMainLooper()).post(() ->
                     infoUpdateListener.onLiveInfoUpdate(getLiveInfo()));
         }
     }
+
     public void bindChannelText(TextView textView) {
         this.channelNumText = textView;
     }
+
     private void showChannelAndAutoHide() {
         if (channelNumText == null) return;
         mHandler.removeCallbacks(hideChannelRunnable);
@@ -195,6 +248,7 @@ public class TVPlayerManager {
         channelNumText.setVisibility(View.VISIBLE);
         mHandler.postDelayed(hideChannelRunnable, CHANNEL_SHOW_DURATION);
     }
+
     private final Runnable hideChannelRunnable = new Runnable() {
         @Override
         public void run() {
@@ -203,16 +257,19 @@ public class TVPlayerManager {
             }
         }
     };
+
     public static TVPlayerManager getInstance(Context ctx) {
         if (instance == null) {
             instance = new TVPlayerManager(ctx);
         }
         return instance;
     }
+
     private TVPlayerManager(Context ctx) {
         context = ctx.getApplicationContext();
         initPlayer();
     }
+
     /**
      * ✅ 初始化播放器
      * 单独抽出来，方便重试时重新创建
@@ -233,6 +290,7 @@ public class TVPlayerManager {
             // 硬解码模式：启用解码器降级
             renderersFactory.setEnableDecoderFallback(true);
         }
+
         // ================================================
         // ✅ 优化1：缓冲配置（快速出画 + 大缓冲防卡）
         // ================================================
@@ -267,17 +325,21 @@ public class TVPlayerManager {
                 )
                 .setPrioritizeTimeOverSizeThresholds(true) // 优先保证时间缓冲
                 .build();
+
         // 创建ExoPlayer实例
         player = new ExoPlayer.Builder(context)
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
                 .build();
+
         // 初始化播放监听器
         initPlayerListener();
+
         // 初始化Cookie管理器
         CookieSyncManager.createInstance(context);
         CookieManager.getInstance().setAcceptCookie(true);
     }
+
     /**
      * ✅ 初始化播放状态监听器
      */
@@ -292,6 +354,7 @@ public class TVPlayerManager {
                 // ✅ 播放错误时自动重试
                 autoRetry("播放错误");
             }
+
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_READY) {
@@ -299,9 +362,11 @@ public class TVPlayerManager {
                     notifyLiveInfoUpdate();
                     showChannelAndAutoHide();
                     if (listener != null) listener.onPlayReady();
+
                     // 播放就绪，重置重试计数
                     retryCount = 0;
                     isRetrying = false;
+
                     // 开始卡住检测
                     startStuckDetection();
                 } else if (state == Player.STATE_BUFFERING) {
@@ -318,6 +383,7 @@ public class TVPlayerManager {
                     updateWakeLock(false);
                 }
             }
+
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
                 // 播放状态变化时更新卡住检测
@@ -325,8 +391,9 @@ public class TVPlayerManager {
                     lastPositionUpdateTime = System.currentTimeMillis();
                 }
             }
+
             // ====================================================================
-            // ✅ 视频分辨率变化时触发（新版本 ExoPlayer 签名）
+            // ✅ 视频分辨率变化时触发
             // ====================================================================
             /**
              * 为什么需要这个？
@@ -343,8 +410,10 @@ public class TVPlayerManager {
                 notifyLiveInfoUpdate();
             }
         };
+
         player.addListener(playerListener);
     }
+
     // ================================================
     // ✅ 优化2：卡住检测 + 自动重试
     // ================================================
@@ -358,12 +427,14 @@ public class TVPlayerManager {
         lastPosition = 0;
         stuckHandler.postDelayed(stuckCheckRunnable, 2000);
     }
+
     /**
      * 停止卡住检测
      */
     private void stopStuckDetection() {
         stuckHandler.removeCallbacks(stuckCheckRunnable);
     }
+
     /**
      * 卡住检测Runnable
      */
@@ -375,9 +446,11 @@ public class TVPlayerManager {
                 stuckHandler.postDelayed(this, 2000);
                 return;
             }
+
             try {
                 long currentPosition = player.getCurrentPosition();
                 long now = System.currentTimeMillis();
+
                 if (currentPosition != lastPosition) {
                     // 播放位置在动，正常
                     lastPosition = currentPosition;
@@ -394,10 +467,12 @@ public class TVPlayerManager {
             } catch (Exception e) {
                 Log.e(TAG, "卡住检测异常", e);
             }
+
             // 继续下一次检测
             stuckHandler.postDelayed(this, 2000);
         }
     };
+
     /**
      * ✅ 自动重试
      * @param reason 重试原因（用于日志）
@@ -408,9 +483,11 @@ public class TVPlayerManager {
             Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT);
             return;
         }
+
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
+
         // 延迟1秒后重新加载
         mHandler.postDelayed(new Runnable() {
             @Override
@@ -422,6 +499,7 @@ public class TVPlayerManager {
             }
         }, 1000);
     }
+
     /**
      * 切换软解码/硬解码
      * @param useSoftware true=软解码，false=硬解码
@@ -430,6 +508,7 @@ public class TVPlayerManager {
         if (useSoftwareDecoder == useSoftware) return;
         useSoftwareDecoder = useSoftware;
         Log.d(TAG, "切换解码器：" + (useSoftware ? "软解码" : "硬解码"));
+
         // 重新创建播放器
         if (player != null) {
             try {
@@ -443,10 +522,12 @@ public class TVPlayerManager {
                 Log.e(TAG, "释放播放器异常", e);
             }
         }
+
         initPlayer();
         if (playerView != null) {
             playerView.setPlayer(player);
         }
+
         // 重新播放当前地址
         if (!TextUtils.isEmpty(currentUrl)) {
             retryCount = 0;
@@ -454,6 +535,7 @@ public class TVPlayerManager {
             playUrlInternal(currentUrl);
         }
     }
+
     public void onForeground() {
         try {
             if (player != null && playerView != null) {
@@ -464,6 +546,7 @@ public class TVPlayerManager {
             Log.e(TAG, "切前台异常", e);
         }
     }
+
     public void onBackground() {
         try {
             if (player != null) {
@@ -473,28 +556,34 @@ public class TVPlayerManager {
             Log.e(TAG, "切后台异常", e);
         }
     }
+
     public void attachPlayerView(PlayerView view) {
         playerView = view;
         playerView.setPlayer(player);
         playerView.setUseController(false);
     }
+
     private void updateWakeLock(boolean enable) {
         isPlaying = enable;
         if (playerView != null) {
             playerView.setKeepScreenOn(enable);
         }
     }
+
     private String getLogTime() {
         return "[" + logSdf.format(new Date()) + "]";
     }
+
     private Map<String, String> getHeaders(String url) {
         Map<String, String> headers = new HashMap<>();
         headers.put("User-Agent", "ExoPlayer");
         headers.put("Accept", "*/*");
         headers.put("Connection", "keep-alive");
         headers.put("Icy-MetaData", "1");
+
         boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
         boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
+
         if (isHuya) {
             headers.put("Referer", "https://www.huya.com/");
             Log.d(TAG, "虎牙直播，设置虎牙Referer");
@@ -506,15 +595,19 @@ public class TVPlayerManager {
         else {
             headers.put("Referer", "https://www.huya.com/");
         }
+
         String cookies = CookieManager.getInstance().getCookie(url);
         if (cookies != null) {
             headers.put("Cookie", cookies);
         }
+
         return headers;
     }
+
     public void play(String url) {
         playUrl(url);
     }
+
     /**
      * 播放指定URL（对外接口）
      * 切换频道时调用，重置重试计数
@@ -525,6 +618,7 @@ public class TVPlayerManager {
         isRetrying = false;
         playUrlInternal(url);
     }
+
     /**
      * ✅ 内部播放方法
      *
@@ -540,8 +634,10 @@ public class TVPlayerManager {
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
+
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
+
             // ====================================================================
             // ✅ 关键修改：去掉 player.stop() 和 player.clearMediaItems()
             // ====================================================================
@@ -567,14 +663,23 @@ public class TVPlayerManager {
              */
             // player.stop();          // ✅ 注释掉，保持最后一帧
             // player.clearMediaItems(); // ✅ 注释掉，保持最后一帧
+
             // ===== 创建数据源（带重定向日志版） =====
             // 每一重定向都会打印详细日志，方便调试直播源
             RedirectLoggingHttpDataSource.Factory httpFactory =
                     new RedirectLoggingHttpDataSource.Factory();
             httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
             httpFactory.setAllowCrossProtocolRedirects(true);
+
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
-            com.google.android.exoplayer2.source.MediaSource mediaSource;
+
+            // ====================================================================
+            // ✅ 2026-06-23 修改：MediaSource 类型改成 Media3 的
+            // ====================================================================
+            // 从 com.google.android.exoplayer2.source.MediaSource
+            // 改成 androidx.media3.exoplayer.source.MediaSource
+            MediaSource mediaSource;
+
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
                 mediaSource = new HlsMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
@@ -582,37 +687,48 @@ public class TVPlayerManager {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
+
             // ====================================================================
             // ✅ 关键修改：直接设置新的媒体源，第二个参数 true = 重置到开头
             // ====================================================================
             player.setMediaSource(mediaSource, true);
             player.prepare();
             player.play();
+
             // 开始卡住检测
             startStuckDetection();
+
         } catch (Exception e) {
             Log.e(TAG, "播放异常", e);
             autoRetry("播放异常：" + e.getMessage());
         }
     }
+
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
+
+            // ====================================================================
+            // ✅ 2026-06-23 修改：AspectRatioFrameLayout 包名改成 Media3 的
+            // ====================================================================
+            // 从 com.google.android.exoplayer2.ui.AspectRatioFrameLayout
+            // 改成 androidx.media3.ui.AspectRatioFrameLayout
             switch (mode) {
                 case FIT:
-                    playerView.setResizeMode(com.google.android.exoplayer2.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
                     break;
                 case FILL:
-                    playerView.setResizeMode(com.google.android.exoplayer2.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
                     break;
                 case ZOOM:
-                    playerView.setResizeMode(com.google.android.exoplayer2.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
                     break;
             }
         } catch (Exception e) {
             Log.e(TAG, "设置缩放模式异常", e);
         }
     }
+
     public interface OnPlayStateListener {
         void onIdle();
         void onBuffering();
@@ -620,24 +736,29 @@ public class TVPlayerManager {
         void onPlayEnd();
         void onPlayError(String msg);
     }
+
     public void setOnPlayStateListener(OnPlayStateListener l) {
         listener = l;
     }
+
     public void pause() {
         try { if (player != null) player.pause(); } catch (Exception e) {
             Log.e(TAG, "暂停异常", e);
         }
     }
+
     public void resume() {
         try { if (player != null) player.play(); } catch (Exception e) {
             Log.e(TAG, "恢复异常", e);
         }
     }
+
     public void release() {
         try {
             stopStuckDetection();
             mHandler.removeCallbacks(hideChannelRunnable);
             updateWakeLock(false);
+
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
