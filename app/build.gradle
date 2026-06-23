@@ -136,16 +136,49 @@ dependencies {
     implementation "androidx.recyclerview:recyclerview:1.3.2"
     implementation 'com.google.zxing:core:3.5.1'
     implementation 'com.google.code.gson:gson:2.10.1'
-    implementation "com.google.android.exoplayer:exoplayer:2.19.1"
-    implementation "com.google.android.exoplayer:exoplayer-ui:2.19.1"
-    implementation "com.google.android.exoplayer:exoplayer-hls:2.19.1"
-    implementation "com.google.android.exoplayer:exoplayer-dash:2.19.1"
+
+    // ====================================================================
+    // ✅ 2026-06-23 修改：升级到 Media3 1.10.1
+    // ====================================================================
+    //
+    // 【为什么升级？】
+    // ExoPlayer 已经迁移到 AndroidX Media3 项目，
+    // 旧的 com.google.android.exoplayer 包名不再维护，
+    // 新功能和 bug 修复都在 Media3 里。
+    //
+    // 【包名变化对照表】
+    // 旧包名 (ExoPlayer 2.x)                → 新包名 (Media3 1.x)
+    // com.google.android.exoplayer2.ExoPlayer → androidx.media3.exoplayer.ExoPlayer
+    // com.google.android.exoplayer2.ui.PlayerView → androidx.media3.ui.PlayerView
+    // com.google.android.exoplayer2.C        → androidx.media3.common.C
+    // com.google.android.exoplayer2.upstream → androidx.media3.datasource
+    //
+    // 【依赖说明】
+    // 1. media3-exoplayer：核心播放器
+    // 2. media3-ui：PlayerView 等 UI 组件
+    // 3. media3-exoplayer-hls：HLS (m3u8) 流媒体支持
+    // 4. media3-exoplayer-dash：DASH 流媒体支持
+    // 5. media3-common：公共类（C、Format、MediaItem 等）
+    // 6. media3-datasource：数据源相关类（BaseDataSource、HttpDataSource 等）
+    //
+    // ⚠️ 注意：Media3 1.10.1 的 HLS 模块要求 minSdk >= 23
+    // 如果你的 minSdk 是 21，可能需要升级到 23，或者使用更低版本的 Media3
+    implementation "androidx.media3:media3-exoplayer:1.10.1"
+    implementation "androidx.media3:media3-ui:1.10.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.10.1"
+    implementation "androidx.media3:media3-exoplayer-dash:1.10.1"
+    implementation "androidx.media3:media3-common:1.10.1"
+    implementation "androidx.media3:media3-datasource:1.10.1"
+
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
+
     // 仅修改下面两行 retrofit 版本，其余不动
     implementation "com.squareup.retrofit2:retrofit:2.11.0"
     implementation "com.squareup.retrofit2:converter-gson:2.11.0"
+
     implementation "com.github.bumptech.glide:glide:4.16.0"
     annotationProcessor "com.github.bumptech.glide:compiler:4.16.0"
+
     implementation "org.apache.commons:commons-lang3:3.14.0"
     implementation "com.blankj:utilcodex:1.31.1"
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
