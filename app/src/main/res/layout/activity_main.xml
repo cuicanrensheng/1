@@ -62,6 +62,10 @@
   ====================================================================
   移除了 iv_player_placeholder 防花屏占位图，
   配合 Java 代码修改，占位图功能彻底取消。
+  
+  【2026-06-23 修改：升级到 Media3 1.10.1】
+  PlayerView 的包名从 com.google.android.exoplayer2.ui.PlayerView
+  改成 androidx.media3.ui.PlayerView
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -70,7 +74,7 @@
     android:background="#000000">
 
     <!-- ==================================================================== -->
-    <!-- 主播放器视图（ExoPlayer 的 PlayerView）                              -->
+    <!-- 主播放器视图（Media3 的 PlayerView）                                 -->
     <!-- ==================================================================== -->
     <!--
       【属性说明】
@@ -78,8 +82,11 @@
       - resize_mode="fit"：等比例缩放，保持画面比例
       - keep_content_on_player_reset="true"：暂停/切台时保持最后一帧，避免黑屏
       - surface_type="surface_view"：使用 SurfaceView 渲染，性能更好
+      
+      【2026-06-23 修改】包名从 com.google.android.exoplayer2.ui.PlayerView
+      改成 androidx.media3.ui.PlayerView
     -->
-    <com.google.android.exoplayer2.ui.PlayerView
+    <androidx.media3.ui.PlayerView
         android:id="@+id/player_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -149,7 +156,6 @@
               系统默认的焦点框和我们自定义的选中高亮叠加在一起，
               导致有两层高亮，看起来像有多个光标，很乱。
               加上这个属性后，只用我们自己的自定义高亮（Java 代码控制）。
-
               ✅ 【2026-06-21 新增】android:listSelector="@android:color/transparent"
               【作用】去掉 ListView 默认的选中/焦点背景色
               【为什么加？】
@@ -173,7 +179,6 @@
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
               【作用】去掉系统默认的焦点高亮框
-
               ✅ 【2026-06-21 新增】android:listSelector="@android:color/transparent"
               【作用】去掉 ListView 默认的选中/焦点背景色
             -->
@@ -255,7 +260,6 @@
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
               【作用】去掉系统默认的焦点高亮框
-
               ✅ 【2026-06-21 新增】android:listSelector="@android:color/transparent"
               【作用】去掉 ListView 默认的选中/焦点背景色
             -->
@@ -274,7 +278,6 @@
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
               【作用】去掉系统默认的焦点高亮框
-
               ✅ 【2026-06-21 新增】android:listSelector="@android:color/transparent"
               【作用】去掉 ListView 默认的选中/焦点背景色
             -->
@@ -293,7 +296,6 @@
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
               【作用】去掉系统默认的焦点高亮框
-
               ✅ 【2026-06-21 新增】android:listSelector="@android:color/transparent"
               【作用】去掉 ListView 默认的选中/焦点背景色
             -->
@@ -328,7 +330,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical">
-
             <TextView
                 android:id="@+id/tv_channel_name"
                 android:layout_width="wrap_content"
@@ -336,7 +337,6 @@
                 android:textColor="#FFFFFF"
                 android:textSize="22sp"
                 android:textStyle="bold" />
-
             <TextView
                 android:id="@+id/tv_tag_fhd"
                 android:layout_width="wrap_content"
@@ -347,7 +347,6 @@
                 android:paddingVertical="2dp"
                 android:textSize="12sp"
                 android:textColor="#000" />
-
             <TextView
                 android:id="@+id/tv_tag_audio"
                 android:layout_width="wrap_content"
@@ -358,7 +357,6 @@
                 android:paddingVertical="2dp"
                 android:textSize="12sp"
                 android:textColor="#000" />
-
             <TextView
                 android:id="@+id/tv_bitrate"
                 android:layout_width="wrap_content"
@@ -374,14 +372,12 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:layout_marginTop="4dp">
-
             <TextView
                 android:id="@+id/tv_current_time_range"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />
-
             <ProgressBar
                 android:id="@+id/progress_program"
                 style="?android:attr/progressBarStyleHorizontal"
@@ -389,14 +385,12 @@
                 android:layout_weight="1"
                 android:layout_height="3dp"
                 android:layout_marginHorizontal="8dp" />
-
             <TextView
                 android:id="@+id/tv_remaining_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />
-
             <TextView
                 android:id="@+id/tv_program_name"
                 android:layout_width="wrap_content"
