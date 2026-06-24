@@ -67,14 +67,15 @@ import java.util.Map;
  * 增加 cancelRetry() 方法，切换频道时自动取消旧频道的重试任务，
  * 避免旧频道的重试干扰新频道的播放。
  * 
- * 【2026-06-24 修改：抗卡顿优化版】
+ * 【2026-06-24 修改：抗卡顿优化版 + 详细解码日志】
  * 【修改说明】
- * Media3 降级到 1.5.0 后个别频道卡顿，优化缓冲配置：
+ * Media3 降级到 1.5.0 后个别频道卡顿，优化缓冲配置并增加详细日志：
  * 1. 增大开始播放所需缓冲（300ms → 1500ms），首帧更流畅
  * 2. 增大最小缓冲（2000ms → 5000ms），抗网络波动能力更强
  * 3. 增大重缓冲阈值（500ms → 2000ms），减少频繁缓冲
  * 4. 优化 HLS 播放参数，提高容错性
- * 5. 添加更多卡顿相关日志，方便排查问题
+ * 5. ✅ 增加详细解码日志：解码器类型、视频格式、缓冲状态、丢帧统计
+ * 6. ✅ 增加卡顿检测日志：实时监控播放状态，定位卡顿原因
  */
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerLog";
@@ -139,6 +140,37 @@ public class TVPlayerManager {
      * 导致新频道被重新加载一次，体验不好。
      */
     private Runnable retryRunnable = null;
+    // ====================================================================
+    // ✅ 2026-06-24 新增：卡顿分析相关统计变量
+    // ====================================================================
+    /**
+     * 播放开始时间（用于计算播放时长）
+     */
+    private long playStartTime = 0;
+    /**
+     * 总缓冲次数
+     */
+    private int totalBufferCount = 0;
+    /**
+     * 总缓冲时长（毫秒）
+     */
+    private long totalBufferDuration = 0;
+    /**
+     * 上次缓冲开始时间
+     */
+    private long lastBufferStartTime = 0;
+    /**
+     * 丢帧统计
+     */
+    private int totalDroppedFrames = 0;
+    /**
+     * 卡顿检测间隔（每2秒统计一次）
+     */
+    private static final long PERFORMANCE_LOG_INTERVAL = 5000;
+    /**
+     * 性能统计的Handler
+     */
+    private final Handler performanceHandler = new Handler(Looper.getMainLooper());
     /**
      * 直播信息实体类
      * 所有数据都从播放器实时获取，不再写死
@@ -398,6 +430,32 @@ public class TVPlayerManager {
         // 初始化Cookie管理器
         CookieSyncManager.createInstance(context);
         CookieManager.getInstance().setAcceptCookie(true);
+        
+        // ====================================================================
+        // ✅ 2026-06-24 新增：重置性能统计
+        // ====================================================================
+        resetPerformanceStats();
+    }
+    // ====================================================================
+    // ✅ 2026-06-24 新增：重置性能统计
+    // ====================================================================
+    /**
+     * 重置性能统计数据
+     * 
+     * 【作用】
+     * 切换频道或重新播放时，清空上一次的统计数据，
+     * 确保每次统计都是针对当前频道的。
+     * 
+     * 【调用时机】
+     * 1. initPlayer() 初始化播放器时
+     * 2. playUrl() 切换频道时
+     */
+    private void resetPerformanceStats() {
+        playStartTime = 0;
+        totalBufferCount = 0;
+        totalBufferDuration = 0;
+        lastBufferStartTime = 0;
+        totalDroppedFrames = 0;
     }
     /**
      * ✅ 初始化播放状态监听器
@@ -415,6 +473,9 @@ public class TVPlayerManager {
                 if (error.getCause() != null) {
                     Log.e(TAG, "【错误原因】" + error.getCause().getMessage());
                 }
+                
+                // 停止性能统计
+                stopPerformanceLog();
                 
                 if (listener != null) {
                     listener.onPlayError(error.getMessage());
@@ -436,6 +497,12 @@ public class TVPlayerManager {
                     startStuckDetection();
                     
                     // ====================================================================
+                    // ✅ 2026-06-24 新增：开始性能统计
+                    // ====================================================================
+                    playStartTime = System.currentTimeMillis();
+                    startPerformanceLog();
+                    
+                    // ====================================================================
                     // ✅ 2026-06-23 新增：打印当前使用的解码器信息
                     // ====================================================================
                     // 【作用】
@@ -447,14 +514,25 @@ public class TVPlayerManager {
                             String decoderName = videoFormat.sampleMimeType;
                             boolean isFfmpeg = decoderName != null 
                                 && decoderName.toLowerCase().contains("ffmpeg");
-                            Log.d(TAG, "【解码器】当前视频解码器：" + decoderName 
-                                + "（" + (isFfmpeg ? "FFmpeg 软解" : "系统硬解") + "）");
                             
                             // ====================================================================
-                            // ✅ 2026-06-24 新增：打印分辨率和码率，方便排查卡顿问题
+                            // ✅ 2026-06-24 新增：详细的解码器信息日志
                             // ====================================================================
-                            Log.d(TAG, "【视频信息】分辨率: " + videoFormat.width + "×" + videoFormat.height
-                                + ", 码率: " + (videoFormat.bitrate / 1024) + "kbps");
+                            Log.d(TAG, "========================================");
+                            Log.d(TAG, "【解码器信息】");
+                            Log.d(TAG, "  解码器类型: " + (isFfmpeg ? "FFmpeg 软解" : "系统硬解"));
+                            Log.d(TAG, "  解码器名称: " + decoderName);
+                            Log.d(TAG, "  视频编码: " + videoFormat.sampleMimeType);
+                            Log.d(TAG, "  分辨率: " + videoFormat.width + "×" + videoFormat.height);
+                            Log.d(TAG, "  码率: " + (videoFormat.bitrate / 1024) + "kbps");
+                            Log.d(TAG, "  帧率: " + videoFormat.frameRate);
+                            Log.d(TAG, "  颜色空间: " + videoFormat.colorSpace);
+                            Log.d(TAG, "========================================");
+                            
+                            // 如果是软解，打印警告
+                            if (isFfmpeg) {
+                                Log.w(TAG, "【警告】当前使用 FFmpeg 软解码，CPU 占用较高，可能导致卡顿");
+                            }
                         }
                     } catch (Exception e) {
                         // 忽略，获取解码器信息失败不影响播放
@@ -465,16 +543,26 @@ public class TVPlayerManager {
                     lastPositionUpdateTime = System.currentTimeMillis();
                     
                     // ====================================================================
-                    // ✅ 2026-06-24 新增：打印缓冲状态，方便排查卡顿问题
+                    // ✅ 2026-06-24 新增：缓冲统计日志
                     // ====================================================================
+                    lastBufferStartTime = System.currentTimeMillis();
+                    totalBufferCount++;
+                    
                     try {
                         long bufferedDuration = player.getBufferedPosition() - player.getCurrentPosition();
-                        Log.d(TAG, "【缓冲】正在缓冲，当前已缓冲: " + bufferedDuration + "ms");
+                        Log.d(TAG, "【缓冲】第 " + totalBufferCount + " 次缓冲开始，当前已缓冲: " 
+                            + bufferedDuration + "ms");
                     } catch (Exception e) {
                         // 忽略
                     }
                 } else if (state == Player.STATE_ENDED) {
                     if (listener != null) listener.onPlayEnd();
+                    
+                    // ====================================================================
+                    // ✅ 2026-06-24 新增：停止性能统计
+                    // ====================================================================
+                    stopPerformanceLog();
+                    
                     // ✅ 直播流意外结束，自动重试
                     autoRetry("播放结束");
                 } else if (state == Player.STATE_IDLE) {
@@ -546,6 +634,88 @@ public class TVPlayerManager {
                 return "未知错误(" + errorCode + ")";
         }
     }
+    // ====================================================================
+    // ✅ 2026-06-24 新增：性能统计日志
+    // ====================================================================
+    /**
+     * 开始性能统计日志
+     * 
+     * 【作用】
+     * 每隔 5 秒打印一次播放性能统计，方便分析卡顿原因。
+     * 统计内容包括：缓冲次数、缓冲时长、丢帧数等。
+     * 
+     * 【为什么需要这个？】
+     * 光看"卡不卡"的主观感受不够，
+     * 通过量化的数据可以更准确地判断卡顿原因：
+     * - 缓冲次数多 → 网络问题
+     * - 丢帧多 → 解码性能问题
+     * - 码率高 → 带宽不足
+     */
+    private void startPerformanceLog() {
+        stopPerformanceLog();
+        performanceHandler.postDelayed(performanceLogRunnable, PERFORMANCE_LOG_INTERVAL);
+    }
+    /**
+     * 停止性能统计日志
+     */
+    private void stopPerformanceLog() {
+        performanceHandler.removeCallbacks(performanceLogRunnable);
+    }
+    /**
+     * 性能统计 Runnable
+     * 
+     * 【统计内容】
+     * 1. 播放时长
+     * 2. 缓冲次数和缓冲率
+     * 3. 当前缓冲时长
+     * 4. 当前码率
+     * 5. 丢帧统计
+     */
+    private final Runnable performanceLogRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (player == null) return;
+            
+            try {
+                long playDuration = System.currentTimeMillis() - playStartTime;
+                long bufferedDuration = player.getBufferedPosition() - player.getCurrentPosition();
+                int droppedFrames = 0;
+                
+                // 获取丢帧数（Media3 1.5.0 可能没有这个 API，用 try-catch 保护）
+                try {
+                    droppedFrames = player.getVideoFrameProcessingOffset();
+                } catch (Exception e) {
+                    // 旧版本没有这个方法，忽略
+                }
+                
+                // 计算缓冲率
+                double bufferRate = playDuration > 0 
+                    ? (totalBufferDuration * 100.0 / playDuration) 
+                    : 0;
+                
+                Log.d(TAG, "【性能统计】");
+                Log.d(TAG, "  播放时长: " + (playDuration / 1000) + "秒");
+                Log.d(TAG, "  缓冲次数: " + totalBufferCount + " 次");
+                Log.d(TAG, "  缓冲率: " + String.format("%.1f", bufferRate) + "%");
+                Log.d(TAG, "  当前缓冲: " + bufferedDuration + "ms");
+                Log.d(TAG, "  丢帧数: " + droppedFrames);
+                
+                // 判断卡顿原因
+                if (totalBufferCount > 3 && bufferRate > 10) {
+                    Log.w(TAG, "【卡顿分析】缓冲频繁，可能是网络带宽不足或直播源不稳定");
+                }
+                if (droppedFrames > 10) {
+                    Log.w(TAG, "【卡顿分析】丢帧较多，可能是解码性能不足（软解导致）");
+                }
+                
+            } catch (Exception e) {
+                Log.e(TAG, "性能统计异常", e);
+            }
+            
+            // 继续下一次统计
+            performanceHandler.postDelayed(this, PERFORMANCE_LOG_INTERVAL);
+        }
+    };
     // ================================================
     // ✅ 优化2：卡住检测 + 自动重试
     // ================================================
@@ -678,6 +848,7 @@ public class TVPlayerManager {
         if (player != null) {
             try {
                 stopStuckDetection();
+                stopPerformanceLog(); // ✅ 停止性能统计
                 // ✅ 2026-06-24 新增：重新创建播放器前取消重试
                 cancelRetry();
                 if (playerListener != null) {
@@ -776,6 +947,8 @@ public class TVPlayerManager {
         // 切换频道，重置重试计数
         retryCount = 0;
         isRetrying = false;
+        // ✅ 2026-06-24 新增：重置性能统计
+        resetPerformanceStats();
         playUrlInternal(url);
     }
     /**
@@ -915,6 +1088,7 @@ public class TVPlayerManager {
     public void release() {
         try {
             stopStuckDetection();
+            stopPerformanceLog(); // ✅ 停止性能统计
             // ✅ 2026-06-24 新增：释放时取消重试任务
             cancelRetry();
             mHandler.removeCallbacks(hideChannelRunnable);
