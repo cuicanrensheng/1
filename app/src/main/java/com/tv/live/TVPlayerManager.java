@@ -3,13 +3,18 @@ package com.tv.live;
 import com.tv.live.RedirectLoggingHttpDataSource;
 
 import android.content.Context;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 // ====================================================================
@@ -66,10 +71,18 @@ import java.util.Map;
  * 6. 优化缓冲参数，更快出画
  * 7. 显示真实画质、音频、码率
  * 8. ✅ 集成 FFmpeg 软解码器，提高格式兼容性
- * 9. ✅ 2026-06-24 新增：切台遇到失效直播源提示
- *    - 自动重试 3 次，都失败后判定为"频道失效"
- *    - 通过 onChannelInvalid() 回调通知外部（MainActivity）显示提示
- *    - 切台时自动重置，每个频道独立判断
+ * 9. ✅ 2026-06-24 新增：播放界面直接显示失效提示
+ *    - 播放失败时，在 PlayerView 中央显示"播放失败，请切换频道"
+ *    - 播放成功时，自动隐藏错误提示
+ *    - 不用 Toast，界面上直接显示更直观
+ *    - 动态添加 TextView，不需要修改布局文件
+ *
+ * 【2026-06-23 Media3 迁移说明】
+ * 从 ExoPlayer 2.x 升级到 Media3 1.10.1：
+ * - 包名从 com.google.android.exoplayer2 改为 androidx.media3
+ * - 公共API（Player, Format, MediaItem等）移到 common 包
+ * - ExoPlayer 实现移到 exoplayer 包
+ * - UI 组件移到 ui 包
  */
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerLog";
@@ -126,7 +139,22 @@ public class TVPlayerManager {
 
     // 自动重试次数限制（防止无限重试）
     private int retryCount = 0;
-    private static final int MAX_RETRY_COUNT = 3;
+
+    // ====================================================================
+    // ✅ 2026-06-24 修改：重试次数改成 0，播放失败直接判定为失效
+    // ====================================================================
+    // 【为什么改成 0？】
+    // 用户要求：直播源失效直接显示"播放失败，请切换频道"，
+    // 不需要自动重试。播放失败一次就判定为失效，直接显示提示。
+    //
+    // 【原来的逻辑】
+    // 自动重试 3 次，都失败才判定为失效。
+    // 这样网络波动导致的临时失败不会误判，但用户等待时间长。
+    //
+    // 【现在的逻辑】
+    // 播放失败直接判定为失效，立即在播放界面显示提示。
+    // 响应更快，用户体验更直接。
+    private static final int MAX_RETRY_COUNT = 0;
 
     // 卡住检测的Handler
     private final Handler stuckHandler = new Handler(Looper.getMainLooper());
@@ -139,14 +167,41 @@ public class TVPlayerManager {
     // ====================================================================
     /**
      * 标记当前频道是否已经触发过失效提示
-     * 防止同一个频道多次重试时重复弹出提示
+     * 防止同一个频道多次失败时重复触发回调
      * 
      * 【为什么需要这个标记？】
-     * 每次播放失败都会调用 autoRetry，重试 3 次，
-     * 如果每次失败都弹提示，用户会看到 3 次错误提示，体验不好。
-     * 所以只在最后一次重试失败后，才弹一次"频道失效"的提示。
+     * 虽然 MAX_RETRY_COUNT = 0，第一次失败就会判定为失效，
+     * 但播放过程中可能会多次触发 onPlayerError（比如网络反复波动），
+     * 用这个标记确保只触发一次失效回调。
+     * 
+     * 【什么时候重置？】
+     * 切换频道时（playUrl 方法中）会重置这个标记，
+     * 确保每个频道独立判断是否失效。
      */
     private boolean hasReportedInvalid = false;
+
+    // ====================================================================
+    // ✅ 2026-06-24 新增：错误提示 TextView
+    // ====================================================================
+    /**
+     * 播放界面上显示的错误提示文字
+     * 动态添加到 PlayerView 中，不需要修改布局文件
+     * 
+     * 【为什么不用 PlayerView.setErrorMessage？】
+     * 因为 Media3 的 PlayerView 没有这个方法，编译会报错。
+     * 所以我们自己动态创建一个 TextView，添加到 PlayerView 上。
+     * 
+     * 【显示位置】
+     * 显示在 PlayerView 的正中央。
+     * 
+     * 【样式】
+     * - 白色文字
+     * - 加粗
+     * - 16sp 字号
+     * - 居中显示
+     * - 默认隐藏
+     */
+    private TextView errorMessageView;
 
     /**
      * 直播信息实体类
@@ -422,6 +477,103 @@ public class TVPlayerManager {
         CookieManager.getInstance().setAcceptCookie(true);
     }
 
+    // ====================================================================
+    // ✅ 2026-06-24 新增：初始化错误提示 TextView
+    // ====================================================================
+    /**
+     * 创建错误提示 TextView，并添加到 PlayerView 中
+     * 
+     * 【为什么要动态创建？】
+     * 1. 不需要修改布局文件，侵入性小
+     * 2. 可以统一管理，不需要每个 Activity 都加一遍
+     * 3. PlayerView 继承自 FrameLayout，可以直接 addView
+     * 
+     * 【显示样式】
+     * - 白色文字
+     * - 加粗
+     * - 16sp 字号
+     * - 居中显示
+     * - 默认隐藏
+     * 
+     * 【调用时机】
+     * 在 attachPlayerView() 中调用，
+     * 绑定 PlayerView 后就初始化错误提示。
+     */
+    private void initErrorView() {
+        if (playerView == null) return;
+        if (errorMessageView != null) return; // 已经初始化过了
+
+        try {
+            errorMessageView = new TextView(context);
+            errorMessageView.setText("播放失败，请切换频道");
+            errorMessageView.setTextColor(Color.WHITE);
+            errorMessageView.setTextSize(16); // 16sp
+            errorMessageView.setTypeface(Typeface.DEFAULT_BOLD); // 加粗
+            errorMessageView.setGravity(Gravity.CENTER);
+            errorMessageView.setVisibility(View.GONE); // 默认隐藏
+
+            // 设置布局参数：居中显示，宽度和高度都是包裹内容
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER
+            );
+
+            // 添加到 PlayerView 中
+            playerView.addView(errorMessageView, params);
+
+            Log.d(TAG, "【错误提示】已初始化错误提示 TextView");
+
+        } catch (Exception e) {
+            Log.e(TAG, "初始化错误提示失败", e);
+            errorMessageView = null;
+        }
+    }
+
+    /**
+     * ✅ 显示错误提示
+     * @param message 错误提示文字
+     * 
+     * 【调用时机】
+     * 播放失败时调用，在 onPlayerError() 中触发。
+     * 
+     * 【显示效果】
+     * 在 PlayerView 中央显示白色加粗的错误文字。
+     */
+    private void showErrorMessage(String message) {
+        if (errorMessageView == null) {
+            initErrorView(); // 还没初始化，先初始化
+        }
+
+        if (errorMessageView != null) {
+            try {
+                errorMessageView.setText(message);
+                errorMessageView.setVisibility(View.VISIBLE);
+                Log.d(TAG, "【错误提示】显示：" + message);
+            } catch (Exception e) {
+                Log.e(TAG, "显示错误提示失败", e);
+            }
+        }
+    }
+
+    /**
+     * ✅ 隐藏错误提示
+     * 
+     * 【调用时机】
+     * 播放成功时调用，在 STATE_READY 中触发。
+     * 切到有效频道时，错误提示自动消失。
+     */
+    private void hideErrorMessage() {
+        if (errorMessageView != null) {
+            try {
+                errorMessageView.setVisibility(View.GONE);
+                Log.d(TAG, "【错误提示】隐藏");
+            } catch (Exception e) {
+                Log.e(TAG, "隐藏错误提示失败", e);
+            }
+        }
+    }
+
     /**
      * ✅ 初始化播放状态监听器
      */
@@ -430,6 +582,21 @@ public class TVPlayerManager {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
+
+                // ====================================================================
+                // ✅ 2026-06-24 新增：播放界面直接显示错误提示
+                // ====================================================================
+                // 【为什么不用 PlayerView.setErrorMessage？】
+                // 因为 Media3 的 PlayerView 没有这个方法，编译会报错。
+                // 所以我们自己动态创建了一个 TextView，添加到 PlayerView 上。
+                //
+                // 【显示位置】
+                // 显示在 PlayerView 的正中央。
+                //
+                // 【显示文字】
+                // "播放失败，请切换频道"
+                // 既说明了问题（播放失败），又告诉用户怎么做（请切换频道）。
+                showErrorMessage("播放失败，请切换频道");
                 
                 if (listener != null) {
                     listener.onPlayError(error.getMessage());
@@ -445,6 +612,17 @@ public class TVPlayerManager {
                     updateWakeLock(true);
                     notifyLiveInfoUpdate();
                     showChannelAndAutoHide();
+
+                    // ====================================================================
+                    // ✅ 2026-06-24 新增：播放成功，隐藏错误提示
+                    // ====================================================================
+                    // 播放成功了，把错误提示隐藏掉。
+                    // 这样切到有效频道时，错误提示会自动消失。
+                    //
+                    // 【为什么要在这里隐藏？】
+                    // STATE_READY 表示播放器已经准备好，可以开始播放了。
+                    // 这时候说明频道是有效的，应该把错误提示隐藏掉。
+                    hideErrorMessage();
                     
                     if (listener != null) listener.onPlayReady();
                     
@@ -456,7 +634,7 @@ public class TVPlayerManager {
                     // ✅ 2026-06-24 新增：播放成功，重置失效提示标记
                     // ====================================================================
                     // 播放成功了，说明频道是有效的，
-                    // 下次再失败时可以重新触发失效提示
+                    // 下次再失败时可以重新触发失效提示。
                     hasReportedInvalid = false;
                     
                     // 开始卡住检测
@@ -594,20 +772,23 @@ public class TVPlayerManager {
      * ✅ 自动重试
      * @param reason 重试原因（用于日志）
      * 
-     * 【2026-06-24 修改：增加频道失效提示】
+     * 【2026-06-24 修改：增加频道失效回调】
      * 【修改说明】
      * 当重试次数达到上限后，判定为"频道失效"，
-     * 通过 onChannelInvalid() 回调通知外部显示提示。
+     * 通过 onChannelInvalid() 回调通知外部。
      * 
-     * 【为什么不在第一次失败就提示？】
-     * 网络波动也可能导致播放失败，重试一下可能就好了。
-     * 只有重试 3 次都失败，才判定为真正的"频道失效"。
+     * 【现在的重试次数是 0】
+     * 所以第一次失败就会达到上限，直接判定为失效，
+     * 立即触发 onChannelInvalid 回调。
      * 
      * 【为什么需要 hasReportedInvalid 标记？】
-     * 防止同一个频道多次失败时重复弹出提示。
-     * 比如播放过程中偶尔卡顿导致失败，重试后又好了，
-     * 这种情况不应该弹"频道失效"提示。
-     * 只有切台后，新频道从一开始就播不出来，才弹提示。
+     * 防止同一个频道多次失败时重复触发回调。
+     * 虽然 MAX_RETRY_COUNT = 0，但播放过程中可能会多次触发错误，
+     * 用这个标记确保只触发一次失效回调。
+     * 
+     * 【注意】
+     * 错误提示已经直接显示在 PlayerView 上了，
+     * 这个回调主要是给外部做其他处理用的（比如统计、上报等）。
      */
     private void autoRetry(String reason) {
         if (isRetrying) return; // 已经在重试中，避免重复
@@ -616,18 +797,26 @@ public class TVPlayerManager {
             Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT + "，判定为频道失效");
             
             // ====================================================================
-            // ✅ 2026-06-24 新增：频道失效提示
+            // ✅ 2026-06-24 新增：频道失效回调
             // ====================================================================
-            // 重试 3 次都失败了，说明这个直播源真的有问题，
-            // 通知外部（MainActivity）给用户显示提示。
+            // 重试次数达到上限，说明这个直播源真的有问题，
+            // 通知外部（Listener）频道失效了。
             // 
             // 【hasReportedInvalid 的作用】
-            // 防止同一个频道多次失败时重复弹出提示。
-            // 只有第一次达到上限时才弹一次。
+            // 防止同一个频道多次失败时重复触发回调。
+            // 只有第一次达到上限时才触发一次。
+            // 
+            // 【提示文字】
+            // 改成："播放失败，请切换频道"
+            // 更简洁直接，用户一看就懂。
+            // 
+            // 【注意】
+            // 错误提示已经直接显示在 PlayerView 上了，
+            // 这个回调主要是给外部做其他处理用的（比如统计、上报等）。
             if (!hasReportedInvalid && listener != null) {
                 hasReportedInvalid = true;
-                listener.onChannelInvalid("该频道直播源已失效，请切换其他频道");
-                Log.d(TAG, "【失效提示】已触发频道失效回调");
+                listener.onChannelInvalid("播放失败，请切换频道");
+                Log.d(TAG, "【失效提示】已触发频道失效回调：播放失败，请切换频道");
             }
             
             isRetrying = false;
@@ -714,10 +903,31 @@ public class TVPlayerManager {
         }
     }
 
+    /**
+     * 绑定播放器视图
+     * 
+     * 【2026-06-24 修改：绑定视图时初始化错误提示】
+     * 【修改说明】
+     * 绑定 PlayerView 时，同时初始化错误提示 TextView，
+     * 并添加到 PlayerView 中。
+     * 
+     * 【为什么在这里初始化？】
+     * 因为 initErrorView() 需要 playerView 实例，
+     * 而 playerView 是在 attachPlayerView 中设置的。
+     * 所以绑定视图后，立即初始化错误提示。
+     */
     public void attachPlayerView(PlayerView view) {
         playerView = view;
         playerView.setPlayer(player);
         playerView.setUseController(false);
+
+        // ====================================================================
+        // ✅ 2026-06-24 新增：绑定视图时初始化错误提示
+        // ====================================================================
+        // 绑定 PlayerView 后，初始化错误提示 TextView，
+        // 并添加到 PlayerView 中。
+        // 这样播放失败时就能直接在界面上显示提示了。
+        initErrorView();
     }
 
     private void updateWakeLock(boolean enable) {
@@ -775,7 +985,7 @@ public class TVPlayerManager {
      * 确保每个频道独立判断是否失效。
      * 
      * 【为什么需要重置？】
-     * 如果上一个频道失效了，已经弹过提示了，
+     * 如果上一个频道失效了，已经触发过失效回调了，
      * 切换到新频道后，新频道也可能失效，需要重新判断。
      * 所以每次切台都要重置这个标记。
      */
@@ -783,7 +993,7 @@ public class TVPlayerManager {
         // 切换频道，重置重试计数
         retryCount = 0;
         isRetrying = false;
-        
+
         // ====================================================================
         // ✅ 2026-06-24 新增：切台时重置失效提示标记
         // ====================================================================
@@ -910,16 +1120,15 @@ public class TVPlayerManager {
      * 【2026-06-24 新增：onChannelInvalid 回调】
      * 
      * 【回调时机】
-     * 切换频道后，自动重试 3 次都失败，判定为"频道失效"时触发。
+     * 切换频道后，自动重试次数达到上限，判定为"频道失效"时触发。
      * 
-     * 【使用方式】
-     * MainActivity 实现这个接口，在 onChannelInvalid 中
-     * 显示 Toast 或者其他提示给用户。
+     * 【现在重试次数是 0】
+     * 所以播放失败一次就会触发这个回调。
      * 
-     * 【为什么不直接在 TVPlayerManager 里弹 Toast？】
-     * 因为 TVPlayerManager 是单例，持有 Context，
-     * 直接弹 Toast 也可以，但不符合"单一职责"原则。
-     * 播放器只负责播放和状态回调，UI 展示交给 Activity 处理。
+     * 【注意】
+     * 错误提示已经直接显示在 PlayerView 上了，
+     * 这个回调主要是给外部做其他处理用的（比如统计、上报等）。
+     * 外部不需要再弹 Toast，因为播放界面已经直接显示了。
      */
     public interface OnPlayStateListener {
         void onIdle();
@@ -932,7 +1141,7 @@ public class TVPlayerManager {
         // ✅ 2026-06-24 新增：频道失效回调
         // ====================================================================
         /**
-         * 频道失效时触发（重试 3 次都失败）
+         * 频道失效时触发（重试次数达到上限）
          * 
          * @param msg 失效原因描述，可直接显示给用户
          */
@@ -967,6 +1176,19 @@ public class TVPlayerManager {
                 }
                 player.release();
                 player = null;
+            }
+
+            // ====================================================================
+            // ✅ 2026-06-24 新增：释放时清理错误提示 View
+            // ====================================================================
+            // 从 PlayerView 中移除错误提示 TextView，避免内存泄漏
+            if (errorMessageView != null && playerView != null) {
+                try {
+                    playerView.removeView(errorMessageView);
+                } catch (Exception e) {
+                    Log.e(TAG, "移除错误提示失败", e);
+                }
+                errorMessageView = null;
             }
 
             instance = null;
