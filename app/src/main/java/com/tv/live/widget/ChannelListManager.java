@@ -41,6 +41,12 @@ import java.util.List;
  * 【2026-06-21 新增：排查日志】
  * 【说明】
  * 在关键位置加上日志，方便排查收藏和最近观看功能的问题。
+ * 
+ * 【2026-06-24 修改：增加焦点态样式区分】
+ * 【修改说明】
+ * 新增 hasFocus 变量和 setFocused 方法，区分"有焦点的选中"和"无焦点的选中"。
+ * 有焦点的选中项用深蓝色背景 + 白色文字，非常醒目；
+ * 无焦点的选中项用浅蓝色背景 + 蓝色文字，只是标记，不抢视线。
  */
 public class ChannelListManager {
     /** 频道列表 ListView */
@@ -49,6 +55,19 @@ public class ChannelListManager {
     private int selectedPosition = 0;
     /** 当前播放位置（正在播放的频道） */
     private int currentPlayIndex = 0;
+
+    // ====================================================================
+    // ✅ 2026-06-24 新增：焦点状态
+    // ====================================================================
+    /**
+     * 当前列表是否有焦点
+     * 
+     * 【作用】
+     * 区分"有焦点的选中"和"无焦点的选中"：
+     * - true = 当前光标在这个列表上，选中项用深蓝色背景 + 白色文字
+     * - false = 当前光标不在这个列表上，选中项用浅蓝色背景 + 蓝色文字
+     */
+    private boolean hasFocus = false;
 
     /** 频道点击监听器 */
     public interface OnChannelClickListener {
@@ -76,7 +95,6 @@ public class ChannelListManager {
          */
         boolean onChannelLongClick(String channelName, int position);
     }
-
     private OnChannelLongClickListener onChannelLongClickListener;
 
     /**
@@ -145,15 +163,42 @@ public class ChannelListManager {
     }
 
     // ====================================================================
+    // ✅ 2026-06-24 新增：设置焦点状态
+    // ====================================================================
+    /**
+     * 设置当前列表是否有焦点
+     * 
+     * @param focused true=有焦点，false=无焦点
+     */
+    public void setFocused(boolean focused) {
+        if (this.hasFocus == focused) return;
+        this.hasFocus = focused;
+        if (lvChannelList.getAdapter() != null) {
+            ((ArrayAdapter<?>) lvChannelList.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    /**
+     * 获取当前是否有焦点
+     */
+    public boolean isFocused() {
+        return hasFocus;
+    }
+
+    // ====================================================================
     // 显示全部频道
     // ====================================================================
     /**
      * 设置全部频道列表
+     * 
+     * 【2026-06-24 修改：样式区分焦点态】
      */
     public void setChannels(List<Channel> channelSourceList, int currentPlayIndex) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
+
         List<String> names = new ArrayList<>();
         for (Channel c : channelSourceList) names.add(c.getName());
+
         selectedPosition = currentPlayIndex;
         this.currentPlayIndex = currentPlayIndex;
 
@@ -174,32 +219,39 @@ public class ChannelListManager {
                 } else {
                     tvIndex.setText(String.valueOf(position + 1));
                 }
+
                 tvChannel.setText(getItem(position));
                 tvChannel.setTextSize(16);
 
-                // 三种状态样式
+                // ====================================================================
+                // ✅ 2026-06-24 修改：三种状态样式（区分焦点态）
+                // ====================================================================
                 if (position == selectedPosition) {
-                    // 选中状态：蓝色文字 + 加粗 + 浅蓝色背景
-                    tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                    tvChannel.setTypeface(null, Typeface.BOLD);
-                    convertView.setBackgroundColor(0x3340A9FF);
-                    tvIndex.setTextColor(Color.parseColor("#40A9FF"));
-                } else if (convertView.isFocused()) {
-                    // 焦点状态：蓝色文字 + 常规 + 透明背景
-                    tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                    tvChannel.setTypeface(null, Typeface.NORMAL);
-                    convertView.setBackgroundColor(Color.TRANSPARENT);
-                    tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                    if (hasFocus) {
+                        // ⭐ 有焦点 + 选中：深蓝色背景 + 白色文字 + 加粗（最醒目）
+                        tvChannel.setTextColor(Color.WHITE);
+                        tvChannel.setTypeface(null, Typeface.BOLD);
+                        convertView.setBackgroundColor(Color.parseColor("#40A9FF"));
+                        tvIndex.setTextColor(Color.WHITE);
+                    } else {
+                        // 无焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗（只是标记）
+                        tvChannel.setTextColor(Color.parseColor("#40A9FF"));
+                        tvChannel.setTypeface(null, Typeface.BOLD);
+                        convertView.setBackgroundColor(0x3340A9FF);
+                        tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                    }
                 } else {
-                    // 未选中状态：白色文字 + 常规 + 透明背景
+                    // 未选中：白色文字 + 透明背景
                     tvChannel.setTextColor(Color.WHITE);
                     tvChannel.setTypeface(null, Typeface.NORMAL);
                     convertView.setBackgroundColor(Color.TRANSPARENT);
                     tvIndex.setTextColor(Color.parseColor("#888888"));
                 }
+
                 return convertView;
             }
         };
+
         lvChannelList.setAdapter(adapter);
         lvChannelList.setSelection(selectedPosition);
     }
@@ -209,9 +261,12 @@ public class ChannelListManager {
     // ====================================================================
     /**
      * 按分组显示频道
+     * 
+     * 【2026-06-24 修改：样式区分焦点态】
      */
     public void setChannelsByGroup(List<Channel> channelSourceList, String group, int currentPlayIndex) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
+
         List<String> names = new ArrayList<>();
         int realIndex = 0;
         for (int i = 0; i < channelSourceList.size(); i++) {
@@ -223,6 +278,7 @@ public class ChannelListManager {
                 }
             }
         }
+
         selectedPosition = realIndex;
         this.currentPlayIndex = realIndex;
 
@@ -243,29 +299,39 @@ public class ChannelListManager {
                 } else {
                     tvIndex.setText(String.valueOf(position + 1));
                 }
+
                 tvChannel.setText(getItem(position));
                 tvChannel.setTextSize(16);
 
-                // 三种状态样式
+                // ====================================================================
+                // ✅ 2026-06-24 修改：三种状态样式（区分焦点态）
+                // ====================================================================
                 if (position == selectedPosition) {
-                    tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                    tvChannel.setTypeface(null, Typeface.BOLD);
-                    convertView.setBackgroundColor(0x3340A9FF);
-                    tvIndex.setTextColor(Color.parseColor("#40A9FF"));
-                } else if (convertView.isFocused()) {
-                    tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                    tvChannel.setTypeface(null, Typeface.NORMAL);
-                    convertView.setBackgroundColor(Color.TRANSPARENT);
-                    tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                    if (hasFocus) {
+                        // ⭐ 有焦点 + 选中：深蓝色背景 + 白色文字 + 加粗（最醒目）
+                        tvChannel.setTextColor(Color.WHITE);
+                        tvChannel.setTypeface(null, Typeface.BOLD);
+                        convertView.setBackgroundColor(Color.parseColor("#40A9FF"));
+                        tvIndex.setTextColor(Color.WHITE);
+                    } else {
+                        // 无焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗（只是标记）
+                        tvChannel.setTextColor(Color.parseColor("#40A9FF"));
+                        tvChannel.setTypeface(null, Typeface.BOLD);
+                        convertView.setBackgroundColor(0x3340A9FF);
+                        tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                    }
                 } else {
+                    // 未选中：白色文字 + 透明背景
                     tvChannel.setTextColor(Color.WHITE);
                     tvChannel.setTypeface(null, Typeface.NORMAL);
                     convertView.setBackgroundColor(Color.TRANSPARENT);
                     tvIndex.setTextColor(Color.parseColor("#888888"));
                 }
+
                 return convertView;
             }
         };
+
         lvChannelList.setAdapter(adapter);
         lvChannelList.setSelection(selectedPosition);
     }
@@ -285,6 +351,8 @@ public class ChannelListManager {
      *
      * 【2026-06-21 修复】
      * 即使列表为空也要更新适配器，不然会停留在上一个分组的内容。
+     * 
+     * 【2026-06-24 修改：样式区分焦点态】
      */
     public void setFilteredChannels(List<Channel> filteredChannels, String currentPlayChannelName) {
         // ✅ 日志 4：确认方法被调用了
@@ -328,26 +396,35 @@ public class ChannelListManager {
                 } else {
                     tvIndex.setText(String.valueOf(position + 1));
                 }
+
                 tvChannel.setText(getItem(position));
                 tvChannel.setTextSize(16);
 
-                // 三种状态样式
+                // ====================================================================
+                // ✅ 2026-06-24 修改：三种状态样式（区分焦点态）
+                // ====================================================================
                 if (position == selectedPosition) {
-                    tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                    tvChannel.setTypeface(null, Typeface.BOLD);
-                    convertView.setBackgroundColor(0x3340A9FF);
-                    tvIndex.setTextColor(Color.parseColor("#40A9FF"));
-                } else if (convertView.isFocused()) {
-                    tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                    tvChannel.setTypeface(null, Typeface.NORMAL);
-                    convertView.setBackgroundColor(Color.TRANSPARENT);
-                    tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                    if (hasFocus) {
+                        // ⭐ 有焦点 + 选中：深蓝色背景 + 白色文字 + 加粗（最醒目）
+                        tvChannel.setTextColor(Color.WHITE);
+                        tvChannel.setTypeface(null, Typeface.BOLD);
+                        convertView.setBackgroundColor(Color.parseColor("#40A9FF"));
+                        tvIndex.setTextColor(Color.WHITE);
+                    } else {
+                        // 无焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗（只是标记）
+                        tvChannel.setTextColor(Color.parseColor("#40A9FF"));
+                        tvChannel.setTypeface(null, Typeface.BOLD);
+                        convertView.setBackgroundColor(0x3340A9FF);
+                        tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                    }
                 } else {
+                    // 未选中：白色文字 + 透明背景
                     tvChannel.setTextColor(Color.WHITE);
                     tvChannel.setTypeface(null, Typeface.NORMAL);
                     convertView.setBackgroundColor(Color.TRANSPARENT);
                     tvIndex.setTextColor(Color.parseColor("#888888"));
                 }
+
                 return convertView;
             }
         };
