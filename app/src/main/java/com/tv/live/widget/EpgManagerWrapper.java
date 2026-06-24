@@ -1,5 +1,4 @@
 package com.tv.live.widget;
-
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -15,13 +14,11 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.MainActivity;
 import com.tv.live.R;
 import com.tv.live.SettingsActivity;
-
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -33,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
 /**
  * EPG 节目单包装管理器
  *
@@ -53,9 +49,17 @@ import java.util.Set;
  * 【日志分类说明】
  * - ✅ 播放日志（log）：EPG 数据获取、筛选、解析等数据处理相关
  * - ✅ 操作日志（logOperation）：主线程更新 UI、刷新列表等界面操作相关
+ * 
+ * 【2026-06-24 修复：多余焦点 + 固定在首位】
+ * 【修复的问题】
+ * 1. 多余焦点：播放中的节目和选中的节目同时高亮，看起来有两个焦点
+ * 2. 固定在首位：每次刷新数据都自动跳回播放中的节目（第一位）
+ * 
+ * 【修复方案】
+ * 1. 区分三种状态：选中（有背景）、播放中（只有文字颜色）、普通（白色）
+ * 2. 只有第一次加载时自动选中播放中的节目，后续刷新保留用户选中位置
  */
 public class EpgManagerWrapper {
-
     private final ListView lvEpg;
     private final Context context;
     private EpgAdapter adapter;
@@ -65,7 +69,6 @@ public class EpgManagerWrapper {
     private int selectedPosition = 0;
     private int playingIndex = -1;
     private int selectDayIndex = 0;
-
     public EpgManagerWrapper(Context context, ListView lvEpg) {
         this.context = context;
         this.lvEpg = lvEpg;
@@ -80,13 +83,11 @@ public class EpgManagerWrapper {
                     ((ArrayAdapter<?>) parent.getAdapter()).notifyDataSetChanged();
                 }
             }
-
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
         registerReminderReceiver();
     }
-
     /**
      * 刷新指定日期的节目单
      *
@@ -104,14 +105,11 @@ public class EpgManagerWrapper {
             SettingsActivity.log("【EPG包装】❌ refresh被调用，但currentChannel为空");
             return;
         }
-
         // ✅ 保留：数据处理开始 → 播放日志
         SettingsActivity.log("【EPG包装】🔄 开始刷新，频道：" + currentChannel.getName() + "，日期索引：" + dateIndex);
-
         playingIndex = -1;
         selectDayIndex = dateIndex;
         epgEndTimeMap.clear();
-
         new Thread(() -> {
             List<Channel.EpgItem> epgList;
             try {
@@ -121,10 +119,8 @@ public class EpgManagerWrapper {
                 SettingsActivity.log("【EPG包装】获取EPG异常：" + e.getMessage());
                 epgList = new ArrayList<>();
             }
-
             // ✅ 保留：数据统计 → 播放日志
             SettingsActivity.log("【EPG包装】📋 原始节目数：" + epgList.size());
-
             if (epgList.size() > 0) {
                 Set<String> dayNames = new HashSet<>();
                 for (Channel.EpgItem item : epgList) {
@@ -133,9 +129,7 @@ public class EpgManagerWrapper {
                 // ✅ 保留：数据统计 → 播放日志
                 SettingsActivity.log("【EPG包装】📅 EPG包含日期：" + dayNames);
             }
-
             List<Channel.EpgItem> data = new ArrayList<>();
-
             if (epgList != null && !epgList.isEmpty()) {
                 // ✅ 计算目标日期 + 对应的周几（全部双重兼容）
                 String targetDay;
@@ -145,7 +139,6 @@ public class EpgManagerWrapper {
                 int w = cal.get(Calendar.DAY_OF_WEEK);
                 String[] weekMap = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
                 String weekDay = weekMap[w - 1];
-
                 if (dateIndex == 0) {
                     targetDay = "今天";
                     targetWeekDay = weekDay;
@@ -158,12 +151,10 @@ public class EpgManagerWrapper {
                 } else {
                     targetDay = weekDay;
                 }
-
                 // ✅ 保留：数据筛选 → 播放日志
                 SettingsActivity.log("【EPG包装】🎯 目标日期：" + targetDay
                         + "，对应周几：" + weekDay
                         + (targetWeekDay != null ? "，兼容匹配：" + targetDay + " 或 " + targetWeekDay : ""));
-
                 // ✅ 双重兼容筛选：匹配目标日期 或 对应的周几
                 int matchCount = 0;
                 for (Channel.EpgItem item : epgList) {
@@ -178,13 +169,10 @@ public class EpgManagerWrapper {
                         matchCount++;
                     }
                 }
-
                 // ✅ 保留：数据筛选结果 → 播放日志
                 SettingsActivity.log("【EPG包装】✅ 筛选后节目数：" + matchCount);
-
                 // 按时间排序
                 Collections.sort(data, Comparator.comparing(o -> o.time));
-
                 // 计算结束时间 + 标记播放中
                 String now = getNow();
                 Channel.EpgItem playing = null;
@@ -209,14 +197,12 @@ public class EpgManagerWrapper {
                         playingIndex = i;
                     }
                 }
-
                 if (playing != null && playingIndex > 0) {
                     data.remove(playing);
                     data.add(0, playing);
                     playingIndex = 0;
                 }
             }
-
             // 主线程更新UI
             final List<Channel.EpgItem> finalData = data;
             final Channel finalChannel = currentChannel;
@@ -228,24 +214,37 @@ public class EpgManagerWrapper {
                 // 主线程更新 UI 是界面操作，属于操作日志，
                 // 不应该混进"解析 & 播放日志"里。
                 SettingsActivity.logOperation("【EPG包装】📱 主线程更新UI，节目数：" + finalData.size());
-
                 if (adapter == null) {
                     adapter = new EpgAdapter(context, finalChannel, finalData, selectDayIndex);
                     lvEpg.setAdapter(adapter);
                 } else {
                     adapter.setData(finalChannel, finalData, selectDayIndex);
                 }
-
-                if (playingIndex >= 0) {
-                    lvEpg.setSelection(playingIndex);
-                    selectedPosition = playingIndex;
+                // ====================================================================
+                // ✅ 2026-06-24 修复：只有第一次加载时才跳到播放中的节目
+                // ====================================================================
+                // 【修复的问题】
+                // 原来每次刷新数据都会自动把选中位置跳到播放中的节目（第一位），
+                // 导致用户按上下键移动焦点后，又自动跳回第一位，看起来像"固定在首位"。
+                // 
+                // 【修改逻辑】
+                // 只有第一次加载（adapter 为 null）时，才自动选中播放中的节目。
+                // 后续刷新保留用户当前选中的位置，但确保不越界。
+                if (adapter == null) {
+                    // 第一次加载：默认选中播放中的节目
+                    if (playingIndex >= 0) {
+                        selectedPosition = playingIndex;
+                    } else {
+                        selectedPosition = 0;
+                    }
                 } else {
-                    lvEpg.setSelection(0);
-                    selectedPosition = 0;
+                    // 后续刷新：确保选中位置不越界
+                    if (selectedPosition >= finalData.size()) {
+                        selectedPosition = Math.max(0, finalData.size() - 1);
+                    }
                 }
-
+                lvEpg.setSelection(selectedPosition);
                 adapter.notifyDataSetChanged();
-
                 // ============================================================
                 // ✅ 2026-06-21 修改：UI 更新完成 → 操作日志
                 // ============================================================
@@ -256,7 +255,6 @@ public class EpgManagerWrapper {
             });
         }).start();
     }
-
     /**
      * 判断时间是否在区间内
      *
@@ -274,7 +272,6 @@ public class EpgManagerWrapper {
             return false;
         }
     }
-
     /**
      * 时间加一小时
      *
@@ -298,7 +295,6 @@ public class EpgManagerWrapper {
             return "23:59";
         }
     }
-
     /**
      * 获取当前时间（HH:mm）
      *
@@ -309,7 +305,6 @@ public class EpgManagerWrapper {
                 Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
                 Calendar.getInstance().get(Calendar.MINUTE));
     }
-
     /**
      * 注册节目提醒广播接收器
      */
@@ -325,11 +320,9 @@ public class EpgManagerWrapper {
         };
         context.registerReceiver(receiver, new IntentFilter(ACTION_REMINDER));
     }
-
     // ====================================================================
     // EPG 列表适配器
     // ====================================================================
-
     /**
      * EPG 节目单列表适配器
      *
@@ -337,14 +330,12 @@ public class EpgManagerWrapper {
      * 每个 item 包含：日期、时间、节目名称、操作按钮（回看/预约/播放中）
      */
     private class EpgAdapter extends ArrayAdapter<Channel.EpgItem> {
-
         private final Context ctx;
         private Channel currentChannel;
         private List<Channel.EpgItem> list;
         private final LayoutInflater inflater;
         private int dayIndex;
         private final SimpleDateFormat sdfFull = new SimpleDateFormat("yyyyMMddHHmmss", Locale.CHINA);
-
         public EpgAdapter(Context ctx, Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
             super(ctx, R.layout.item_epg, list);
             this.ctx = ctx;
@@ -353,7 +344,6 @@ public class EpgManagerWrapper {
             this.inflater = LayoutInflater.from(ctx);
             this.dayIndex = dayIndex;
         }
-
         /**
          * 更新数据
          *
@@ -368,7 +358,6 @@ public class EpgManagerWrapper {
             this.dayIndex = dayIndex;
             notifyDataSetChanged();
         }
-
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder holder;
@@ -383,43 +372,53 @@ public class EpgManagerWrapper {
             } else {
                 holder = (ViewHolder) convertView.getTag();
             }
-
             Channel.EpgItem item = list.get(position);
             String endTime = epgEndTimeMap.get(item);
-
             holder.tv_dayName.setText(item.dayName);
             holder.tv_time.setText(item.time + "-" + endTime);
             holder.tv_title.setText(item.title);
-
-            boolean isSelected = (position == selectedPosition || item.isPlaying);
-
-            if (isSelected) {
-                // ✅ 选中状态：蓝色文字 + 标题加粗 + 浅蓝色背景
+            // ====================================================================
+            // ✅ 2026-06-24 修复：区分三种状态，去掉多余焦点
+            // ====================================================================
+            // 【修复的问题】
+            // 原来播放中的节目和选中的节目都显示同样的高亮样式，
+            // 导致出现两个高亮项（多余焦点），用户分不清哪个是当前选中的。
+            // 
+            // 【新的样式规范】
+            // 1. 选中状态（焦点在这一项）：浅蓝色背景 + 蓝色文字 + 加粗
+            // 2. 播放中状态（不是当前选中）：蓝色文字 + 透明背景 + 加粗（只标记，不抢焦点）
+            // 3. 普通状态：白色文字 + 透明背景
+            // 
+            // 【为什么这样改？】
+            // 播放中的节目只需要用蓝色文字标记一下就行，
+            // 不需要背景色，这样就不会和选中态混淆了。
+            // 只有当前焦点所在的项才显示浅蓝色背景，用户一眼就能看出焦点在哪。
+            if (position == selectedPosition) {
+                // ⭐ 选中状态（焦点在这）：浅蓝色背景 + 蓝色文字 + 加粗
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(0x3340A9FF);
-            }else if (convertView.isFocused()) {
-                // ✅ 焦点状态：蓝色文字 + 常规 + 透明背景
+            } else if (item.isPlaying) {
+                // ✅ 播放中（但不是当前焦点）：蓝色文字 + 透明背景 + 加粗
+                // 只标记是正在播放的节目，不显示背景色，避免和选中态混淆
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_title.setTypeface(null, Typeface.NORMAL);
+                holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             } else {
-                // ✅ 未选中状态：原来的颜色 + 透明背景
+                // 普通状态：白色文字 + 透明背景
                 holder.tv_dayName.setTextColor(Color.WHITE);
                 holder.tv_time.setTextColor(Color.LTGRAY);
                 holder.tv_title.setTextColor(Color.WHITE);
                 holder.tv_title.setTypeface(null, Typeface.NORMAL);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             }
-
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
             try { isPast = item.time.compareTo(getNow()) < 0; } catch (Exception ignored) {}
-
             if (item.isPlaying) {
                 // 播放中
                 holder.tv_action.setText("播放中");
@@ -475,10 +474,8 @@ public class EpgManagerWrapper {
                     notifyDataSetChanged();
                 });
             }
-
             return convertView;
         }
-
         /**
          * ViewHolder 模式
          */
