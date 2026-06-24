@@ -33,6 +33,11 @@ import java.util.List;
  * 【2026-06-24 修改：增加焦点态样式区分】
  * 【修改说明】
  * 新增 hasFocus 变量和 setFocused 方法，区分"有焦点的选中"和"无焦点的选中"。
+ * 
+ * 【样式规范】
+ * - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
+ * - 无焦点 + 选中：蓝色文字 + 透明背景
+ * - 未选中：白色文字 + 透明背景
  */
 public class DateListManager {
     /** 日期列表 ListView */
@@ -53,6 +58,11 @@ public class DateListManager {
     // ====================================================================
     /**
      * 当前列表是否有焦点
+     * 
+     * 【作用】
+     * 区分"有焦点的选中"和"无焦点的选中"：
+     * - true = 当前光标在这个列表上，选中项用浅蓝色背景 + 蓝色文字 + 加粗
+     * - false = 当前光标不在这个列表上，选中项用蓝色文字 + 透明背景
      */
     private boolean hasFocus = false;
 
@@ -122,6 +132,9 @@ public class DateListManager {
      *   6/21
      * 
      * 【2026-06-24 修改：样式区分焦点态】
+     * 选中态分两种：
+     * - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
+     * - 无焦点 + 选中：蓝色文字 + 透明背景
      */
     public void initDate() {
         dateDisplayList = new ArrayList<>();
@@ -168,17 +181,21 @@ public class DateListManager {
                 // ====================================================================
                 // ✅ 2026-06-24 修改：三种状态样式（区分焦点态）
                 // ====================================================================
+                // 【样式规范】
+                // - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
+                // - 无焦点 + 选中：蓝色文字 + 透明背景
+                // - 未选中：白色文字 + 透明背景
                 if (position == selectedPosition) {
                     if (hasFocus) {
-                        // ⭐ 有焦点 + 选中：深蓝色背景 + 白色文字 + 加粗（最醒目）
-                        tv.setTextColor(Color.WHITE);
-                        tv.setTypeface(null, Typeface.BOLD);
-                        tv.setBackgroundColor(Color.parseColor("#40A9FF"));
-                    } else {
-                        // 无焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗（只是标记）
+                        // ⭐ 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
                         tv.setTextColor(Color.parseColor("#40A9FF"));
                         tv.setTypeface(null, Typeface.BOLD);
-                        tv.setBackgroundColor(0x3340A9FF);
+                        tv.setBackgroundColor(0x3340A9FF); // 20%透明度的蓝色
+                    } else {
+                        // 无焦点 + 选中：蓝色文字 + 透明背景（只是标记，不抢视线）
+                        tv.setTextColor(Color.parseColor("#40A9FF"));
+                        tv.setTypeface(null, Typeface.BOLD);
+                        tv.setBackgroundColor(Color.TRANSPARENT);
                     }
                 } else {
                     // 未选中：白色文字 + 透明背景
