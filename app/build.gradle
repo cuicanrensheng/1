@@ -10,23 +10,17 @@ android {
 
     // ====================================================================
 
-    // ✅ 2026-06-23 升级：compileSdk 34 → 36
+    // ✅ 2026-06-24 修改：compileSdk 36 → 34
 
     // ====================================================================
 
-    // 【为什么升级？】
+    // 【为什么降回 34？】
 
-    // Media3 1.10.1 要求 compileSdk 至少 36，否则编译报错。
+    // Media3 1.5.0 发布时，最新的 compileSdk 是 34，
 
-    //
+    // 用 34 编译最稳妥，不会有兼容性问题。
 
-    // 【注意】
-
-    // compileSdk 只是编译时用的 SDK 版本，不影响运行时行为。
-
-    // 真正影响运行时行为的是 targetSdk。
-
-    compileSdk 36
+    compileSdk 34
 
     compileOptions {
 
@@ -50,65 +44,29 @@ android {
 
         // ====================================================================
 
-        // ✅ 2026-06-24 修改：minSdk 23 → 21
+        // ✅ minSdk 保持 21
 
         // ====================================================================
 
-        // 【为什么改回 21？】
+        // 【为什么是 21？】
 
-        // 部分低端电视（如酷开 32P31）底层 Android 版本可能是 5.1（API 22），
+        // Media3 1.5.0 官方支持 minSdk 21，
 
-        // minSdk 23 会导致这些设备安装时直接报「解析错误」。
+        // 不需要 tools:overrideLibrary，直接用就行。
 
-        // 为了兼容更多老电视，把 minSdk 降回 21。
-
-        //
-
-        // 【Media3 1.10.1 不是要求 minSdk 23 吗？】
-
-        // 是的，Media3 1.10.1 官方声明 minSdk=23，
-
-        // 但我们在 AndroidManifest.xml 里用 tools:overrideLibrary 强制覆盖了，
-
-        // 让编译通过。虽然有一定运行时风险，但大概率能正常运行。
-
-        //
-
-        // 【为什么不降级到 Media3 1.7.1？】
-
-        // 1.7.1 虽然官方支持 minSdk 21，但版本较老，
-
-        // 缺少一些 bug 修复和新特性。1.10.1 虽然需要 override，
-
-        // 但核心播放功能在 API 21 上大概率是能跑的。
-
-        // 先试试，不行再降级也不迟。
+        // 兼容 Android 5.0/5.1 (API 21-22) 的低端电视。
 
         minSdk 21
 
         // ====================================================================
 
-        // ✅ 2026-06-23 升级：targetSdk 34 → 36
+        // ✅ targetSdk 保持 34
 
         // ====================================================================
 
-        // 【为什么升级？】
+        // 跟 compileSdk 保持一致，用 34 最稳妥。
 
-        // 通常 targetSdk 和 compileSdk 保持一致。
-
-        // targetSdk 决定应用的运行时行为模式。
-
-        //
-
-        // 【注意】
-
-        // 升级 targetSdk 可能会引入一些行为变化，需要测试。
-
-        // 比如 Android 13/14/15 的一些权限和行为变化。
-
-        // 但电视应用通常影响不大。
-
-        targetSdk 36
+        targetSdk 34
 
         versionCode 20
 
@@ -140,53 +98,7 @@ android {
 
             keyPassword "admin123"
 
-            // ====================================================================
-
-            // ✅ 2026-06-24 新增：显式开启 v1 + v2 签名
-
-            // ====================================================================
-
-            // 【为什么加？】
-
-            // Android 系统有两代签名方案：
-
-            //
-
-            // 1. v1 签名（JAR 签名）：
-
-            //    - Android 1.0 就有了，所有版本都支持
-
-            //    - 缺点：速度慢，只能验证完整性
-
-            //
-
-            // 2. v2 签名（APK Signature Scheme v2）：
-
-            //    - Android 7.0（API 24）才引入
-
-            //    - 优点：速度快，安全性高，能验证整个 APK 未被篡改
-
-            //
-
-            // 【问题在哪？】
-
-            // 新版本 AGP + 高 compileSdk，可能默认只生成 v2 签名，
-
-            // 或者 v1 签名被关闭了。
-
-            // 这样 Android 6.0 及以下的老设备就认不出这个 APK，
-
-            // 直接报「解析程序包时出现问题」。
-
-            //
-
-            // 【解决方案】
-
-            // 显式开启 v1 + v2 两种签名：
-
-            // - v1：给老设备用（Android 6.0 及以下）
-
-            // - v2：给新设备用（Android 7.0 及以上），更快更安全
+            // ✅ 显式开启 v1 + v2 签名
 
             v1SigningEnabled true
 
@@ -203,8 +115,6 @@ android {
             keyAlias "androiddebugkey"
 
             keyPassword "android"
-
-            // ✅ debug 包也加上，保持一致
 
             v1SigningEnabled true
 
@@ -250,23 +160,9 @@ android {
 
     // ====================================================================
 
-    // ✅ 2026-06-23 新增：配置 libs 目录为 AAR 仓库
+    // ✅ 配置 libs 目录为 AAR 仓库
 
     // ====================================================================
-
-    // 【为什么需要？】
-
-    // 我们的 FFmpeg 解码器是 AAR 文件，放在 app/libs/ 目录下。
-
-    // 需要告诉 Gradle 从这个目录查找 AAR 依赖。
-
-    //
-
-    // 【注意】
-
-    // 如果你的项目里已经有 flatDir 配置了，就不需要再加了。
-
-    // 直接用 implementation files(...) 引用也行。
 
     repositories {
 
@@ -298,85 +194,77 @@ dependencies {
 
     // ====================================================================
 
-    // ✅ 2026-06-23 升级：ExoPlayer 2.19.1 → Media3 1.10.1
+    // ✅ 2026-06-24 修改：Media3 1.10.1 → 1.5.0
 
     // ====================================================================
 
-    // 【依赖对应关系】
+    // 【为什么降级？】
 
-    // 旧版 ExoPlayer 2.x          → 新版 Media3 1.x
+    // Media3 从 1.8.0 开始把 minSdk 从 21 升到了 23，
 
-    // exoplayer                    → media3-exoplayer
+    // 1.5.0 是官方支持 minSdk 21 的版本，不需要 tools:overrideLibrary。
 
-    // exoplayer-ui                 → media3-ui
+    //
 
-    // exoplayer-hls                → media3-exoplayer-hls
+    // 【1.5.0 和 1.10.1 的区别？】
 
-    // exoplayer-dash               → media3-exoplayer-dash
+    // - 核心播放功能、HLS、DASH 都一样，API 基本兼容
+
+    // - 1.10.1 有更多 bug 修复和新特性
+
+    // - 但电视直播应用基本用不到那些新特性，1.5.0 完全够用
+
+    //
+
+    // 【API 兼容性】
+
+    // 1.5.0 和 1.10.1 的核心 API 几乎一样，
+
+    // 你的 TVPlayerManager.java 等代码应该不需要改，
+
+    // 直接换版本号就能编译通过。
 
     // ====================================================================
 
     // ✅ Media3 核心播放器
 
-    implementation "androidx.media3:media3-exoplayer:1.10.1"
+    implementation "androidx.media3:media3-exoplayer:1.5.0"
 
     // ✅ Media3 UI 组件（PlayerView 等）
 
-    implementation "androidx.media3:media3-ui:1.10.1"
+    implementation "androidx.media3:media3-ui:1.5.0"
 
     // ✅ Media3 HLS 支持（直播流）
 
-    implementation "androidx.media3:media3-exoplayer-hls:1.10.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.5.0"
 
     // ✅ Media3 DASH 支持
 
-    implementation "androidx.media3:media3-exoplayer-dash:1.10.1"
+    implementation "androidx.media3:media3-exoplayer-dash:1.5.0"
 
     // ✅ Media3 通用工具
 
-    implementation "androidx.media3:media3-common:1.10.1"
+    implementation "androidx.media3:media3-common:1.5.0"
 
     // ✅ Media3 数据源
 
-    implementation "androidx.media3:media3-datasource:1.10.1"
+    implementation "androidx.media3:media3-datasource:1.5.0"
 
     // ====================================================================
 
-    // ✅ 2026-06-23 新增：FFmpeg 解码器扩展
+    // ⚠️ 注意：FFmpeg AAR 版本可能不兼容
 
     // ====================================================================
 
-    // 【文件位置】
+    // 你现在的 lib-decoder-ffmpeg-release.aar 是 Media3 1.10.1 版本的，
 
-    // app/libs/lib-decoder-ffmpeg-release.aar
-
-    //
-
-    // 【作用】
-
-    // 集成 FFmpeg 软解码器，当系统硬解码不支持某些格式时，
-
-    // 自动回退到 FFmpeg 软解码，提高兼容性。
+    // 如果 Media3 降到 1.5.0，FFmpeg 扩展可能会有兼容性问题。
 
     //
 
-    // 【两种引用方式】
+    // 【你说 FFmpeg 不用动，那就先保留】
 
-    // 方式一：implementation files('libs/lib-decoder-ffmpeg-release.aar')
-
-    //         直接引用文件，简单直接
-
-    //
-
-    // 方式二：implementation(name: 'lib-decoder-ffmpeg-release', ext: 'aar')
-
-    //         需要配合上面的 flatDir 配置使用
-
-    //
-
-    // 这里用方式一，最直接，不容易出错。
-
-    // ====================================================================
+    // 如果编译报错或运行时崩溃，再考虑换对应版本的 FFmpeg AAR。
 
     implementation files('libs/lib-decoder-ffmpeg-release.aar')
 
