@@ -17,6 +17,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -59,9 +60,14 @@ import java.util.List;
  * - 使用 PictureInPictureManager 统一管理画中画状态
  * - 所有画中画日志接入 SettingsActivity.logOperation，可在设置页面查看
  * - 退出画中画时记录详细尺寸日志，用于排查"返回播放界面变小窗"问题
+ * 
+ * 【2026-06-23 新增：画中画与全面屏冲突解决方案】
+ * 方案一 + 方案四 组合使用：
+ * - 方案一：进入画中画前临时关闭全面屏，退出后延迟恢复
+ * - 方案四：给 PlayerView 套一层父容器，监听尺寸变化主动刷新
+ * 双重保险，彻底解决画中画和全面屏的冲突问题。
  */
 public class MainActivity extends AppCompatActivity {
-
     // ====================== 单例 ======================
     public static MainActivity mInstance;
 
@@ -73,6 +79,27 @@ public class MainActivity extends AppCompatActivity {
 
     // ====================== 视图相关 ======================
     private PlayerView playerView;
+
+    // ====================================================================
+    // ✅ 2026-06-23 新增：PlayerView 父容器（方案四）
+    // ====================================================================
+    /**
+     * PlayerView 的父容器
+     * 
+     * 【作用】
+     * 监听父容器的尺寸变化，当尺寸变化时（比如画中画模式切换），
+     * 主动触发 PlayerView 重新布局，确保播放器尺寸正确。
+     * 
+     * 【为什么需要？】
+     * 画中画模式变化时，系统会改变窗口尺寸，然后重新布局。
+     * 但有时候 PlayerView（尤其是内部的 SurfaceView）会"慢半拍"，
+     * 导致尺寸不同步。
+     * 
+     * 【和方案一的关系】
+     * 方案一从系统层面避免冲突，方案四从布局层面兜底。
+     * 两者组合，双重保险。
+     */
+    private FrameLayout playerContainer;
 
     // ====================== 管理器相关 ======================
     public TVPlayerManager mPlayerManager;
@@ -131,19 +158,26 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         SettingsActivity.logOperation("【主页】onCreate -> 页面创建");
         SettingsActivity.logOperation("【系统】APP启动");
+
         mInstance = this;
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+
         displayManager = new DisplayManager(this);
         displayManager.applyFullScreen();
+
         setContentView(R.layout.activity_main);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
         initInfoDisplayManager();
+
         appConfig = AppConfig.getInstance(this);
         loadSettings();
+
         String customLive = appConfig.getCustomLiveUrl();
         String customEpg = appConfig.getCustomEpgUrl();
         if (customLive != null) UrlConfig.LIVE_URL = customLive;
         if (customEpg != null) UrlConfig.EPG_URL = customEpg;
+
         log("【配置】直播源地址：" + UrlConfig.LIVE_URL);
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
 
@@ -171,18 +205,66 @@ public class MainActivity extends AppCompatActivity {
         // 所以把控制器可见性监听器设为 null，避免不必要的回调。
         playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
 
+        // ====================================================================
+        // ✅ 2026-06-23 新增：父容器布局监听（方案四）
+        // ====================================================================
+        // 【作用】
+        // 监听父容器的尺寸变化，当尺寸变化时（比如画中画模式切换），
+        // 主动触发 PlayerView 重新布局，确保播放器尺寸正确。
+        //
+        // 【为什么需要？】
+        // 画中画模式变化时，系统会改变窗口尺寸，然后重新布局。
+        // 但有时候 PlayerView（尤其是内部的 SurfaceView）会"慢半拍"，
+        // 导致尺寸不同步。
+        //
+        // 【和方案一的关系】
+        // 方案一从系统层面避免冲突，方案四从布局层面兜底。
+        // 两者组合，双重保险。
+        // ====================================================================
+        playerContainer = findViewById(R.id.player_container);
+        if (playerContainer != null) {
+            playerContainer.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                @Override
+                public void onLayoutChange(View v, 
+                        int left, int top, int right, int bottom,
+                        int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    
+                    // 计算尺寸变化量
+                    int widthChanged = (right - left) - (oldRight - oldLeft);
+                    int heightChanged = (bottom - top) - (oldBottom - oldTop);
+                    
+                    // 只有尺寸真的变了才处理（避免不必要的刷新）
+                    if (widthChanged != 0 || heightChanged != 0) {
+                        log("【画中画】父容器尺寸变化：" 
+                            + (oldRight - oldLeft) + "×" + (oldBottom - oldTop)
+                            + " → " 
+                            + (right - left) + "×" + (bottom - top));
+                        
+                        // 父容器尺寸变化时，主动刷新 PlayerView
+                        refreshPlayerViewLayout();
+                    }
+                }
+            });
+            log("【画中画】✅ 父容器布局监听已设置（方案四）");
+        }
+
         initChannelPanelController();
         initRemoteManager();
         initPictureInPicture();
+
         if (mIsFirstLaunch) {
             mPanelAutoHideHandler.postDelayed(mPanelAutoHideRunnable, 3000);
             mIsFirstLaunch = false;
         }
+
         initPlayer();
+
         screenRatioManager = new ScreenRatioManager(mPlayerManager, appConfig);
         screenRatioManager.apply();
+
         gestureManager = new GestureManager(this);
         final PlayerGestureHelper gestureHelper = gestureManager.create();
+
         playerView.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -190,17 +272,114 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
+
         keyEventManager = new KeyEventManager(this);
+
         currentPlayIndex = appConfig.getLastPlayIndex();
         channelPanelController.setCurrentPlayIndex(currentPlayIndex);
         SettingsActivity.logOperation("【播放】记录上次播放索引：" + currentPlayIndex);
+
         initChannelNumberManager();
         if (channelNumberManager != null) {
             channelNumberManager.setEnable(number_channel_enable);
         }
+
         initAppCoreManager();
+
         displayManager.showLoading("正在加载直播源...");
         appCoreManager.loadLiveAndEpg();
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-23 新增：刷新 PlayerView 布局（方案四）
+    // ====================================================================
+    /**
+     * 刷新 PlayerView 布局（三重刷新机制）
+     * 
+     * 【调用场景】
+     * 1. 父容器尺寸变化时（画中画模式切换）
+     * 2. 退出画中画后
+     * 3. 从后台切回前台时
+     * 
+     * 【三重刷新机制】
+     * 1. 立即 requestLayout + invalidate
+     * 2. 延迟 100ms 再刷新一次（等 Surface 准备好）
+     * 3. 延迟 200ms 重新绑定播放器（确保 Surface 尺寸同步）
+     * 
+     * 【为什么需要三重？】
+     * SurfaceView 的 Surface 创建和尺寸变化是异步的，
+     * 一次刷新可能不够，三重刷新确保万无一失。
+     * 
+     * 【和方案一的关系】
+     * 方案一从系统层面避免冲突，方案四从布局层面兜底。
+     * 两者组合，双重保险。
+     */
+    private void refreshPlayerViewLayout() {
+        if (playerView == null) return;
+        
+        log("【画中画】开始刷新 PlayerView 布局");
+        
+        // ================================================================
+        // 第一重：立即刷新
+        // ================================================================
+        try {
+            playerView.requestLayout();
+            playerView.invalidate();
+            log("【画中画】第一重：立即 requestLayout + invalidate");
+        } catch (Exception e) {
+            log("【画中画】立即刷新失败：" + e.getMessage());
+        }
+        
+        // ================================================================
+        // 第二重：延迟 100ms 再刷新
+        // ================================================================
+        // 为什么延迟 100ms？
+        // SurfaceView 的 Surface 创建和尺寸变化是异步的，
+        // 立即 requestLayout 可能 Surface 还没准备好。
+        // 延迟 100ms 再刷一次，确保 Surface 已经更新。
+        playerView.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (playerView == null) return;
+                try {
+                    playerView.requestLayout();
+                    playerView.invalidate();
+                    log("【画中画】第二重：延迟100ms刷新");
+                    
+                    // 打印当前尺寸，方便调试
+                    log("【画中画】当前尺寸：" 
+                        + playerView.getWidth() + "×" + playerView.getHeight());
+                    
+                } catch (Exception e) {
+                    log("【画中画】延迟刷新失败：" + e.getMessage());
+                }
+            }
+        }, 100);
+        
+        // ================================================================
+        // 第三重：延迟 200ms + 重新绑定播放器
+        // ================================================================
+        // 为什么要重新绑定？
+        // 有时候 Surface 尺寸变了，但播放器不知道，
+        // 重新 attachPlayerView 可以让播放器重新关联 Surface，
+        // 确保渲染尺寸正确。
+        playerView.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (playerView == null || mPlayerManager == null) return;
+                try {
+                    mPlayerManager.attachPlayerView(playerView);
+                    log("【画中画】第三重：重新绑定播放器");
+                    
+                    // 打印最终尺寸
+                    log("【画中画】最终尺寸：" 
+                        + playerView.getWidth() + "×" + playerView.getHeight());
+                    
+                } catch (Exception e) {
+                    log("【画中画】重新绑定失败：" + e.getMessage());
+                }
+            }
+        }, 200);
     }
 
     // ====================================================================
@@ -425,7 +604,6 @@ public class MainActivity extends AppCompatActivity {
         TextView btn_back_group = findViewById(R.id.btn_back_group);
 
         EpgManager.getInstance(this);
-
         ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
         ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
         GroupListManager groupListManager = new GroupListManager(this, lvGroup);
@@ -472,8 +650,10 @@ public class MainActivity extends AppCompatActivity {
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
         mPlayerManager.attachPlayerView(playerView);
+
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
+
         mPlayerManager.setOnLiveInfoUpdateListener(new TVPlayerManager.OnLiveInfoUpdateListener() {
             @Override
             public void onLiveInfoUpdate(TVPlayerManager.LiveInfo info) {
@@ -537,7 +717,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
-
             @Override
             public void onLiveSourceFailed(String errorMsg) {
                 runOnUiThread(new Runnable() {
@@ -553,7 +732,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
-
             @Override
             public void onEpgLoaded() {
                 runOnUiThread(new Runnable() {
@@ -566,7 +744,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
-
             @Override
             public void onLoadTimeout(boolean hasData) {
                 runOnUiThread(new Runnable() {
@@ -633,21 +810,26 @@ public class MainActivity extends AppCompatActivity {
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
+
         log("========================================");
         log("【播放】频道名称：" + channel.getName());
         log("【播放】播放地址：" + channel.getPlayUrl());
         log("【播放】当前索引：" + index);
         log("========================================");
+
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
         mPlayerManager.playUrl(channel.getPlayUrl());
+
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         infoDisplayManager.showInfoBar(channel, live);
         infoDisplayManager.showChannelNum(index + 1);
+
         try {
             appConfig.addRecentChannel(channel.getName());
         } catch (Exception e) {
         }
+
         // ✅ 画中画模式下同步频道信息到管理器
         if (pipManager != null && pipManager.isInPipMode() && channel != null) {
             try {
@@ -690,20 +872,24 @@ public class MainActivity extends AppCompatActivity {
             moveTaskToBack(false);
             return;
         }
+
         if (channelNumberManager.isInputting()) {
             channelNumberManager.cancelInput();
             return;
         }
+
         if (remoteManager != null) {
             if (remoteManager.dispatchKeyEvent(KeyEvent.KEYCODE_BACK)) {
                 return;
             }
         }
+
         if (channelPanelController.handleBackPressed()) {
             playerView.requestFocus();
             syncRemoteMode();
             return;
         }
+
         super.onBackPressed();
     }
 
@@ -748,16 +934,23 @@ public class MainActivity extends AppCompatActivity {
             }
             return super.onKeyDown(keyCode, event);
         }
+
         cancelPanelAutoHide();
+
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
+
         if (channelNumberManager.handleNumberKey(keyCode)) return true;
+
         if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
             return true;
         }
+
         if (handleDirectionKey(keyCode)) return true;
+
         if (keyEventManager.dispatchKey(keyCode)) return true;
+
         return super.onKeyDown(keyCode, event);
     }
 
@@ -790,34 +983,65 @@ public class MainActivity extends AppCompatActivity {
     // 1. 打开设置页面时不进入
     // 2. pipManager 不为 null
     // 3. 调用 pipManager.shouldEnterPip() 统一判断所有条件
+    // 
+    // 【2026-06-23 修改】
+    // 新增方案一：进入画中画前临时关闭全面屏，避免冲突。
     // ====================================================================
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
         SettingsActivity.logOperation("【画中画排查】========== 开始 ==========");
         SettingsActivity.logOperation("【画中画排查】onUserLeaveHint 被调用");
+
         // 打开设置页面时不进入画中画（避免从主页面进入设置时触发）
         if (isOpeningSettings) {
             SettingsActivity.logOperation("【画中画排查】打开设置页面，跳过");
             SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
             return;
         }
+
         if (pipManager == null) {
             SettingsActivity.logOperation("【画中画排查】❌ pipManager 为 null");
             SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
             return;
         }
+
         // ✅ 使用 PictureInPictureManager 的统一判断
         boolean shouldEnter = pipManager.shouldEnterPip();
+
         // 输出详细状态（用于排查）
         SettingsActivity.logOperation("【画中画排查】MainActivity开关状态：" + pipEnable);
         SettingsActivity.logOperation("【画中画排查】设备支持：" + pipManager.isPipSupported());
         SettingsActivity.logOperation("【画中画排查】PIP管理器开关：" + pipManager.isPipEnabled());
         SettingsActivity.logOperation("【画中画排查】已在画中画模式：" + pipManager.isInPipMode());
         SettingsActivity.logOperation("【画中画排查】正在进入画中画：" + pipManager.isPipEntering());
+
         if (shouldEnter) {
             SettingsActivity.logOperation("【画中画排查】所有条件满足，尝试进入画中画...");
             try {
+                // ================================================================
+                // ✅ 方案一：进入画中画前，先临时关闭全面屏
+                // ================================================================
+                // 【为什么要在这里关？】
+                // 必须在调用 enterPictureInPictureMode() 之前关闭，
+                // 这样系统计算画中画窗口尺寸时，用的是默认的布局方式，
+                // 不会和全面屏适配冲突。
+                //
+                // 【冲突表现】
+                // 如果不关全面屏直接进入画中画，可能会出现：
+                // 1. 画中画小窗黑屏
+                // 2. 退出画中画后播放器尺寸不对
+                // 3. 退出画中画后全面屏失效
+                //
+                // 【和 restoreFullScreenAfterPip 的关系】
+                // - disableFullScreenForPip()：进入画中画前调用，关闭全面屏
+                // - restoreFullScreenAfterPip()：退出画中画后调用，恢复全面屏
+                // 两者配对使用。
+                if (displayManager != null) {
+                    displayManager.disableFullScreenForPip();
+                    SettingsActivity.logOperation("【画中画排查】✅ 已临时关闭全面屏（方案一）");
+                }
+
                 // 构建画中画参数（16:9 比例，符合视频播放比例）
                 PictureInPictureParams pipParams = null;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -825,13 +1049,16 @@ public class MainActivity extends AppCompatActivity {
                     pipBuilder.setAspectRatio(new Rational(16, 9));
                     pipParams = pipBuilder.build();
                 }
+
                 // 同步播放状态到管理器
                 if (mPlayerManager != null) {
                     pipManager.updatePlayState(true);
                 }
+
                 // ✅ 调用管理器进入画中画
                 boolean result = pipManager.enterPictureInPicture(this, pipParams);
                 SettingsActivity.logOperation("【画中画排查】进入结果：" + (result ? "✅ 成功" : "❌ 失败"));
+
             } catch (Exception e) {
                 SettingsActivity.logOperation("【画中画排查】❌ 异常：" + e.getMessage());
                 e.printStackTrace();
@@ -839,11 +1066,12 @@ public class MainActivity extends AppCompatActivity {
         } else {
             SettingsActivity.logOperation("【画中画排查】❌ 条件不满足，不进入画中画");
         }
+
         SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
     }
 
     // ====================================================================
-    // ✅ 画中画模式变化回调（集成版 + 详细尺寸日志）
+    // ✅ 画中画模式变化回调（集成版 + 详细尺寸日志 + 方案一+四）
     // 
     // 作用：系统回调画中画模式变化时，更新UI和播放状态
     // 
@@ -854,11 +1082,12 @@ public class MainActivity extends AppCompatActivity {
     // 
     // 退出画中画时：
     // 1. 调用 pipManager.handleExitPip() 处理退出逻辑
-    // 2. 重新应用全屏设置
-    // 3. 强制刷新 PlayerView 布局（解决小窗问题）
-    // 4. 同步遥控器模式
-    // 5. 恢复信息栏显示
-    // 6. 恢复播放
+    // 2. ✅ 方案一：恢复全面屏（延迟 200ms）
+    // 3. ✅ 方案四：父布局监听会自动触发刷新
+    // 4. ✅ 手动再刷一次（双重保险）
+    // 5. 同步遥控器模式
+    // 6. 恢复信息栏显示
+    // 7. 恢复播放
     // 
     // 尺寸日志说明：
     // - 记录4个时间点的尺寸变化，用于排查"返回播放界面变小窗"问题
@@ -871,6 +1100,7 @@ public class MainActivity extends AppCompatActivity {
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode);
         SettingsActivity.logOperation("【画中画】模式变化 → " + (isInPictureInPictureMode ? "进入" : "退出"));
+
         // ✅ 通知管理器状态变化
         if (pipManager != null) {
             try {
@@ -879,15 +1109,19 @@ public class MainActivity extends AppCompatActivity {
                 SettingsActivity.logOperation("【画中画】模式变化回调失败：" + e.getMessage());
             }
         }
+
         if (isInPictureInPictureMode) {
             // ================================================================
             // 进入画中画
             // ================================================================
             SettingsActivity.logOperation("【画中画】========== 进入画中画 ==========");
+
             // 隐藏所有UI，避免小窗显示多余内容
             hideAllUiForPip();
+
             // 保持屏幕常亮
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
             // 确保播放器在播放（防止 onPause 暂停了）
             if (mPlayerManager != null) {
                 try {
@@ -897,14 +1131,21 @@ public class MainActivity extends AppCompatActivity {
                     SettingsActivity.logOperation("【画中画】恢复播放失败：" + e.getMessage());
                 }
             }
+
             // 记录进入画中画时的尺寸
             logPipViewSize("进入画中画时", playerView);
+            
+            // 【方案四】父布局监听会自动触发刷新
+            // （不需要手动调用，因为窗口尺寸变化会触发父布局的 onLayoutChange）
+
             SettingsActivity.logOperation("【画中画】================================");
+
         } else {
             // ================================================================
-            // ✅ 退出画中画：强制恢复全屏（带详细尺寸日志）
+            // ✅ 退出画中画：方案一 + 方案四 组合（双重保险）
             // ================================================================
             SettingsActivity.logOperation("【画中画】========== 退出画中画 ==========");
+
             // ✅ 使用管理器处理退出逻辑（判断是否需要释放播放器）
             if (pipManager != null) {
                 pipManager.handleExitPip(new Runnable() {
@@ -915,6 +1156,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
+
             // ================================================================
             // 📊 日志点1：刚退出画中画时的初始尺寸
             // 作用：记录系统刚回调退出时，PlayerView 还是小窗尺寸
@@ -929,82 +1171,58 @@ public class MainActivity extends AppCompatActivity {
             
             // 打印窗口和屏幕尺寸（作为参考基准）
             logPipWindowSize();
+
             // ================================================================
-            // 1. 重新应用全屏设置
-            // 作用：确保窗口标志、刘海屏设置等都恢复全屏状态
+            // ✅ 方案一：恢复全面屏（延迟 200ms）
             // ================================================================
+            // 【为什么延迟？】
+            // 退出画中画后，系统需要一点时间来恢复窗口布局。
+            // 如果立即调用 applyFullScreen()，可能会和系统的布局计算冲突。
+            // 所以延迟 200ms 再恢复，等系统布局稳定后再应用。
+            //
+            // 【和方案四的关系】
+            // 方案一从系统层面恢复全面屏状态，
+            // 方案四从布局层面确保 PlayerView 尺寸正确。
+            // 两者组合，双重保险。
             if (displayManager != null) {
-                SettingsActivity.logOperation("【画中画尺寸】执行 displayManager.reapplyFullScreen()");
-                displayManager.reapplyFullScreen();
+                SettingsActivity.logOperation("【画中画尺寸】执行 restoreFullScreenAfterPip()（方案一）");
+                displayManager.restoreFullScreenAfterPip();
             }
+
             // ================================================================
             // 📊 日志点2：reapplyFullScreen 后的尺寸
             // 作用：检查全屏设置是否生效
             // ================================================================
-            SettingsActivity.logOperation("【画中画尺寸】===== 2. reapplyFullScreen 后 =====");
+            SettingsActivity.logOperation("【画中画尺寸】===== 2. 恢复全面屏后 =====");
             logPipViewSize("PlayerView", playerView);
+
             // ================================================================
-            // 2. 强制刷新 PlayerView 布局
-            // 作用：通过 requestLayout + invalidate 强制重新测量和绘制
+            // ✅ 方案四：手动再刷一次（双重保险）
             // ================================================================
+            // 【为什么还要手动刷？】
+            // 虽然父布局监听会自动触发刷新，
+            // 但为了保险起见，还是手动再调用一次 refreshPlayerViewLayout()。
+            //
+            // 【延迟 300ms 的原因】
+            // 等全面屏恢复后再刷，确保布局已经稳定。
+            //
+            // 【三重刷新机制】
+            // 1. 立即 requestLayout + invalidate
+            // 2. 延迟 100ms 再刷新一次
+            // 3. 延迟 200ms 重新绑定播放器
             if (playerView != null) {
-                // 立即刷新（第一重保险）
-                playerView.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            // 强制重新测量和布局
-                            playerView.requestLayout();
-                            playerView.invalidate();
-                            SettingsActivity.logOperation("【画中画】✅ 立即刷新 PlayerView 布局");
-                            
-                            // ================================================================
-                            // 📊 日志点3：立即刷新后的尺寸
-                            // 作用：检查 requestLayout 是否生效
-                            // ================================================================
-                            SettingsActivity.logOperation("【画中画尺寸】===== 3. 立即 requestLayout 后 =====");
-                            logPipViewSize("PlayerView", playerView);
-                            
-                        } catch (Exception e) {
-                            SettingsActivity.logOperation("【画中画】刷新 PlayerView 失败：" + e.getMessage());
-                        }
-                    }
-                });
-                // 延迟刷新（第二重保险，确保系统尺寸变化完成后再刷新）
                 playerView.postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        try {
-                            playerView.requestLayout();
-                            playerView.invalidate();
-                            // 重新绑定播放器，确保渲染尺寸正确
-                            if (mPlayerManager != null) {
-                                mPlayerManager.attachPlayerView(playerView);
-                                mPlayerManager.resume();
-                            }
-                            SettingsActivity.logOperation("【画中画】✅ 延迟刷新 PlayerView + 重新绑定");
-                            
-                            // ================================================================
-                            // 📊 日志点4：延迟刷新 + 重新绑定后的尺寸
-                            // 作用：最终检查尺寸是否恢复正常
-                            // ================================================================
-                            SettingsActivity.logOperation("【画中画尺寸】===== 4. 延迟200ms刷新 + 重新绑定后 =====");
-                            logPipViewSize("PlayerView", playerView);
-                            
-                            if (playerView.getParent() instanceof View) {
-                                logPipViewSize("父布局", (View) playerView.getParent());
-                            }
-                            
-                            SettingsActivity.logOperation("【画中画尺寸】========================================");
-                            
-                        } catch (Exception e) {
-                            SettingsActivity.logOperation("【画中画】延迟刷新失败：" + e.getMessage());
-                        }
+                        SettingsActivity.logOperation("【画中画】✅ 手动调用 refreshPlayerViewLayout()（方案四）");
+                        refreshPlayerViewLayout();
                     }
-                }, 200);
+                }, 300);
             }
+
             // 3. 同步遥控器模式
             syncRemoteMode();
+
             // 4. 恢复信息栏显示
             if (infoDisplayManager != null && channelSourceList.size() > currentPlayIndex) {
                 Channel currChannel = channelSourceList.get(currentPlayIndex);
@@ -1012,8 +1230,10 @@ public class MainActivity extends AppCompatActivity {
                 infoDisplayManager.showInfoBar(currChannel, liveInfo);
                 infoDisplayManager.showChannelNum(currentPlayIndex + 1);
             }
+
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             resumeCurrentChannel();
+
             SettingsActivity.logOperation("【画中画】退出画中画完成");
             SettingsActivity.logOperation("【画中画】================================");
         }
@@ -1046,19 +1266,18 @@ public class MainActivity extends AppCompatActivity {
             
             SettingsActivity.logOperation("【画中画尺寸】" + tag + "尺寸：宽=" + view.getWidth() 
                 + "，高=" + view.getHeight());
+
             // 打印布局参数
             ViewGroup.LayoutParams lp = view.getLayoutParams();
             if (lp != null) {
-                String widthStr = lp.width == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
-                                  lp.width == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
-                                  String.valueOf(lp.width);
-                String heightStr = lp.height == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
+                                String heightStr = lp.height == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
                                    lp.height == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
                                    String.valueOf(lp.height);
                 
                 SettingsActivity.logOperation("【画中画尺寸】" + tag + "布局参数：width=" + widthStr 
                     + "，height=" + heightStr);
             }
+
             // 打印可见性
             int visibility = view.getVisibility();
             String visStr = visibility == View.VISIBLE ? "VISIBLE" :
@@ -1084,10 +1303,12 @@ public class MainActivity extends AppCompatActivity {
             Rect rect = new Rect();
             getWindow().getDecorView().getWindowVisibleDisplayFrame(rect);
             SettingsActivity.logOperation("【画中画尺寸】窗口可见区域：宽=" + rect.width() + "，高=" + rect.height());
+
             // 屏幕物理尺寸
             DisplayMetrics metrics = new DisplayMetrics();
             getWindowManager().getDefaultDisplay().getMetrics(metrics);
             SettingsActivity.logOperation("【画中画尺寸】屏幕尺寸：宽=" + metrics.widthPixels + "，高=" + metrics.heightPixels);
+
             // DecorView 尺寸（Activity 根视图）
             View decorView = getWindow().getDecorView();
             SettingsActivity.logOperation("【画中画尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
@@ -1120,8 +1341,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+
         // 先调用 onPause（让其他逻辑正常执行，如注销广播、停止加载等）
         appCoreManager.onPause();
+
         // ✅ 画中画模式下，立即恢复播放（防止被 onPause 暂停了）
         if (pipManager != null && (pipManager.isInPipMode() || pipManager.isPipEntering())) {
             try {
@@ -1150,6 +1373,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
+
         // ✅ 通知管理器：onStop 已被调用
         if (pipManager != null) {
             pipManager.setStopCalled(true);
@@ -1158,7 +1382,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ====================================================================
-    // ✅ onResume（集成版：重置停止标记）
+    // ✅ onResume（集成版：重置停止标记 + 方案一+四）
     // 
     // 作用：
     // 1. 重置 isOpeningSettings 标记
@@ -1166,27 +1390,59 @@ public class MainActivity extends AppCompatActivity {
     // 3. 重置 onStopCalled 标记
     // 4. 从设置页返回时重新加载设置
     // 5. 应用屏幕比例
-    // 6. 重新应用全屏设置
+    // 6. ✅ 方案一：重新应用全屏设置（画中画模式下跳过）
     // 7. 非画中画模式下恢复播放
     // 8. 同步遥控器模式
+    // 9. ✅ 方案四：刷新 PlayerView 布局（兜底）
     // ====================================================================
     @Override
     protected void onResume() {
         super.onResume();
         isOpeningSettings = false;
         appCoreManager.onResume();
+
         // ✅ 重置 onStop 标记（用户返回应用了）
         if (pipManager != null) {
             pipManager.setStopCalled(false);
         }
+
         // 从设置页返回，重新加载开关
         loadSettings();
         screenRatioManager.apply();
-        displayManager.reapplyFullScreen();
+
+        // ================================================================
+        // ✅ 方案一：重新应用全面屏（画中画模式下不恢复）
+        // ================================================================
+        // 【为什么这里也要调用？】
+        // 有时候从后台切回前台，全面屏可能会失效（比如被系统重置了）。
+        // 这里重新应用一下，确保全屏正常。
+        // 
+        // 【注意】
+        // reapplyFullScreen() 内部会判断是否在画中画模式，
+        // 如果在画中画模式，会自动跳过，不会冲突。
+        if (displayManager != null) {
+            displayManager.reapplyFullScreen();
+        }
+
         // 非画中画模式下恢复播放
         if (pipManager == null || !pipManager.isInPipMode()) {
             new Handler(Looper.getMainLooper()).postDelayed(this::resumeCurrentChannel, 200);
+            
+            // ============================================================
+            // ✅ 方案四：刷新 PlayerView 布局（兜底）
+            // ============================================================
+            // 从后台切回前台时，有时候布局会乱，刷一下保险。
+            // 延迟 100ms，等页面恢复后再刷。
+            if (playerView != null) {
+                playerView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        refreshPlayerViewLayout();
+                    }
+                }, 100);
+            }
         }
+
         syncRemoteMode();
     }
 
@@ -1202,27 +1458,37 @@ public class MainActivity extends AppCompatActivity {
         @Override
     protected void onDestroy() {
         super.onDestroy();
+
         if (mPanelAutoHideHandler != null) {
             mPanelAutoHideHandler.removeCallbacks(mPanelAutoHideRunnable);
         }
+
         if (infoDisplayManager != null) {
             infoDisplayManager.release();
         }
+
         if (channelNumberManager != null) {
             channelNumberManager.release();
         }
+
         if (displayManager != null) {
             displayManager.release();
         }
+
         if (channelPanelController != null) {
             channelPanelController.release();
         }
+
         if (appCoreManager != null) {
             appCoreManager.release();
         }
+
         if (pipManager != null) {
             pipManager.release();
         }
+
         mInstance = null;
     }
 }
+                
+ 
