@@ -3,6 +3,7 @@ package com.tv.live.widget;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -26,6 +27,16 @@ import java.util.Set;
  * 2. 收藏
  * 3. 最近观看
  * 4. 实际分组（按直播源顺序）
+ * 
+ * 【2026-06-24 修改：增加焦点态样式区分】
+ * 【修改说明】
+ * 新增 hasFocus 变量和 setFocused 方法，区分"有焦点的选中"和"无焦点的选中"。
+ * 有焦点的选中项用深蓝色背景 + 白色文字，非常醒目；
+ * 无焦点的选中项用浅蓝色背景 + 蓝色文字，只是标记，不抢视线。
+ * 
+ * 【为什么要改？】
+ * 原来的实现中，多个面板同时显示选中态（都是蓝色背景），
+ * 用户分不清当前焦点在哪个面板上，遥控器操作时容易懵。
  */
 public class GroupListManager {
     /** 分组列表 ListView */
@@ -42,6 +53,23 @@ public class GroupListManager {
     private ArrayAdapter<String> adapter;
     /** 分组选中监听器（供外部回调） */
     private OnGroupSelectedListener listener;
+
+    // ====================================================================
+    // ✅ 2026-06-24 新增：焦点状态
+    // ====================================================================
+    /**
+     * 当前列表是否有焦点
+     * 
+     * 【作用】
+     * 区分"有焦点的选中"和"无焦点的选中"：
+     * - true = 当前光标在这个列表上，选中项用深蓝色背景 + 白色文字
+     * - false = 当前光标不在这个列表上，选中项用浅蓝色背景 + 蓝色文字
+     * 
+     * 【为什么需要？】
+     * 多个面板同时显示选中态时，用户分不清当前焦点在哪个面板。
+     * 有了这个状态，只有当前焦点所在的面板才会显示醒目的深蓝色。
+     */
+    private boolean hasFocus = false;
 
     /** 特殊分组：全部频道 */
     public static final String GROUP_ALL = "全部";
@@ -81,6 +109,7 @@ public class GroupListManager {
                     adapter.notifyDataSetChanged();
                 }
             }
+
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
@@ -94,6 +123,38 @@ public class GroupListManager {
         });
     }
 
+    // ====================================================================
+    // ✅ 2026-06-24 新增：设置焦点状态
+    // ====================================================================
+    /**
+     * 设置当前列表是否有焦点
+     * 
+     * @param focused true=有焦点，false=无焦点
+     * 
+     * 【作用】
+     * 外部（ChannelPanelController）调用这个方法，告诉列表当前是否有焦点。
+     * 有焦点时选中项用深蓝色背景 + 白色文字，非常醒目；
+     * 无焦点时选中项用浅蓝色背景 + 蓝色文字，只是标记。
+     * 
+     * 【调用时机】
+     * - 光标切换到这个列表时：setFocused(true)
+     * - 光标离开这个列表时：setFocused(false)
+     */
+    public void setFocused(boolean focused) {
+        if (this.hasFocus == focused) return;
+        this.hasFocus = focused;
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
+    }
+
+    /**
+     * 获取当前是否有焦点
+     */
+    public boolean isFocused() {
+        return hasFocus;
+    }
+
     /**
      * 设置分组列表
      *
@@ -105,6 +166,11 @@ public class GroupListManager {
      * @param channelSourceList 全部频道列表
      * @param favoriteCount 收藏频道数量
      * @param recentCount 最近观看频道数量
+     * 
+     * 【2026-06-24 修改：样式区分焦点态】
+     * 选中态分两种：
+     * - 有焦点 + 选中：深蓝色背景 + 白色文字 + 加粗
+     * - 无焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
      */
     public void setGroups(List<Channel> channelSourceList, int favoriteCount, int recentCount) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
@@ -128,6 +194,7 @@ public class GroupListManager {
         groupCountList.add(channelSourceList.size()); // 全部
         groupCountList.add(favoriteCount);            // 收藏
         groupCountList.add(recentCount);              // 最近观看
+
         // 实际分组数量
         for (String group : originalGroups) {
             int count = 0;
@@ -153,26 +220,32 @@ public class GroupListManager {
                 int count = groupCountList.get(position);
                 tv.setText(groupName + " (" + count + ")");
 
-                // 三种状态样式
+                // ====================================================================
+                // ✅ 2026-06-24 修改：三种状态样式（区分焦点态）
+                // ====================================================================
                 if (position == selectedPosition) {
-                    // 选中状态：蓝色文字 + 加粗 + 浅蓝色背景
-                    tv.setTextColor(Color.parseColor("#40A9FF"));
-                    tv.setTypeface(null, Typeface.BOLD);
-                    tv.setBackgroundColor(0x3340A9FF);
-                } else if (view.isFocused()) {
-                    // 焦点状态：蓝色文字 + 常规 + 透明背景
-                    tv.setTextColor(Color.parseColor("#40A9FF"));
-                    tv.setTypeface(null, Typeface.NORMAL);
-                    tv.setBackgroundColor(Color.TRANSPARENT);
+                    if (hasFocus) {
+                        // ⭐ 有焦点 + 选中：深蓝色背景 + 白色文字 + 加粗（最醒目）
+                        tv.setTextColor(Color.WHITE);
+                        tv.setTypeface(null, Typeface.BOLD);
+                        tv.setBackgroundColor(Color.parseColor("#40A9FF"));
+                    } else {
+                        // 无焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗（只是标记）
+                        tv.setTextColor(Color.parseColor("#40A9FF"));
+                        tv.setTypeface(null, Typeface.BOLD);
+                        tv.setBackgroundColor(0x3340A9FF);
+                    }
                 } else {
-                    // 未选中状态：白色文字 + 常规 + 透明背景
+                    // 未选中：白色文字 + 透明背景
                     tv.setTextColor(Color.WHITE);
                     tv.setTypeface(null, Typeface.NORMAL);
                     tv.setBackgroundColor(Color.TRANSPARENT);
                 }
+
                 return view;
             }
         };
+
         lvGroup.setAdapter(adapter);
         // 默认选中「全部」
         selectedPosition = 0;
