@@ -81,11 +81,40 @@ import java.util.List;
  * 【样式规范】
  * - 无焦点：白色文字 + 普通 + 透明背景
  * - 有焦点：白色文字 + 加粗 + 浅蓝色背景（0x3340A9FF）
+ * 
+ * 【2026-06-24 新增：自动跳过失效频道】
+ * 【功能说明】
+ * 按上下键切台时，如果遇到失效的直播源，自动继续切到下一个/上一个频道，
+ * 直到找到能正常播放的频道为止。
+ * 
+ * 【触发条件】
+ * 1. 必须是按上下键切台（switchUp/switchDown）
+ * 2. 点击频道列表、数字选台等方式切换的，不自动跳过
+ * 3. 最多连续跳过 10 个失效频道（防止无限循环）
+ * 
+ * 【工作流程】
+ * 1. 用户按上/下键 → 记录切台方向（lastSwitchDirection）
+ * 2. 标记为切台状态（isSwitchingChannel = true）
+ * 3. 播放失败 → MainActivity 调用 canAutoSkip() 判断
+ * 4. 可以跳过 → 调用 autoSkipFailedChannel() 继续切
+ * 5. 播放成功 → 调用 onPlaySuccess() 重置状态
  */
 public class ChannelPanelController {
     // ====================== 常量 ======================
     /** 频道切换冷却时间（毫秒），300ms 内不允许连续切台 */
     private static final long CHANNEL_COOLDOWN = 300;
+    // ====================================================================
+    // ✅ 2026-06-24 新增：自动跳过失效频道 - 最大跳过次数
+    // ====================================================================
+    /**
+     * 最大自动跳过次数
+     * 
+     * 【为什么是 10 次？】
+     * 10 个频道都失效的概率很低，
+     * 超过 10 个说明可能是网络问题，
+     * 这时候应该停下来让用户检查，而不是一直切。
+     */
+    private static final int MAX_AUTO_SKIP = 10;
     // ====================== 上下文与视图 ======================
     private Context context;
     private View panelLayout;
@@ -144,6 +173,48 @@ public class ChannelPanelController {
     private String currentFocusPanel = "left";
     private String leftFocusView = "channel";
     private String rightFocusView = "channel";
+    // ====================================================================
+    // ✅ 2026-06-24 新增：自动跳过失效频道 - 成员变量
+    // ====================================================================
+    /**
+     * 最后一次切台方向
+     * "up" = 向上切台（按上键）
+     * "down" = 向下切台（按下键）
+     * "" = 未知（比如点击频道列表、数字选台等）
+     * 
+     * 【作用】
+     * 播放失败时，根据这个方向决定继续向上还是向下切。
+     * 
+     * 【为什么需要记录方向？】
+     * 因为用户按上键切台遇到失效源，应该继续向上切，
+     * 而不是向下切，不然方向就乱了。
+     */
+    private String lastSwitchDirection = "";
+
+    /**
+     * 是否正在切台（刚切完还没播放成功）
+     * 
+     * 【作用】
+     * 只有切台时遇到失效源才自动跳过，
+     * 正常播放中突然失效的不自动跳过。
+     * 
+     * 【为什么需要这个标记？】
+     * 如果正常播放了 10 分钟，然后网络波动导致播放失败，
+     * 这时候不应该自动切台，用户可能还想看这个频道。
+     * 只有刚切过去就播不出来的，才算是"失效源"。
+     */
+    private boolean isSwitchingChannel = false;
+
+    /**
+     * 已自动跳过的次数
+     * 
+     * 【作用】
+     * 防止无限循环（比如所有频道都失效了）。
+     * 
+     * 【什么时候重置？】
+     * 播放成功时调用 onPlaySuccess() 重置为 0。
+     */
+    private int autoSkipCount = 0;
     // ====================== 回调监听器 ======================
     private OnChannelChangeListener channelChangeListener;
     private OnPanelStateListener panelStateListener;
@@ -668,8 +739,25 @@ public class ChannelPanelController {
     // ====================================================================
     /**
      * 按上键时调用（自动考虑反转）
+     * 
+     * 【2026-06-24 修改：记录切台方向和切台状态】
+     * 【修改说明】
+     * 加上 lastSwitchDirection 和 isSwitchingChannel 标记，
+     * 播放失败时可以根据方向自动继续切。
+     * 
+     * 【为什么要在这里设置，而不是在 playPrev/playNext 里？】
+     * 因为 playPrev/playNext 是底层方法，自动跳过时也会调用它们。
+     * 如果在 playPrev/playNext 里设置，自动跳过时又会重置状态，
+     * 导致 autoSkipCount 被清零，就会无限循环了。
+     * 
+     * 所以只有用户手动按上下键（switchUp/switchDown）时，
+     * 才设置切台状态和重置跳过计数。
      */
     public void switchUp() {
+        lastSwitchDirection = "up";
+        isSwitchingChannel = true;
+        autoSkipCount = 0; // 用户手动切台，重置跳过计数
+        
         SettingsActivity.logOperation("【切台】switchUp 上键 → 反转状态：" 
                 + (isReverse ? "开启" : "关闭") 
                 + " → 实际方向：" + (isReverse ? "下一台" : "上一台"));
@@ -684,8 +772,25 @@ public class ChannelPanelController {
     }
     /**
      * 按下键时调用（自动考虑反转）
+     * 
+     * 【2026-06-24 修改：记录切台方向和切台状态】
+     * 【修改说明】
+     * 加上 lastSwitchDirection 和 isSwitchingChannel 标记，
+     * 播放失败时可以根据方向自动继续切。
+     * 
+     * 【为什么要在这里设置，而不是在 playPrev/playNext 里？】
+     * 因为 playPrev/playNext 是底层方法，自动跳过时也会调用它们。
+     * 如果在 playPrev/playNext 里设置，自动跳过时又会重置状态，
+     * 导致 autoSkipCount 被清零，就会无限循环了。
+     * 
+     * 所以只有用户手动按上下键（switchUp/switchDown）时，
+     * 才设置切台状态和重置跳过计数。
      */
     public void switchDown() {
+        lastSwitchDirection = "down";
+        isSwitchingChannel = true;
+        autoSkipCount = 0; // 用户手动切台，重置跳过计数
+        
         SettingsActivity.logOperation("【切台】switchDown 下键 → 反转状态：" 
                 + (isReverse ? "开启" : "关闭") 
                 + " → 实际方向：" + (isReverse ? "上一台" : "下一台"));
@@ -972,6 +1077,11 @@ public class ChannelPanelController {
             int globalIndex = channelSourceList.indexOf(selectedChannel);
             if (globalIndex != -1) {
                 SettingsActivity.logOperation("【列表】点击频道：" + selectedChannel.getName());
+                // ✅ 2026-06-24 修改：点击频道列表，清除切台状态
+                // 因为是用户主动选的，就算播不出来也不自动跳过
+                lastSwitchDirection = "";
+                isSwitchingChannel = false;
+                autoSkipCount = 0;
                 playChannel(globalIndex);
                 togglePanel();
             }
@@ -980,6 +1090,11 @@ public class ChannelPanelController {
             if (position < channelSourceList.size()) {
                 Channel ch = channelSourceList.get(position);
                 SettingsActivity.logOperation("【列表】点击频道：" + ch.getName());
+                // ✅ 2026-06-24 修改：点击频道列表，清除切台状态
+                // 因为是用户主动选的，就算播不出来也不自动跳过
+                lastSwitchDirection = "";
+                isSwitchingChannel = false;
+                autoSkipCount = 0;
                 playChannel(position);
             }
         }
@@ -1175,7 +1290,7 @@ public class ChannelPanelController {
     public int getCurrentSelectedDateIndex() {
         return currentSelectedDateIndex;
     }
-    private int getChannelListSelection() {
+        private int getChannelListSelection() {
         if (GroupListManager.GROUP_ALL.equals(currentGroupName) 
                 || currentGroupName.isEmpty() 
                 || currentGroupChannelList.isEmpty()) {
@@ -1216,6 +1331,117 @@ public class ChannelPanelController {
             return true;
         }
         return false;
+    }
+    // ====================================================================
+    // ✅ 2026-06-24 新增：自动跳过失效频道相关方法
+    // ====================================================================
+    /**
+     * 播放成功回调
+     * 
+     * 【作用】
+     * 播放成功时调用，重置切台标志和自动跳过计数。
+     * 说明当前频道是有效的，不需要再自动跳过了。
+     * 
+     * 【调用时机】
+     * MainActivity 监听到 onPlayReady 时调用。
+     * 
+     * 【为什么需要重置？】
+     * 1. isSwitchingChannel = false：标记为正常播放状态，
+     *    之后如果播放失败（比如网络波动），就不自动跳过了。
+     * 2. autoSkipCount = 0：重置跳过计数，
+     *    下次用户再切台时重新计数。
+     */
+    public void onPlaySuccess() {
+        isSwitchingChannel = false;
+        autoSkipCount = 0;
+    }
+
+    /**
+     * 是否可以自动跳过失效频道
+     * 
+     * @return true = 可以自动跳过
+     *         false = 不能自动跳过
+     *         
+     * 【判断条件】
+     * 1. 必须是切台状态（刚切完还没播放成功）
+     * 2. 有明确的切台方向（up/down）
+     * 3. 未达到最大自动跳过次数
+     * 
+     * 【为什么需要这三个条件？】
+     * 1. isSwitchingChannel：只有切台时遇到失效源才跳过，
+     *    正常播放中突然失效的不跳过（用户可能还想看）。
+     * 2. lastSwitchDirection：知道往哪个方向继续切，
+     *    如果是点击频道列表切换的，方向为空，就不跳过。
+     * 3. autoSkipCount < MAX_AUTO_SKIP：防止无限循环，
+     *    比如所有频道都失效了，就停下来让用户检查。
+     */
+    public boolean canAutoSkip() {
+        return isSwitchingChannel 
+                && !"".equals(lastSwitchDirection) 
+                && autoSkipCount < MAX_AUTO_SKIP;
+    }
+
+    /**
+     * 自动跳过失效频道
+     * 
+     * 【作用】
+     * 切台时遇到失效直播源，根据切台方向自动继续切到下一个/上一个频道。
+     * 
+     * 【逻辑】
+     * 1. 判断是否可以自动跳过（canAutoSkip）
+     * 2. 自动跳过计数 +1
+     * 3. 根据 lastSwitchDirection 和 isReverse 决定继续向上还是向下切
+     * 4. 调用 playPrev() / playNext() 继续切台
+     * 
+     * 【为什么调用 playPrev/playNext 而不是 switchUp/switchDown？】
+     * switchUp/switchDown 会重新设置 isSwitchingChannel = true，
+     * 还会重置 autoSkipCount = 0，这样就会无限循环了。
+     * playPrev/playNext 是底层切台方法，只负责切台，不改变状态标记，
+     * 正好适合自动跳过的场景。
+     * 
+     * 【反转开关怎么处理？】
+     * 自动跳过时也要考虑反转状态，保持和用户切台时的方向一致。
+     * 比如用户按下键（反转开启时实际是上一台），
+     * 那自动跳过时也应该继续往上切，而不是往下切。
+     * 
+     * @return true = 已经自动切换了
+     *         false = 不能继续跳过
+     */
+    public boolean autoSkipFailedChannel() {
+        if (!canAutoSkip()) {
+            SettingsActivity.logOperation("【切台】自动跳过失败，已跳过 " 
+                    + autoSkipCount + " 个，达到上限或不是切台状态");
+            return false;
+        }
+        
+        autoSkipCount++;
+        SettingsActivity.logOperation("【切台】自动跳过失效频道（第" 
+                + autoSkipCount + "次），方向：" + lastSwitchDirection
+                + "，反转：" + (isReverse ? "开启" : "关闭"));
+        
+        if ("up".equals(lastSwitchDirection)) {
+            // 向上切台时遇到失效 → 继续向上切
+            if (isReverse) {
+                // 反转开启：上 = 下一台
+                playNext();
+            } else {
+                // 反转关闭：上 = 上一台
+                playPrev();
+            }
+        } else if ("down".equals(lastSwitchDirection)) {
+            // 向下切台时遇到失效 → 继续向下切
+            if (isReverse) {
+                // 反转开启：下 = 上一台
+                playPrev();
+            } else {
+                // 反转关闭：下 = 下一台
+                playNext();
+            }
+        } else {
+            return false;
+        }
+        
+        return true;
     }
     // ====================================================================
     // 6. 按键事件分发
@@ -1375,4 +1601,3 @@ public class ChannelPanelController {
         panelManager = null;
     }
 }
-    
