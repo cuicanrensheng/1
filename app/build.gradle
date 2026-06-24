@@ -168,6 +168,12 @@ android {
 
     // ====================================================================
 
+    // 【说明】
+
+    // 虽然 FFmpeg 改用 Maven 依赖了，但 flatDir 配置可以留着，
+
+    // 万一以后还要用其他 AAR 也方便，不影响编译。
+
     repositories {
 
         flatDir {
@@ -244,17 +250,30 @@ dependencies {
 
     // ====================================================================
 
-    // ⚠️ FFmpeg AAR 版本可能不兼容
+    // ✅ 2026-06-24 修改：FFmpeg 改用 Maven 依赖
 
     // ====================================================================
 
-    // 你现在的 FFmpeg AAR 是 1.10.1 版本的，
+    // 【为什么改？】
 
-    // 降到 1.5.0 后可能会有兼容性问题。
+    // 之前用的 AAR 文件版本不明确，可能和 Media3 1.5.0 不兼容，
 
-    // 你说不用动，那就先保留，有问题再说。
+    // 改用官方 Maven 依赖，版本完全匹配，兼容性最好。
 
-    implementation files('libs/lib-decoder-ffmpeg-release.aar')
+    //
+
+    // 【好处】
+
+    // 1. 版本完全匹配 1.5.0，不会有兼容性问题
+
+    // 2. 官方维护，稳定可靠
+
+    // 3. 不用自己管理 AAR 文件，Gradle 自动下载
+
+    // 4. 支持 arm64-v8a 和 armeabi-v7a 两个架构
+
+    // ✅ FFmpeg 软解码器扩展（Maven 依赖）
+    implementation "androidx.media3:media3-decoder-ffmpeg:1.5.0"
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
 
