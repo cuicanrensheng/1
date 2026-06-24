@@ -417,37 +417,37 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void keepPlayingInPip() {
-    try {
-        if (mPlayerManager != null) {
-            // 先尝试直接恢复
-            mPlayerManager.resume();
-            log("【画中画】✅ 调用 resume() 恢复播放");
-            
-            // 如果 resume 不行，再尝试重新绑定
-            if (playerView != null) {
-                mPlayerManager.attachPlayerView(playerView);
-                mPlayerManager.resume();
-                log("【画中画】✅ 重新绑定后再次恢复");
-            }
-        }
-    } catch (Exception e) {
-        log("【画中画】恢复播放失败：" + e.getMessage());
-        
-        // 最后兜底：重新播放当前频道
         try {
-            if (channelSourceList != null 
-                    && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-                Channel channel = channelSourceList.get(currentPlayIndex);
-                if (channel != null && channel.getPlayUrl() != null) {
-                    mPlayerManager.playUrl(channel.getPlayUrl());
-                    log("【画中画】兜底：重新加载当前频道");
+            if (mPlayerManager != null) {
+                // 先尝试直接恢复
+                mPlayerManager.resume();
+                log("【画中画】✅ 调用 resume() 恢复播放");
+                
+                // 如果 resume 不行，再尝试重新绑定
+                if (playerView != null) {
+                    mPlayerManager.attachPlayerView(playerView);
+                    mPlayerManager.resume();
+                    log("【画中画】✅ 重新绑定后再次恢复");
                 }
             }
-                    } catch (Exception e2) {
-            log("【画中画】兜底播放也失败：" + e2.getMessage());
+        } catch (Exception e) {
+            log("【画中画】恢复播放失败：" + e.getMessage());
+            
+            // 最后兜底：重新播放当前频道
+            try {
+                if (channelSourceList != null 
+                        && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                    Channel channel = channelSourceList.get(currentPlayIndex);
+                    if (channel != null && channel.getPlayUrl() != null) {
+                        mPlayerManager.playUrl(channel.getPlayUrl());
+                        log("【画中画】兜底：重新加载当前频道");
+                    }
+                }
+            } catch (Exception e2) {
+                log("【画中画】兜底播放也失败：" + e2.getMessage());
+            }
         }
     }
-}
 
     // ====================================================================
     // 恢复当前频道播放
@@ -1258,54 +1258,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         try {
-            // 打印位置和尺寸
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "位置：left=" + view.getLeft() 
-                + "，top=" + view.getTop()
-                + "，right=" + view.getRight() 
-                + "，bottom=" + view.getBottom());
-            
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "尺寸：宽=" + view.getWidth() 
-                + "，高=" + view.getHeight());
-
-            // 打印布局参数
-            ViewGroup.LayoutParams lp = view.getLayoutParams();
-            if (lp != null) {
-                                String heightStr = lp.height == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
-                                   lp.height == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
-                                   String.valueOf(lp.height);
-                
-                SettingsActivity.logOperation("【画中画尺寸】" + tag + "布局参数：width=" + widthStr 
-                    + "，height=" + heightStr);
-            }
-
-            // 打印可见性
-            int visibility = view.getVisibility();
-            String visStr = visibility == View.VISIBLE ? "VISIBLE" :
-                            visibility == View.INVISIBLE ? "INVISIBLE" : "GONE";
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "可见性：" + visStr);
-        } catch (Exception e) {
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
-        }
-    }
-        // ====================================================================
-    // ✅ 辅助方法：打印 View 的详细尺寸信息（接入操作日志）
-    // 
-    // 作用：记录 View 的位置、尺寸、布局参数、可见性，用于排查布局问题
-    // 输出内容：
-    // - 位置：left、top、right、bottom
-    // - 尺寸：宽、高
-    // - 布局参数：width、height（MATCH_PARENT=-1，WRAP_CONTENT=-2）
-    // - 可见性：VISIBLE / INVISIBLE / GONE
-    // 
-    // @param tag 日志标签，标识当前是哪个时间点
-    // @param view 要打印尺寸的 View
-    // ====================================================================
-    private void logPipViewSize(String tag, View view) {
-        if (view == null) {
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "：View 为 null");
-            return;
-        }
-        try {
             // 1. 打印位置和尺寸
             int left = view.getLeft();
             int top = view.getTop();
@@ -1327,8 +1279,7 @@ public class MainActivity extends AppCompatActivity {
             if (lp != null) {
                 String widthStr;
                 String heightStr;
-                
-                // 处理 width
+                                // 处理 width
                 if (lp.width == ViewGroup.LayoutParams.MATCH_PARENT) {
                     widthStr = "MATCH_PARENT(-1)";
                 } else if (lp.width == ViewGroup.LayoutParams.WRAP_CONTENT) {
@@ -1365,6 +1316,35 @@ public class MainActivity extends AppCompatActivity {
             
         } catch (Exception e) {
             SettingsActivity.logOperation("【画中画尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
+        }
+    }
+
+    // ====================================================================
+    // ✅ 辅助方法：打印窗口和屏幕尺寸（接入操作日志）
+    // 
+    // 作用：记录窗口可见区域、屏幕尺寸、DecorView 尺寸，作为参考基准
+    // 输出内容：
+    // - 窗口可见区域：宽、高（排除状态栏、导航栏等系统UI）
+    // - 屏幕尺寸：宽、高（物理屏幕分辨率）
+    // - DecorView 尺寸：宽、高（Activity 根视图）
+    // ====================================================================
+    private void logPipWindowSize() {
+        try {
+            // 窗口可见区域尺寸
+            Rect rect = new Rect();
+            getWindow().getDecorView().getWindowVisibleDisplayFrame(rect);
+            SettingsActivity.logOperation("【画中画尺寸】窗口可见区域：宽=" + rect.width() + "，高=" + rect.height());
+
+            // 屏幕物理尺寸
+            DisplayMetrics metrics = new DisplayMetrics();
+            getWindowManager().getDefaultDisplay().getMetrics(metrics);
+            SettingsActivity.logOperation("【画中画尺寸】屏幕尺寸：宽=" + metrics.widthPixels + "，高=" + metrics.heightPixels);
+
+            // DecorView 尺寸（Activity 根视图）
+            View decorView = getWindow().getDecorView();
+            SettingsActivity.logOperation("【画中画尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
+        } catch (Exception e) {
+            SettingsActivity.logOperation("【画中画尺寸】获取窗口尺寸失败：" + e.getMessage());
         }
     }
 
@@ -1506,7 +1486,7 @@ public class MainActivity extends AppCompatActivity {
         appCoreManager.onWindowFocusChanged(hasFocus);
     }
 
-        @Override
+    @Override
     protected void onDestroy() {
         super.onDestroy();
 
@@ -1541,5 +1521,3 @@ public class MainActivity extends AppCompatActivity {
         mInstance = null;
     }
 }
-                
- 
