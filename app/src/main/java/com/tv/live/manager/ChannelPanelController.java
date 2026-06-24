@@ -1217,128 +1217,17 @@ public class ChannelPanelController {
         }
         return false;
     }
-        private boolean handleLeftKey() {
-        if ("left".equals(currentFocusPanel)) {
-            if ("epgBtn".equals(leftFocusView)) {
-                lvChannelList.requestFocus();
-                return true;
-            } else if ("channel".equals(leftFocusView)) {
-                lvGroup.requestFocus();
-                return true;
-            }
-        } else if ("right".equals(currentFocusPanel)) {
-            if ("epg".equals(rightFocusView)) {
-                lvDate.requestFocus();
-                return true;
-            } else if ("date".equals(rightFocusView)) {
-                lvChannelListEpg.requestFocus();
-                return true;
-            } else if ("channel".equals(rightFocusView)) {
-                btnBackGroup.requestFocus();
-                return true;
-            }
-        }
-        return false;
-    }
-    private boolean handleRightKey() {
-        if ("left".equals(currentFocusPanel)) {
-            if ("group".equals(leftFocusView)) {
-                lvChannelList.requestFocus();
-                return true;
-            } else if ("channel".equals(leftFocusView)) {
-                btnShowEpg.requestFocus();
-                return true;
-            }
-        } else if ("right".equals(currentFocusPanel)) {
-            if ("backBtn".equals(rightFocusView)) {
-                lvChannelListEpg.requestFocus();
-                return true;
-            } else if ("channel".equals(rightFocusView)) {
-                lvDate.requestFocus();
-                return true;
-            } else if ("date".equals(rightFocusView)) {
-                lvEpg.requestFocus();
-                return true;
-            }
-        }
-        return false;
-    }
-    private boolean handleOkKey() {
-        if ("left".equals(currentFocusPanel)) {
-            if ("group".equals(leftFocusView)) {
-                int pos = lvGroup.getSelectedItemPosition();
-                if (pos >= 0) {
-                    onGroupClicked(pos);
-                    return true;
-                }
-            } else if ("channel".equals(leftFocusView)) {
-                int pos = lvChannelList.getSelectedItemPosition();
-                if (pos >= 0) {
-                    onChannelClicked(pos);
-                    return true;
-                }
-            } else if ("epgBtn".equals(leftFocusView)) {
-                onEpgButtonClicked();
-                return true;
-            }
-        } else if ("right".equals(currentFocusPanel)) {
-            if ("backBtn".equals(rightFocusView)) {
-                onBackGroupClicked();
-                return true;
-            } else if ("channel".equals(rightFocusView)) {
-                int pos = lvChannelListEpg.getSelectedItemPosition();
-                if (pos >= 0) {
-                    onChannelClicked(pos);
-                    return true;
-                }
-            } else if ("date".equals(rightFocusView)) {
-                int pos = lvDate.getSelectedItemPosition();
-                if (pos >= 0) {
-                    setCurrentDateIndex(pos);
-                    return true;
-                }
-            } else if ("epg".equals(rightFocusView)) {
-                int pos = lvEpg.getSelectedItemPosition();
-                if (pos >= 0) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
     // ====================================================================
-    // 6. 监听器设置
+    // 6. 按键事件分发
     // ====================================================================
-    public void setOnChannelChangeListener(OnChannelChangeListener listener) {
-        this.channelChangeListener = listener;
-    }
-    public void setOnPanelStateListener(OnPanelStateListener listener) {
-        this.panelStateListener = listener;
-    }
-    // ====================================================================
-    // 7. 资源释放
-    // ====================================================================
-    public void release() {
-        context = null;
-        panelLayout = null;
-        llLeftPanel = null;
-        llRightPanel = null;
-        lvGroup = null;
-        lvChannelList = null;
-        lvChannelListEpg = null;
-        lvDate = null;
-        lvEpg = null;
-        btnShowEpg = null;
-        btnBackGroup = null;
-        channelSourceList = null;
-        currentGroupChannelList = null;
-        channelChangeListener = null;
-        panelStateListener = null;
-        groupListManager = null;
-        channelListManager = null;
-        channelListManagerEpg = null;
-        dateListManager = null;
-        epgManagerWrapper = null;
-        panelManager = null;
-    }
-}
+    /**
+     * 分发按键事件
+     * 
+     * 【作用】
+     * MainActivity 把遥控器按键传进来，这里统一处理。
+     * 只有面板打开时才处理，返回 true 表示消费了事件。
+     * 
+     * @param keyCode 按键码（KeyEvent.KEYCODE_xxx）
+     * @return true 表示消费了事件，false 表示没消费
+     */
+    public boolean dispatchKey
