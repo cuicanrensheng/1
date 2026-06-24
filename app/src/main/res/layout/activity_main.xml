@@ -66,9 +66,6 @@
   【2026-06-23 修改：升级到 Media3 1.10.1】
   PlayerView 的包名从 com.google.android.exoplayer2.ui.PlayerView
   改成 androidx.media3.ui.PlayerView
-  
-  【2026-06-23 修改：方案四 - 给 PlayerView 套一层父容器】
-  新增 player_container FrameLayout，解决画中画和全面屏冲突问题。
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -77,56 +74,27 @@
     android:background="#000000">
 
     <!-- ==================================================================== -->
-    <!-- ✅ 2026-06-23 新增：PlayerView 父容器（方案四：画中画兼容）         -->
+    <!-- 主播放器视图（Media3 的 PlayerView）                                 -->
     <!-- ==================================================================== -->
-    <!-- 
-        【为什么套这一层？】
-        
-        问题：画中画模式变化时，PlayerView 的尺寸有时候会不同步，
-              导致退出画中画后播放器还是小窗尺寸。
-        
-        原因：PlayerView 内部是 SurfaceView，SurfaceView 的尺寸变化
-              和普通 View 不一样，有时候会"慢半拍"。
-        
-        解决方案：给 PlayerView 外面套一层 FrameLayout，
-                  父布局先接收到尺寸变化，然后主动触发 PlayerView 重新布局。
-        
-        【好处】
-        1. 从布局层面解决，最彻底
-        2. 不依赖画中画回调，任何尺寸变化都能正确处理
-        3. 和方案一（状态管理）组合，双重保险
-        
-        【注意】
-        FrameLayout 的宽高都是 match_parent，
-        和原来 PlayerView 的尺寸一样，不影响视觉效果。
+    <!--
+      【属性说明】
+      - use_controller="false"：屏蔽原生播放器控制器，用自定义的
+      - resize_mode="fit"：等比例缩放，保持画面比例
+      - keep_content_on_player_reset="true"：暂停/切台时保持最后一帧，避免黑屏
+      - surface_type="surface_view"：使用 SurfaceView 渲染，性能更好
+      
+      【2026-06-23 修改】包名从 com.google.android.exoplayer2.ui.PlayerView
+      改成 androidx.media3.ui.PlayerView
     -->
-    <FrameLayout
-        android:id="@+id/player_container"
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_view"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <!-- 主播放器视图（Media3 的 PlayerView） -->
-        <!--
-          【属性说明】
-          - use_controller="false"：屏蔽原生播放器控制器，用自定义的
-          - resize_mode="fit"：等比例缩放，保持画面比例
-          - keep_content_on_player_reset="true"：暂停/切台时保持最后一帧，避免黑屏
-          - surface_type="surface_view"：使用 SurfaceView 渲染，性能更好
-          
-          【2026-06-23 修改】包名从 com.google.android.exoplayer2.ui.PlayerView
-          改成 androidx.media3.ui.PlayerView
-        -->
-        <androidx.media3.ui.PlayerView
-            android:id="@+id/player_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_gravity="center"
-            app:use_controller="false"
-            app:resize_mode="fit"
-            app:keep_content_on_player_reset="true"
-            app:surface_type="surface_view" />
-
-    </FrameLayout>
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        app:use_controller="false"
+        app:resize_mode="fit"
+        app:keep_content_on_player_reset="true"
+        app:surface_type="surface_view" />
 
     <!-- ==================================================================== -->
     <!-- 频道号显示（右上角大数字，切台时显示）                              -->
@@ -362,7 +330,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical">
-
             <TextView
                 android:id="@+id/tv_channel_name"
                 android:layout_width="wrap_content"
@@ -370,7 +337,6 @@
                 android:textColor="#FFFFFF"
                 android:textSize="22sp"
                 android:textStyle="bold" />
-
             <TextView
                 android:id="@+id/tv_tag_fhd"
                 android:layout_width="wrap_content"
@@ -381,7 +347,6 @@
                 android:paddingVertical="2dp"
                 android:textSize="12sp"
                 android:textColor="#000" />
-
             <TextView
                 android:id="@+id/tv_tag_audio"
                 android:layout_width="wrap_content"
@@ -392,7 +357,6 @@
                 android:paddingVertical="2dp"
                 android:textSize="12sp"
                 android:textColor="#000" />
-
             <TextView
                 android:id="@+id/tv_bitrate"
                 android:layout_width="wrap_content"
@@ -408,14 +372,12 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:layout_marginTop="4dp">
-
             <TextView
                 android:id="@+id/tv_current_time_range"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />
-
             <ProgressBar
                 android:id="@+id/progress_program"
                 style="?android:attr/progressBarStyleHorizontal"
@@ -423,14 +385,12 @@
                 android:layout_weight="1"
                 android:layout_height="3dp"
                 android:layout_marginHorizontal="8dp" />
-
             <TextView
                 android:id="@+id/tv_remaining_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp" />
-
             <TextView
                 android:id="@+id/tv_program_name"
                 android:layout_width="wrap_content"
