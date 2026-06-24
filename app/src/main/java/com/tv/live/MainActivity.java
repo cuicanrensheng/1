@@ -1122,35 +1122,6 @@ public class MainActivity extends AppCompatActivity {
             SettingsActivity.logOperation("【画中画】================================");
         }
     }
-    // ====================================================================
-    // ✅ 辅助方法：打印 View 的详细尺寸信息（接入操作日志）
-    // 
-    // 作用：记录 View 的位置、尺寸、布局参数、可见性，用于排查布局问题
-    // 输出内容：
-    // - 位置：left、top、right、bottom
-    // - 尺寸：宽、高
-    // - 布局参数：width、height（MATCH_PARENT=-1，WRAP_CONTENT=-2）
-    // - 可见性：VISIBLE / INVISIBLE / GONE
-    // 
-    // @param tag 日志标签，标识当前是哪个时间点
-    // @param view 要打印尺寸的 View
-    // ====================================================================
-    private void logPipViewSize(String tag, View view) {
-        if (view == null) {
-                        SettingsActivity.logOperation("【画中画尺寸】" + tag + "可见性：" + visStr);
-        } catch (Exception e) {
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
-        }
-    }
-    // ====================================================================
-    // ✅ 辅助方法：打印窗口和屏幕尺寸（接入操作日志）
-    // 
-    // 作用：记录窗口可见区域、屏幕尺寸、DecorView 尺寸，作为参考基准
-    // 输出内容：
-    // - 窗口可见区域：宽、高（排除状态栏、导航栏等系统UI）
-    // - 屏幕尺寸：宽、高（物理屏幕分辨率）
-    // - DecorView 尺寸：宽、高（Activity 根视图）
-    // ====================================================================
     private void logPipWindowSize() {
         try {
             // 窗口可见区域尺寸
@@ -1166,6 +1137,55 @@ public class MainActivity extends AppCompatActivity {
             SettingsActivity.logOperation("【画中画尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
         } catch (Exception e) {
             SettingsActivity.logOperation("【画中画尺寸】获取窗口尺寸失败：" + e.getMessage());
+        }
+    }
+        // ====================================================================
+    // ✅ 辅助方法：打印 View 的详细尺寸信息（接入操作日志）
+    // 
+    // 作用：记录 View 的位置、尺寸、布局参数、可见性，用于排查布局问题
+    // 输出内容：
+    // - 位置：left、top、right、bottom
+    // - 尺寸：宽、高
+    // - 布局参数：width、height（MATCH_PARENT=-1，WRAP_CONTENT=-2）
+    // - 可见性：VISIBLE / INVISIBLE / GONE
+    // 
+    // @param tag 日志标签，标识当前是哪个时间点
+    // @param view 要打印尺寸的 View
+    // ====================================================================
+    private void logPipViewSize(String tag, View view) {
+        if (view == null) {
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "：View 为 null");
+            return;
+        }
+        try {
+            // 打印位置和尺寸
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "位置：left=" + view.getLeft() 
+                + "，top=" + view.getTop()
+                + "，right=" + view.getRight() 
+                + "，bottom=" + view.getBottom());
+            
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "尺寸：宽=" + view.getWidth() 
+                + "，高=" + view.getHeight());
+            // 打印布局参数
+            ViewGroup.LayoutParams lp = view.getLayoutParams();
+            if (lp != null) {
+                String widthStr = lp.width == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
+                                  lp.width == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
+                                  String.valueOf(lp.width);
+                String heightStr = lp.height == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
+                                   lp.height == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
+                                   String.valueOf(lp.height);
+                
+                SettingsActivity.logOperation("【画中画尺寸】" + tag + "布局参数：width=" + widthStr 
+                    + "，height=" + heightStr);
+            }
+            // 打印可见性
+            int visibility = view.getVisibility();
+            String visStr = visibility == View.VISIBLE ? "VISIBLE" :
+                            visibility == View.INVISIBLE ? "INVISIBLE" : "GONE";
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "可见性：" + visStr);
+        } catch (Exception e) {
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
         }
     }
     // ====================================================================
