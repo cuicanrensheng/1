@@ -29,6 +29,10 @@ import java.util.List;
  * 【说明】
  * 因为 item_date.xml 是单个 TextView，所以用换行符 \n 显示两行。
  * 如果布局是两个 TextView，可以分别设置。
+ * 
+ * 【2026-06-24 修改：增加焦点态样式区分】
+ * 【修改说明】
+ * 新增 hasFocus 变量和 setFocused 方法，区分"有焦点的选中"和"无焦点的选中"。
  */
 public class DateListManager {
     /** 日期列表 ListView */
@@ -43,6 +47,14 @@ public class DateListManager {
     private ArrayAdapter<String> adapter;
     /** 显示的日期文本列表 */
     private List<String> dateDisplayList;
+
+    // ====================================================================
+    // ✅ 2026-06-24 新增：焦点状态
+    // ====================================================================
+    /**
+     * 当前列表是否有焦点
+     */
+    private boolean hasFocus = false;
 
     /**
      * 日期选中监听器接口
@@ -78,6 +90,29 @@ public class DateListManager {
         });
     }
 
+    // ====================================================================
+    // ✅ 2026-06-24 新增：设置焦点状态
+    // ====================================================================
+    /**
+     * 设置当前列表是否有焦点
+     * 
+     * @param focused true=有焦点，false=无焦点
+     */
+    public void setFocused(boolean focused) {
+        if (this.hasFocus == focused) return;
+        this.hasFocus = focused;
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
+    }
+
+    /**
+     * 获取当前是否有焦点
+     */
+    public boolean isFocused() {
+        return hasFocus;
+    }
+
     /**
      * 初始化日期列表（8天）
      *
@@ -85,6 +120,8 @@ public class DateListManager {
      * 显示格式：
      * - 今天
      *   6/21
+     * 
+     * 【2026-06-24 修改：样式区分焦点态】
      */
     public void initDate() {
         dateDisplayList = new ArrayList<>();
@@ -121,32 +158,39 @@ public class DateListManager {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
                 TextView tv = (TextView) super.getView(position, convertView, parent);
+
                 // 支持两行显示
                 tv.setSingleLine(false);
                 tv.setMaxLines(2);
                 tv.setTextSize(14);
                 tv.setGravity(android.view.Gravity.CENTER);
 
-                // 三种状态样式
+                // ====================================================================
+                // ✅ 2026-06-24 修改：三种状态样式（区分焦点态）
+                // ====================================================================
                 if (position == selectedPosition) {
-                    // 选中状态：蓝色文字 + 加粗 + 浅蓝色背景
-                    tv.setTextColor(Color.parseColor("#40A9FF"));
-                    tv.setTypeface(null, Typeface.BOLD);
-                    tv.setBackgroundColor(0x3340A9FF);
-                } else if (tv.isFocused()) {
-                    // 焦点状态：蓝色文字 + 常规 + 透明背景
-                    tv.setTextColor(Color.parseColor("#40A9FF"));
-                    tv.setTypeface(null, Typeface.NORMAL);
-                    tv.setBackgroundColor(Color.TRANSPARENT);
+                    if (hasFocus) {
+                        // ⭐ 有焦点 + 选中：深蓝色背景 + 白色文字 + 加粗（最醒目）
+                        tv.setTextColor(Color.WHITE);
+                        tv.setTypeface(null, Typeface.BOLD);
+                        tv.setBackgroundColor(Color.parseColor("#40A9FF"));
+                    } else {
+                        // 无焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗（只是标记）
+                        tv.setTextColor(Color.parseColor("#40A9FF"));
+                        tv.setTypeface(null, Typeface.BOLD);
+                        tv.setBackgroundColor(0x3340A9FF);
+                    }
                 } else {
-                    // 未选中状态：白色文字 + 常规 + 透明背景
+                    // 未选中：白色文字 + 透明背景
                     tv.setTextColor(Color.WHITE);
                     tv.setTypeface(null, Typeface.NORMAL);
                     tv.setBackgroundColor(Color.TRANSPARENT);
                 }
+
                 return tv;
             }
         };
+
         lvDate.setAdapter(adapter);
 
         // 点击事件
