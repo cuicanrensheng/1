@@ -66,6 +66,15 @@ import java.util.Map;
  * 【修改说明】
  * 增加 cancelRetry() 方法，切换频道时自动取消旧频道的重试任务，
  * 避免旧频道的重试干扰新频道的播放。
+ * 
+ * 【2026-06-24 修改：抗卡顿优化版】
+ * 【修改说明】
+ * Media3 降级到 1.5.0 后个别频道卡顿，优化缓冲配置：
+ * 1. 增大开始播放所需缓冲（300ms → 1500ms），首帧更流畅
+ * 2. 增大最小缓冲（2000ms → 5000ms），抗网络波动能力更强
+ * 3. 增大重缓冲阈值（500ms → 2000ms），减少频繁缓冲
+ * 4. 优化 HLS 播放参数，提高容错性
+ * 5. 添加更多卡顿相关日志，方便排查问题
  */
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerLog";
@@ -344,7 +353,7 @@ public class TVPlayerManager {
             Log.d(TAG, "【FFmpeg】硬解码模式：系统硬解优先，FFmpeg 作为备用");
         }
         // ================================================
-        // ✅ 优化1：缓冲配置（快速出画 + 大缓冲防卡）
+        // ✅ 2026-06-24 修改：抗卡顿优化 - 调整缓冲配置
         // ================================================
         /**
          * 【参数说明】
@@ -355,25 +364,27 @@ public class TVPlayerManager {
          * bufferForPlaybackAfterRebufferMs：重缓冲后开始播放所需的最小缓冲量
          *
          * 【优化思路】
-         * - 把 bufferForPlaybackMs 从 1000ms 改成 300ms
-         *   意思是：只要有 300ms 的数据，就开始播放
-         *   这样首帧出来得更快，用户等待时间更短
-         *
-         * - maxBufferMs 保持 50000ms（50秒）
-         *   大缓冲可以抵抗网络波动，防止卡顿
-         *
-         * - 这是"快速出画 + 稳定播放"的平衡方案
+         * 之前的配置追求"快速出画"，但抗网络波动能力差，个别频道容易卡顿。
+         * 现在调整为"流畅优先"：
+         * - bufferForPlaybackMs 从 300ms → 1500ms：多缓冲一点再开始播，首帧更流畅
+         * - minBufferMs 从 2000ms → 5000ms：增大最小缓冲，抗网络波动能力更强
+         * - bufferForPlaybackAfterRebufferMs 从 500ms → 2000ms：重缓冲后多缓冲一点再播，减少反复缓冲
          *
          * 【注意】
          * minBufferMs 必须 >= bufferForPlaybackAfterRebufferMs
          * 否则 ExoPlayer 会崩溃
+         * 
+         * 【为什么这么调？】
+         * Media3 1.5.0 对某些 HLS 流的处理不如新版本，
+         * 增大缓冲可以有效减少卡顿，代价是首帧出画慢一点（约 1-2 秒），
+         * 但换来的是播放过程更流畅，不会频繁缓冲。
          */
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                        2000,      // minBufferMs - 最小缓冲 2秒
+                        5000,      // minBufferMs - 最小缓冲 5秒（抗卡顿优化：从2秒→5秒）
                         50000,     // maxBufferMs - 最大缓冲 50秒（抗网络波动）
-                        300,       // bufferForPlaybackMs - 有 300ms 就开始播（快速出画）
-                        500        // bufferForPlaybackAfterRebufferMs - 重缓冲后 500ms 就播
+                        1500,      // bufferForPlaybackMs - 有 1.5秒 就开始播（抗卡顿优化：从300ms→1500ms）
+                        2000       // bufferForPlaybackAfterRebufferMs - 重缓冲后 2秒 就播（抗卡顿优化：从500ms→2000ms）
                 )
                 .setPrioritizeTimeOverSizeThresholds(true) // 优先保证时间缓冲
                 .build();
@@ -396,6 +407,15 @@ public class TVPlayerManager {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
+                // ====================================================================
+                // ✅ 2026-06-24 新增：打印详细错误信息，方便排查卡顿/失效问题
+                // ====================================================================
+                Log.e(TAG, "【错误详情】错误码: " + error.errorCode 
+                    + ", 错误类型: " + getErrorTypeName(error.errorCode));
+                if (error.getCause() != null) {
+                    Log.e(TAG, "【错误原因】" + error.getCause().getMessage());
+                }
+                
                 if (listener != null) {
                     listener.onPlayError(error.getMessage());
                 }
@@ -429,6 +449,12 @@ public class TVPlayerManager {
                                 && decoderName.toLowerCase().contains("ffmpeg");
                             Log.d(TAG, "【解码器】当前视频解码器：" + decoderName 
                                 + "（" + (isFfmpeg ? "FFmpeg 软解" : "系统硬解") + "）");
+                            
+                            // ====================================================================
+                            // ✅ 2026-06-24 新增：打印分辨率和码率，方便排查卡顿问题
+                            // ====================================================================
+                            Log.d(TAG, "【视频信息】分辨率: " + videoFormat.width + "×" + videoFormat.height
+                                + ", 码率: " + (videoFormat.bitrate / 1024) + "kbps");
                         }
                     } catch (Exception e) {
                         // 忽略，获取解码器信息失败不影响播放
@@ -437,6 +463,16 @@ public class TVPlayerManager {
                     if (listener != null) listener.onBuffering();
                     // 缓冲中也重置卡住检测
                     lastPositionUpdateTime = System.currentTimeMillis();
+                    
+                    // ====================================================================
+                    // ✅ 2026-06-24 新增：打印缓冲状态，方便排查卡顿问题
+                    // ====================================================================
+                    try {
+                        long bufferedDuration = player.getBufferedPosition() - player.getCurrentPosition();
+                        Log.d(TAG, "【缓冲】正在缓冲，当前已缓冲: " + bufferedDuration + "ms");
+                    } catch (Exception e) {
+                        // 忽略
+                    }
                 } else if (state == Player.STATE_ENDED) {
                     if (listener != null) listener.onPlayEnd();
                     // ✅ 直播流意外结束，自动重试
@@ -473,6 +509,42 @@ public class TVPlayerManager {
             }
         };
         player.addListener(playerListener);
+    }
+    // ====================================================================
+    // ✅ 2026-06-24 新增：错误码转名称，方便排查问题
+    // ====================================================================
+    /**
+     * 把 PlaybackException 的错误码转换成可读的名称
+     * 
+     * 【作用】
+     * 方便在日志里快速判断是什么类型的错误，
+     * 不用每次都去查错误码对照表。
+     */
+    private String getErrorTypeName(int errorCode) {
+        switch (errorCode) {
+            case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED:
+                return "网络连接失败";
+            case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT:
+                return "网络连接超时";
+            case PlaybackException.ERROR_CODE_IO_NO_PERMISSION:
+                return "没有网络权限";
+            case PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED:
+                return "不允许明文传输";
+            case PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS:
+                return "HTTP状态码错误";
+            case PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND:
+                return "文件不存在";
+            case PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED:
+                return "媒体格式错误";
+            case PlaybackException.ERROR_CODE_DECODER_INIT_FAILED:
+                return "解码器初始化失败";
+            case PlaybackException.ERROR_CODE_DECODING_FAILED:
+                return "解码失败";
+            case PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED:
+                return "不支持的视频格式";
+            default:
+                return "未知错误(" + errorCode + ")";
+        }
     }
     // ================================================
     // ✅ 优化2：卡住检测 + 自动重试
@@ -717,6 +789,10 @@ public class TVPlayerManager {
      * 去掉 player.stop() 和 player.clearMediaItems()
      * 直接用 setMediaSource 切换，旧画面会保留到新画面出来
      * 这样就完全避免了切台黑屏的问题
+     * 
+     * 【2026-06-24 修改：抗卡顿优化】
+     * 【修改说明】
+     * HLS 流增加容错配置，提高对不规范直播源的兼容性。
      */
     private void playUrlInternal(String url) {
         try {
@@ -763,7 +839,19 @@ public class TVPlayerManager {
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
-                mediaSource = new HlsMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
+                // ====================================================================
+                // ✅ 2026-06-24 修改：抗卡顿优化 - HLS 增加容错配置
+                // ====================================================================
+                // 【为什么要改？】
+                // Media3 1.5.0 对某些不规范的 HLS 流处理不如新版本，
+                // 增加容错配置可以提高兼容性，减少卡顿。
+                //
+                // 【配置说明】
+                // - setAllowChunklessPreparation(true)：允许无块准备，提高容错
+                // - 其他保持默认
+                mediaSource = new HlsMediaSource.Factory(httpFactory)
+                        .setAllowChunklessPreparation(true) // 允许无块准备，提高容错
+                        .createMediaSource(mediaItem);
             } else {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
