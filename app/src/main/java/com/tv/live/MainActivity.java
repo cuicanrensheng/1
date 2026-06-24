@@ -1,4 +1,5 @@
 package com.tv.live;
+
 import android.app.PictureInPictureParams;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -16,17 +17,19 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 // ====================================================================
 // ✅ 2026-06-23 修改：升级到 Media3 1.10.1
 // ====================================================================
 // PlayerView 的包名从 com.google.android.exoplayer2.ui.PlayerView
 // 改成 androidx.media3.ui.PlayerView
 import androidx.media3.ui.PlayerView;
+
 import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
 import com.tv.live.manager.*;
@@ -34,8 +37,10 @@ import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
 import com.tv.live.widget.GroupListManager;
+
 import java.util.ArrayList;
 import java.util.List;
+
 /**
  * 主播放页面 Activity
  * 
@@ -54,41 +59,21 @@ import java.util.List;
  * - 使用 PictureInPictureManager 统一管理画中画状态
  * - 所有画中画日志接入 SettingsActivity.logOperation，可在设置页面查看
  * - 退出画中画时记录详细尺寸日志，用于排查"返回播放界面变小窗"问题
- * 
- * 【2026-06-24 新增：失效频道图片提示 + 自动跳过】
- * 功能说明：
- * - 播放失败时显示"节目失效请切换频道"的图片
- * - 配合 ChannelPanelController 的自动跳过功能，切台时遇到失效源自动跳过
- * 
- * 调用方式：
- * - PlayerStateListenerImpl.onPlayerError() 中调用 mainActivity.onPlayError()
- * - PlayerStateListenerImpl.onPlaybackStateChanged(STATE_READY) 中调用 mainActivity.onPlaySuccess()
  */
 public class MainActivity extends AppCompatActivity {
+
     // ====================== 单例 ======================
     public static MainActivity mInstance;
+
     // ====================================================================
     // 兼容层：保留旧的 public 变量
     // ====================================================================
     public List<Channel> channelSourceList = new ArrayList<>();
     public int currentPlayIndex = 0;
+
     // ====================== 视图相关 ======================
     private PlayerView playerView;
-    // ====================================================================
-    // ✅ 2026-06-24 新增：失效频道提示图片
-    // ====================================================================
-    // 【作用】
-    // 播放失败时显示"节目失效请切换频道"的图片，
-    // 替代原来的文字错误提示，视觉效果更好。
-    // 
-    // 【对应布局】
-    // activity_main.xml 中的 iv_channel_error
-    // 
-    // 【显示时机】
-    // - 播放失败时：显示（onPlayError 中调用 showChannelError）
-    // - 播放成功时：隐藏（onPlaySuccess 中调用 hideChannelError）
-    // - 开始缓冲时：隐藏（可选，防止闪烁）
-    private ImageView ivChannelError;
+
     // ====================== 管理器相关 ======================
     public TVPlayerManager mPlayerManager;
     private AppConfig appConfig;
@@ -96,6 +81,7 @@ public class MainActivity extends AppCompatActivity {
     private GestureManager gestureManager;
     private KeyEventManager keyEventManager;
     private PlayerStateListenerImpl playerStateListener;
+
     // ====================================================================
     // 拆分新增：各个 Manager
     // ====================================================================
@@ -104,19 +90,23 @@ public class MainActivity extends AppCompatActivity {
     private InfoDisplayManager infoDisplayManager;
     private ChannelPanelController channelPanelController;
     private AppCoreManager appCoreManager;
+
     // ====================================================================
     // 遥控器统一管理器
     // ====================================================================
     private TvRemoteManager remoteManager;
+
     // ====================================================================
     // 画中画相关变量
     // ====================================================================
     private PictureInPictureManager pipManager;
     private boolean pipEnable = false;      // 画中画开关状态
+
     // ====================== 状态标志 ======================
     private boolean channel_reverse;
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
+
     // ====================================================================
     // 频道面板自动隐藏
     // ====================================================================
@@ -129,9 +119,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
+
     private boolean mIsFirstLaunch = true;
+
     // ====================== 其他 ======================
     public static List<String> logList = new ArrayList<>();
+
     // ====================== onCreate 生命周期 ======================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -153,18 +146,10 @@ public class MainActivity extends AppCompatActivity {
         if (customEpg != null) UrlConfig.EPG_URL = customEpg;
         log("【配置】直播源地址：" + UrlConfig.LIVE_URL);
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
+
         playerView = findViewById(R.id.player_view);
         playerView.setUseController(false);
-        // ====================================================================
-        // ✅ 2026-06-24 新增：初始化失效频道提示图片
-        // ====================================================================
-        // 【作用】
-        // 从布局中找到 iv_channel_error 这个 ImageView，
-        // 后面播放失败时用来显示错误提示图片。
-        // 
-        // 【为什么在这里初始化？】
-        // 和 playerView 一起初始化，都是视图相关的初始化工作。
-        ivChannelError = findViewById(R.id.iv_channel_error);
+
         // ====================================================================
         // ✅ 2026-06-23 修改：修复 setControllerVisibilityListener 歧义问题
         // ====================================================================
@@ -185,6 +170,7 @@ public class MainActivity extends AppCompatActivity {
         // 因为我们用的是自定义的频道面板，不需要 PlayerView 自带的控制器，
         // 所以把控制器可见性监听器设为 null，避免不必要的回调。
         playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
+
         initChannelPanelController();
         initRemoteManager();
         initPictureInPicture();
@@ -216,6 +202,7 @@ public class MainActivity extends AppCompatActivity {
         displayManager.showLoading("正在加载直播源...");
         appCoreManager.loadLiveAndEpg();
     }
+
     // ====================================================================
     // 画中画初始化
     // ====================================================================
@@ -236,6 +223,7 @@ public class MainActivity extends AppCompatActivity {
             pipManager = null;
         }
     }
+
     // ====================================================================
     // 画中画模式下隐藏所有UI
     // ====================================================================
@@ -248,6 +236,7 @@ public class MainActivity extends AppCompatActivity {
             infoDisplayManager.hideChannelNum();
         }
     }
+
     private void keepPlayingInPip() {
     try {
         if (mPlayerManager != null) {
@@ -280,6 +269,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 }
+
     // ====================================================================
     // 恢复当前频道播放
     // ====================================================================
@@ -292,6 +282,7 @@ public class MainActivity extends AppCompatActivity {
             log("【画中画】恢复播放失败：" + e.getMessage());
         }
     }
+
     // ====================================================================
     // 初始化遥控器管理器
     // ====================================================================
@@ -371,6 +362,7 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onSettingsFocusChanged(int position) {}
         });
     }
+
     // ====================================================================
     // 同步遥控器模式
     // ====================================================================
@@ -382,6 +374,7 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
         }
     }
+
     // ====================================================================
     // 信息展示管理器初始化
     // ====================================================================
@@ -398,6 +391,7 @@ public class MainActivity extends AppCompatActivity {
         TextView tv_remaining_time = findViewById(R.id.tv_remaining_time);
         TextView tv_next_program_name = findViewById(R.id.tv_next_program_name);
         TextView tv_next_time_range = findViewById(R.id.tv_next_time_range);
+
         infoDisplayManager = new InfoDisplayManager(
                 this,
                 tv_channel_num,
@@ -414,6 +408,7 @@ public class MainActivity extends AppCompatActivity {
                 tv_next_time_range
         );
     }
+
     // ====================================================================
     // 频道面板控制器初始化
     // ====================================================================
@@ -428,17 +423,21 @@ public class MainActivity extends AppCompatActivity {
         ListView lvEpg = findViewById(R.id.lv_epg);
         TextView btn_show_epg = findViewById(R.id.btn_show_epg);
         TextView btn_back_group = findViewById(R.id.btn_back_group);
+
         EpgManager.getInstance(this);
+
         ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
         ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
         GroupListManager groupListManager = new GroupListManager(this, lvGroup);
         DateListManager dateListManager = new DateListManager(this, lvDate);
         EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
         PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
+
         dateListManager.initDate();
         dateListManager.setOnDateSelectedListener(pos -> {
             channelPanelController.setCurrentDateIndex(pos);
         });
+
         channelPanelController = new ChannelPanelController(
                 this,
                 panel_layout,
@@ -458,6 +457,7 @@ public class MainActivity extends AppCompatActivity {
                 epgManagerWrapper,
                 panelManager
         );
+
         channelPanelController.setOnChannelChangeListener(new ChannelPanelController.OnChannelChangeListener() {
             @Override
             public void onChannelChanged(Channel channel, int index) {
@@ -465,6 +465,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
     // ====================================================================
     // 播放器初始化
     // ====================================================================
@@ -483,6 +484,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
     // ====================================================================
     // 数字选台管理器初始化
     // ====================================================================
@@ -508,6 +510,7 @@ public class MainActivity extends AppCompatActivity {
                 number_channel_enable
         );
     }
+
     // ====================================================================
     // 应用核心管理器初始化
     // ====================================================================
@@ -534,6 +537,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
+
             @Override
             public void onLiveSourceFailed(String errorMsg) {
                 runOnUiThread(new Runnable() {
@@ -549,6 +553,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
+
             @Override
             public void onEpgLoaded() {
                 runOnUiThread(new Runnable() {
@@ -561,6 +566,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
+
             @Override
             public void onLoadTimeout(boolean hasData) {
                 runOnUiThread(new Runnable() {
@@ -578,6 +584,7 @@ public class MainActivity extends AppCompatActivity {
         });
         appCoreManager.registerReceivers();
     }
+
     // ====================== 设置加载 ======================
     private void loadSettings() {
         SharedPreferences sp = getSharedPreferences("app_settings", MODE_PRIVATE);
@@ -586,6 +593,7 @@ public class MainActivity extends AppCompatActivity {
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
+
         if (channelNumberManager != null) {
             channelNumberManager.setEnable(number_channel_enable);
         }
@@ -596,18 +604,21 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) {
             pipManager.setPipEnabled(pipEnable);
         }
+
         SettingsActivity.logOperation("【设置】EPG开关：" + epg_enable);
         SettingsActivity.logOperation("【设置】切台反转：" + channel_reverse);
         SettingsActivity.logOperation("【设置】数字选台：" + number_channel_enable);
         SettingsActivity.logOperation("【设置】自动更新源：" + auto_update_source);
         SettingsActivity.logOperation("【设置】画中画开关：" + pipEnable);
     }
+
     // ====================================================================
     // 获取反转状态
     // ====================================================================
     public boolean isChannelReverse() {
         return channel_reverse;
     }
+
     // ====================================================================
     // 兼容层：旧的 playChannel(int) 方法
     // ====================================================================
@@ -617,6 +628,7 @@ public class MainActivity extends AppCompatActivity {
         Channel channel = channelSourceList.get(index);
         playChannel(channel, index);
     }
+
     // ====================== 播放频道（内部方法） ======================
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null) return;
@@ -647,6 +659,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
     // ====================================================================
     // 兼容层：旧的 togglePanel() 方法
     // ====================================================================
@@ -654,143 +667,19 @@ public class MainActivity extends AppCompatActivity {
         channelPanelController.togglePanel();
         syncRemoteMode();
     }
+
     // ====================================================================
     // 兼容层：旧的 playPrev() 方法
     // ====================================================================
     public void playPrev() {
         channelPanelController.playPrev();
     }
+
     // ====================================================================
     // 兼容层：旧的 playNext() 方法
     // ====================================================================
     public void playNext() {
         channelPanelController.playNext();
-    }
-    // ====================================================================
-    // ✅ 2026-06-24 新增：失效频道图片显示/隐藏
-    // ====================================================================
-    /**
-     * 显示失效频道提示图片
-     * 
-     * 【作用】
-     * 播放失败时调用，显示"节目失效请切换频道"的图片。
-     * 
-     * 【调用时机】
-     * PlayerStateListenerImpl.onPlayerError() 中调用。
-     * 
-     * 【为什么要隐藏播放器控制栏？】
-     * 播放失败时，播放器的控制栏可能还显示着，
-     * 会和错误图片叠在一起，视觉上很乱。
-     * 所以显示错误图片时，把控制器也隐藏掉。
-     */
-    private void showChannelError() {
-        if (ivChannelError != null) {
-            ivChannelError.setVisibility(View.VISIBLE);
-        }
-        // 隐藏播放器的控制栏（我们用的是自定义控制器，这里隐藏 PlayerView 自带的）
-        if (playerView != null) {
-            playerView.hideController();
-        }
-    }
-
-    /**
-     * 隐藏失效频道提示图片
-     * 
-     * 【作用】
-     * 播放成功或开始缓冲时调用，把错误图片隐藏掉。
-     * 
-     * 【调用时机】
-     * 1. PlayerStateListenerImpl.onPlaybackStateChanged(STATE_READY) 中调用
-     * 2. 开始缓冲新频道时也可以调用（可选，防止闪烁）
-     */
-    private void hideChannelError() {
-        if (ivChannelError != null) {
-            ivChannelError.setVisibility(View.GONE);
-        }
-    }
-
-    // ====================================================================
-    // ✅ 2026-06-24 新增：播放状态回调（供 PlayerStateListenerImpl 调用）
-    // ====================================================================
-    /**
-     * 播放失败回调
-     * 
-     * 【作用】
-     * PlayerStateListenerImpl 监听到播放失败时，调用这个方法。
-     * 这里统一处理：
-     * 1. 显示失效频道图片
-     * 2. 判断是否需要自动跳过
-     * 3. 如果可以跳过，延迟一段时间后自动切下一个
-     * 
-     * 【为什么不直接在 PlayerStateListenerImpl 里处理？】
-     * 因为显示图片、自动跳过这些逻辑都和 MainActivity 的 UI 和
-     * ChannelPanelController 相关，放在 MainActivity 里更合适。
-     * PlayerStateListenerImpl 只负责监听状态，然后通知 MainActivity。
-     * 
-     * 【自动跳过的判断逻辑】
-     * 调用 channelPanelController.canAutoSkip() 判断：
-     * - 必须是切台状态（用户刚按了上下键）
-     * - 有明确的切台方向
-     * - 未达到最大自动跳过次数（10次）
-     * 
-     * 【为什么延迟 500ms 再切？】
-     * 让用户能看到错误图片，知道这个频道失效了，
-     * 而不是感觉"切台没反应"或者"闪了一下"。
-     * 
-     * @param errorMsg 错误信息（用于日志）
-     */
-    public void onPlayError(String errorMsg) {
-        SettingsActivity.logOperation("【播放】❌ 播放失败：" + errorMsg);
-        
-        // 1. 显示失效频道图片
-        showChannelError();
-        
-        // 2. 判断是否可以自动跳过
-        if (channelPanelController != null && channelPanelController.canAutoSkip()) {
-            SettingsActivity.logOperation("【切台】检测到失效频道，准备自动跳过");
-            
-            // 延迟 500ms 再切，让用户看到错误提示
-            if (ivChannelError != null) {
-                ivChannelError.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (channelPanelController != null) {
-                            boolean skipped = channelPanelController.autoSkipFailedChannel();
-                            if (skipped) {
-                                SettingsActivity.logOperation("【切台】✅ 已自动跳过失效频道");
-                            } else {
-                                SettingsActivity.logOperation("【切台】❌ 无法继续跳过（已达上限）");
-                            }
-                        }
-                    }
-                }, 500);
-            }
-        }
-    }
-
-    /**
-     * 播放成功回调
-     * 
-     * 【作用】
-     * PlayerStateListenerImpl 监听到播放成功（STATE_READY）时，调用这个方法。
-     * 这里统一处理：
-     * 1. 隐藏失效频道图片
-     * 2. 通知 ChannelPanelController 播放成功（重置切台状态和跳过计数）
-     * 
-     * 【为什么要通知 ChannelPanelController？】
-     * 播放成功说明当前频道是有效的，
-     * 需要重置切台状态（isSwitchingChannel = false）
-     * 和自动跳过计数（autoSkipCount = 0），
-     * 这样下次切台时重新计数。
-     */
-    public void onPlaySuccess() {
-        // 1. 隐藏失效频道图片
-        hideChannelError();
-        
-        // 2. 通知 ChannelPanelController 播放成功
-        if (channelPanelController != null) {
-            channelPanelController.onPlaySuccess();
-        }
     }
 
     // ====================== 返回键处理 ======================
@@ -817,6 +706,7 @@ public class MainActivity extends AppCompatActivity {
         }
         super.onBackPressed();
     }
+
     // ====================== 方向键处理（保留，备用） ======================
     private boolean handleDirectionKey(int keyCode) {
         switch (keyCode) {
@@ -846,6 +736,7 @@ public class MainActivity extends AppCompatActivity {
                 return false;
         }
     }
+
     // ====================== 按键分发 ======================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -869,6 +760,7 @@ public class MainActivity extends AppCompatActivity {
         if (keyEventManager.dispatchKey(keyCode)) return true;
         return super.onKeyDown(keyCode, event);
     }
+
     // ====================================================================
     // 取消频道面板自动隐藏
     // ====================================================================
@@ -877,16 +769,19 @@ public class MainActivity extends AppCompatActivity {
             mPanelAutoHideHandler.removeCallbacks(mPanelAutoHideRunnable);
         }
     }
+
     // ====================== 打开设置页面 ======================
     public void openSettings() {
         isOpeningSettings = true;
         appCoreManager.beforeOpenSettings();
         startActivity(new Intent(this, SettingsActivity.class));
     }
+
     // ====================== 接收远程配置 ======================
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
     }
+
     // ====================================================================
     // ✅ 画中画：用户按 Home 键时自动进入画中画（集成版）
     // 
@@ -946,6 +841,7 @@ public class MainActivity extends AppCompatActivity {
         }
         SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
     }
+
     // ====================================================================
     // ✅ 画中画模式变化回调（集成版 + 详细尺寸日志）
     // 
@@ -1122,24 +1018,8 @@ public class MainActivity extends AppCompatActivity {
             SettingsActivity.logOperation("【画中画】================================");
         }
     }
-    private void logPipWindowSize() {
-        try {
-            // 窗口可见区域尺寸
-            Rect rect = new Rect();
-            getWindow().getDecorView().getWindowVisibleDisplayFrame(rect);
-            SettingsActivity.logOperation("【画中画尺寸】窗口可见区域：宽=" + rect.width() + "，高=" + rect.height());
-            // 屏幕物理尺寸
-            DisplayMetrics metrics = new DisplayMetrics();
-            getWindowManager().getDefaultDisplay().getMetrics(metrics);
-            SettingsActivity.logOperation("【画中画尺寸】屏幕尺寸：宽=" + metrics.widthPixels + "，高=" + metrics.heightPixels);
-            // DecorView 尺寸（Activity 根视图）
-            View decorView = getWindow().getDecorView();
-            SettingsActivity.logOperation("【画中画尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
-        } catch (Exception e) {
-            SettingsActivity.logOperation("【画中画尺寸】获取窗口尺寸失败：" + e.getMessage());
-        }
-    }
-        // ====================================================================
+
+    // ====================================================================
     // ✅ 辅助方法：打印 View 的详细尺寸信息（接入操作日志）
     // 
     // 作用：记录 View 的位置、尺寸、布局参数、可见性，用于排查布局问题
@@ -1188,6 +1068,34 @@ public class MainActivity extends AppCompatActivity {
             SettingsActivity.logOperation("【画中画尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
         }
     }
+
+    // ====================================================================
+    // ✅ 辅助方法：打印窗口和屏幕尺寸（接入操作日志）
+    // 
+    // 作用：记录窗口可见区域、屏幕尺寸、DecorView 尺寸，作为参考基准
+    // 输出内容：
+    // - 窗口可见区域：宽、高（排除状态栏、导航栏等系统UI）
+    // - 屏幕尺寸：宽、高（物理屏幕分辨率）
+    // - DecorView 尺寸：宽、高（Activity 根视图）
+    // ====================================================================
+    private void logPipWindowSize() {
+        try {
+            // 窗口可见区域尺寸
+            Rect rect = new Rect();
+            getWindow().getDecorView().getWindowVisibleDisplayFrame(rect);
+            SettingsActivity.logOperation("【画中画尺寸】窗口可见区域：宽=" + rect.width() + "，高=" + rect.height());
+            // 屏幕物理尺寸
+            DisplayMetrics metrics = new DisplayMetrics();
+            getWindowManager().getDefaultDisplay().getMetrics(metrics);
+            SettingsActivity.logOperation("【画中画尺寸】屏幕尺寸：宽=" + metrics.widthPixels + "，高=" + metrics.heightPixels);
+            // DecorView 尺寸（Activity 根视图）
+            View decorView = getWindow().getDecorView();
+            SettingsActivity.logOperation("【画中画尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
+        } catch (Exception e) {
+            SettingsActivity.logOperation("【画中画尺寸】获取窗口尺寸失败：" + e.getMessage());
+        }
+    }
+
     // ====================================================================
     // 日志方法
     // ====================================================================
@@ -1195,6 +1103,7 @@ public class MainActivity extends AppCompatActivity {
         logList.add(msg);
         Log.d("MainActivity", msg);
     }
+
     // ====================== 生命周期方法 ======================
     // ====================================================================
     // ✅ onPause（集成版：画中画模式下保持播放）
@@ -1225,6 +1134,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
     // ====================================================================
     // ✅ 新增：onStop（标记停止状态，参考 TVBox 实现）
     // 
@@ -1246,6 +1156,7 @@ public class MainActivity extends AppCompatActivity {
             SettingsActivity.logOperation("【画中画】onStop 被调用");
         }
     }
+
     // ====================================================================
     // ✅ onResume（集成版：重置停止标记）
     // 
@@ -1278,6 +1189,7 @@ public class MainActivity extends AppCompatActivity {
         }
         syncRemoteMode();
     }
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -1286,6 +1198,7 @@ public class MainActivity extends AppCompatActivity {
         }
         appCoreManager.onWindowFocusChanged(hasFocus);
     }
+
         @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -1313,4 +1226,3 @@ public class MainActivity extends AppCompatActivity {
         mInstance = null;
     }
 }
-            
