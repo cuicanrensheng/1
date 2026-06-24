@@ -1,7 +1,5 @@
 package com.tv.live;
-
 import com.tv.live.RedirectLoggingHttpDataSource;
-
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -11,7 +9,6 @@ import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
 import android.widget.TextView;
-
 // ====================================================================
 // ✅ 2026-06-23 修改：升级到 Media3 1.10.1
 // ====================================================================
@@ -46,13 +43,11 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
-
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-
 /**
  * 播放器管理类（单例模式）
  * 基于 Media3 ExoPlayer 封装，提供直播播放、状态监听、画质切换、Header设置等功能
@@ -66,6 +61,11 @@ import java.util.Map;
  * 6. 优化缓冲参数，更快出画
  * 7. 显示真实画质、音频、码率
  * 8. ✅ 集成 FFmpeg 软解码器，提高格式兼容性
+ * 
+ * 【2026-06-24 新增：自动跳过失效频道 - 取消重试支持】
+ * 【修改说明】
+ * 增加 cancelRetry() 方法，切换频道时自动取消旧频道的重试任务，
+ * 避免旧频道的重试干扰新频道的播放。
  */
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerLog";
@@ -73,10 +73,8 @@ public class TVPlayerManager {
     private ExoPlayer player;
     private Context context;
     private PlayerView playerView;
-
     // 屏幕缩放模式枚举
     public enum ScaleMode { FIT, FILL, ZOOM }
-
     // 播放状态监听器
     private OnPlayStateListener listener;
     // 当前播放地址
@@ -97,7 +95,6 @@ public class TVPlayerManager {
     private OnLiveInfoUpdateListener infoUpdateListener;
     // 播放状态监听器（成员变量，只添加一次）
     private Player.Listener playerListener;
-
     // ================================================
     // ✅ 防卡优化相关成员变量
     // ================================================
@@ -115,7 +112,24 @@ public class TVPlayerManager {
     private final Handler stuckHandler = new Handler(Looper.getMainLooper());
     // 是否正在重试中
     private boolean isRetrying = false;
-
+    // ====================================================================
+    // ✅ 2026-06-24 新增：重试任务引用（用于取消）
+    // ====================================================================
+    /**
+     * 重试任务的 Runnable 引用
+     * 
+     * 【作用】
+     * 保存 autoRetry 中 postDelayed 的 Runnable，
+     * 切换频道时可以 removeCallbacks 取消掉，
+     * 避免旧频道的重试任务干扰新频道的播放。
+     * 
+     * 【为什么需要这个？】
+     * 自动跳过失效频道时，切到新频道后，
+     * 旧频道的延迟重试任务还在队列里，
+     * 1秒后会执行并重新加载（但 currentUrl 已经是新频道了），
+     * 导致新频道被重新加载一次，体验不好。
+     */
+    private Runnable retryRunnable = null;
     /**
      * 直播信息实体类
      * 所有数据都从播放器实时获取，不再写死
@@ -128,15 +142,12 @@ public class TVPlayerManager {
         public int videoWidth;      // 视频宽度（真实分辨率）
         public int videoHeight;     // 视频高度（真实分辨率）
     }
-
     public interface OnLiveInfoUpdateListener {
         void onLiveInfoUpdate(LiveInfo info);
     }
-
     public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) {
         this.infoUpdateListener = listener;
     }
-
     public LiveInfo getLiveInfo() {
         LiveInfo info = new LiveInfo();
         info.channelNum = currentChannelNumber;
@@ -212,22 +223,18 @@ public class TVPlayerManager {
         
         return info;
     }
-
     public void setCurrentChannelNumber(int num) {
         this.currentChannelNumber = num;
     }
-
     private void notifyLiveInfoUpdate() {
         if (infoUpdateListener != null) {
             new Handler(Looper.getMainLooper()).post(() ->
                     infoUpdateListener.onLiveInfoUpdate(getLiveInfo()));
         }
     }
-
     public void bindChannelText(TextView textView) {
         this.channelNumText = textView;
     }
-
     private void showChannelAndAutoHide() {
         if (channelNumText == null) return;
         mHandler.removeCallbacks(hideChannelRunnable);
@@ -235,7 +242,6 @@ public class TVPlayerManager {
         channelNumText.setVisibility(View.VISIBLE);
         mHandler.postDelayed(hideChannelRunnable, CHANNEL_SHOW_DURATION);
     }
-
     private final Runnable hideChannelRunnable = new Runnable() {
         @Override
         public void run() {
@@ -244,19 +250,16 @@ public class TVPlayerManager {
             }
         }
     };
-
     public static TVPlayerManager getInstance(Context ctx) {
         if (instance == null) {
             instance = new TVPlayerManager(ctx);
         }
         return instance;
     }
-
     private TVPlayerManager(Context ctx) {
         context = ctx.getApplicationContext();
         initPlayer();
     }
-
     /**
      * ✅ 初始化播放器
      * 单独抽出来，方便重试时重新创建
@@ -340,7 +343,6 @@ public class TVPlayerManager {
             
             Log.d(TAG, "【FFmpeg】硬解码模式：系统硬解优先，FFmpeg 作为备用");
         }
-
         // ================================================
         // ✅ 优化1：缓冲配置（快速出画 + 大缓冲防卡）
         // ================================================
@@ -375,21 +377,17 @@ public class TVPlayerManager {
                 )
                 .setPrioritizeTimeOverSizeThresholds(true) // 优先保证时间缓冲
                 .build();
-
         // 创建ExoPlayer实例
         player = new ExoPlayer.Builder(context)
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
                 .build();
-
         // 初始化播放监听器
         initPlayerListener();
-
         // 初始化Cookie管理器
         CookieSyncManager.createInstance(context);
         CookieManager.getInstance().setAcceptCookie(true);
     }
-
     /**
      * ✅ 初始化播放状态监听器
      */
@@ -404,7 +402,6 @@ public class TVPlayerManager {
                 // ✅ 播放错误时自动重试
                 autoRetry("播放错误");
             }
-
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_READY) {
@@ -450,7 +447,6 @@ public class TVPlayerManager {
                     updateWakeLock(false);
                 }
             }
-
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
                 // 播放状态变化时更新卡住检测
@@ -458,7 +454,6 @@ public class TVPlayerManager {
                     lastPositionUpdateTime = System.currentTimeMillis();
                 }
             }
-
             // ====================================================================
             // ✅ 视频分辨率变化时触发
             // ====================================================================
@@ -479,7 +474,6 @@ public class TVPlayerManager {
         };
         player.addListener(playerListener);
     }
-
     // ================================================
     // ✅ 优化2：卡住检测 + 自动重试
     // ================================================
@@ -493,14 +487,12 @@ public class TVPlayerManager {
         lastPosition = 0;
         stuckHandler.postDelayed(stuckCheckRunnable, 2000);
     }
-
     /**
      * 停止卡住检测
      */
     private void stopStuckDetection() {
         stuckHandler.removeCallbacks(stuckCheckRunnable);
     }
-
     /**
      * 卡住检测Runnable
      */
@@ -535,10 +527,41 @@ public class TVPlayerManager {
             stuckHandler.postDelayed(this, 2000);
         }
     };
-
+    // ====================================================================
+    // ✅ 2026-06-24 新增：取消重试任务
+    // ====================================================================
+    /**
+     * 取消待执行的重试任务
+     * 
+     * 【作用】
+     * 切换频道时调用，取消旧频道的重试任务，
+     * 避免旧频道的重试干扰新频道的播放。
+     * 
+     * 【为什么需要这个？】
+     * 自动跳过失效频道时，切到新频道后，
+     * 旧频道的延迟重试任务还在 Handler 队列里，
+     * 1秒后会执行并重新加载（但 currentUrl 已经是新频道了），
+     * 导致新频道被重新加载一次，播放中断，体验不好。
+     * 
+     * 【调用时机】
+     * 1. playUrl() 切换频道时自动调用
+     * 2. 外部也可以手动调用
+     */
+    private void cancelRetry() {
+        if (retryRunnable != null) {
+            mHandler.removeCallbacks(retryRunnable);
+            retryRunnable = null;
+        }
+        isRetrying = false;
+    }
     /**
      * ✅ 自动重试
      * @param reason 重试原因（用于日志）
+     * 
+     * 【2026-06-24 修改：保存 retryRunnable 引用】
+     * 【修改说明】
+     * 把重试的 Runnable 保存为成员变量，
+     * 方便 cancelRetry() 取消掉。
      */
     private void autoRetry(String reason) {
         if (isRetrying) return; // 已经在重试中，避免重复
@@ -549,18 +572,23 @@ public class TVPlayerManager {
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
-        // 延迟1秒后重新加载
-        mHandler.postDelayed(new Runnable() {
+        
+        // ✅ 2026-06-24 修改：保存重试任务的引用，方便后续取消
+        retryRunnable = new Runnable() {
             @Override
             public void run() {
                 if (!TextUtils.isEmpty(currentUrl)) {
                     // 重新播放当前地址
                     playUrlInternal(currentUrl);
                 }
+                // 执行完后清空引用
+                retryRunnable = null;
             }
-        }, 1000);
+        };
+        
+        // 延迟1秒后重新加载
+        mHandler.postDelayed(retryRunnable, 1000);
     }
-
     /**
      * 切换软解码/硬解码
      * @param useSoftware true=软解码，false=硬解码
@@ -578,6 +606,8 @@ public class TVPlayerManager {
         if (player != null) {
             try {
                 stopStuckDetection();
+                // ✅ 2026-06-24 新增：重新创建播放器前取消重试
+                cancelRetry();
                 if (playerListener != null) {
                     player.removeListener(playerListener);
                 }
@@ -598,7 +628,6 @@ public class TVPlayerManager {
             playUrlInternal(currentUrl);
         }
     }
-
     public void onForeground() {
         try {
             if (player != null && playerView != null) {
@@ -609,7 +638,6 @@ public class TVPlayerManager {
             Log.e(TAG, "切前台异常", e);
         }
     }
-
     public void onBackground() {
         try {
             if (player != null) {
@@ -619,34 +647,28 @@ public class TVPlayerManager {
             Log.e(TAG, "切后台异常", e);
         }
     }
-
     public void attachPlayerView(PlayerView view) {
         playerView = view;
         playerView.setPlayer(player);
         playerView.setUseController(false);
     }
-
     private void updateWakeLock(boolean enable) {
         isPlaying = enable;
         if (playerView != null) {
             playerView.setKeepScreenOn(enable);
         }
     }
-
     private String getLogTime() {
         return "[" + logSdf.format(new Date()) + "]";
     }
-
     private Map<String, String> getHeaders(String url) {
         Map<String, String> headers = new HashMap<>();
         headers.put("User-Agent", "ExoPlayer");
         headers.put("Accept", "*/*");
         headers.put("Connection", "keep-alive");
         headers.put("Icy-MetaData", "1");
-
         boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
         boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
-
         if (isHuya) {
             headers.put("Referer", "https://www.huya.com/");
             Log.d(TAG, "虎牙直播，设置虎牙Referer");
@@ -658,29 +680,32 @@ public class TVPlayerManager {
         else {
             headers.put("Referer", "https://www.huya.com/");
         }
-
         String cookies = CookieManager.getInstance().getCookie(url);
         if (cookies != null) {
             headers.put("Cookie", cookies);
         }
         return headers;
     }
-
     public void play(String url) {
         playUrl(url);
     }
-
     /**
      * 播放指定URL（对外接口）
      * 切换频道时调用，重置重试计数
+     * 
+     * 【2026-06-24 修改：切换频道时取消旧重试任务】
+     * 【修改说明】
+     * 切换到新频道前，先调用 cancelRetry() 取消旧频道的重试任务，
+     * 避免旧频道的延迟重试干扰新频道的播放。
      */
     public void playUrl(String url) {
+        // ✅ 2026-06-24 新增：切换频道，先取消之前的重试任务
+        cancelRetry();
         // 切换频道，重置重试计数
         retryCount = 0;
         isRetrying = false;
         playUrlInternal(url);
     }
-
     /**
      * ✅ 内部播放方法
      *
@@ -698,7 +723,6 @@ public class TVPlayerManager {
             if (player == null || url == null || url.trim().isEmpty()) return;
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
-
             // ====================================================================
             // ✅ 关键修改：去掉 player.stop() 和 player.clearMediaItems()
             // ====================================================================
@@ -724,16 +748,13 @@ public class TVPlayerManager {
              */
             // player.stop();          // ✅ 注释掉，保持最后一帧
             // player.clearMediaItems(); // ✅ 注释掉，保持最后一帧
-
             // ===== 创建数据源（带重定向日志版） =====
             // 每一重定向都会打印详细日志，方便调试直播源
             RedirectLoggingHttpDataSource.Factory httpFactory =
                     new RedirectLoggingHttpDataSource.Factory();
             httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
             httpFactory.setAllowCrossProtocolRedirects(true);
-
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
-
             // ====================================================================
             // ✅ 2026-06-23 修改：MediaSource 类型改成 Media3 的
             // ====================================================================
@@ -747,14 +768,12 @@ public class TVPlayerManager {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
-
             // ====================================================================
             // ✅ 关键修改：直接设置新的媒体源，第二个参数 true = 重置到开头
             // ====================================================================
             player.setMediaSource(mediaSource, true);
             player.prepare();
             player.play();
-
             // 开始卡住检测
             startStuckDetection();
         } catch (Exception e) {
@@ -762,7 +781,6 @@ public class TVPlayerManager {
             autoRetry("播放异常：" + e.getMessage());
         }
     }
-
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
@@ -786,7 +804,6 @@ public class TVPlayerManager {
             Log.e(TAG, "设置缩放模式异常", e);
         }
     }
-
     public interface OnPlayStateListener {
         void onIdle();
         void onBuffering();
@@ -794,26 +811,24 @@ public class TVPlayerManager {
         void onPlayEnd();
         void onPlayError(String msg);
     }
-
     public void setOnPlayStateListener(OnPlayStateListener l) {
         listener = l;
     }
-
     public void pause() {
         try { if (player != null) player.pause(); } catch (Exception e) {
             Log.e(TAG, "暂停异常", e);
         }
     }
-
     public void resume() {
         try { if (player != null) player.play(); } catch (Exception e) {
             Log.e(TAG, "恢复异常", e);
         }
     }
-
     public void release() {
         try {
             stopStuckDetection();
+            // ✅ 2026-06-24 新增：释放时取消重试任务
+            cancelRetry();
             mHandler.removeCallbacks(hideChannelRunnable);
             updateWakeLock(false);
             if (player != null) {
