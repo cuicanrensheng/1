@@ -66,28 +66,13 @@
   【2026-06-23 修改：升级到 Media3 1.10.1】
   PlayerView 的包名从 com.google.android.exoplayer2.ui.PlayerView
   改成 androidx.media3.ui.PlayerView
-  
-  【2026-06-24 新增：失效频道提示图片】
-  【作用】
-  播放失败时显示"节目失效请切换频道"的图片，
-  替代原来的文字错误提示，视觉效果更好。
-  
-  【位置说明】
-  放在 PlayerView 后面、其他 UI 元素前面，这样：
-  - 错误图片覆盖在播放器上面
-  - 频道号、频道面板、底部信息栏等还能正常显示
-  - 层级：PlayerView → 错误图片 → 频道号 → 面板 → 信息栏
-  
-  【属性说明】
-  - visibility="gone"：默认隐藏，播放失败时才显示
-  - scaleType="centerCrop"：图片填满屏幕，保持比例（可能裁剪边缘）
-  - src="@drawable/channel_error"：引用失效频道提示图片
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000">
+
     <!-- ==================================================================== -->
     <!-- 主播放器视图（Media3 的 PlayerView）                                 -->
     <!-- ==================================================================== -->
@@ -112,37 +97,6 @@
         app:surface_type="surface_view" />
 
     <!-- ==================================================================== -->
-    <!-- ✅ 2026-06-24 新增：失效频道提示图片                                -->
-    <!-- ==================================================================== -->
-    <!--
-      【作用】
-      播放失败时显示"节目失效请切换频道"的图片。
-      
-      【为什么放在这里？】
-      FrameLayout 子 View 按顺序叠加，后面的在上面。
-      放在 PlayerView 后面、其他 UI 前面，这样：
-      1. 错误图片覆盖在播放器上面（播放器可能黑屏）
-      2. 频道号、面板、信息栏等 UI 还能正常显示在错误图片上面
-      
-      【属性说明】
-      - id="iv_channel_error"：Java 代码里通过这个 ID 找到它
-      - src="@drawable/channel_error"：引用我们放进去的错误提示图
-      - scaleType="centerCrop"：图片填满整个屏幕，保持比例（可能裁剪边缘）
-      - visibility="gone"：默认隐藏，播放失败时才显示
-      
-      【scaleType 选哪个？】
-      - centerCrop：填满屏幕，可能裁剪边缘 → 推荐，视觉效果最好
-      - fitCenter：完整显示，可能有黑边 → 如果图片文字不能被裁剪就用这个
-    -->
-    <ImageView
-        android:id="@+id/iv_channel_error"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:src="@drawable/channel_error"
-        android:scaleType="centerCrop"
-        android:visibility="gone" />
-
-    <!-- ==================================================================== -->
     <!-- 频道号显示（右上角大数字，切台时显示）                              -->
     <!-- ==================================================================== -->
     <TextView
@@ -157,6 +111,7 @@
         android:textColor="#FFF"
         android:alpha="0.8"
         android:visibility="gone" />
+
     <!-- ==================================================================== -->
     <!-- 频道面板容器（两个完整面板切换显示）                                -->
     <!-- ==================================================================== -->
@@ -165,6 +120,7 @@
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:visibility="gone">
+
         <!-- ================================================================ -->
         <!-- 左侧面板：分组列表 + 频道列表 + 节目单按钮（默认显示）          -->
         <!-- ================================================================ -->
@@ -191,6 +147,7 @@
             android:layout_marginBottom="20dp"
             android:paddingTop="20dp"
             android:paddingBottom="20dp">
+
             <!-- 分组列表 -->
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
@@ -217,6 +174,7 @@
                 android:defaultFocusHighlightEnabled="false"
                 android:paddingStart="16dp"
                 android:paddingEnd="8dp" />
+
             <!-- 频道列表 -->
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
@@ -234,6 +192,7 @@
                 android:defaultFocusHighlightEnabled="false"
                 android:paddingStart="8dp"
                 android:paddingEnd="16dp" />
+
             <!-- 节目单按钮（在最右边） -->
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
@@ -257,6 +216,7 @@
                 android:defaultFocusHighlightEnabled="false"
                 android:paddingEnd="16dp" />
         </LinearLayout>
+
         <!-- ================================================================ -->
         <!-- 右侧面板：返回按钮 + 频道列表 + 日期列表 + EPG列表（默认隐藏）  -->
         <!-- ================================================================ -->
@@ -277,6 +237,7 @@
             android:paddingTop="20dp"
             android:paddingBottom="20dp"
             android:visibility="gone">
+
             <!-- 返回按钮（在最左边，显示"频道组"） -->
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
@@ -294,6 +255,7 @@
                 android:clickable="true"
                 android:defaultFocusHighlightEnabled="false"
                 android:paddingStart="16dp" />
+
             <!-- 频道列表（节目单页面的频道列表） -->
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
@@ -311,6 +273,7 @@
                 android:defaultFocusHighlightEnabled="false"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp" />
+
             <!-- 日期列表 -->
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
@@ -328,6 +291,7 @@
                 android:defaultFocusHighlightEnabled="false"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp" />
+
             <!-- EPG节目列表 -->
             <!--
               ✅ 【2026-06-20 新增】android:defaultFocusHighlightEnabled="false"
@@ -347,6 +311,7 @@
                 android:paddingEnd="16dp" />
         </LinearLayout>
     </FrameLayout>
+
     <!-- ==================================================================== -->
     <!-- 底部信息栏（切台时显示，5 秒后自动隐藏）                            -->
     <!-- ==================================================================== -->
@@ -359,6 +324,7 @@
         android:layout_gravity="bottom"
         android:background="#CC000000"
         android:visibility="gone">
+
         <!-- 第一行：频道名 + 画质 + 音频 + 码率 -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -399,6 +365,7 @@
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
         </LinearLayout>
+
         <!-- 第二行：时间 + 进度条 + 剩余时间 + 节目名 -->
         <LinearLayout
             android:layout_width="match_parent"
