@@ -62,6 +62,19 @@ import java.util.List;
  * 【为什么只加这个，不改原有逻辑？】
  * 原有焦点管理逻辑（initFocusListeners + handleLeftKey/RightKey/OkKey）
  * 已经能正常工作，不需要大改。只需要在焦点变化时同步一下样式就行。
+ * 
+ * 【2026-06-24 修复：焦点样式同步问题】
+ * 【修复的问题】
+ * 1. 切换面板后多个列表同时显示深蓝色（没有清除另一个面板的焦点样式）
+ * 2. 按钮焦点看不到效果（setSelected 依赖 XML selector，不一定生效）
+ * 3. onBackGroupClicked 中焦点状态和实际焦点不一致
+ * 4. ListView requestFocus 有时不立即触发 onFocusChange，导致样式不同步
+ * 
+ * 【修复方案】
+ * 1. 新增 clearAllFocusStyles()：一键清除所有焦点样式
+ * 2. 新增 syncFocusStyle()：统一入口，根据当前状态同步所有样式
+ * 3. 按钮焦点直接改文字颜色和背景色，不依赖 setSelected
+ * 4. 所有切换面板的地方都先清除再同步，确保状态一致
  */
 public class ChannelPanelController {
     // ====================== 常量 ======================
@@ -254,15 +267,16 @@ public class ChannelPanelController {
     // ====================================================================
     // 初始化焦点变化监听
     // 
-    // 【2026-06-24 修改：增加焦点样式同步】
+    // 【2026-06-24 修改：改用 syncFocusStyle() 统一同步】
     // 【修改说明】
-    // 在每个 onFocusChange 回调中，除了更新 currentFocusPanel / leftFocusView / rightFocusView，
-    // 还调用各个 Manager 的 setFocused() 方法，同步焦点样式。
+    // 原来每个 onFocusChange 里都要写一大段 setFocused，代码重复且容易漏。
+    // 现在改成只更新状态变量，然后调用 syncFocusStyle() 统一同步，
+    // 确保所有列表和按钮的样式都一致，不会出现"多个面板同时高亮"的问题。
     // 
-    // 【效果】
-    // 焦点在哪个列表上，哪个列表的选中项就显示深蓝色背景 + 白色文字（醒目）；
-    // 其他列表的选中项显示浅蓝色背景 + 蓝色文字（标记）。
-    // 用户一眼就能看出当前焦点在哪个面板上。
+    // 【为什么不在 onFocusChange 里直接设置？】
+    // 1. ListView 的 requestFocus() 有时不会立即触发 onFocusChange
+    // 2. 切换面板时需要批量设置，统一入口更清晰
+    // 3. 按钮的 setSelected() 依赖 XML 里的 selector，不一定生效
     // ====================================================================
     private void initFocusListeners() {
         lvGroup.setOnFocusChangeListener(new View.OnFocusChangeListener() {
@@ -271,17 +285,7 @@ public class ChannelPanelController {
                 if (hasFocus) {
                     currentFocusPanel = "left";
                     leftFocusView = "group";
-
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：同步焦点样式
-                    // ====================================================================
-                    // 焦点到了分组列表，把分组列表设为有焦点，其他设为无焦点
-                    groupListManager.setFocused(true);
-                    channelListManager.setFocused(false);
-                    channelListManagerEpg.setFocused(false);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(false);
-                    btnBackGroup.setSelected(false);
+                    syncFocusStyle();
                 }
             }
         });
@@ -292,17 +296,7 @@ public class ChannelPanelController {
                 if (hasFocus) {
                     currentFocusPanel = "left";
                     leftFocusView = "channel";
-
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：同步焦点样式
-                    // ====================================================================
-                    // 焦点到了左频道列表，把左频道列表设为有焦点，其他设为无焦点
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(true);
-                    channelListManagerEpg.setFocused(false);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(false);
-                    btnBackGroup.setSelected(false);
+                    syncFocusStyle();
                 }
             }
         });
@@ -313,17 +307,7 @@ public class ChannelPanelController {
                 if (hasFocus) {
                     currentFocusPanel = "left";
                     leftFocusView = "epgBtn";
-
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：同步焦点样式
-                    // ====================================================================
-                    // 焦点到了EPG按钮，把按钮设为选中状态，其他列表设为无焦点
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(false);
-                    channelListManagerEpg.setFocused(false);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(true);
-                    btnBackGroup.setSelected(false);
+                    syncFocusStyle();
                 }
             }
         });
@@ -334,17 +318,7 @@ public class ChannelPanelController {
                 if (hasFocus) {
                     currentFocusPanel = "right";
                     rightFocusView = "channel";
-
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：同步焦点样式
-                    // ====================================================================
-                    // 焦点到了右频道列表，把右频道列表设为有焦点，其他设为无焦点
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(false);
-                    channelListManagerEpg.setFocused(true);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(false);
-                    btnBackGroup.setSelected(false);
+                    syncFocusStyle();
                 }
             }
         });
@@ -355,17 +329,7 @@ public class ChannelPanelController {
                 if (hasFocus) {
                     currentFocusPanel = "right";
                     rightFocusView = "date";
-
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：同步焦点样式
-                    // ====================================================================
-                    // 焦点到了日期列表，把日期列表设为有焦点，其他设为无焦点
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(false);
-                    channelListManagerEpg.setFocused(false);
-                    dateListManager.setFocused(true);
-                    btnShowEpg.setSelected(false);
-                    btnBackGroup.setSelected(false);
+                    syncFocusStyle();
                 }
             }
         });
@@ -376,17 +340,7 @@ public class ChannelPanelController {
                 if (hasFocus) {
                     currentFocusPanel = "right";
                     rightFocusView = "epg";
-
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：同步焦点样式
-                    // ====================================================================
-                    // 焦点到了EPG列表，EPG列表暂时不处理样式，其他设为无焦点
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(false);
-                    channelListManagerEpg.setFocused(false);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(false);
-                    btnBackGroup.setSelected(false);
+                    syncFocusStyle();
                 }
             }
         });
@@ -397,20 +351,94 @@ public class ChannelPanelController {
                 if (hasFocus) {
                     currentFocusPanel = "right";
                     rightFocusView = "backBtn";
-
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：同步焦点样式
-                    // ====================================================================
-                    // 焦点到了返回按钮，把按钮设为选中状态，其他列表设为无焦点
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(false);
-                    channelListManagerEpg.setFocused(false);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(false);
-                    btnBackGroup.setSelected(true);
+                    syncFocusStyle();
                 }
             }
         });
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-24 新增：清除所有焦点样式
+    // ====================================================================
+    /**
+     * 清除所有列表和按钮的焦点样式
+     * 
+     * 【作用】
+     * 切换面板、切换焦点区域前，先把所有样式都清掉，
+     * 避免出现"多个面板同时显示深蓝色"的问题。
+     * 
+     * 【为什么需要这个方法？】
+     * 原来的实现中，每次只设置当前焦点的列表为 true，
+     * 但有时候另一个面板的列表没有被设置为 false，
+     * 就会出现两个列表同时高亮的情况。
+     * 现在先全部清除，再设置当前焦点，确保只有一个高亮。
+     */
+    private void clearAllFocusStyles() {
+        // 所有列表都设为无焦点
+        groupListManager.setFocused(false);
+        channelListManager.setFocused(false);
+        channelListManagerEpg.setFocused(false);
+        dateListManager.setFocused(false);
+
+        // 所有按钮都恢复普通样式（白色文字 + 透明背景）
+        btnShowEpg.setTextColor(0xFFFFFFFF);
+        btnShowEpg.setBackgroundColor(0x00000000);
+        btnBackGroup.setTextColor(0xFFFFFFFF);
+        btnBackGroup.setBackgroundColor(0x00000000);
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-24 新增：同步焦点样式（统一入口）
+    // ====================================================================
+    /**
+     * 根据 currentFocusPanel 和 leftFocusView / rightFocusView，
+     * 同步所有列表和按钮的焦点样式。
+     * 
+     * 【作用】
+     * 确保焦点状态和视觉样式一致，避免出现"焦点移动了但样式没变"的情况。
+     * 
+     * 【调用时机】
+     * 1. onFocusChange 回调中（焦点变化时）
+     * 2. 打开面板时（设置初始焦点）
+     * 3. 切换左右面板时（切换后同步样式）
+     * 4. 按键移动焦点后（兜底，确保样式同步）
+     * 
+     * 【按钮焦点怎么处理？】
+     * 直接改变文字颜色和背景色，不依赖 setSelected，确保一定能看到效果。
+     * 因为 setSelected() 需要 XML 里的 selector 定义 state_selected 才会生效，
+     * 很多时候按钮的背景没有定义这个状态，就会看不到效果。
+     */
+    private void syncFocusStyle() {
+        // 先清除所有焦点样式
+        clearAllFocusStyles();
+
+        // 根据当前焦点位置设置对应的样式
+        if ("left".equals(currentFocusPanel)) {
+            if ("group".equals(leftFocusView)) {
+                // 焦点在分组列表
+                groupListManager.setFocused(true);
+            } else if ("channel".equals(leftFocusView)) {
+                // 焦点在左频道列表
+                channelListManager.setFocused(true);
+            } else if ("epgBtn".equals(leftFocusView)) {
+                // 焦点在EPG按钮：白色文字 + 深蓝色背景
+                btnShowEpg.setTextColor(0xFFFFFFFF);
+                btnShowEpg.setBackgroundColor(0xFF40A9FF);
+            }
+        } else if ("right".equals(currentFocusPanel)) {
+            if ("channel".equals(rightFocusView)) {
+                // 焦点在右频道列表
+                channelListManagerEpg.setFocused(true);
+            } else if ("date".equals(rightFocusView)) {
+                // 焦点在日期列表
+                dateListManager.setFocused(true);
+            } else if ("backBtn".equals(rightFocusView)) {
+                // 焦点在返回按钮：白色文字 + 深蓝色背景
+                btnBackGroup.setTextColor(0xFFFFFFFF);
+                btnBackGroup.setBackgroundColor(0xFF40A9FF);
+            }
+            // epg 暂时不处理样式
+        }
     }
 
     // ====================================================================
@@ -1037,7 +1065,10 @@ public class ChannelPanelController {
     /**
      * 切换面板显示/隐藏
      * 
-     * 【2026-06-24 修改：打开面板时设置初始焦点样式】
+     * 【2026-06-24 修复：用 syncFocusStyle() 统一设置初始焦点】
+     * 【修复说明】
+     * 原来直接调用各个 setFocused，容易漏设或者状态不一致。
+     * 现在先清除所有样式，再用 syncFocusStyle() 统一同步，确保只有一个高亮。
      */
     public void togglePanel() {
         // 处理特殊分组
@@ -1066,23 +1097,16 @@ public class ChannelPanelController {
             panelLayout.post(new Runnable() {
                 @Override
                 public void run() {
-                    lvChannelList.requestFocus();
-                    lvChannelList.setSelection(getChannelListSelection());
+                    // 先清除所有焦点样式
+                    clearAllFocusStyles();
 
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：设置初始焦点样式
-                    // ====================================================================
-                    // 打开面板时，默认焦点在左频道列表上，
-                    // 所以把左频道列表设为有焦点，其他设为无焦点
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(true);
-                    channelListManagerEpg.setFocused(false);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(false);
-                    btnBackGroup.setSelected(false);
-
+                    // 设置初始焦点到左频道列表
                     currentFocusPanel = "left";
                     leftFocusView = "channel";
+                    syncFocusStyle();
+
+                    lvChannelList.requestFocus();
+                    lvChannelList.setSelection(getChannelListSelection());
                 }
             });
         }
@@ -1120,7 +1144,11 @@ public class ChannelPanelController {
     /**
      * EPG按钮被点击了（展开/收起节目单面板）
      * 
-     * 【2026-06-24 修改：切换左右面板时同步焦点样式】
+     * 【2026-06-24 修复：切换面板时先清除所有焦点样式】
+     * 【修复说明】
+     * 原来切换面板时只设置当前面板的焦点样式，
+     * 另一个面板的样式没有清除，导致两个面板同时高亮。
+     * 现在先调用 clearAllFocusStyles() 全部清除，再设置当前面板的样式。
      */
     private void onEpgButtonClicked() {
         if (!epgEnable) {
@@ -1140,23 +1168,16 @@ public class ChannelPanelController {
             llRightPanel.post(new Runnable() {
                 @Override
                 public void run() {
-                    lvChannelListEpg.requestFocus();
-                    lvChannelListEpg.setSelection(currentPlayIndex);
+                    // 先清除所有焦点样式（包括左面板的）
+                    clearAllFocusStyles();
 
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：切换到右面板，设置焦点样式
-                    // ====================================================================
-                    // 展开节目单后，默认焦点在右频道列表上，
-                    // 所以把右频道列表设为有焦点，其他设为无焦点
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(false);
-                    channelListManagerEpg.setFocused(true);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(false);
-                    btnBackGroup.setSelected(false);
-
+                    // 设置初始焦点到右频道列表
                     currentFocusPanel = "right";
                     rightFocusView = "channel";
+                    syncFocusStyle();
+
+                    lvChannelListEpg.requestFocus();
+                    lvChannelListEpg.setSelection(currentPlayIndex);
                 }
             });
 
@@ -1177,22 +1198,16 @@ public class ChannelPanelController {
             llLeftPanel.post(new Runnable() {
                 @Override
                 public void run() {
-                    lvChannelList.requestFocus();
-                    lvChannelList.setSelection(getChannelListSelection());
+                    // 先清除所有焦点样式（包括右面板的）
+                    clearAllFocusStyles();
 
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：切换回左面板，设置焦点样式
-                    // ====================================================================
-                    // 收起节目单后，默认焦点回到左频道列表上
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(true);
-                    channelListManagerEpg.setFocused(false);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(false);
-                    btnBackGroup.setSelected(false);
-
+                    // 设置焦点到左频道列表
                     currentFocusPanel = "left";
                     leftFocusView = "channel";
+                    syncFocusStyle();
+
+                    lvChannelList.requestFocus();
+                    lvChannelList.setSelection(getChannelListSelection());
                 }
             });
 
@@ -1203,7 +1218,15 @@ public class ChannelPanelController {
     /**
      * 返回分组按钮被点击了
      * 
-     * 【2026-06-24 修改：切换回左面板时同步焦点样式】
+     * 【2026-06-24 修复：焦点状态和实际焦点一致】
+     * 【修复的问题】
+     * 原来请求了 lvChannelList 的焦点，但 leftFocusView 却设置成了 "epgBtn"，
+     * 导致状态不一致，样式也不对。
+     * 
+     * 【修复方案】
+     * 1. 返回后焦点统一在左频道列表（和收起节目单保持一致）
+     * 2. 先清除所有样式，再用 syncFocusStyle() 同步
+     * 3. 确保请求的焦点和设置的状态一致
      */
     private void onBackGroupClicked() {
         if (rightPanelOpen) {
@@ -1215,22 +1238,16 @@ public class ChannelPanelController {
             llLeftPanel.post(new Runnable() {
                 @Override
                 public void run() {
+                    // 先清除所有焦点样式（包括右面板的）
+                    clearAllFocusStyles();
+
+                    // 返回后，焦点在左频道列表（和收起节目单保持一致）
+                    currentFocusPanel = "left";
+                    leftFocusView = "channel";
+                    syncFocusStyle();
+
                     lvChannelList.requestFocus();
                     lvChannelList.setSelection(getChannelListSelection());
-
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：切换回左面板，设置焦点样式
-                    // ====================================================================
-                    // 返回后，默认焦点回到EPG按钮上（因为是从右面板返回来的）
-                    groupListManager.setFocused(false);
-                    channelListManager.setFocused(false);
-                    channelListManagerEpg.setFocused(false);
-                    dateListManager.setFocused(false);
-                    btnShowEpg.setSelected(true);
-                    btnBackGroup.setSelected(false);
-
-                    currentFocusPanel = "left";
-                    leftFocusView = "epgBtn";
                 }
             });
 
@@ -1300,7 +1317,8 @@ public class ChannelPanelController {
         }
         return false;
     }
-        // ====================================================================
+
+    // ====================================================================
     // 按键事件分发
     // ====================================================================
     public boolean dispatchKeyEvent(int keyCode) {
@@ -1372,8 +1390,7 @@ public class ChannelPanelController {
         }
         return false;
     }
-
-    private boolean handleOkKey() {
+        private boolean handleOkKey() {
         if ("left".equals(currentFocusPanel)) {
             if ("group".equals(leftFocusView)) {
                 int pos = lvGroup.getSelectedItemPosition();
