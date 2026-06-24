@@ -76,6 +76,13 @@ import java.util.Map;
  * 4. 优化 HLS 播放参数，提高容错性
  * 5. ✅ 增加详细解码日志：解码器类型、视频格式、缓冲状态、丢帧统计
  * 6. ✅ 增加卡顿检测日志：实时监控播放状态，定位卡顿原因
+ * 
+ * 【2026-06-24 修改：兼容 Media3 1.5.0】
+ * 【修改说明】
+ * 1.5.0 版本缺少部分新 API，做了兼容处理：
+ * 1. 去掉 videoFormat.colorSpace（1.5.0 没有这个字段）
+ * 2. 去掉 player.getVideoFrameProcessingOffset()（1.5.0 没有这个方法）
+ * 3. 丢帧统计暂时用 0 代替，不影响其他功能
  */
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerLog";
@@ -526,7 +533,14 @@ public class TVPlayerManager {
                             Log.d(TAG, "  分辨率: " + videoFormat.width + "×" + videoFormat.height);
                             Log.d(TAG, "  码率: " + (videoFormat.bitrate / 1024) + "kbps");
                             Log.d(TAG, "  帧率: " + videoFormat.frameRate);
-                            Log.d(TAG, "  颜色空间: " + videoFormat.colorSpace);
+                            // ====================================================================
+                            // ⚠️ 2026-06-24 修改：去掉颜色空间（Media3 1.5.0 没有这个 API）
+                            // ====================================================================
+                            // 【为什么去掉？】
+                            // videoFormat.colorSpace 是 Media3 1.6.0 之后才添加的，
+                            // 1.5.0 版本没有这个字段，编译会报错。
+                            // 颜色空间对卡顿分析影响不大，暂时去掉不影响使用。
+                            // Log.d(TAG, "  颜色空间: " + videoFormat.colorSpace);
                             Log.d(TAG, "========================================");
                             
                             // 如果是软解，打印警告
@@ -681,12 +695,24 @@ public class TVPlayerManager {
                 long bufferedDuration = player.getBufferedPosition() - player.getCurrentPosition();
                 int droppedFrames = 0;
                 
-                // 获取丢帧数（Media3 1.5.0 可能没有这个 API，用 try-catch 保护）
-                try {
-                    droppedFrames = player.getVideoFrameProcessingOffset();
-                } catch (Exception e) {
-                    // 旧版本没有这个方法，忽略
-                }
+                // ====================================================================
+                // ⚠️ 2026-06-24 修改：去掉 getVideoFrameProcessingOffset（Media3 1.5.0 没有这个 API）
+                // ====================================================================
+                // 【为什么去掉？】
+                // player.getVideoFrameProcessingOffset() 是 Media3 1.6.0 之后才添加的，
+                // 1.5.0 版本没有这个方法，编译会报错。
+                //
+                // 【替代方案】
+                // 丢帧统计暂时用 0 代替，不影响其他功能。
+                // 主要还是通过缓冲次数、缓冲率来判断卡顿原因。
+                // 如果以后升级到更高版本的 Media3，可以再把这行加回来。
+                
+                // 获取丢帧数（Media3 1.5.0 没有这个 API，暂时注释掉）
+                // try {
+                //     droppedFrames = player.getVideoFrameProcessingOffset();
+                // } catch (Exception e) {
+                //     // 旧版本没有这个方法，忽略
+                // }
                 
                 // 计算缓冲率
                 double bufferRate = playDuration > 0 
@@ -698,15 +724,16 @@ public class TVPlayerManager {
                 Log.d(TAG, "  缓冲次数: " + totalBufferCount + " 次");
                 Log.d(TAG, "  缓冲率: " + String.format("%.1f", bufferRate) + "%");
                 Log.d(TAG, "  当前缓冲: " + bufferedDuration + "ms");
-                Log.d(TAG, "  丢帧数: " + droppedFrames);
+                Log.d(TAG, "  丢帧数: " + droppedFrames + "（1.5.0 暂不支持统计）");
                 
                 // 判断卡顿原因
                 if (totalBufferCount > 3 && bufferRate > 10) {
                     Log.w(TAG, "【卡顿分析】缓冲频繁，可能是网络带宽不足或直播源不稳定");
                 }
-                if (droppedFrames > 10) {
-                    Log.w(TAG, "【卡顿分析】丢帧较多，可能是解码性能不足（软解导致）");
-                }
+                // 丢帧判断暂时注释掉（因为拿不到丢帧数据）
+                // if (droppedFrames > 10) {
+                //     Log.w(TAG, "【卡顿分析】丢帧较多，可能是解码性能不足（软解导致）");
+                // }
                 
             } catch (Exception e) {
                 Log.e(TAG, "性能统计异常", e);
