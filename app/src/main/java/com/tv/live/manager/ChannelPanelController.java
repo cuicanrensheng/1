@@ -16,7 +16,9 @@ import com.tv.live.widget.EpgManagerWrapper;
 import com.tv.live.widget.GroupListManager;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 频道面板控制器
@@ -46,6 +48,22 @@ import java.util.List;
  * 【2026-06-21 新增：调试日志 - 频道名对比】
  * 【说明】
  * 加上详细的频道名对比日志，找出为什么匹配不上。
+ *
+ * 【2026-06-24 修改：集成 PanelCursorManager 光标管理器】
+ * 【修改说明】
+ * 用自定义的 PanelCursorManager 替代 Android 原生的 focus 机制，
+ * 统一管理所有焦点状态和按键处理，更稳定、更可控。
+ * 
+ * 【修改点】
+ * 1. 新增 cursorManager 成员变量
+ * 2. 构造函数中初始化光标管理器（initCursorManager）
+ * 3. dispatchKeyEvent 改用 cursorManager 处理
+ * 4. 移除 initFocusListeners 方法（不再需要原生焦点监听）
+ * 5. togglePanel / onEpgButtonClicked / onBackGroupClicked 中同步光标状态
+ * 6. setChannels / onGroupClicked / playChannel 中同步选中位置
+ * 7. 新增 updateChannelListByGroup 辅助方法
+ * 8. 新增 updateFocusStyle 辅助方法
+ * 9. 新增 handleCursorConfirm 辅助方法
  */
 public class ChannelPanelController {
     // ====================== 常量 ======================
@@ -75,6 +93,23 @@ public class ChannelPanelController {
     private DateListManager dateListManager;
     private EpgManagerWrapper epgManagerWrapper;
     private PanelManager panelManager;
+
+    // ====================================================================
+    // ✅ 2026-06-24 新增：光标管理器
+    // ====================================================================
+    /**
+     * 自定义光标管理器
+     * 
+     * 【作用】
+     * 统一管理左右面板的焦点位置和按键处理，
+     * 替代 Android 原生的 focus 机制，更稳定可控。
+     * 
+     * 【为什么不用原生 focus？】
+     * 1. 原生 focus 在复杂布局下容易乱跑
+     * 2. 边界处理不灵活（不能循环）
+     * 3. 状态分散，不好维护
+     */
+    private PanelCursorManager cursorManager;
 
     // ====================== 数据状态 ======================
     private List<Channel> channelSourceList = new ArrayList<>();
@@ -114,11 +149,6 @@ public class ChannelPanelController {
 
     // ====================== 切台防抖 ======================
     private long lastChannelChangeTime = 0;
-
-    // ====================== 焦点管理 ======================
-    private String currentFocusPanel = "left";
-    private String leftFocusView = "channel";
-    private String rightFocusView = "channel";
 
     // ====================== 回调监听器 ======================
     private OnChannelChangeListener channelChangeListener;
@@ -170,8 +200,13 @@ public class ChannelPanelController {
         this.dateListManager = dateListManager;
         this.epgManagerWrapper = epgManagerWrapper;
         this.panelManager = panelManager;
+
         initClickListeners();
-        initFocusListeners();
+
+        // ====================================================================
+        // ✅ 2026-06-24 新增：初始化光标管理器
+        // ====================================================================
+        initCursorManager();
     }
 
     // ====================================================================
@@ -235,87 +270,264 @@ public class ChannelPanelController {
     }
 
     // ====================================================================
-    // 初始化焦点变化监听
+    // ✅ 2026-06-24 新增：初始化光标管理器
     // ====================================================================
-    private void initFocusListeners() {
-        lvGroup.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+    /**
+     * 初始化光标管理器
+     * 
+     * 【作用】
+     * 创建 PanelCursorManager 实例，设置数据数量和监听器，
+     * 统一管理所有焦点状态和按键处理。
+     * 
+     * 【监听器说明】
+     * - onPanelChanged：面板切换（左 ↔ 右）→ 更新焦点样式
+     * - onLeftFocusViewChanged：左面板焦点区域变化 → 更新焦点样式
+     * - onRightFocusViewChanged：右面板焦点区域变化 → 更新焦点样式
+     * - onGroupSelectionChanged：分组选中位置变化 → 更新 GroupListManager + 切换分组
+     * - onLeftChannelSelectionChanged：左面板频道选中变化 → 更新 ChannelListManager
+     * - onRightChannelSelectionChanged：右面板频道选中变化 → 更新 ChannelListManagerEpg + 刷新EPG
+     * - onDateSelectionChanged：日期选中变化 → 切换日期
+     * - onEpgSelectionChanged：EPG选中变化 → 滚动列表
+     * - onConfirm：确认键 → 处理确认逻辑
+     */
+    private void initCursorManager() {
+        cursorManager = new PanelCursorManager();
+
+        // 启用循环模式（到顶后跳到最后，到底后跳到最前）
+        cursorManager.setEnableCycle(true);
+
+        // 设置光标变化监听器
+        cursorManager.setOnCursorChangeListener(new PanelCursorManager.OnCursorChangeListener() {
+
             @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "left";
-                    leftFocusView = "group";
+            public void onPanelChanged(PanelCursorManager.PanelType from, PanelCursorManager.PanelType to) {
+                // 面板切换（左 ↔ 右）
+                SettingsActivity.logOperation("【光标】面板切换：" + from + " → " + to);
+                updateFocusStyle();
+            }
+
+            @Override
+            public void onLeftFocusViewChanged(PanelCursorManager.LeftFocusView from, PanelCursorManager.LeftFocusView to) {
+                // 左面板焦点区域变化
+                SettingsActivity.logOperation("【光标】左面板焦点切换：" + from + " → " + to);
+                updateFocusStyle();
+            }
+
+            @Override
+            public void onRightFocusViewChanged(PanelCursorManager.RightFocusView from, PanelCursorManager.RightFocusView to) {
+                // 右面板焦点区域变化
+                SettingsActivity.logOperation("【光标】右面板焦点切换：" + from + " → " + to);
+                updateFocusStyle();
+            }
+
+            @Override
+            public void onGroupSelectionChanged(int position, boolean isSmooth) {
+                // 分组列表选中位置变化
+                groupListManager.setSelectedPosition(position);
+
+                // 平滑滚动到选中位置
+                if (isSmooth) {
+                    lvGroup.smoothScrollToPositionFromTop(position, 
+                            lvGroup.getHeight() / 2, 200);
+                } else {
+                    lvGroup.setSelection(position);
                 }
+
+                // 切换分组，更新右面板数据
+                String groupName = groupListManager.getCurrentGroup(position);
+                updateChannelListByGroup(groupName, position);
+            }
+
+            @Override
+            public void onLeftChannelSelectionChanged(int position, boolean isSmooth) {
+                // 左面板频道列表选中位置变化
+                channelListManager.setSelectedPosition(position);
+
+                // 平滑滚动到选中位置
+                if (isSmooth) {
+                    lvChannelList.smoothScrollToPositionFromTop(position, 
+                            lvChannelList.getHeight() / 2, 200);
+                } else {
+                    lvChannelList.setSelection(position);
+                }
+            }
+
+            @Override
+            public void onRightChannelSelectionChanged(int position, boolean isSmooth) {
+                // 右面板频道列表选中位置变化
+                channelListManagerEpg.setSelectedPosition(position);
+
+                // 平滑滚动到选中位置
+                if (isSmooth) {
+                    lvChannelListEpg.smoothScrollToPositionFromTop(position, 
+                            lvChannelListEpg.getHeight() / 2, 200);
+                } else {
+                    lvChannelListEpg.setSelection(position);
+                }
+
+                // 切换频道时刷新 EPG
+                if (position >= 0 && position < channelSourceList.size()) {
+                    Channel ch = channelSourceList.get(position);
+                    epgManagerWrapper.refresh(ch, channelSourceList, currentSelectedDateIndex);
+                }
+            }
+
+            @Override
+            public void onDateSelectionChanged(int position, boolean isSmooth) {
+                // 日期列表选中位置变化
+                setCurrentDateIndex(position);
+            }
+
+            @Override
+            public void onEpgSelectionChanged(int position, boolean isSmooth) {
+                // EPG列表选中位置变化
+                // （EPG列表的选中逻辑比较简单，暂时只滚动）
+                if (isSmooth) {
+                    lvEpg.smoothScrollToPositionFromTop(position, 
+                            lvEpg.getHeight() / 2, 200);
+                } else {
+                    lvEpg.setSelection(position);
+                }
+            }
+
+            @Override
+            public void onConfirm() {
+                // 确认键
+                handleCursorConfirm();
             }
         });
 
-        lvChannelList.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "left";
-                    leftFocusView = "channel";
-                }
-            }
-        });
+        SettingsActivity.logOperation("【光标】光标管理器初始化完成");
+    }
 
-        btnShowEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "left";
-                    leftFocusView = "epgBtn";
-                }
-            }
-        });
+    // ====================================================================
+    // ✅ 2026-06-24 新增：更新焦点样式
+    // ====================================================================
+    /**
+     * 根据光标管理器的状态，更新各个 View 的焦点样式
+     * 
+     * 【作用】
+     * 当焦点区域变化时，更新对应 View 的选中/焦点样式，
+     * 让用户知道当前光标在哪里。
+     * 
+     * 【样式说明】
+     * - 有焦点的区域：高亮显示（用 setSelected 标记）
+     * - 无焦点的区域：正常显示
+     * 
+     * 【注意】
+     * GroupListManager 和 ChannelListManager 内部已经处理了选中样式，
+     * 这里主要处理按钮（btnShowEpg、btnBackGroup）的焦点样式。
+     * 如果需要更精细的列表项焦点样式，可以在对应的 Manager 中扩展。
+     */
+    private void updateFocusStyle() {
+        // 判断当前在哪个面板
+        boolean isLeftPanel = (cursorManager.getCurrentPanel() == PanelCursorManager.PanelType.LEFT);
+        boolean isRightPanel = (cursorManager.getCurrentPanel() == PanelCursorManager.PanelType.RIGHT);
 
-        lvChannelListEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "right";
-                    rightFocusView = "channel";
-                }
-            }
-        });
+        if (isLeftPanel) {
+            // 左面板：判断焦点在哪个区域
+            PanelCursorManager.LeftFocusView focusView = cursorManager.getLeftFocusView();
 
-        lvDate.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "right";
-                    rightFocusView = "date";
-                }
-            }
-        });
+            // EPG按钮：有焦点时高亮
+            boolean epgBtnFocused = (focusView == PanelCursorManager.LeftFocusView.EPG_BTN);
+            btnShowEpg.setSelected(epgBtnFocused);
 
-        lvEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "right";
-                    rightFocusView = "epg";
-                }
-            }
-        });
+        } else if (isRightPanel) {
+            // 右面板：判断焦点在哪个区域
+            PanelCursorManager.RightFocusView focusView = cursorManager.getRightFocusView();
 
-        btnBackGroup.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "right";
-                    rightFocusView = "backBtn";
-                }
+            // 返回按钮：有焦点时高亮
+            boolean backBtnFocused = (focusView == PanelCursorManager.RightFocusView.BACK_BTN);
+            btnBackGroup.setSelected(backBtnFocused);
+        }
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-24 新增：处理光标确认键
+    // ====================================================================
+    /**
+     * 处理光标管理器的确认键事件
+     * 
+     * 【作用】
+     * 根据当前焦点所在的区域，执行对应的确认操作。
+     * 
+     * 【确认逻辑】
+     * 左面板：
+     * - GROUP：切换分组（和选中效果一样）
+     * - CHANNEL：播放该频道
+     * - EPG_BTN：展开/收起节目单
+     * 
+     * 右面板：
+     * - BACK_BTN：返回分组
+     * - CHANNEL：播放该频道
+     * - DATE：切换日期
+     * - EPG：（暂不处理）
+     */
+    private void handleCursorConfirm() {
+        boolean isLeftPanel = (cursorManager.getCurrentPanel() == PanelCursorManager.PanelType.LEFT);
+
+        if (isLeftPanel) {
+            // 左面板
+            PanelCursorManager.LeftFocusView focusView = cursorManager.getLeftFocusView();
+
+            switch (focusView) {
+                case GROUP:
+                    // 分组列表确认：切换分组
+                    int groupPos = cursorManager.getGroupSelectedPosition();
+                    onGroupClicked(groupPos);
+                    break;
+
+                case CHANNEL:
+                    // 频道列表确认：播放该频道
+                    int channelPos = cursorManager.getLeftChannelSelectedPosition();
+                    onChannelClicked(channelPos);
+                    break;
+
+                case EPG_BTN:
+                    // EPG按钮确认：展开/收起节目单
+                    onEpgButtonClicked();
+                    break;
             }
-        });
+
+        } else {
+            // 右面板
+            PanelCursorManager.RightFocusView focusView = cursorManager.getRightFocusView();
+
+            switch (focusView) {
+                case BACK_BTN:
+                    // 返回按钮确认：返回分组
+                    onBackGroupClicked();
+                    break;
+
+                case CHANNEL:
+                    // 频道列表确认：播放该频道
+                    int channelPos = cursorManager.getRightChannelSelectedPosition();
+                    onChannelClicked(channelPos);
+                    break;
+
+                case DATE:
+                    // 日期列表确认：切换日期
+                    int datePos = cursorManager.getDateSelectedPosition();
+                    setCurrentDateIndex(datePos);
+                    break;
+
+                case EPG:
+                    // EPG列表确认：（暂不处理）
+                    break;
+            }
+        }
     }
 
     // ====================================================================
     // 2. 分组管理相关
     // ====================================================================
+
     /**
      * 设置频道列表
      *
      * 【2026-06-21 修改：初始化时获取收藏和最近观看数量】
+     * 
+     * 【2026-06-24 修改：同步数据数量到光标管理器】
      */
     public void setChannels(List<Channel> channels) {
         if (channels == null) return;
@@ -328,6 +540,7 @@ public class ChannelPanelController {
             AppConfig appConfig = AppConfig.getInstance(context);
             List<String> favorites = appConfig.getFavoriteChannels();
             List<String> recent = appConfig.getRecentChannels();
+
             // 计算实际存在的频道数量
             for (String name : favorites) {
                 for (Channel c : channels) {
@@ -353,6 +566,35 @@ public class ChannelPanelController {
         groupListManager.setGroups(channels, favoriteCount, recentCount);
         channelListManager.setChannels(channels, currentPlayIndex);
         channelListManagerEpg.setChannels(channels, currentPlayIndex);
+
+        // ====================================================================
+        // ✅ 2026-06-24 新增：同步数据数量到光标管理器
+        // ====================================================================
+        if (cursorManager != null) {
+            // 分组数量 = 特殊分组（3个） + 实际分组数量
+            int groupCount = 3; // 全部、收藏、最近观看
+            try {
+                // 计算实际分组数量
+                Set<String> groupSet = new LinkedHashSet<>();
+                for (Channel c : channels) {
+                    groupSet.add(c.getGroup());
+                }
+                groupCount += groupSet.size();
+            } catch (Exception e) {
+                // 忽略
+            }
+            cursorManager.setGroupCount(groupCount);
+
+            // 左面板频道数量
+            cursorManager.setLeftChannelCount(channels.size());
+            cursorManager.setLeftChannelSelectedPosition(
+                    Math.min(currentPlayIndex, channels.size() - 1), false);
+
+            // 右面板频道数量
+            cursorManager.setRightChannelCount(channels.size());
+            cursorManager.setRightChannelSelectedPosition(
+                    Math.min(currentPlayIndex, channels.size() - 1), false);
+        }
     }
 
     /**
@@ -364,15 +606,48 @@ public class ChannelPanelController {
         groupListManager.setSelectedPosition(position);
         lvGroup.setItemChecked(position, true);
         lvGroup.setSelection(position);
+
         String groupName = groupListManager.getCurrentGroup(position);
         currentGroupName = groupName;
 
+        updateChannelListByGroup(groupName, position);
+
+        // ====================================================================
+        // ✅ 2026-06-24 新增：同步光标管理器的分组选中位置
+        // ====================================================================
+        if (cursorManager != null) {
+            cursorManager.setGroupSelectedPosition(position, false);
+        }
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-24 新增：根据分组更新频道列表（从 onGroupClicked 抽取）
+    // ====================================================================
+    /**
+     * 根据分组名称更新频道列表
+     * 
+     * @param groupName 分组名称
+     * @param groupPosition 分组位置
+     * 
+     * 【说明】
+     * 从 onGroupClicked 中抽取出来，方便光标管理器切换分组时调用。
+     * 处理「全部」「收藏」「最近观看」和普通分组四种情况。
+     */
+    private void updateChannelListByGroup(String groupName, int groupPosition) {
         if (GroupListManager.GROUP_ALL.equals(groupName)) {
             // 「全部」分组：显示所有频道
             currentGroupChannelList.clear();
             currentGroupChannelList.addAll(channelSourceList);
             channelListManager.setChannels(channelSourceList, currentPlayIndex);
             SettingsActivity.logOperation("【分组】选中「全部」，频道数：" + channelSourceList.size());
+
+            // ✅ 同步光标管理器的左面板频道数量
+            if (cursorManager != null) {
+                cursorManager.setLeftChannelCount(channelSourceList.size());
+                cursorManager.setLeftChannelSelectedPosition(
+                        Math.min(currentPlayIndex, channelSourceList.size() - 1), false);
+            }
+
         } else if (GroupListManager.GROUP_FAVORITE.equals(groupName)) {
             // ✅ 新增：「收藏」分组
             currentGroupChannelList.clear();
@@ -390,6 +665,7 @@ public class ChannelPanelController {
             } catch (Exception e) {
                 // 忽略
             }
+
             // 用筛选后的列表刷新
             String currentChannelName = "";
             if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
@@ -397,6 +673,13 @@ public class ChannelPanelController {
             }
             channelListManager.setFilteredChannels(currentGroupChannelList, currentChannelName);
             SettingsActivity.logOperation("【分组】选中「收藏」，频道数：" + currentGroupChannelList.size());
+
+            // ✅ 同步光标管理器的左面板频道数量
+            if (cursorManager != null) {
+                cursorManager.setLeftChannelCount(currentGroupChannelList.size());
+                cursorManager.setLeftChannelSelectedPosition(0, false);
+            }
+
         } else if (GroupListManager.GROUP_RECENT.equals(groupName)) {
             // ✅ 新增：「最近观看」分组
             currentGroupChannelList.clear();
@@ -414,6 +697,7 @@ public class ChannelPanelController {
             } catch (Exception e) {
                 // 忽略
             }
+
             // 用筛选后的列表刷新
             String currentChannelName = "";
             if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
@@ -421,6 +705,13 @@ public class ChannelPanelController {
             }
             channelListManager.setFilteredChannels(currentGroupChannelList, currentChannelName);
             SettingsActivity.logOperation("【分组】选中「最近观看」，频道数：" + currentGroupChannelList.size());
+
+            // ✅ 同步光标管理器的左面板频道数量
+            if (cursorManager != null) {
+                cursorManager.setLeftChannelCount(currentGroupChannelList.size());
+                cursorManager.setLeftChannelSelectedPosition(0, false);
+            }
+
         } else {
             // 普通分组：按分组筛选
             currentGroupChannelList.clear();
@@ -432,6 +723,24 @@ public class ChannelPanelController {
             channelListManager.setChannelsByGroup(channelSourceList, groupName, currentPlayIndex);
             SettingsActivity.logOperation("【分组】选中分组：" + groupName
                     + "，频道数：" + currentGroupChannelList.size());
+
+            // ✅ 同步光标管理器的左面板频道数量
+            if (cursorManager != null) {
+                cursorManager.setLeftChannelCount(currentGroupChannelList.size());
+                // 找到当前播放频道在分组中的位置
+                int playIndexInGroup = 0;
+                String currentChannelName = "";
+                if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                    currentChannelName = channelSourceList.get(currentPlayIndex).getName();
+                }
+                for (int i = 0; i < currentGroupChannelList.size(); i++) {
+                    if (currentChannelName.equals(currentGroupChannelList.get(i).getName())) {
+                        playIndexInGroup = i;
+                        break;
+                    }
+                }
+                cursorManager.setLeftChannelSelectedPosition(playIndexInGroup, false);
+            }
         }
     }
 
@@ -498,8 +807,8 @@ public class ChannelPanelController {
         // 计算上一个频道的索引（分组内循环）
         int prevGroupIndex = (groupIndex - 1 + groupChannels.size()) % groupChannels.size();
         Channel prevChannel = groupChannels.get(prevGroupIndex);
-        int globalIndex = channelSourceList.indexOf(prevChannel);
 
+        int globalIndex = channelSourceList.indexOf(prevChannel);
         if (globalIndex != -1) {
             SettingsActivity.logOperation("【切台】playPrev 上一台 → " 
                     + currentPlayIndex + " → " + globalIndex 
@@ -556,8 +865,8 @@ public class ChannelPanelController {
         // 计算下一个频道的索引（分组内循环）
         int nextGroupIndex = (groupIndex + 1) % groupChannels.size();
         Channel nextChannel = groupChannels.get(nextGroupIndex);
-        int globalIndex = channelSourceList.indexOf(nextChannel);
 
+        int globalIndex = channelSourceList.indexOf(nextChannel);
         if (globalIndex != -1) {
             SettingsActivity.logOperation("【切台】playNext 下一台 → " 
                     + currentPlayIndex + " → " + globalIndex 
@@ -607,6 +916,8 @@ public class ChannelPanelController {
      * 播放指定索引的频道
      *
      * 【2026-06-21 修改：同步分组时处理特殊分组的情况】
+     * 
+     * 【2026-06-24 修改：同步光标管理器的选中位置】
      */
     public void playChannel(int index) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
@@ -634,6 +945,11 @@ public class ChannelPanelController {
                 }
                 int groupPos = groupListManager.getGroupPosition(channelGroup);
                 groupListManager.setSelectedPosition(groupPos);
+
+                // ✅ 同步光标管理器的分组选中位置
+                if (cursorManager != null) {
+                    cursorManager.setGroupSelectedPosition(groupPos, false);
+                }
             }
         }
 
@@ -642,16 +958,54 @@ public class ChannelPanelController {
                 || currentGroupName.isEmpty() 
                 || currentGroupChannelList.isEmpty()) {
             channelListManager.setChannels(channelSourceList, index);
+
+            // ✅ 同步光标管理器的左面板频道选中位置
+            if (cursorManager != null) {
+                cursorManager.setLeftChannelSelectedPosition(index, false);
+            }
+
         } else if (GroupListManager.GROUP_FAVORITE.equals(currentGroupName)
                 || GroupListManager.GROUP_RECENT.equals(currentGroupName)) {
             // ✅ 新增：特殊分组用筛选后的列表
             channelListManager.setFilteredChannels(currentGroupChannelList, ch.getName());
+
+            // ✅ 同步光标管理器的左面板频道选中位置
+            if (cursorManager != null) {
+                // 找到当前频道在筛选列表中的位置
+                int posInFiltered = 0;
+                for (int i = 0; i < currentGroupChannelList.size(); i++) {
+                    if (ch.getName().equals(currentGroupChannelList.get(i).getName())) {
+                        posInFiltered = i;
+                        break;
+                    }
+                }
+                cursorManager.setLeftChannelSelectedPosition(posInFiltered, false);
+            }
+
         } else {
             channelListManager.setChannelsByGroup(channelSourceList, currentGroupName, index);
+
+            // ✅ 同步光标管理器的左面板频道选中位置
+            if (cursorManager != null) {
+                // 找到当前频道在分组中的位置
+                int posInGroup = 0;
+                for (int i = 0; i < currentGroupChannelList.size(); i++) {
+                    if (ch.getName().equals(currentGroupChannelList.get(i).getName())) {
+                        posInGroup = i;
+                        break;
+                    }
+                }
+                cursorManager.setLeftChannelSelectedPosition(posInGroup, false);
+            }
         }
 
         // 同步更新节目单页面的频道列表选中状态
         channelListManagerEpg.setChannels(channelSourceList, index);
+
+        // ✅ 同步光标管理器的右面板频道选中位置
+        if (cursorManager != null) {
+            cursorManager.setRightChannelSelectedPosition(index, false);
+        }
 
         // 刷新 EPG
         epgManagerWrapper.refresh(ch, channelSourceList, currentSelectedDateIndex);
@@ -748,6 +1102,7 @@ public class ChannelPanelController {
             SettingsActivity.logOperation("【收藏】handleChannelLongClick 失败：频道名为空");
             return false;
         }
+
         try {
             AppConfig appConfig = AppConfig.getInstance(context);
             boolean isFavorite = appConfig.toggleFavorite(channelName);
@@ -814,7 +1169,13 @@ public class ChannelPanelController {
                     channelListManagerEpg.setFilteredChannels(currentGroupChannelList, channelName);
                 }
                 SettingsActivity.logOperation("【收藏】在收藏分组，已刷新频道列表");
+
+                // ✅ 同步光标管理器的左面板频道数量
+                if (cursorManager != null && !isRightPanel) {
+                    cursorManager.setLeftChannelCount(currentGroupChannelList.size());
+                }
             }
+
             SettingsActivity.logOperation("【收藏】长按" + (isFavorite ? "添加" : "取消")
                     + "收藏：" + channelName);
             return true;
@@ -835,14 +1196,17 @@ public class ChannelPanelController {
         if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) return false;
         Channel currentChannel = channelSourceList.get(currentPlayIndex);
         if (currentChannel == null) return false;
+
         try {
             AppConfig appConfig = AppConfig.getInstance(context);
             boolean isFavorite = appConfig.toggleFavorite(currentChannel.getName());
+
             // 更新分组列表的数量
             int favoriteCount = 0;
             int recentCount = 0;
             List<String> favorites = appConfig.getFavoriteChannels();
             List<String> recent = appConfig.getRecentChannels();
+
             for (String name : favorites) {
                 for (Channel c : channelSourceList) {
                     if (name.equals(c.getName())) {
@@ -860,6 +1224,7 @@ public class ChannelPanelController {
                 }
             }
             groupListManager.updateSpecialGroupCount(favoriteCount, recentCount);
+
             // 如果当前在「收藏」分组，刷新列表
             if (GroupListManager.GROUP_FAVORITE.equals(currentGroupName)) {
                 // 重新筛选收藏列表
@@ -874,6 +1239,7 @@ public class ChannelPanelController {
                 }
                 channelListManager.setFilteredChannels(currentGroupChannelList, currentChannel.getName());
             }
+
             SettingsActivity.logOperation("【收藏】" + (isFavorite ? "添加" : "取消") 
                     + "收藏：" + currentChannel.getName());
             return isFavorite;
@@ -919,6 +1285,7 @@ public class ChannelPanelController {
     // ====================================================================
     // 4. 面板控制相关
     // ====================================================================
+
     public void togglePanel() {
         // 处理特殊分组
         if (GroupListManager.GROUP_ALL.equals(currentGroupName) 
@@ -937,20 +1304,33 @@ public class ChannelPanelController {
             channelListManager.setChannelsByGroup(channelSourceList, currentGroupName, currentPlayIndex);
         }
         channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
+
         boolean isOpen = isPanelOpen();
         panelManager.toggle(channelSourceList, currentPlayIndex, dateListManager);
+
         if (!isOpen) {
+            // ====================================================================
+            // ✅ 2026-06-24 修改：用光标管理器设置默认焦点
+            // ====================================================================
+            // 打开面板时，默认焦点在左面板的频道列表
+            if (cursorManager != null) {
+                cursorManager.setCurrentPanel(PanelCursorManager.PanelType.LEFT, false);
+                cursorManager.setLeftFocusView(PanelCursorManager.LeftFocusView.CHANNEL, false);
+                updateFocusStyle();
+            }
+
             panelLayout.post(new Runnable() {
                 @Override
                 public void run() {
-                    lvChannelList.requestFocus();
                     lvChannelList.setSelection(getChannelListSelection());
                 }
             });
         }
+
         if (panelStateListener != null) {
             panelStateListener.onPanelStateChanged(!isOpen);
         }
+
         SettingsActivity.logOperation("【面板】" + (isOpen ? "关闭" : "打开") + "频道面板");
     }
 
@@ -982,20 +1362,33 @@ public class ChannelPanelController {
             SettingsActivity.logOperation("【EPG】节目单功能已关闭，无法展开");
             return;
         }
+
         if (!rightPanelOpen) {
             llLeftPanel.setVisibility(View.GONE);
             llRightPanel.setVisibility(View.VISIBLE);
             rightPanelOpen = true;
             epgPanelOpen = true;
-            channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
+                        channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
+
+            // ====================================================================
+            // ✅ 2026-06-24 修改：同步光标管理器状态
+            // ====================================================================
+            if (cursorManager != null) {
+                cursorManager.setCurrentPanel(PanelCursorManager.PanelType.RIGHT, false);
+                cursorManager.setRightFocusView(PanelCursorManager.RightFocusView.CHANNEL, false);
+                cursorManager.setRightChannelSelectedPosition(currentPlayIndex, false);
+                updateFocusStyle();
+            }
+
             llRightPanel.post(new Runnable() {
                 @Override
                 public void run() {
-                    lvChannelListEpg.requestFocus();
                     lvChannelListEpg.setSelection(currentPlayIndex);
                 }
             });
+
             SettingsActivity.logOperation("【面板】展开节目单面板");
+
             if (!channelSourceList.isEmpty()
                     && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                 Channel curr = channelSourceList.get(currentPlayIndex);
@@ -1006,13 +1399,23 @@ public class ChannelPanelController {
             llLeftPanel.setVisibility(View.VISIBLE);
             rightPanelOpen = false;
             epgPanelOpen = false;
+
+            // ====================================================================
+            // ✅ 2026-06-24 修改：同步光标管理器状态
+            // ====================================================================
+            if (cursorManager != null) {
+                cursorManager.setCurrentPanel(PanelCursorManager.PanelType.LEFT, false);
+                cursorManager.setLeftFocusView(PanelCursorManager.LeftFocusView.CHANNEL, false);
+                updateFocusStyle();
+            }
+
             llLeftPanel.post(new Runnable() {
                 @Override
                 public void run() {
-                    lvChannelList.requestFocus();
                     lvChannelList.setSelection(getChannelListSelection());
                 }
             });
+
             SettingsActivity.logOperation("【面板】收起节目单面板");
         }
     }
@@ -1023,13 +1426,23 @@ public class ChannelPanelController {
             llLeftPanel.setVisibility(View.VISIBLE);
             rightPanelOpen = false;
             epgPanelOpen = false;
+
+            // ====================================================================
+            // ✅ 2026-06-24 修改：同步光标管理器状态
+            // ====================================================================
+            if (cursorManager != null) {
+                cursorManager.setCurrentPanel(PanelCursorManager.PanelType.LEFT, false);
+                cursorManager.setLeftFocusView(PanelCursorManager.LeftFocusView.EPG_BTN, false);
+                updateFocusStyle();
+            }
+
             llLeftPanel.post(new Runnable() {
                 @Override
                 public void run() {
-                    lvChannelList.requestFocus();
                     lvChannelList.setSelection(getChannelListSelection());
                 }
             });
+
             SettingsActivity.logOperation("【面板】返回频道分组");
         }
     }
@@ -1041,10 +1454,16 @@ public class ChannelPanelController {
     public void setCurrentDateIndex(int index) {
         this.currentSelectedDateIndex = index;
         panelManager.setCurrentDateIndex(index);
+
         if (!channelSourceList.isEmpty()
                 && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
             Channel curr = channelSourceList.get(currentPlayIndex);
             epgManagerWrapper.refresh(curr, channelSourceList, currentSelectedDateIndex);
+        }
+
+        // ✅ 同步光标管理器的日期选中位置
+        if (cursorManager != null) {
+            cursorManager.setDateSelectedPosition(index, false);
         }
     }
 
@@ -1099,117 +1518,53 @@ public class ChannelPanelController {
     // ====================================================================
     // 按键事件分发
     // ====================================================================
+
+    /**
+     * 按键事件分发
+     * 
+     * 【2026-06-24 修改：改用光标管理器处理】
+     * 
+     * 【修改说明】
+     * 原来的实现是用原生 focus 机制，通过 handleLeftKey / handleRightKey / handleOkKey
+     * 手动管理各个 View 的焦点切换，代码繁琐且容易出错。
+     * 
+     * 现在改用 PanelCursorManager 统一管理，代码更简洁，逻辑更清晰。
+     * 
+     * 【保留的按键】
+     * - 菜单键（KEYCODE_MENU）：收藏/取消收藏，和光标无关，保留
+     * 
+     * 【交给光标管理器的按键】
+     * - 上下左右键（DPAD_UP/DOWN/LEFT/RIGHT）
+     * - 确认键（DPAD_CENTER / ENTER）
+     */
     public boolean dispatchKeyEvent(int keyCode) {
         if (!isPanelOpen()) {
             return false;
         }
+
         switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                return handleLeftKey();
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                return handleRightKey();
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER:
-                return handleOkKey();
             // ✅ 新增：菜单键（收藏/取消收藏）
             case KeyEvent.KEYCODE_MENU:
                 toggleCurrentFavorite();
                 return true;
+
+            // ====================================================================
+            // ✅ 2026-06-24 修改：其他按键交给光标管理器处理
+            // ====================================================================
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                if (cursorManager != null) {
+                    return cursorManager.handleKeyEvent(keyCode);
+                }
+                return false;
+
             default:
                 return false;
         }
-    }
-
-    private boolean handleLeftKey() {
-        if ("left".equals(currentFocusPanel)) {
-            if ("epgBtn".equals(leftFocusView)) {
-                lvChannelList.requestFocus();
-                return true;
-            } else if ("channel".equals(leftFocusView)) {
-                lvGroup.requestFocus();
-                return true;
-            }
-        } else if ("right".equals(currentFocusPanel)) {
-            if ("epg".equals(rightFocusView)) {
-                lvDate.requestFocus();
-                return true;
-            } else if ("date".equals(rightFocusView)) {
-                lvChannelListEpg.requestFocus();
-                return true;
-            } else if ("channel".equals(rightFocusView)) {
-                btnBackGroup.requestFocus();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean handleRightKey() {
-        if ("left".equals(currentFocusPanel)) {
-            if ("group".equals(leftFocusView)) {
-                lvChannelList.requestFocus();
-                return true;
-            } else if ("channel".equals(leftFocusView)) {
-                btnShowEpg.requestFocus();
-                return true;
-            }
-        } else if ("right".equals(currentFocusPanel)) {
-            if ("backBtn".equals(rightFocusView)) {
-                lvChannelListEpg.requestFocus();
-                return true;
-            } else if ("channel".equals(rightFocusView)) {
-                lvDate.requestFocus();
-                return true;
-            } else if ("date".equals(rightFocusView)) {
-                lvEpg.requestFocus();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean handleOkKey() {
-        if ("left".equals(currentFocusPanel)) {
-            if ("group".equals(leftFocusView)) {
-                int pos = lvGroup.getSelectedItemPosition();
-                if (pos >= 0) {
-                    onGroupClicked(pos);
-                    return true;
-                }
-            } else if ("channel".equals(leftFocusView)) {
-                int pos = lvChannelList.getSelectedItemPosition();
-                if (pos >= 0) {
-                    onChannelClicked(pos);
-                    return true;
-                }
-            } else if ("epgBtn".equals(leftFocusView)) {
-                onEpgButtonClicked();
-                return true;
-            }
-        } else if ("right".equals(currentFocusPanel)) {
-            if ("backBtn".equals(rightFocusView)) {
-                onBackGroupClicked();
-                return true;
-            } else if ("channel".equals(rightFocusView)) {
-                int pos = lvChannelListEpg.getSelectedItemPosition();
-                if (pos >= 0) {
-                    onChannelClicked(pos);
-                    return true;
-                }
-            } else if ("date".equals(rightFocusView)) {
-                int pos = lvDate.getSelectedItemPosition();
-                if (pos >= 0) {
-                    setCurrentDateIndex(pos);
-                    return true;
-                }
-            } else if ("epg".equals(rightFocusView)) {
-                int pos = lvEpg.getSelectedItemPosition();
-                if (pos >= 0) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     // ====================================================================
@@ -1248,5 +1603,8 @@ public class ChannelPanelController {
         dateListManager = null;
         epgManagerWrapper = null;
         panelManager = null;
+
+        // ✅ 2026-06-24 新增：释放光标管理器
+        cursorManager = null;
     }
 }
