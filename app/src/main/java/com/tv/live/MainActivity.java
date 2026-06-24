@@ -1287,33 +1287,84 @@ public class MainActivity extends AppCompatActivity {
             SettingsActivity.logOperation("【画中画尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
         }
     }
-
-    // ====================================================================
-    // ✅ 辅助方法：打印窗口和屏幕尺寸（接入操作日志）
+        // ====================================================================
+    // ✅ 辅助方法：打印 View 的详细尺寸信息（接入操作日志）
     // 
-    // 作用：记录窗口可见区域、屏幕尺寸、DecorView 尺寸，作为参考基准
+    // 作用：记录 View 的位置、尺寸、布局参数、可见性，用于排查布局问题
     // 输出内容：
-    // - 窗口可见区域：宽、高（排除状态栏、导航栏等系统UI）
-    // - 屏幕尺寸：宽、高（物理屏幕分辨率）
-    // - DecorView 尺寸：宽、高（Activity 根视图）
+    // - 位置：left、top、right、bottom
+    // - 尺寸：宽、高
+    // - 布局参数：width、height（MATCH_PARENT=-1，WRAP_CONTENT=-2）
+    // - 可见性：VISIBLE / INVISIBLE / GONE
+    // 
+    // @param tag 日志标签，标识当前是哪个时间点
+    // @param view 要打印尺寸的 View
     // ====================================================================
-    private void logPipWindowSize() {
+    private void logPipViewSize(String tag, View view) {
+        if (view == null) {
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "：View 为 null");
+            return;
+        }
         try {
-            // 窗口可见区域尺寸
-            Rect rect = new Rect();
-            getWindow().getDecorView().getWindowVisibleDisplayFrame(rect);
-            SettingsActivity.logOperation("【画中画尺寸】窗口可见区域：宽=" + rect.width() + "，高=" + rect.height());
+            // 1. 打印位置和尺寸
+            int left = view.getLeft();
+            int top = view.getTop();
+            int right = view.getRight();
+            int bottom = view.getBottom();
+            int width = view.getWidth();
+            int height = view.getHeight();
+            
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "位置：left=" + left 
+                + "，top=" + top
+                + "，right=" + right 
+                + "，bottom=" + bottom);
+            
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "尺寸：宽=" + width 
+                + "，高=" + height);
 
-            // 屏幕物理尺寸
-            DisplayMetrics metrics = new DisplayMetrics();
-            getWindowManager().getDefaultDisplay().getMetrics(metrics);
-            SettingsActivity.logOperation("【画中画尺寸】屏幕尺寸：宽=" + metrics.widthPixels + "，高=" + metrics.heightPixels);
+            // 2. 打印布局参数
+            ViewGroup.LayoutParams lp = view.getLayoutParams();
+            if (lp != null) {
+                String widthStr;
+                String heightStr;
+                
+                // 处理 width
+                if (lp.width == ViewGroup.LayoutParams.MATCH_PARENT) {
+                    widthStr = "MATCH_PARENT(-1)";
+                } else if (lp.width == ViewGroup.LayoutParams.WRAP_CONTENT) {
+                    widthStr = "WRAP_CONTENT(-2)";
+                } else {
+                    widthStr = String.valueOf(lp.width);
+                }
+                
+                // 处理 height
+                if (lp.height == ViewGroup.LayoutParams.MATCH_PARENT) {
+                    heightStr = "MATCH_PARENT(-1)";
+                } else if (lp.height == ViewGroup.LayoutParams.WRAP_CONTENT) {
+                    heightStr = "WRAP_CONTENT(-2)";
+                } else {
+                    heightStr = String.valueOf(lp.height);
+                }
+                
+                SettingsActivity.logOperation("【画中画尺寸】" + tag + "布局参数：width=" + widthStr 
+                    + "，height=" + heightStr);
+            }
 
-            // DecorView 尺寸（Activity 根视图）
-            View decorView = getWindow().getDecorView();
-            SettingsActivity.logOperation("【画中画尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
+            // 3. 打印可见性
+            int visibility = view.getVisibility();
+            String visStr;
+            if (visibility == View.VISIBLE) {
+                visStr = "VISIBLE";
+            } else if (visibility == View.INVISIBLE) {
+                visStr = "INVISIBLE";
+            } else {
+                visStr = "GONE";
+            }
+            
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "可见性：" + visStr);
+            
         } catch (Exception e) {
-            SettingsActivity.logOperation("【画中画尺寸】获取窗口尺寸失败：" + e.getMessage());
+            SettingsActivity.logOperation("【画中画尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
         }
     }
 
