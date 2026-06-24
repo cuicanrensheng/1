@@ -83,6 +83,20 @@ import java.util.Map;
  * 1. 去掉 videoFormat.colorSpace（1.5.0 没有这个字段）
  * 2. 去掉 player.getVideoFrameProcessingOffset()（1.5.0 没有这个方法）
  * 3. 丢帧统计暂时用 0 代替，不影响其他功能
+ * 
+ * 【2026-06-25 新增：解码日志接入设置页面】
+ * 【修改说明】
+ * 把关键的解码日志同时输出到 SettingsActivity 的播放日志中，
+ * 用户可以通过设置里的"查看解析日志"按钮直接查看，不用再连电脑看 Logcat。
+ * 
+ * 【接入的日志类型】
+ * 1. 解码器信息（硬解/软解、分辨率、码率、帧率等）
+ * 2. 播放错误（错误码、错误类型、错误原因）
+ * 3. 缓冲状态（缓冲次数、当前缓冲时长）
+ * 4. 性能统计（播放时长、缓冲率、丢帧等）
+ * 5. 卡顿检测（卡住自动重试）
+ * 6. 自动重试（重试次数、原因）
+ * 7. 切换解码器（硬解↔软解）
  */
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerLog";
@@ -308,6 +322,39 @@ public class TVPlayerManager {
         context = ctx.getApplicationContext();
         initPlayer();
     }
+    // ====================================================================
+    // ✅ 2026-06-25 新增：解码日志接入设置页面 - 辅助方法
+    // ====================================================================
+    /**
+     * 输出解码日志到设置页面的播放日志
+     * 
+     * 【作用】
+     * 把关键的解码日志同时输出到 SettingsActivity 的播放日志中，
+     * 用户可以通过设置里的"查看解析日志"按钮直接查看，
+     * 不用再连电脑看 Logcat。
+     * 
+     * 【为什么加 try-catch？】
+     * 防止 SettingsActivity 或 LogManager 未初始化时崩溃。
+     * TVPlayerManager 可能在 Application 或 MainActivity 中初始化，
+     * 这时候 SettingsActivity 可能还没创建，
+     * 但 SettingsActivity.log() 是静态方法，内部调用的是 LogManager.log()，
+     * 理论上不会有问题，但加个保护更安全。
+     * 
+     * 【日志格式】
+     * 加上【解码】前缀，和其他播放日志区分开。
+     * 时间戳由 SettingsActivity.log() 内部自动添加。
+     * 
+     * @param msg 日志内容
+     */
+    private void logToSettings(String msg) {
+        try {
+            // 加上【解码】前缀，方便区分日志类型
+            SettingsActivity.log("【解码】" + msg);
+        } catch (Exception e) {
+            // 忽略，日志输出失败不影响播放功能
+            Log.w(TAG, "输出设置日志失败（忽略）：" + e.getMessage());
+        }
+    }
     /**
      * ✅ 初始化播放器
      * 单独抽出来，方便重试时重新创建
@@ -365,6 +412,8 @@ public class TVPlayerManager {
             }
             
             Log.d(TAG, "【FFmpeg】软解码模式：优先使用 FFmpeg 解码器");
+            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+            logToSettings("软解码模式：优先使用 FFmpeg 解码器");
         } else {
             // ====================================================================
             // ✅ 硬解码模式（默认）：FFmpeg 作为备用方案
@@ -390,6 +439,8 @@ public class TVPlayerManager {
             renderersFactory.setEnableDecoderFallback(true);
             
             Log.d(TAG, "【FFmpeg】硬解码模式：系统硬解优先，FFmpeg 作为备用");
+            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+            logToSettings("硬解码模式：系统硬解优先，FFmpeg 作为备用");
         }
         // ================================================
         // ✅ 2026-06-24 修改：抗卡顿优化 - 调整缓冲配置
@@ -475,10 +526,17 @@ public class TVPlayerManager {
                 // ====================================================================
                 // ✅ 2026-06-24 新增：打印详细错误信息，方便排查卡顿/失效问题
                 // ====================================================================
-                Log.e(TAG, "【错误详情】错误码: " + error.errorCode 
-                    + ", 错误类型: " + getErrorTypeName(error.errorCode));
+                String errorDetail = "错误码: " + error.errorCode 
+                    + ", 错误类型: " + getErrorTypeName(error.errorCode);
+                Log.e(TAG, "【错误详情】" + errorDetail);
                 if (error.getCause() != null) {
                     Log.e(TAG, "【错误原因】" + error.getCause().getMessage());
+                }
+                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                logToSettings("播放异常：" + error.getMessage());
+                logToSettings("错误详情：" + errorDetail);
+                if (error.getCause() != null) {
+                    logToSettings("错误原因：" + error.getCause().getMessage());
                 }
                 
                 // 停止性能统计
@@ -543,9 +601,23 @@ public class TVPlayerManager {
                             // Log.d(TAG, "  颜色空间: " + videoFormat.colorSpace);
                             Log.d(TAG, "========================================");
                             
+                            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                            // 把解码器信息输出到设置页面，用户可以直接查看
+                            logToSettings("========================================");
+                            logToSettings("【解码器信息】");
+                            logToSettings("  解码器类型: " + (isFfmpeg ? "FFmpeg 软解" : "系统硬解"));
+                            logToSettings("  解码器名称: " + decoderName);
+                            logToSettings("  视频编码: " + videoFormat.sampleMimeType);
+                            logToSettings("  分辨率: " + videoFormat.width + "×" + videoFormat.height);
+                            logToSettings("  码率: " + (videoFormat.bitrate / 1024) + "kbps");
+                            logToSettings("  帧率: " + videoFormat.frameRate);
+                            logToSettings("========================================");
+                            
                             // 如果是软解，打印警告
                             if (isFfmpeg) {
                                 Log.w(TAG, "【警告】当前使用 FFmpeg 软解码，CPU 占用较高，可能导致卡顿");
+                                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                                logToSettings("【警告】当前使用 FFmpeg 软解码，CPU 占用较高，可能导致卡顿");
                             }
                         }
                     } catch (Exception e) {
@@ -565,6 +637,9 @@ public class TVPlayerManager {
                     try {
                         long bufferedDuration = player.getBufferedPosition() - player.getCurrentPosition();
                         Log.d(TAG, "【缓冲】第 " + totalBufferCount + " 次缓冲开始，当前已缓冲: " 
+                            + bufferedDuration + "ms");
+                        // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                        logToSettings("第 " + totalBufferCount + " 次缓冲开始，当前已缓冲: " 
                             + bufferedDuration + "ms");
                     } catch (Exception e) {
                         // 忽略
@@ -606,6 +681,8 @@ public class TVPlayerManager {
                 int width = videoSize.width;
                 int height = videoSize.height;
                 Log.d(TAG, "视频分辨率变化：" + width + "×" + height);
+                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                logToSettings("视频分辨率变化：" + width + "×" + height);
                 // 分辨率变化时，通知 UI 更新
                 notifyLiveInfoUpdate();
             }
@@ -714,7 +791,6 @@ public class TVPlayerManager {
                 //     // 旧版本没有这个方法，忽略
                 // }
                 
-                // 计算缓冲率
                 double bufferRate = playDuration > 0 
                     ? (totalBufferDuration * 100.0 / playDuration) 
                     : 0;
@@ -726,9 +802,19 @@ public class TVPlayerManager {
                 Log.d(TAG, "  当前缓冲: " + bufferedDuration + "ms");
                 Log.d(TAG, "  丢帧数: " + droppedFrames + "（1.5.0 暂不支持统计）");
                 
+                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                logToSettings("【性能统计】");
+                logToSettings("  播放时长: " + (playDuration / 1000) + "秒");
+                logToSettings("  缓冲次数: " + totalBufferCount + " 次");
+                logToSettings("  缓冲率: " + String.format("%.1f", bufferRate) + "%");
+                logToSettings("  当前缓冲: " + bufferedDuration + "ms");
+                logToSettings("  丢帧数: " + droppedFrames + "（1.5.0 暂不支持统计）");
+                
                 // 判断卡顿原因
                 if (totalBufferCount > 3 && bufferRate > 10) {
                     Log.w(TAG, "【卡顿分析】缓冲频繁，可能是网络带宽不足或直播源不稳定");
+                    // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                    logToSettings("【卡顿分析】缓冲频繁，可能是网络带宽不足或直播源不稳定");
                 }
                 // 丢帧判断暂时注释掉（因为拿不到丢帧数据）
                 // if (droppedFrames > 10) {
@@ -785,6 +871,8 @@ public class TVPlayerManager {
                     if (now - lastPositionUpdateTime > STUCK_TIMEOUT) {
                         // 卡住了，自动重试
                         Log.w(TAG, "检测到播放卡住，自动重试...");
+                        // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                        logToSettings("检测到播放卡住，自动重试...");
                         autoRetry("播放卡住");
                         return; // 重试后不再继续检测
                     }
@@ -836,11 +924,15 @@ public class TVPlayerManager {
         if (isRetrying) return; // 已经在重试中，避免重复
         if (retryCount >= MAX_RETRY_COUNT) {
             Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT);
+            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+            logToSettings("重试次数已达上限：" + MAX_RETRY_COUNT);
             return;
         }
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
+        // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+        logToSettings("自动重试（第" + retryCount + "次），原因：" + reason);
         
         // ✅ 2026-06-24 修改：保存重试任务的引用，方便后续取消
         retryRunnable = new Runnable() {
@@ -871,6 +963,8 @@ public class TVPlayerManager {
         if (useSoftwareDecoder == useSoftware) return;
         useSoftwareDecoder = useSoftware;
         Log.d(TAG, "切换解码器：" + (useSoftware ? "FFmpeg 软解码" : "系统硬解码"));
+        // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+        logToSettings("切换解码器：" + (useSoftware ? "FFmpeg 软解码" : "系统硬解码"));
         // 重新创建播放器
         if (player != null) {
             try {
@@ -999,6 +1093,8 @@ public class TVPlayerManager {
             if (player == null || url == null || url.trim().isEmpty()) return;
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
+            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+            logToSettings("开始播放：" + currentUrl);
             // ====================================================================
             // ✅ 关键修改：去掉 player.stop() 和 player.clearMediaItems()
             // ====================================================================
@@ -1039,6 +1135,8 @@ public class TVPlayerManager {
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
+                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                logToSettings("流格式：HLS (m3u8)");
                 // ====================================================================
                 // ✅ 2026-06-24 修改：抗卡顿优化 - HLS 增加容错配置
                 // ====================================================================
@@ -1054,9 +1152,11 @@ public class TVPlayerManager {
                         .createMediaSource(mediaItem);
             } else {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
+                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+                logToSettings("流格式：普通流 (Progressive)");
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
-            // ====================================================================
+                        // ====================================================================
             // ✅ 关键修改：直接设置新的媒体源，第二个参数 true = 重置到开头
             // ====================================================================
             player.setMediaSource(mediaSource, true);
@@ -1066,6 +1166,8 @@ public class TVPlayerManager {
             startStuckDetection();
         } catch (Exception e) {
             Log.e(TAG, "播放异常", e);
+            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
+            logToSettings("播放异常：" + e.getMessage());
             autoRetry("播放异常：" + e.getMessage());
         }
     }
@@ -1129,7 +1231,7 @@ public class TVPlayerManager {
             }
             instance = null;
         } catch (Exception e) {
-            Log.e(TAG, "释放异常", e);
+            Log.e(TAG, "释放播放器异常", e);
         }
     }
 }
