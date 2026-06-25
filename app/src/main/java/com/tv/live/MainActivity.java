@@ -1,6 +1,9 @@
 package com.tv.live;
+
 import android.app.PictureInPictureParams;
+import android.content.BroadcastReceiver;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Rect;
@@ -20,13 +23,16 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 // ====================================================================
 // ✅ 2026-06-23 修改：升级到 Media3 1.10.1
 // ====================================================================
 // PlayerView 的包名从 com.google.android.exoplayer2.ui.PlayerView
 // 改成 androidx.media3.ui.PlayerView
 import androidx.media3.ui.PlayerView;
+
 import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
 import com.tv.live.manager.*;
@@ -34,8 +40,10 @@ import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
 import com.tv.live.widget.GroupListManager;
+
 import java.util.ArrayList;
 import java.util.List;
+
 /**
  * 主播放页面 Activity
  * 
@@ -64,23 +72,35 @@ import java.util.List;
  * 4. ✅ handleDirectionKey 加注释说明（保留作为兜底）
  * 5. ✅ 新增源失效自动切台功能（重试失败后自动跳到下一个频道）
  * 6. ✅ 所有优化点接入 SettingsActivity 操作日志
+ * 7. ✅ 新增解码器选择功能（自动/硬解/软解，支持广播实时切换）
  * 
  * 【源失效自动切台说明】
  * - 实现 TVPlayerManager.OnSourceFailedListener 接口
  * - 收到源失效回调时，自动切换到下一个频道
  * - 最多连续跳过 10 个失效频道，避免无限循环
  * - 每次跳过都记录操作日志，可在设置页面查看
+ * 
+ * 【解码器选择功能说明】
+ * - 支持三种模式：自动（推荐）、硬解、软解（FFmpeg）
+ * - 在设置页面切换后，通过广播实时通知 MainActivity
+ * - MainActivity 收到广播后立即调用 TVPlayerManager.setDecoderMode()
+ * - 切换后自动重新加载当前频道，立即生效
+ * - 应用启动时从 SharedPreferences 读取设置并初始化
  */
 public class MainActivity extends AppCompatActivity {
+
     // ====================== 单例 ======================
     public static MainActivity mInstance;
+
     // ====================================================================
     // 兼容层：保留旧的 public 变量
     // ====================================================================
     public List<Channel> channelSourceList = new ArrayList<>();
     public int currentPlayIndex = 0;
+
     // ====================== 视图相关 ======================
     private PlayerView playerView;
+
     // ====================== 管理器相关 ======================
     public TVPlayerManager mPlayerManager;
     private AppConfig appConfig;
@@ -88,6 +108,7 @@ public class MainActivity extends AppCompatActivity {
     private GestureManager gestureManager;
     private KeyEventManager keyEventManager;
     private PlayerStateListenerImpl playerStateListener;
+
     // ====================================================================
     // 拆分新增：各个 Manager
     // ====================================================================
@@ -96,19 +117,44 @@ public class MainActivity extends AppCompatActivity {
     private InfoDisplayManager infoDisplayManager;
     private ChannelPanelController channelPanelController;
     private AppCoreManager appCoreManager;
+
     // ====================================================================
     // 遥控器统一管理器
     // ====================================================================
     private TvRemoteManager remoteManager;
+
     // ====================================================================
     // 画中画相关变量
     // ====================================================================
     private PictureInPictureManager pipManager;
     private boolean pipEnable = false;      // 画中画开关状态
+
+    // ====================================================================
+    // ✅ 2026-06-25 新增：解码器模式广播接收器
+    // ====================================================================
+    // 【作用】
+    // 监听 SettingsActivity 发送的解码器模式变化广播，
+    // 收到广播后立即切换解码器模式，并重新加载当前频道。
+    //
+    // 【为什么用广播？】
+    // SettingsActivity 和 MainActivity 是两个独立的 Activity，
+    // 用广播可以解耦，不需要互相持有引用。
+    //
+    // 【广播 Action】
+    // com.tv.live.DECODER_MODE_CHANGED
+    //
+    // 【处理流程】
+    // 1. 收到广播
+    // 2. 从 SharedPreferences 读取新的解码器模式
+    // 3. 调用 mPlayerManager.setDecoderMode(mode)
+    // 4. 记录操作日志
+    private BroadcastReceiver decoderModeReceiver;
+
     // ====================== 状态标志 ======================
     private boolean channel_reverse;
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
+
     // ====================================================================
     // 频道面板自动隐藏
     // ====================================================================
@@ -121,6 +167,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
+
     // ====================================================================
     // ✅ 2026-06-25 新增：源失效自动切台相关变量
     // ====================================================================
@@ -136,16 +183,20 @@ public class MainActivity extends AppCompatActivity {
     // 最大连续跳过次数（避免无限循环）
     private static final int MAX_CONSECUTIVE_SKIP = 10;
     private boolean mIsFirstLaunch = true;
+
     // ====================== 其他 ======================
     public static List<String> logList = new ArrayList<>();
+
     // ====================== onCreate 生命周期 ======================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         SettingsActivity.logOperation("【主页】onCreate -> 页面创建");
         SettingsActivity.logOperation("【系统】APP启动");
+
         mInstance = this;
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+
         // ====================================================================
         // ✅ 2026-06-25 修复：全面屏适配初始化顺序
         // ====================================================================
@@ -171,18 +222,25 @@ public class MainActivity extends AppCompatActivity {
         // ✅ 移到 setContentView() 之后调用
         displayManager.applyFullScreen();
         SettingsActivity.logOperation("【主页】全面屏适配已应用");
+
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
         initInfoDisplayManager();
+
         appConfig = AppConfig.getInstance(this);
         loadSettings();
+
         String customLive = appConfig.getCustomLiveUrl();
         String customEpg = appConfig.getCustomEpgUrl();
         if (customLive != null) UrlConfig.LIVE_URL = customLive;
         if (customEpg != null) UrlConfig.EPG_URL = customEpg;
+
         log("【配置】直播源地址：" + UrlConfig.LIVE_URL);
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
+
         playerView = findViewById(R.id.player_view);
         playerView.setUseController(false);
+
         // ====================================================================
         // ✅ 2026-06-23 修改：修复 setControllerVisibilityListener 歧义问题
         // ====================================================================
@@ -203,16 +261,36 @@ public class MainActivity extends AppCompatActivity {
         // 因为我们用的是自定义的频道面板，不需要 PlayerView 自带的控制器，
         // 所以把控制器可见性监听器设为 null，避免不必要的回调。
         playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
+
         initChannelPanelController();
         initRemoteManager();
         initPictureInPicture();
+
+        // ====================================================================
+        // ✅ 2026-06-25 新增：注册解码器模式广播接收器
+        // ====================================================================
+        // 【作用】
+        // 监听 SettingsActivity 发送的解码器模式变化广播，
+        // 收到广播后立即切换解码器模式。
+        //
+        // 【为什么在这里注册？】
+        // 广播接收器需要在 onCreate 里注册，
+        // 这样 Activity 创建后就能立即接收广播了。
+        //
+        // 【注意】
+        // 必须在 onDestroy 里注销，否则会内存泄漏。
+        initDecoderModeReceiver();
+
         if (mIsFirstLaunch) {
             mPanelAutoHideHandler.postDelayed(mPanelAutoHideRunnable, 3000);
             mIsFirstLaunch = false;
         }
+
         initPlayer();
+
         screenRatioManager = new ScreenRatioManager(mPlayerManager, appConfig);
         screenRatioManager.apply();
+
         gestureManager = new GestureManager(this);
         final PlayerGestureHelper gestureHelper = gestureManager.create();
         playerView.setOnTouchListener(new View.OnTouchListener() {
@@ -222,18 +300,100 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
+
         keyEventManager = new KeyEventManager(this);
+
         currentPlayIndex = appConfig.getLastPlayIndex();
         channelPanelController.setCurrentPlayIndex(currentPlayIndex);
         SettingsActivity.logOperation("【播放】记录上次播放索引：" + currentPlayIndex);
+
         initChannelNumberManager();
         if (channelNumberManager != null) {
             channelNumberManager.setEnable(number_channel_enable);
         }
+
         initAppCoreManager();
+
         displayManager.showLoading("正在加载直播源...");
         appCoreManager.loadLiveAndEpg();
     }
+
+    // ====================================================================
+    // ✅ 2026-06-25 新增：初始化解码器模式广播接收器
+    // ====================================================================
+    /**
+     * 初始化解码器模式广播接收器
+     *
+     * 【功能】
+     * 监听 SettingsActivity 发送的解码器模式变化广播，
+     * 收到广播后立即切换解码器模式，并重新加载当前频道。
+     *
+     * 【为什么用广播？】
+     * SettingsActivity 和 MainActivity 是两个独立的 Activity，
+     * 用广播可以解耦，不需要互相持有引用。
+     *
+     * 【广播 Action】
+     * com.tv.live.DECODER_MODE_CHANGED
+     *
+     * 【处理流程】
+     * 1. 收到广播
+     * 2. 从 SharedPreferences 读取新的解码器模式
+     * 3. 调用 mPlayerManager.setDecoderMode(mode)
+     * 4. 记录操作日志
+     *
+     * 【三种模式对应的值】
+     * - "auto" → DECODER_MODE_AUTO（自动，推荐）
+     * - "hard" → DECODER_MODE_HARD（强制硬解）
+     * - "soft" → DECODER_MODE_SOFT（强制软解）
+     */
+    private void initDecoderModeReceiver() {
+        decoderModeReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if ("com.tv.live.DECODER_MODE_CHANGED".equals(intent.getAction())) {
+                    // 从 SharedPreferences 读取新的解码器模式
+                    SharedPreferences sp = getSharedPreferences("app_settings", MODE_PRIVATE);
+                    String modeStr = sp.getString("decoder_mode", "auto");
+
+                    // 转换为 TVPlayerManager 的模式常量
+                    int mode = TVPlayerManager.DECODER_MODE_AUTO;
+                    if ("hard".equals(modeStr)) {
+                        mode = TVPlayerManager.DECODER_MODE_HARD;
+                    } else if ("soft".equals(modeStr)) {
+                        mode = TVPlayerManager.DECODER_MODE_SOFT;
+                    }
+
+                    // 应用新的解码器模式
+                    if (mPlayerManager != null) {
+                        mPlayerManager.setDecoderMode(mode);
+                    }
+
+                    // 记录操作日志
+                    String modeName;
+                    switch (mode) {
+                        case TVPlayerManager.DECODER_MODE_HARD:
+                            modeName = "硬解";
+                            break;
+                        case TVPlayerManager.DECODER_MODE_SOFT:
+                            modeName = "软解（FFmpeg）";
+                            break;
+                        case TVPlayerManager.DECODER_MODE_AUTO:
+                        default:
+                            modeName = "自动（推荐）";
+                            break;
+                    }
+                    SettingsActivity.logOperation("【解码器】收到广播，切换到：" + modeName);
+                }
+            }
+        };
+
+        // 注册广播接收器
+        IntentFilter filter = new IntentFilter("com.tv.live.DECODER_MODE_CHANGED");
+        registerReceiver(decoderModeReceiver, filter);
+
+        SettingsActivity.logOperation("【解码器】广播接收器已注册");
+    }
+
     // ====================================================================
     // 画中画初始化
     // ====================================================================
@@ -254,6 +414,7 @@ public class MainActivity extends AppCompatActivity {
             pipManager = null;
         }
     }
+
     // ====================================================================
     // 画中画模式下隐藏所有UI
     // ====================================================================
@@ -266,6 +427,7 @@ public class MainActivity extends AppCompatActivity {
             infoDisplayManager.hideChannelNum();
         }
     }
+
     // ====================================================================
     // ✅ 2026-06-25 修复：整理 keepPlayingInPip() 方法缩进格式
     // ====================================================================
@@ -313,6 +475,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
     // ====================================================================
     // 恢复当前频道播放
     // ====================================================================
@@ -325,6 +488,7 @@ public class MainActivity extends AppCompatActivity {
             log("【画中画】恢复播放失败：" + e.getMessage());
         }
     }
+
     // ====================================================================
     // 初始化遥控器管理器
     // ====================================================================
@@ -404,6 +568,7 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onSettingsFocusChanged(int position) {}
         });
     }
+
     // ====================================================================
     // 同步遥控器模式
     // ====================================================================
@@ -415,6 +580,7 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
         }
     }
+
     // ====================================================================
     // 信息展示管理器初始化
     // ====================================================================
@@ -431,6 +597,7 @@ public class MainActivity extends AppCompatActivity {
         TextView tv_remaining_time = findViewById(R.id.tv_remaining_time);
         TextView tv_next_program_name = findViewById(R.id.tv_next_program_name);
         TextView tv_next_time_range = findViewById(R.id.tv_next_time_range);
+
         infoDisplayManager = new InfoDisplayManager(
                 this,
                 tv_channel_num,
@@ -447,6 +614,7 @@ public class MainActivity extends AppCompatActivity {
                 tv_next_time_range
         );
     }
+
     // ====================================================================
     // 频道面板控制器初始化
     // ====================================================================
@@ -461,6 +629,7 @@ public class MainActivity extends AppCompatActivity {
         ListView lvEpg = findViewById(R.id.lv_epg);
         TextView btn_show_epg = findViewById(R.id.btn_show_epg);
         TextView btn_back_group = findViewById(R.id.btn_back_group);
+
         EpgManager.getInstance(this);
         ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
         ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
@@ -468,10 +637,12 @@ public class MainActivity extends AppCompatActivity {
         DateListManager dateListManager = new DateListManager(this, lvDate);
         EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
         PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
+
         dateListManager.initDate();
         dateListManager.setOnDateSelectedListener(pos -> {
             channelPanelController.setCurrentDateIndex(pos);
         });
+
         channelPanelController = new ChannelPanelController(
                 this,
                 panel_layout,
@@ -491,6 +662,7 @@ public class MainActivity extends AppCompatActivity {
                 epgManagerWrapper,
                 panelManager
         );
+
         channelPanelController.setOnChannelChangeListener(new ChannelPanelController.OnChannelChangeListener() {
             @Override
             public void onChannelChanged(Channel channel, int index) {
@@ -498,14 +670,17 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
     // ====================================================================
     // 播放器初始化
     // ====================================================================
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
         mPlayerManager.attachPlayerView(playerView);
+
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
+
         mPlayerManager.setOnLiveInfoUpdateListener(new TVPlayerManager.OnLiveInfoUpdateListener() {
             @Override
             public void onLiveInfoUpdate(TVPlayerManager.LiveInfo info) {
@@ -515,6 +690,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
         // ====================================================================
         // ✅ 2026-06-25 新增：设置源失效监听器（自动切台）
         // ====================================================================
@@ -545,46 +721,51 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
     // ====================================================================
-// ✅ 2026-06-25 新增：处理源失效（自动切台）
-// ====================================================================
-// 【功能说明】
-// 当当前频道的直播源失效时，自动切换到下一个频道。
-//
-// 【防无限循环机制】
-// - 记录连续失效的频道数量
-// - 最多连续跳过 10 个失效频道
-// - 超过限制后停止自动跳过，提示用户
-//
-// 【什么时候重置计数？】
-// 成功播放一个频道后，重置连续失效计数为 0。
-// （在 playChannel() 方法里重置）
-private void handleSourceFailed() {
-    mConsecutiveFailedCount++;
-    String channelName = "";
-    if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-        Channel ch = channelSourceList.get(currentPlayIndex);
-        if (ch != null) {
-            channelName = ch.getName();
+    // ✅ 2026-06-25 新增：处理源失效（自动切台）
+    // ====================================================================
+    // 【功能说明】
+    // 当当前频道的直播源失效时，自动切换到下一个频道。
+    //
+    // 【防无限循环机制】
+    // - 记录连续失效的频道数量
+    // - 最多连续跳过 10 个失效频道
+    // - 超过限制后停止自动跳过，提示用户
+    //
+    // 【什么时候重置计数？】
+    // 成功播放一个频道后，重置连续失效计数为 0。
+    // （在 playChannel() 方法里重置）
+    private void handleSourceFailed() {
+        mConsecutiveFailedCount++;
+
+        String channelName = "";
+        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+            Channel ch = channelSourceList.get(currentPlayIndex);
+            if (ch != null) {
+                channelName = ch.getName();
+            }
         }
-    }
-    SettingsActivity.logOperation("【自动切台】频道「" + channelName
-        + "」源失效，连续失效第 " + mConsecutiveFailedCount + " 个");
 
-    // 检查是否超过最大连续跳过次数
-    if (mConsecutiveFailedCount >= MAX_CONSECUTIVE_SKIP) {
-        SettingsActivity.logOperation("【自动切台】已连续跳过 "
-            + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过");
-        // ✅ 修复：InfoDisplayManager 没有 showToast 方法，直接用 Toast
-        Toast.makeText(MainActivity.this, "已跳过 " + MAX_CONSECUTIVE_SKIP
-            + " 个失效频道，请检查直播源", Toast.LENGTH_SHORT).show();
-        return;
+        SettingsActivity.logOperation("【自动切台】频道「" + channelName
+            + "」源失效，连续失效第 " + mConsecutiveFailedCount + " 个");
+
+        // 检查是否超过最大连续跳过次数
+        if (mConsecutiveFailedCount >= MAX_CONSECUTIVE_SKIP) {
+            SettingsActivity.logOperation("【自动切台】已连续跳过 "
+                + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过");
+
+            // ✅ 修复：InfoDisplayManager 没有 showToast 方法，直接用 Toast
+            Toast.makeText(MainActivity.this, "已跳过 " + MAX_CONSECUTIVE_SKIP
+                + " 个失效频道，请检查直播源", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 自动切换到下一个频道
+        SettingsActivity.logOperation("【自动切台】自动切换到下一个频道");
+        channelPanelController.switchDown();
     }
 
-    // 自动切换到下一个频道
-    SettingsActivity.logOperation("【自动切台】自动切换到下一个频道");
-    channelPanelController.switchDown();
-}
     // ====================================================================
     // 数字选台管理器初始化
     // ====================================================================
@@ -610,6 +791,7 @@ private void handleSourceFailed() {
                 number_channel_enable
         );
     }
+
     // ====================================================================
     // 应用核心管理器初始化
     // ====================================================================
@@ -624,6 +806,7 @@ private void handleSourceFailed() {
                         channelSourceList.clear();
                         channelSourceList.addAll(channels);
                         channelPanelController.setChannels(channels);
+
                         if (!appCoreManager.hasPlayedWithCache()) {
                             if (currentPlayIndex >= 0 && currentPlayIndex < channels.size()) {
                                 Channel ch = channels.get(currentPlayIndex);
@@ -631,11 +814,13 @@ private void handleSourceFailed() {
                                 appCoreManager.setHasPlayedWithCache(true);
                             }
                         }
+
                         displayManager.hideLoading();
                         log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channels.size());
                     }
                 });
             }
+
             @Override
             public void onLiveSourceFailed(String errorMsg) {
                 runOnUiThread(new Runnable() {
@@ -651,6 +836,7 @@ private void handleSourceFailed() {
                     }
                 });
             }
+
             @Override
             public void onEpgLoaded() {
                 runOnUiThread(new Runnable() {
@@ -663,6 +849,7 @@ private void handleSourceFailed() {
                     }
                 });
             }
+
             @Override
             public void onLoadTimeout(boolean hasData) {
                 runOnUiThread(new Runnable() {
@@ -678,16 +865,63 @@ private void handleSourceFailed() {
                 });
             }
         });
+
         appCoreManager.registerReceivers();
     }
+
     // ====================== 设置加载 ======================
     private void loadSettings() {
         SharedPreferences sp = getSharedPreferences("app_settings", MODE_PRIVATE);
+
         boolean epg_enable = sp.getBoolean("epg_enable", true);
         channel_reverse = sp.getBoolean("channel_reverse", false);
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
+
+        // ====================================================================
+        // ✅ 2026-06-25 新增：读取解码器模式并应用
+        // ====================================================================
+        // 【作用】
+        // 应用启动时，从 SharedPreferences 读取用户选择的解码器模式，
+        // 并设置给 TVPlayerManager。
+        //
+        // 【默认值】auto（自动模式）
+        // 【可选值】auto / hard / soft
+        //
+        // 【注意】
+        // 这里只是读取配置，真正的初始化在 TVPlayerManager.initPlayer() 里。
+        // 如果 mPlayerManager 已经初始化了（比如从设置页返回时），
+        // 就调用 setDecoderMode() 立即切换。
+        String decoderMode = sp.getString("decoder_mode", "auto");
+        int mode = TVPlayerManager.DECODER_MODE_AUTO;
+        if ("hard".equals(decoderMode)) {
+            mode = TVPlayerManager.DECODER_MODE_HARD;
+        } else if ("soft".equals(decoderMode)) {
+            mode = TVPlayerManager.DECODER_MODE_SOFT;
+        }
+
+        // 如果播放器已经初始化了，立即应用解码器模式
+        // （从设置页返回时会走这里）
+        if (mPlayerManager != null) {
+            mPlayerManager.setDecoderMode(mode);
+        }
+
+        String modeName;
+        switch (mode) {
+            case TVPlayerManager.DECODER_MODE_HARD:
+                modeName = "硬解";
+                break;
+            case TVPlayerManager.DECODER_MODE_SOFT:
+                modeName = "软解（FFmpeg）";
+                break;
+            case TVPlayerManager.DECODER_MODE_AUTO:
+            default:
+                modeName = "自动（推荐）";
+                break;
+        }
+        SettingsActivity.logOperation("【设置】解码器模式：" + modeName);
+
         if (channelNumberManager != null) {
             channelNumberManager.setEnable(number_channel_enable);
         }
@@ -698,18 +932,21 @@ private void handleSourceFailed() {
         if (pipManager != null) {
             pipManager.setPipEnabled(pipEnable);
         }
+
         SettingsActivity.logOperation("【设置】EPG开关：" + epg_enable);
         SettingsActivity.logOperation("【设置】切台反转：" + channel_reverse);
         SettingsActivity.logOperation("【设置】数字选台：" + number_channel_enable);
         SettingsActivity.logOperation("【设置】自动更新源：" + auto_update_source);
         SettingsActivity.logOperation("【设置】画中画开关：" + pipEnable);
     }
+
     // ====================================================================
     // 获取反转状态
     // ====================================================================
     public boolean isChannelReverse() {
         return channel_reverse;
     }
+
     // ====================================================================
     // 兼容层：旧的 playChannel(int) 方法
     // ====================================================================
@@ -719,25 +956,32 @@ private void handleSourceFailed() {
         Channel channel = channelSourceList.get(index);
         playChannel(channel, index);
     }
+
     // ====================== 播放频道（内部方法） ======================
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null) return;
+
         currentPlayIndex = index;
+
         log("========================================");
         log("【播放】频道名称：" + channel.getName());
         log("【播放】播放地址：" + channel.getPlayUrl());
         log("【播放】当前索引：" + index);
         log("========================================");
+
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
         mPlayerManager.playUrl(channel.getPlayUrl());
+
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         infoDisplayManager.showInfoBar(channel, live);
         infoDisplayManager.showChannelNum(index + 1);
+
         try {
             appConfig.addRecentChannel(channel.getName());
         } catch (Exception e) {
         }
+
         // ====================================================================
         // ✅ 2026-06-25 新增：成功切换频道，重置连续失效计数
         // ====================================================================
@@ -746,6 +990,7 @@ private void handleSourceFailed() {
         // 只要有一个频道能成功播放，就说明不是所有源都失效了，
         // 重置计数，下次遇到失效频道还可以继续自动跳过。
         mConsecutiveFailedCount = 0;
+
         // ✅ 画中画模式下同步频道信息到管理器
         if (pipManager != null && pipManager.isInPipMode() && channel != null) {
             try {
@@ -757,6 +1002,7 @@ private void handleSourceFailed() {
             }
         }
     }
+
     // ====================================================================
     // 兼容层：旧的 togglePanel() 方法
     // ====================================================================
@@ -764,18 +1010,21 @@ private void handleSourceFailed() {
         channelPanelController.togglePanel();
         syncRemoteMode();
     }
+
     // ====================================================================
     // 兼容层：旧的 playPrev() 方法
     // ====================================================================
     public void playPrev() {
         channelPanelController.playPrev();
     }
+
     // ====================================================================
     // 兼容层：旧的 playNext() 方法
     // ====================================================================
     public void playNext() {
         channelPanelController.playNext();
     }
+
     // ====================== 返回键处理 ======================
     @Override
     public void onBackPressed() {
@@ -784,22 +1033,27 @@ private void handleSourceFailed() {
             moveTaskToBack(false);
             return;
         }
+
         if (channelNumberManager.isInputting()) {
             channelNumberManager.cancelInput();
             return;
         }
+
         if (remoteManager != null) {
             if (remoteManager.dispatchKeyEvent(KeyEvent.KEYCODE_BACK)) {
                 return;
             }
         }
+
         if (channelPanelController.handleBackPressed()) {
             playerView.requestFocus();
             syncRemoteMode();
             return;
         }
+
         super.onBackPressed();
     }
+
     // ====================================================================
     // ✅ 2026-06-25 补充：handleDirectionKey 说明注释
     // ====================================================================
@@ -848,6 +1102,7 @@ private void handleSourceFailed() {
                 return false;
         }
     }
+
     // ====================== 按键分发 ======================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -859,6 +1114,7 @@ private void handleSourceFailed() {
             }
             return super.onKeyDown(keyCode, event);
         }
+
         // ====================================================================
         // ✅ 2026-06-25 修复：重置频道面板自动隐藏计时
         // ====================================================================
@@ -876,17 +1132,24 @@ private void handleSourceFailed() {
         // 用户每次按键操作后，自动隐藏计时器都会重新开始计时，
         // 面板会在用户停止操作 5 秒后自动隐藏。
         resetPanelAutoHide();
+
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
+
         if (channelNumberManager.handleNumberKey(keyCode)) return true;
+
         if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
             return true;
         }
+
         if (handleDirectionKey(keyCode)) return true;
+
         if (keyEventManager.dispatchKey(keyCode)) return true;
+
         return super.onKeyDown(keyCode, event);
     }
+
     // ====================================================================
     // ✅ 2026-06-25 修复：从 cancelPanelAutoHide 改成 resetPanelAutoHide
     // ====================================================================
@@ -919,6 +1182,7 @@ private void handleSourceFailed() {
         // ✅ 2026-06-25 新增：接入操作日志
         SettingsActivity.logOperation("【面板】重置自动隐藏计时（5秒后隐藏）");
     }
+
     // ====================================================================
     // 保留旧方法名，防止其他地方调用
     // ====================================================================
@@ -929,16 +1193,19 @@ private void handleSourceFailed() {
     private void cancelPanelAutoHide() {
         resetPanelAutoHide();
     }
+
     // ====================== 打开设置页面 ======================
     public void openSettings() {
         isOpeningSettings = true;
         appCoreManager.beforeOpenSettings();
         startActivity(new Intent(this, SettingsActivity.class));
     }
+
     // ====================== 接收远程配置 ======================
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
     }
+
     // ====================================================================
     // ✅ 画中画：用户按 Home 键时自动进入画中画（集成版）
     // 
@@ -951,27 +1218,33 @@ private void handleSourceFailed() {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
+
         SettingsActivity.logOperation("【画中画排查】========== 开始 ==========");
         SettingsActivity.logOperation("【画中画排查】onUserLeaveHint 被调用");
+
         // 打开设置页面时不进入画中画（避免从主页面进入设置时触发）
         if (isOpeningSettings) {
             SettingsActivity.logOperation("【画中画排查】打开设置页面，跳过");
             SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
             return;
         }
+
         if (pipManager == null) {
             SettingsActivity.logOperation("【画中画排查】❌ pipManager 为 null");
             SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
             return;
         }
+
         // ✅ 使用 PictureInPictureManager 的统一判断
         boolean shouldEnter = pipManager.shouldEnterPip();
+
         // 输出详细状态（用于排查）
         SettingsActivity.logOperation("【画中画排查】MainActivity开关状态：" + pipEnable);
         SettingsActivity.logOperation("【画中画排查】设备支持：" + pipManager.isPipSupported());
         SettingsActivity.logOperation("【画中画排查】PIP管理器开关：" + pipManager.isPipEnabled());
         SettingsActivity.logOperation("【画中画排查】已在画中画模式：" + pipManager.isInPipMode());
         SettingsActivity.logOperation("【画中画排查】正在进入画中画：" + pipManager.isPipEntering());
+
         if (shouldEnter) {
             SettingsActivity.logOperation("【画中画排查】所有条件满足，尝试进入画中画...");
             try {
@@ -982,10 +1255,12 @@ private void handleSourceFailed() {
                     pipBuilder.setAspectRatio(new Rational(16, 9));
                     pipParams = pipBuilder.build();
                 }
+
                 // 同步播放状态到管理器
                 if (mPlayerManager != null) {
                     pipManager.updatePlayState(true);
                 }
+
                 // ✅ 调用管理器进入画中画
                 boolean result = pipManager.enterPictureInPicture(this, pipParams);
                 SettingsActivity.logOperation("【画中画排查】进入结果：" + (result ? "✅ 成功" : "❌ 失败"));
@@ -996,8 +1271,10 @@ private void handleSourceFailed() {
         } else {
             SettingsActivity.logOperation("【画中画排查】❌ 条件不满足，不进入画中画");
         }
+
         SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
     }
+
     // ====================================================================
     // ✅ 画中画模式变化回调（集成版 + 详细尺寸日志）
     // 
@@ -1026,7 +1303,9 @@ private void handleSourceFailed() {
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode);
+
         SettingsActivity.logOperation("【画中画】模式变化 → " + (isInPictureInPictureMode ? "进入" : "退出"));
+
         // ✅ 通知管理器状态变化
         if (pipManager != null) {
             try {
@@ -1035,15 +1314,19 @@ private void handleSourceFailed() {
                 SettingsActivity.logOperation("【画中画】模式变化回调失败：" + e.getMessage());
             }
         }
+
         if (isInPictureInPictureMode) {
             // ================================================================
             // 进入画中画
             // ================================================================
             SettingsActivity.logOperation("【画中画】========== 进入画中画 ==========");
+
             // 隐藏所有UI，避免小窗显示多余内容
             hideAllUiForPip();
+
             // 保持屏幕常亮
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
             // 确保播放器在播放（防止 onPause 暂停了）
             if (mPlayerManager != null) {
                 try {
@@ -1053,14 +1336,17 @@ private void handleSourceFailed() {
                     SettingsActivity.logOperation("【画中画】恢复播放失败：" + e.getMessage());
                 }
             }
+
             // 记录进入画中画时的尺寸
             logPipViewSize("进入画中画时", playerView);
+
             SettingsActivity.logOperation("【画中画】================================");
         } else {
             // ================================================================
             // ✅ 退出画中画：强制恢复全屏（带详细尺寸日志）
             // ================================================================
             SettingsActivity.logOperation("【画中画】========== 退出画中画 ==========");
+
             // ✅ 使用管理器处理退出逻辑（判断是否需要释放播放器）
             if (pipManager != null) {
                 pipManager.handleExitPip(new Runnable() {
@@ -1071,6 +1357,7 @@ private void handleSourceFailed() {
                     }
                 });
             }
+
             // ================================================================
             // 📊 日志点1：刚退出画中画时的初始尺寸
             // 作用：记录系统刚回调退出时，PlayerView 还是小窗尺寸
@@ -1085,6 +1372,7 @@ private void handleSourceFailed() {
             
             // 打印窗口和屏幕尺寸（作为参考基准）
             logPipWindowSize();
+
             // ================================================================
             // 1. 重新应用全屏设置
             // 作用：确保窗口标志、刘海屏设置等都恢复全屏状态
@@ -1093,12 +1381,14 @@ private void handleSourceFailed() {
                 SettingsActivity.logOperation("【画中画尺寸】执行 displayManager.reapplyFullScreen()");
                 displayManager.reapplyFullScreen();
             }
+
             // ================================================================
             // 📊 日志点2：reapplyFullScreen 后的尺寸
             // 作用：检查全屏设置是否生效
             // ================================================================
             SettingsActivity.logOperation("【画中画尺寸】===== 2. reapplyFullScreen 后 =====");
             logPipViewSize("PlayerView", playerView);
+
             // ================================================================
             // 2. 强制刷新 PlayerView 布局
             // 作用：通过 requestLayout + invalidate 强制重新测量和绘制
@@ -1126,6 +1416,7 @@ private void handleSourceFailed() {
                         }
                     }
                 });
+
                 // 延迟刷新（第二重保险，确保系统尺寸变化完成后再刷新）
                 playerView.postDelayed(new Runnable() {
                     @Override
@@ -1133,11 +1424,13 @@ private void handleSourceFailed() {
                         try {
                             playerView.requestLayout();
                             playerView.invalidate();
+
                             // 重新绑定播放器，确保渲染尺寸正确
                             if (mPlayerManager != null) {
                                 mPlayerManager.attachPlayerView(playerView);
                                 mPlayerManager.resume();
                             }
+
                             SettingsActivity.logOperation("【画中画】✅ 延迟刷新 PlayerView + 重新绑定");
                             
                             // ================================================================
@@ -1145,7 +1438,7 @@ private void handleSourceFailed() {
                             // 作用：最终检查尺寸是否恢复正常
                             // ================================================================
                             SettingsActivity.logOperation("【画中画尺寸】===== 4. 延迟200ms刷新 + 重新绑定后 =====");
-                                                        logPipViewSize("PlayerView", playerView);
+                            logPipViewSize("PlayerView", playerView);
                             
                             if (playerView.getParent() instanceof View) {
                                 logPipViewSize("父布局", (View) playerView.getParent());
@@ -1159,8 +1452,10 @@ private void handleSourceFailed() {
                     }
                 }, 200);
             }
+
             // 3. 同步遥控器模式
             syncRemoteMode();
+
             // 4. 恢复信息栏显示
             if (infoDisplayManager != null && channelSourceList.size() > currentPlayIndex) {
                 Channel currChannel = channelSourceList.get(currentPlayIndex);
@@ -1168,12 +1463,15 @@ private void handleSourceFailed() {
                 infoDisplayManager.showInfoBar(currChannel, liveInfo);
                 infoDisplayManager.showChannelNum(currentPlayIndex + 1);
             }
+
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             resumeCurrentChannel();
+
             SettingsActivity.logOperation("【画中画】退出画中画完成");
             SettingsActivity.logOperation("【画中画】================================");
         }
     }
+
     // ====================================================================
     // ✅ 辅助方法：打印 View 的详细尺寸信息（接入操作日志）
     // 
@@ -1201,6 +1499,7 @@ private void handleSourceFailed() {
             
             SettingsActivity.logOperation("【画中画尺寸】" + tag + "尺寸：宽=" + view.getWidth() 
                 + "，高=" + view.getHeight());
+
             // 打印布局参数
             ViewGroup.LayoutParams lp = view.getLayoutParams();
             if (lp != null) {
@@ -1214,6 +1513,7 @@ private void handleSourceFailed() {
                 SettingsActivity.logOperation("【画中画尺寸】" + tag + "布局参数：width=" + widthStr 
                     + "，height=" + heightStr);
             }
+
             // 打印可见性
             int visibility = view.getVisibility();
             String visStr = visibility == View.VISIBLE ? "VISIBLE" :
@@ -1223,6 +1523,7 @@ private void handleSourceFailed() {
             SettingsActivity.logOperation("【画中画尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
         }
     }
+
     // ====================================================================
     // ✅ 辅助方法：打印窗口和屏幕尺寸（接入操作日志）
     // 
@@ -1238,10 +1539,12 @@ private void handleSourceFailed() {
             Rect rect = new Rect();
             getWindow().getDecorView().getWindowVisibleDisplayFrame(rect);
             SettingsActivity.logOperation("【画中画尺寸】窗口可见区域：宽=" + rect.width() + "，高=" + rect.height());
+
             // 屏幕物理尺寸
             DisplayMetrics metrics = new DisplayMetrics();
             getWindowManager().getDefaultDisplay().getMetrics(metrics);
             SettingsActivity.logOperation("【画中画尺寸】屏幕尺寸：宽=" + metrics.widthPixels + "，高=" + metrics.heightPixels);
+
             // DecorView 尺寸（Activity 根视图）
             View decorView = getWindow().getDecorView();
             SettingsActivity.logOperation("【画中画尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
@@ -1249,6 +1552,7 @@ private void handleSourceFailed() {
             SettingsActivity.logOperation("【画中画尺寸】获取窗口尺寸失败：" + e.getMessage());
         }
     }
+
     // ====================================================================
     // 日志方法
     // ====================================================================
@@ -1256,6 +1560,7 @@ private void handleSourceFailed() {
         logList.add(msg);
         Log.d("MainActivity", msg);
     }
+
     // ====================== 生命周期方法 ======================
     // ====================================================================
     // ✅ onPause（集成版：画中画模式下保持播放）
@@ -1272,8 +1577,10 @@ private void handleSourceFailed() {
     @Override
     protected void onPause() {
         super.onPause();
+
         // 先调用 onPause（让其他逻辑正常执行，如注销广播、停止加载等）
         appCoreManager.onPause();
+
         // ✅ 画中画模式下，立即恢复播放（防止被 onPause 暂停了）
         if (pipManager != null && (pipManager.isInPipMode() || pipManager.isPipEntering())) {
             try {
@@ -1286,6 +1593,7 @@ private void handleSourceFailed() {
             }
         }
     }
+
     // ====================================================================
     // ✅ 新增：onStop（标记停止状态，参考 TVBox 实现）
     // 
@@ -1301,12 +1609,14 @@ private void handleSourceFailed() {
     @Override
     protected void onStop() {
         super.onStop();
+
         // ✅ 通知管理器：onStop 已被调用
         if (pipManager != null) {
             pipManager.setStopCalled(true);
             SettingsActivity.logOperation("【画中画】onStop 被调用");
         }
     }
+
     // ====================================================================
     // ✅ onResume（集成版：重置停止标记）
     // 
@@ -1323,22 +1633,29 @@ private void handleSourceFailed() {
     @Override
     protected void onResume() {
         super.onResume();
+
         isOpeningSettings = false;
         appCoreManager.onResume();
+
         // ✅ 重置 onStop 标记（用户返回应用了）
         if (pipManager != null) {
             pipManager.setStopCalled(false);
         }
+
         // 从设置页返回，重新加载开关
         loadSettings();
+
         screenRatioManager.apply();
         displayManager.reapplyFullScreen();
+
         // 非画中画模式下恢复播放
         if (pipManager == null || !pipManager.isInPipMode()) {
             new Handler(Looper.getMainLooper()).postDelayed(this::resumeCurrentChannel, 200);
         }
+
         syncRemoteMode();
     }
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -1347,12 +1664,15 @@ private void handleSourceFailed() {
         }
         appCoreManager.onWindowFocusChanged(hasFocus);
     }
-        @Override
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+
         if (mPanelAutoHideHandler != null) {
             mPanelAutoHideHandler.removeCallbacks(mPanelAutoHideRunnable);
         }
+
         if (infoDisplayManager != null) {
             infoDisplayManager.release();
         }
@@ -1371,6 +1691,28 @@ private void handleSourceFailed() {
         if (pipManager != null) {
             pipManager.release();
         }
+
+        // ====================================================================
+        // ✅ 2026-06-25 新增：注销解码器模式广播接收器
+        // ====================================================================
+        // 【为什么要注销？】
+        // 广播接收器如果不注销，会导致内存泄漏。
+        // Activity 销毁时必须注销在 onCreate 中注册的广播接收器。
+        if (decoderModeReceiver != null) {
+            try {
+                unregisterReceiver(decoderModeReceiver);
+                decoderModeReceiver = null;
+                SettingsActivity.logOperation("【解码器】广播接收器已注销");
+            } catch (Exception e) {
+                // 忽略，可能已经被注销了
+            }
+        }
+
+        if (mPlayerManager != null) {
+            mPlayerManager.release();
+        }
+
         mInstance = null;
+        SettingsActivity.logOperation("【系统】APP退出");
     }
 }
