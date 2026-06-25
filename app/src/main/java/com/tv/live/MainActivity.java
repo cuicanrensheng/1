@@ -359,7 +359,7 @@ public class MainActivity extends AppCompatActivity {
         ChannelPanelController panelController = lifecycleManager.getChannelPanelController();
         InfoDisplayManager infoDisplayManager = lifecycleManager.getInfoDisplayManager();
         TVPlayerManager playerManager = lifecycleManager.getPlayerManager();
-        View playerView = lifecycleManager.getPlayerView();
+        PlayerView playerView = lifecycleManager.getPlayerView();
 
         if (pipManager != null) {
             pipManager.handleEnterPip(
