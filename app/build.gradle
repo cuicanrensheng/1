@@ -218,31 +218,19 @@ dependencies {
 
     // ====================================================================
 
-    // ✅ Media3 核心播放器
-
-    implementation "androidx.media3:media3-exoplayer:1.5.0"
-
-    // ✅ Media3 UI 组件（PlayerView 等）
-
-    implementation "androidx.media3:media3-ui:1.5.0"
-
-    // ✅ Media3 HLS 支持（直播流）
-
-    implementation "androidx.media3:media3-exoplayer-hls:1.5.0"
-
-    // ✅ Media3 DASH 支持
-
-    implementation "androidx.media3:media3-exoplayer-dash:1.5.0"
-
-    // ✅ Media3 通用工具
-
-    implementation "androidx.media3:media3-common:1.5.0"
-
-    // ✅ Media3 数据源
-
-    implementation "androidx.media3:media3-datasource:1.5.0"
-
     // ====================================================================
+     // ✅ Media3 核心播放器
+    implementation "androidx.media3:media3-exoplayer:1.7.1"
+    // ✅ Media3 UI 组件（PlayerView 等）
+    implementation "androidx.media3:media3-ui:1.7.1"
+    // ✅ Media3 HLS 支持（直播流）
+    implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
+    // ✅ Media3 DASH 支持
+    implementation "androidx.media3:media3-exoplayer-dash:1.7.1"
+    // ✅ Media3 通用工具
+    implementation "androidx.media3:media3-common:1.7.1"
+    // ✅ Media3 数据源
+    implementation "androidx.media3:media3-datasource:1.7.1"
 
     // ✅ 2026-06-24 修改：FFmpeg 用自己编译的 AAR
 
