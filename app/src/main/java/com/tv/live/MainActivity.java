@@ -545,45 +545,45 @@ public class MainActivity extends AppCompatActivity {
         });
     }
     // ====================================================================
-    // ✅ 2026-06-25 新增：处理源失效（自动切台）
-    // ====================================================================
-    // 【功能说明】
-    // 当当前频道的直播源失效时，自动切换到下一个频道。
-    //
-    // 【防无限循环机制】
-    // - 记录连续失效的频道数量
-    // - 最多连续跳过 10 个失效频道
-    // - 超过限制后停止自动跳过，提示用户
-    //
-    // 【什么时候重置计数？】
-    // 成功播放一个频道后，重置连续失效计数为 0。
-    // （在 playChannel() 方法里重置）
-    private void handleSourceFailed() {
-        mConsecutiveFailedCount++;
-        String channelName = "";
-        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-            Channel ch = channelSourceList.get(currentPlayIndex);
-            if (ch != null) {
-                channelName = ch.getName();
-            }
+// ✅ 2026-06-25 新增：处理源失效（自动切台）
+// ====================================================================
+// 【功能说明】
+// 当当前频道的直播源失效时，自动切换到下一个频道。
+//
+// 【防无限循环机制】
+// - 记录连续失效的频道数量
+// - 最多连续跳过 10 个失效频道
+// - 超过限制后停止自动跳过，提示用户
+//
+// 【什么时候重置计数？】
+// 成功播放一个频道后，重置连续失效计数为 0。
+// （在 playChannel() 方法里重置）
+private void handleSourceFailed() {
+    mConsecutiveFailedCount++;
+    String channelName = "";
+    if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+        Channel ch = channelSourceList.get(currentPlayIndex);
+        if (ch != null) {
+            channelName = ch.getName();
         }
-        SettingsActivity.logOperation("【自动切台】频道「" + channelName 
-            + "」源失效，连续失效第 " + mConsecutiveFailedCount + " 个");
-        // 检查是否超过最大连续跳过次数
-        if (mConsecutiveFailedCount >= MAX_CONSECUTIVE_SKIP) {
-            SettingsActivity.logOperation("【自动切台】已连续跳过 " 
-                + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过");
-            // 提示用户
-            if (infoDisplayManager != null) {
-                infoDisplayManager.showToast("已跳过 " + MAX_CONSECUTIVE_SKIP 
-                    + " 个失效频道，请检查直播源");
-            }
-            return;
-        }
-        // 自动切换到下一个频道
-        SettingsActivity.logOperation("【自动切台】自动切换到下一个频道");
-        channelPanelController.switchDown();
     }
+    SettingsActivity.logOperation("【自动切台】频道「" + channelName
+        + "」源失效，连续失效第 " + mConsecutiveFailedCount + " 个");
+
+    // 检查是否超过最大连续跳过次数
+    if (mConsecutiveFailedCount >= MAX_CONSECUTIVE_SKIP) {
+        SettingsActivity.logOperation("【自动切台】已连续跳过 "
+            + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过");
+        // ✅ 修复：InfoDisplayManager 没有 showToast 方法，直接用 Toast
+        Toast.makeText(MainActivity.this, "已跳过 " + MAX_CONSECUTIVE_SKIP
+            + " 个失效频道，请检查直播源", Toast.LENGTH_SHORT).show();
+        return;
+    }
+
+    // 自动切换到下一个频道
+    SettingsActivity.logOperation("【自动切台】自动切换到下一个频道");
+    channelPanelController.switchDown();
+}
     // ====================================================================
     // 数字选台管理器初始化
     // ====================================================================
