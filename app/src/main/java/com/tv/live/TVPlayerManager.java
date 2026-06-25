@@ -25,7 +25,9 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
+
 import com.tv.live.RedirectLoggingHttpDataSource;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -82,6 +84,17 @@ import java.util.Map;
  * 【向后兼容】
  * 保留 setSoftwareDecoder(boolean) 方法，内部调用 setDecoderMode()，
  * 确保旧代码不用改也能正常运行。
+ *
+ * 【2026-06-25 修复：软解模式不生效问题】
+ * 【问题描述】
+ * 用户选择软解模式后，实际播放时还是用的系统硬解。
+ * 【原因分析】
+ * 1. setEnableDecoderFallback(true) 导致 FFmpeg 失败时静默降级到硬解
+ * 2. FFmpeg 扩展可能未正确加载（so 库缺失、版本不匹配等）
+ * 【修复方案】
+ * 1. 软解模式下关闭解码器降级，让问题暴露出来
+ * 2. 增加 FFmpeg 可用性检测日志
+ * 3. 播放时检测实际解码器，与设置不符时给出警告
  */
 public class TVPlayerManager {
 
@@ -410,6 +423,12 @@ public class TVPlayerManager {
      * - AUTO → EXTENSION_RENDERER_MODE_ON（硬解优先，FFmpeg 备用）
      * - HARD → EXTENSION_RENDERER_MODE_OFF（只用硬解，不用 FFmpeg）
      * - SOFT → EXTENSION_RENDERER_MODE_PREFER（优先 FFmpeg 软解）
+     *
+     * 【2026-06-25 修复：软解模式不生效问题】
+     * 1. 软解模式下关闭解码器降级（setEnableDecoderFallback(false)）
+     *    防止 FFmpeg 失败时静默降级到硬解，让问题暴露出来
+     * 2. 增加 FFmpeg 可用性检测日志
+     *    初始化后检测系统中 FFmpeg 解码器的数量，判断 FFmpeg 是否正确加载
      */
     private void initPlayer() {
         // 创建渲染器工厂
@@ -433,23 +452,34 @@ public class TVPlayerManager {
                 //
                 // 【缺点】
                 // 性能稍差，耗电多一些
+
                 renderersFactory.setExtensionRendererMode(
                         DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
                 );
 
-                // 启用解码器降级（软解不行自动降级到系统软解）
-                renderersFactory.setEnableDecoderFallback(true);
+                // ====================================================================
+                // ✅ 2026-06-25 修复：软解模式下关闭解码器降级
+                // ====================================================================
+                // 【为什么要关闭降级？】
+                // 原来 setEnableDecoderFallback(true) 会导致：
+                // FFmpeg 初始化失败 → 自动降级到系统硬解 → 用户以为软解生效了
+                // 结果就是"设置了软解，但实际还是硬解"。
+                //
+                // 【关闭降级后的行为】
+                // FFmpeg 失败 → 直接报错（播放失败）→ 用户能看到问题
+                // 虽然可能导致某些频道播放失败，但至少能暴露真实问题，
+                // 而不是被"假软解"欺骗。
+                //
+                // 【注意】
+                // 如果你的设备上 FFmpeg 确实不可用，开启这个可能导致某些频道播放失败。
+                // 但这样至少能知道真实情况，方便后续排查 FFmpeg 加载问题。
+                renderersFactory.setEnableDecoderFallback(false);
 
-                try {
-                    // 设置线程数（软解用多线程更快）
-                    renderersFactory.setExtensionRendererMode(
-                            DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
-                } catch (Exception e) {
-                    Log.e(TAG, "设置软解码失败", e);
-                }
+                // 删掉原来重复的 setExtensionRendererMode 调用（代码里有两次）
+                // 原来的 try-catch 块里又调用了一次，是冗余的，现在去掉
 
-                Log.d(TAG, "【FFmpeg】软解码模式：优先使用 FFmpeg 解码器");
-                SettingsActivity.logOperation("【解码器】初始化：FFmpeg 软解码模式（优先）");
+                Log.d(TAG, "【FFmpeg】软解码模式：优先使用 FFmpeg 解码器（降级已关闭）");
+                SettingsActivity.logOperation("【解码器】初始化：FFmpeg 软解码模式（优先，降级已关闭）");
                 break;
 
             case DECODER_MODE_HARD:
@@ -465,10 +495,10 @@ public class TVPlayerManager {
                 //
                 // 【缺点】
                 // 兼容性一般，有些特殊格式的直播源可能不支持
+
                 renderersFactory.setExtensionRendererMode(
                         DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                 );
-
                 // 禁用解码器降级（硬解不行就报错，不用软解兜底）
                 renderersFactory.setEnableDecoderFallback(false);
 
@@ -495,10 +525,10 @@ public class TVPlayerManager {
                 // 2. 特殊格式自动用 FFmpeg 软解，兼容性好
                 // 3. 用户无感知，自动切换
                 // 4. 配合自动切换解码器功能，卡顿了还能主动切软解
+
                 renderersFactory.setExtensionRendererMode(
                         DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
                 );
-
                 // 启用解码器降级（硬解不行自动降级到软解）
                 renderersFactory.setEnableDecoderFallback(true);
 
@@ -548,6 +578,81 @@ public class TVPlayerManager {
                 .setLoadControl(loadControl)
                 .build();
 
+        // ====================================================================
+        // ✅ 2026-06-25 新增：检测 FFmpeg 扩展是否可用
+        // ====================================================================
+        // 【作用】
+        // 初始化播放器后，检测系统中可用的解码器，
+        // 统计 FFmpeg 解码器的数量，判断 FFmpeg 扩展是否正确加载。
+        //
+        // 【为什么需要这个检测？】
+        // 用户反馈"设置了软解，但实际还是硬解"，
+        // 很可能是 FFmpeg 扩展没有正确加载（so 库缺失、版本不匹配等）。
+        // 加上这个检测后，可以从日志里直接看到 FFmpeg 是否可用。
+        //
+        // 【检测结果说明】
+        // - FFmpeg 解码器数量 > 0 → FFmpeg 扩展加载成功
+        // - FFmpeg 解码器数量 = 0 → FFmpeg 扩展未加载，软解模式不会生效
+        //
+        // 【检测方法】
+        // 通过 Android 的 MediaCodecList API 获取所有可用的解码器，
+        // 然后筛选名称中包含 "ffmpeg" 的解码器。
+        // FFmpeg 扩展的解码器名称通常以 "OMX.ffmpeg." 或 "ffmpeg" 开头。
+        try {
+            // 获取所有可用的解码器
+            android.media.MediaCodecList codecList = 
+                new android.media.MediaCodecList(android.media.MediaCodecList.ALL_CODECS);
+            android.media.MediaCodecInfo[] codecs = codecList.getCodecInfos();
+
+            int ffmpegCount = 0;
+            int systemCount = 0;
+            StringBuilder ffmpegDecoderNames = new StringBuilder();
+
+            for (android.media.MediaCodecInfo codec : codecs) {
+                // 只统计视频解码器（跳过编码器）
+                if (codec.isEncoder()) continue;
+
+                String name = codec.getName();
+                String lowerName = name.toLowerCase();
+
+                // 判断是否是 FFmpeg 解码器
+                // FFmpeg 扩展的解码器名称通常包含 "ffmpeg"
+                if (lowerName.contains("ffmpeg")) {
+                    ffmpegCount++;
+                    if (ffmpegCount <= 5) { // 只记录前 5 个，避免日志太长
+                        if (ffmpegCount > 1) ffmpegDecoderNames.append(", ");
+                        ffmpegDecoderNames.append(name);
+                    }
+                    Log.d(TAG, "【FFmpeg】发现 FFmpeg 解码器：" + name);
+                } else {
+                    systemCount++;
+                }
+            }
+
+            // 输出统计结果
+            Log.d(TAG, "【FFmpeg】解码器统计：FFmpeg=" + ffmpegCount + " 个，系统=" + systemCount + " 个");
+            if (ffmpegCount > 0 && ffmpegCount <= 5) {
+                Log.d(TAG, "【FFmpeg】FFmpeg 解码器列表：" + ffmpegDecoderNames.toString());
+            } else if (ffmpegCount > 5) {
+                Log.d(TAG, "【FFmpeg】FFmpeg 解码器数量：" + ffmpegCount + " 个（仅显示前 5 个：" 
+                    + ffmpegDecoderNames.toString() + " ...）");
+            }
+
+            // 根据检测结果输出警告或成功信息
+            if (ffmpegCount == 0) {
+                Log.w(TAG, "【FFmpeg】⚠️ 未发现任何 FFmpeg 解码器，FFmpeg 扩展可能未正确加载！");
+                Log.w(TAG, "【FFmpeg】可能原因：so 库缺失 / 版本不匹配 / 架构不支持 / 混淆删除");
+                SettingsActivity.logOperation("【解码器】⚠️ 警告：未发现 FFmpeg 解码器，软解可能不生效");
+            } else {
+                Log.d(TAG, "【FFmpeg】✅ FFmpeg 扩展加载成功，共 " + ffmpegCount + " 个解码器");
+                SettingsActivity.logOperation("【解码器】✅ FFmpeg 扩展加载成功，解码器数：" + ffmpegCount);
+            }
+
+        } catch (Exception e) {
+            // 检测失败不影响播放，只是少了诊断信息
+            Log.e(TAG, "【FFmpeg】检测解码器失败：" + e.getMessage());
+        }
+
         // 初始化播放监听器
         initPlayerListener();
 
@@ -561,6 +666,7 @@ public class TVPlayerManager {
     // ====================================================================
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
+
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
@@ -599,10 +705,41 @@ public class TVPlayerManager {
                             boolean isFfmpeg = decoderName != null
                                     && decoderName.toLowerCase().contains("ffmpeg");
                             String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
+
                             Log.d(TAG, "【解码器】当前视频解码器：" + decoderName
                                     + "（" + decoderType + "）");
                             SettingsActivity.logOperation("【解码器】当前使用：" + decoderType
                                     + "（" + decoderName + "）");
+
+                            // ================================================================
+                            // ✅ 2026-06-25 新增：软解模式未生效警告
+                            // ================================================================
+                            // 【作用】
+                            // 如果用户设置了软解模式，但实际播放用的还是系统硬解，
+                            // 就输出警告日志，让用户知道软解没有生效。
+                            //
+                            // 【为什么会出现这种情况？】
+                            // 1. FFmpeg 扩展未正确加载（最常见）
+                            // 2. FFmpeg 不支持该视频格式
+                            // 3. 解码器降级导致静默切换（虽然我们已经关闭了降级，但保险起见还是加上）
+                            //
+                            // 【用户看到这个警告怎么办？】
+                            // 检查 FFmpeg AAR 是否正确导入、so 库是否包含设备架构、
+                            // Media3 版本和 FFmpeg 版本是否匹配。
+                            if (mDecoderMode == DECODER_MODE_SOFT && !isFfmpeg) {
+                                Log.w(TAG, "【解码器】⚠️ 警告：设置了软解模式，但实际使用的是系统硬解！");
+                                Log.w(TAG, "【解码器】可能原因：FFmpeg 扩展未加载 / 不支持该格式 / 解码器降级");
+                                SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效，实际使用系统硬解");
+                            }
+
+                            // ================================================================
+                            // ✅ 2026-06-25 新增：硬解模式未生效警告
+                            // ================================================================
+                            // 同理，如果设置了硬解模式，但实际用了 FFmpeg，也给出警告
+                            if (mDecoderMode == DECODER_MODE_HARD && isFfmpeg) {
+                                Log.w(TAG, "【解码器】⚠️ 警告：设置了硬解模式，但实际使用的是 FFmpeg 软解！");
+                                SettingsActivity.logOperation("【解码器】⚠️ 警告：硬解模式未生效，实际使用 FFmpeg 软解");
+                            }
                         }
                     } catch (Exception e) {
                         // 忽略，获取解码器信息失败不影响播放
@@ -693,6 +830,7 @@ public class TVPlayerManager {
                     // 确保空闲状态时屏幕常亮会被关闭。
                     updateWakeLock(false);
                 }
+
                 // ⚠️ 注意：去掉了原来的 else 分支
                 // 因为四个状态（READY/BUFFERING/ENDED/IDLE）已经覆盖了所有情况，
                 // else 分支永远不会执行，是死代码。
@@ -735,6 +873,7 @@ public class TVPlayerManager {
                 notifyLiveInfoUpdate();
             }
         };
+
         player.addListener(playerListener);
     }
 
@@ -1324,8 +1463,7 @@ public class TVPlayerManager {
                         info.bitrate = String.format(Locale.getDefault(), "%.1f Mbps", mbps);
                     }
                 }
-
-                Format audioFormat = player.getAudioFormat();
+                                Format audioFormat = player.getAudioFormat();
                 if (audioFormat != null) {
                     info.audio = audioFormat.sampleMimeType;
                     if (audioFormat.sampleRate > 0) {
