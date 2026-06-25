@@ -272,4 +272,3 @@ public class LifecycleManager {
                 channelPanelController.switchDown();
             }
             @Override
-           
