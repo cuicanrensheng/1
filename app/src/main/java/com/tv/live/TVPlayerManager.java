@@ -25,9 +25,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
-
-import com.tv.live.datasource.RedirectLoggingHttpDataSource;
-
+import com.tv.live.RedirectLoggingHttpDataSource;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
