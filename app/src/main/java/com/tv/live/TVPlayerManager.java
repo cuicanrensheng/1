@@ -97,6 +97,22 @@ import java.util.Map;
  * 5. 卡顿检测（卡住自动重试）
  * 6. 自动重试（重试次数、原因）
  * 7. 切换解码器（硬解↔软解）
+ * 
+ * 【2026-06-25 新增：自动切换解码器（硬解→软解）】
+ * 【修改说明】
+ * 播放开始后 30 秒内，如果缓冲次数超过 2 次，
+ * 自动从硬解切换到软解试试，只切一次，避免反复切换。
+ * 
+ * 【为什么需要这个功能？】
+ * 个别直播源用硬解会一直缓冲、卡顿，
+ * 但切换到软解（FFmpeg）后可能就正常了（兼容性更好）。
+ * 用户手动切换太麻烦，自动切换更智能。
+ * 
+ * 【为什么只切一次？】
+ * 避免反复切换（硬解→软解→硬解→软解...），
+ * 反复切换会导致播放频繁中断，体验更差。
+ * 切到软解后，不管效果好不好，都保持软解，
+ * 用户可以手动切回去。
  */
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerLog";
@@ -192,6 +208,51 @@ public class TVPlayerManager {
      * 性能统计的Handler
      */
     private final Handler performanceHandler = new Handler(Looper.getMainLooper());
+    // ====================================================================
+    // ✅ 2026-06-25 新增：自动切换解码器相关变量
+    // ====================================================================
+    /**
+     * 是否已经自动切换过解码器（只切一次，避免反复切换）
+     * 
+     * 【作用】
+     * 标记当前频道是否已经自动切换过解码器。
+     * 每个频道只有一次自动切换机会，
+     * 切到软解后就不再切回来了，避免反复横跳。
+     * 
+     * 【什么时候重置？】
+     * 切换频道时（resetPerformanceStats）会重置这个标记，
+     * 每个新频道都有一次自动切换的机会。
+     * 用户手动切换到硬解时，也会重置（给用户一次重试机会）。
+     */
+    private boolean hasSwitchedDecoder = false;
+    /**
+     * 自动切换解码器的缓冲次数阈值
+     * 
+     * 【含义】
+     * 播放开始后 30 秒内，如果缓冲次数超过这个值，
+     * 就自动从硬解切换到软解。
+     * 
+     * 【为什么是 2 次？】
+     * 正常的直播源，30 秒内一般只会缓冲 0-1 次（开头的一次），
+     * 如果 30 秒内缓冲超过 2 次，说明这个源用硬解有问题，
+     * 试试软解可能会好一些（虽然软解性能差，但兼容性好）。
+     */
+    private static final int AUTO_SWITCH_BUFFER_THRESHOLD = 2;
+    /**
+     * 自动切换解码器的时间窗口（毫秒）
+     * 
+     * 【含义】
+     * 播放开始后这个时间内，如果缓冲次数超过阈值，
+     * 就自动切换解码器。
+     * 
+     * 【为什么是 30 秒？】
+     * 30 秒足够判断一个直播源是否稳定了。
+     * 如果 30 秒内就缓冲了 3 次以上，说明这个源用硬解确实有问题，
+     * 值得切换到软解试试。
+     * 如果播放了几分钟才开始缓冲，那可能是网络波动，
+     * 不是解码器的问题，就不用切换了。
+     */
+    private static final long AUTO_SWITCH_TIME_WINDOW = 30000;
     /**
      * 直播信息实体类
      * 所有数据都从播放器实时获取，不再写死
@@ -507,6 +568,10 @@ public class TVPlayerManager {
      * 【调用时机】
      * 1. initPlayer() 初始化播放器时
      * 2. playUrl() 切换频道时
+     * 
+     * 【2026-06-25 新增】
+     * 增加 hasSwitchedDecoder 重置，
+     * 每个新频道都有一次自动切换解码器的机会。
      */
     private void resetPerformanceStats() {
         playStartTime = 0;
@@ -514,6 +579,11 @@ public class TVPlayerManager {
         totalBufferDuration = 0;
         lastBufferStartTime = 0;
         totalDroppedFrames = 0;
+        // ====================================================================
+        // ✅ 2026-06-25 新增：重置自动切换解码器标记
+        // ====================================================================
+        // 每个新频道都有一次自动切换的机会
+        hasSwitchedDecoder = false;
     }
     /**
      * ✅ 初始化播放状态监听器
@@ -643,6 +713,49 @@ public class TVPlayerManager {
                             + bufferedDuration + "ms");
                     } catch (Exception e) {
                         // 忽略
+                    }
+                    
+                    // ====================================================================
+                    // ✅ 2026-06-25 新增：自动切换解码器（硬解→软解）
+                    // ====================================================================
+                    // 【逻辑】
+                    // 播放开始后 30 秒内，如果缓冲次数超过 2 次，
+                    // 自动从硬解切换到软解试试，只切一次。
+                    //
+                    // 【为什么只切一次？】
+                    // 避免反复切换（硬解→软解→硬解→软解...），
+                    // 反复切换会导致播放频繁中断，体验更差。
+                    // 切到软解后，不管效果好不好，都保持软解，
+                    // 用户可以手动切回去。
+                    //
+                    // 【为什么 30 秒 / 2 次？】
+                    // 正常的直播源，30 秒内一般只会缓冲 0-1 次（开头的一次），
+                    // 如果 30 秒内缓冲超过 2 次，说明这个源用硬解有问题，
+                    // 试试软解可能会好一些（虽然软解性能差，但兼容性好）。
+                    //
+                    // 【注意】
+                    // 必须是硬解模式才自动切换（软解模式就不用再切了）
+                    // 必须还没切换过（只切一次）
+                    // 必须已经开始播放了（playStartTime > 0）
+                    if (!useSoftwareDecoder && !hasSwitchedDecoder && playStartTime > 0) {
+                        long playDuration = System.currentTimeMillis() - playStartTime;
+                        if (playDuration <= AUTO_SWITCH_TIME_WINDOW 
+                                && totalBufferCount > AUTO_SWITCH_BUFFER_THRESHOLD) {
+                            // 标记已经切换过，只切一次
+                            hasSwitchedDecoder = true;
+                            
+                            Log.w(TAG, "【自动切换】30秒内缓冲 " + totalBufferCount 
+                                + " 次，自动切换到软解");
+                            // ✅ 输出到设置页面的播放日志
+                            logToSettings("【自动切换】30秒内缓冲 " + totalBufferCount 
+                                + " 次，自动切换到软解");
+                            
+                            // 切换到软解（会重新创建播放器，重新开始播放）
+                            setSoftwareDecoder(true);
+                            
+                            // 切换后不再继续处理后面的逻辑
+                            return;
+                        }
                     }
                 } else if (state == Player.STATE_ENDED) {
                     if (listener != null) listener.onPlayEnd();
@@ -958,6 +1071,20 @@ public class TVPlayerManager {
      * 软解码模式现在会优先使用 FFmpeg 解码器，
      * 而不是系统的 MediaCodec 软解。
      * FFmpeg 兼容性更好，支持更多格式。
+     * 
+     * 【2026-06-25 新增：自动切换标记重置逻辑】
+     * 【修改说明】
+     * 如果用户手动切换到硬解（useSoftware = false），
+     * 重置 hasSwitchedDecoder 标记，给用户一次重试机会。
+     * 
+     * 【为什么要重置？】
+     * 用户手动切换到硬解，说明用户想再试试硬解，
+     * 这时候应该重置自动切换标记，
+     * 如果还是缓冲频繁，还能再自动切回软解。
+     * 
+     * 自动切换的时候调用 setSoftwareDecoder(true)，
+     * 因为 useSoftware = true，所以不会重置标记，
+     * 这样就保证了只切一次。
      */
     public void setSoftwareDecoder(boolean useSoftware) {
         if (useSoftwareDecoder == useSoftware) return;
@@ -965,6 +1092,19 @@ public class TVPlayerManager {
         Log.d(TAG, "切换解码器：" + (useSoftware ? "FFmpeg 软解码" : "系统硬解码"));
         // ✅ 2026-06-25 新增：输出到设置页面的播放日志
         logToSettings("切换解码器：" + (useSoftware ? "FFmpeg 软解码" : "系统硬解码"));
+        
+        // ====================================================================
+        // ✅ 2026-06-25 新增：如果切换到硬解，重置自动切换标记
+        // ====================================================================
+        // 【为什么只在切换到硬解时重置？】
+        // - 切换到硬解：用户手动切的，想再试试硬解，给一次机会
+        // - 切换到软解：可能是自动切换的，不能重置，否则会反复切换
+        if (!useSoftware) {
+            hasSwitchedDecoder = false;
+            Log.d(TAG, "【自动切换】切换到硬解，重置自动切换标记");
+            logToSettings("【自动切换】切换到硬解，重置自动切换标记");
+        }
+        
         // 重新创建播放器
         if (player != null) {
             try {
@@ -1130,7 +1270,7 @@ public class TVPlayerManager {
             // ====================================================================
             // ✅ 2026-06-23 修改：MediaSource 类型改成 Media3 的
             // ====================================================================
-            // 从 com.google.android.exoplayer2.source.MediaSource
+                        // 从 com.google.android.exoplayer2.source.MediaSource
             // 改成 androidx.media3.exoplayer.source.MediaSource
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
@@ -1156,7 +1296,7 @@ public class TVPlayerManager {
                 logToSettings("流格式：普通流 (Progressive)");
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
-                        // ====================================================================
+            // ====================================================================
             // ✅ 关键修改：直接设置新的媒体源，第二个参数 true = 重置到开头
             // ====================================================================
             player.setMediaSource(mediaSource, true);
@@ -1235,3 +1375,4 @@ public class TVPlayerManager {
         }
     }
 }
+           
