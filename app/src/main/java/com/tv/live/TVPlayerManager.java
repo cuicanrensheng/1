@@ -1,4 +1,4 @@
-package com.tv.live;
+      package com.tv.live;
 import com.tv.live.RedirectLoggingHttpDataSource;
 import android.content.Context;
 import android.os.Handler;
@@ -12,24 +12,6 @@ import android.widget.TextView;
 // ====================================================================
 // ✅ 2026-06-23 修改：升级到 Media3 1.10.1
 // ====================================================================
-// 所有 import 从 com.google.android.exoplayer2.*
-// 改成对应的 androidx.media3.* 包名
-//
-// 【包名迁移对照表】
-// 旧包名 (ExoPlayer 2.x)                → 新包名 (Media3 1.x)
-// com.google.android.exoplayer2.DefaultLoadControl → androidx.media3.exoplayer.DefaultLoadControl
-// com.google.android.exoplayer2.DefaultRenderersFactory → androidx.media3.exoplayer.DefaultRenderersFactory
-// com.google.android.exoplayer2.ExoPlayer → androidx.media3.exoplayer.ExoPlayer
-// com.google.android.exoplayer2.Format → androidx.media3.common.Format
-// com.google.android.exoplayer2.MediaItem → androidx.media3.common.MediaItem
-// com.google.android.exoplayer2.PlaybackException → androidx.media3.common.PlaybackException
-// com.google.android.exoplayer2.Player → androidx.media3.common.Player
-// com.google.android.exoplayer2.source.ProgressiveMediaSource → androidx.media3.exoplayer.source.ProgressiveMediaSource
-// com.google.android.exoplayer2.source.hls.HlsMediaSource → androidx.media3.exoplayer.hls.HlsMediaSource
-// com.google.android.exoplayer2.ui.PlayerView → androidx.media3.ui.PlayerView
-// com.google.android.exoplayer2.video.VideoSize → androidx.media3.common.VideoSize
-// com.google.android.exoplayer2.ui.AspectRatioFrameLayout → androidx.media3.ui.AspectRatioFrameLayout
-// com.google.android.exoplayer2.source.MediaSource → androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
@@ -48,224 +30,86 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-/**
- * 播放器管理类（单例模式）
- * 基于 Media3 ExoPlayer 封装，提供直播播放、状态监听、画质切换、Header设置等功能
- *
- * 【防卡优化版 + 切台优化版 + 真实数据版 + FFmpeg 软解版】
- * 1. 增大缓冲（从15秒→50秒），抗网络波动
- * 2. 检测播放卡住，自动重新加载
- * 3. 换回 DefaultHttpDataSource，稳定可靠
- * 4. 支持硬解码/软解码切换
- * 5. 切台保持最后一帧，避免黑屏
- * 6. 优化缓冲参数，更快出画
- * 7. 显示真实画质、音频、码率
- * 8. ✅ 集成 FFmpeg 软解码器，提高格式兼容性
- * 
- * 【2026-06-24 新增：自动跳过失效频道 - 取消重试支持】
- * 【修改说明】
- * 增加 cancelRetry() 方法，切换频道时自动取消旧频道的重试任务，
- * 避免旧频道的重试干扰新频道的播放。
- * 
- * 【2026-06-24 修改：抗卡顿优化版 + 详细解码日志】
- * 【修改说明】
- * Media3 降级到 1.5.0 后个别频道卡顿，优化缓冲配置并增加详细日志：
- * 1. 增大开始播放所需缓冲（300ms → 1500ms），首帧更流畅
- * 2. 增大最小缓冲（2000ms → 5000ms），抗网络波动能力更强
- * 3. 增大重缓冲阈值（500ms → 2000ms），减少频繁缓冲
- * 4. 优化 HLS 播放参数，提高容错性
- * 5. ✅ 增加详细解码日志：解码器类型、视频格式、缓冲状态、丢帧统计
- * 6. ✅ 增加卡顿检测日志：实时监控播放状态，定位卡顿原因
- * 
- * 【2026-06-24 修改：兼容 Media3 1.5.0】
- * 【修改说明】
- * 1.5.0 版本缺少部分新 API，做了兼容处理：
- * 1. 去掉 videoFormat.colorSpace（1.5.0 没有这个字段）
- * 2. 去掉 player.getVideoFrameProcessingOffset()（1.5.0 没有这个方法）
- * 3. 丢帧统计暂时用 0 代替，不影响其他功能
- * 
- * 【2026-06-25 新增：解码日志接入设置页面】
- * 【修改说明】
- * 把关键的解码日志同时输出到 SettingsActivity 的播放日志中，
- * 用户可以通过设置里的"查看解析日志"按钮直接查看，不用再连电脑看 Logcat。
- * 
- * 【接入的日志类型】
- * 1. 解码器信息（硬解/软解、分辨率、码率、帧率等）
- * 2. 播放错误（错误码、错误类型、错误原因）
- * 3. 缓冲状态（缓冲次数、当前缓冲时长）
- * 4. 性能统计（播放时长、缓冲率、丢帧等）
- * 5. 卡顿检测（卡住自动重试）
- * 6. 自动重试（重试次数、原因）
- * 7. 切换解码器（硬解↔软解）
- * 
- * 【2026-06-25 新增：自动切换解码器（硬解→软解）】
- * 【修改说明】
- * 播放开始后 30 秒内，如果缓冲次数超过 2 次，
- * 自动从硬解切换到软解试试，只切一次，避免反复切换。
- * 
- * 【为什么需要这个功能？】
- * 个别直播源用硬解会一直缓冲、卡顿，
- * 但切换到软解（FFmpeg）后可能就正常了（兼容性更好）。
- * 用户手动切换太麻烦，自动切换更智能。
- * 
- * 【为什么只切一次？】
- * 避免反复切换（硬解→软解→硬解→软解...），
- * 反复切换会导致播放频繁中断，体验更差。
- * 切到软解后，不管效果好不好，都保持软解，
- * 用户可以手动切回去。
- */
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerLog";
     private static TVPlayerManager instance;
     private ExoPlayer player;
     private Context context;
     private PlayerView playerView;
-    // 屏幕缩放模式枚举
     public enum ScaleMode { FIT, FILL, ZOOM }
-    // 播放状态监听器
     private OnPlayStateListener listener;
-    // 当前播放地址
     private String currentUrl = "";
-    // 是否正在播放
     private boolean isPlaying = false;
-    // 当前频道号
     private int currentChannelNumber = 0;
-    // 频道号显示TextView
     private TextView channelNumText;
-    // 主线程Handler，用于UI操作
     private final Handler mHandler = new Handler(Looper.getMainLooper());
-    // 频道号显示时长（3秒）
     private static final long CHANNEL_SHOW_DURATION = 3000L;
-    // 日志时间格式化
     private final SimpleDateFormat logSdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
-    // 直播信息更新监听器
     private OnLiveInfoUpdateListener infoUpdateListener;
-    // 播放状态监听器（成员变量，只添加一次）
     private Player.Listener playerListener;
-    // ================================================
-    // ✅ 防卡优化相关成员变量
-    // ================================================
-    // 是否使用软解码（默认硬解码，硬解码有问题再切软解码）
+    // 软解码开关
     private boolean useSoftwareDecoder = false;
-    // 卡住检测：记录上次播放位置的时间
+    // 卡住检测
     private long lastPositionUpdateTime = 0;
     private long lastPosition = 0;
-    // 卡住检测超时时间（5秒没动就算卡住了）
     private static final long STUCK_TIMEOUT = 5000;
-    // 自动重试次数限制（防止无限重试）
     private int retryCount = 0;
     private static final int MAX_RETRY_COUNT = 3;
-    // 卡住检测的Handler
     private final Handler stuckHandler = new Handler(Looper.getMainLooper());
-    // 是否正在重试中
     private boolean isRetrying = false;
-    // ====================================================================
-    // ✅ 2026-06-24 新增：重试任务引用（用于取消）
-    // ====================================================================
-    /**
-     * 重试任务的 Runnable 引用
-     * 
-     * 【作用】
-     * 保存 autoRetry 中 postDelayed 的 Runnable，
-     * 切换频道时可以 removeCallbacks 取消掉，
-     * 避免旧频道的重试任务干扰新频道的播放。
-     * 
-     * 【为什么需要这个？】
-     * 自动跳过失效频道时，切到新频道后，
-     * 旧频道的延迟重试任务还在队列里，
-     * 1秒后会执行并重新加载（但 currentUrl 已经是新频道了），
-     * 导致新频道被重新加载一次，体验不好。
-     */
     private Runnable retryRunnable = null;
     // ====================================================================
-    // ✅ 2026-06-24 新增：卡顿分析相关统计变量
+    // ✅ 性能统计相关变量
     // ====================================================================
     /**
-     * 播放开始时间（用于计算播放时长）
+     * 上次进入 STATE_READY 的时间（用于性能统计的周期计算）
+     * 每次缓冲完都会重置，用于计算本次播放了多久
      */
     private long playStartTime = 0;
-    /**
-     * 总缓冲次数
-     */
     private int totalBufferCount = 0;
-    /**
-     * 总缓冲时长（毫秒）
-     */
     private long totalBufferDuration = 0;
-    /**
-     * 上次缓冲开始时间
-     */
     private long lastBufferStartTime = 0;
-    /**
-     * 丢帧统计
-     */
     private int totalDroppedFrames = 0;
-    /**
-     * 卡顿检测间隔（每2秒统计一次）
-     */
     private static final long PERFORMANCE_LOG_INTERVAL = 5000;
-    /**
-     * 性能统计的Handler
-     */
     private final Handler performanceHandler = new Handler(Looper.getMainLooper());
     // ====================================================================
-    // ✅ 2026-06-25 新增：自动切换解码器相关变量
+    // ✅ 2026-06-25 新增：自动切换解码器相关变量（修复版）
     // ====================================================================
     /**
+     * 真正的播放开始时间（从第一次进入 STATE_READY 开始算）
+     * 
+     * 【为什么单独弄一个变量？】
+     * 原来的 playStartTime 每次缓冲完都会重置，
+     * 导致自动切换判断的不是"从播放开始后 30 秒内"，
+     * 而是"上次缓冲结束后 30 秒内"，判断不准确。
+     * 
+     * 这个变量只在第一次进入 STATE_READY 时设置一次，
+     * 之后不再改变，直到切换频道才重置。
+     */
+    private long initialPlayStartTime = 0;
+    /**
      * 是否已经自动切换过解码器（只切一次，避免反复切换）
-     * 
-     * 【作用】
-     * 标记当前频道是否已经自动切换过解码器。
-     * 每个频道只有一次自动切换机会，
-     * 切到软解后就不再切回来了，避免反复横跳。
-     * 
-     * 【什么时候重置？】
-     * 切换频道时（resetPerformanceStats）会重置这个标记，
-     * 每个新频道都有一次自动切换的机会。
-     * 用户手动切换到硬解时，也会重置（给用户一次重试机会）。
      */
     private boolean hasSwitchedDecoder = false;
     /**
-     * 自动切换解码器的缓冲次数阈值
-     * 
-     * 【含义】
-     * 播放开始后 30 秒内，如果缓冲次数超过这个值，
-     * 就自动从硬解切换到软解。
-     * 
-     * 【为什么是 2 次？】
-     * 正常的直播源，30 秒内一般只会缓冲 0-1 次（开头的一次），
-     * 如果 30 秒内缓冲超过 2 次，说明这个源用硬解有问题，
-     * 试试软解可能会好一些（虽然软解性能差，但兼容性好）。
+     * 自动切换解码器的缓冲次数阈值（30秒内超过这个次数就切换）
      */
     private static final int AUTO_SWITCH_BUFFER_THRESHOLD = 2;
     /**
      * 自动切换解码器的时间窗口（毫秒）
-     * 
-     * 【含义】
-     * 播放开始后这个时间内，如果缓冲次数超过阈值，
-     * 就自动切换解码器。
-     * 
-     * 【为什么是 30 秒？】
-     * 30 秒足够判断一个直播源是否稳定了。
-     * 如果 30 秒内就缓冲了 3 次以上，说明这个源用硬解确实有问题，
-     * 值得切换到软解试试。
-     * 如果播放了几分钟才开始缓冲，那可能是网络波动，
-     * 不是解码器的问题，就不用切换了。
+     * 播放开始后这个时间内，如果缓冲次数超过阈值，就自动切换
      */
     private static final long AUTO_SWITCH_TIME_WINDOW = 30000;
-    /**
-     * 直播信息实体类
-     * 所有数据都从播放器实时获取，不再写死
-     */
+    // 直播信息实体类
     public static class LiveInfo {
-        public String quality;      // 画质（HD/FHD/SD）
-        public String audio;        // 音频信息
-        public String bitrate;      // 码率
-        public int channelNum;      // 频道号
-        public int videoWidth;      // 视频宽度（真实分辨率）
-        public int videoHeight;     // 视频高度（真实分辨率）
+        public String quality;
+        public String audio;
+        public String bitrate;
+        public int channelNum;
+        public int videoWidth;
+        public int videoHeight;
     }
-    public interface OnLiveInfoUpdateListener {
+        public interface OnLiveInfoUpdateListener {
         void onLiveInfoUpdate(LiveInfo info);
     }
     public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) {
@@ -274,34 +118,20 @@ public class TVPlayerManager {
     public LiveInfo getLiveInfo() {
         LiveInfo info = new LiveInfo();
         info.channelNum = currentChannelNumber;
-        
-        // ====================================================================
-        // ✅ 从播放器获取真实的视频/音频信息
-        // ====================================================================
         try {
             if (player != null) {
-                // ========================================
-                // 1. 画质（根据真实分辨率判断）
-                // ========================================
                 Format videoFormat = player.getVideoFormat();
                 if (videoFormat != null && videoFormat.width != Format.NO_VALUE) {
                     info.videoWidth = videoFormat.width;
                     info.videoHeight = videoFormat.height;
-                    
-                    // 根据分辨率判断画质等级
                     if (videoFormat.width >= 1920 || videoFormat.height >= 1080) {
-                        info.quality = "FHD";  // 全高清
+                        info.quality = "FHD";
                     } else if (videoFormat.width >= 1280 || videoFormat.height >= 720) {
-                        info.quality = "HD";   // 高清
+                        info.quality = "HD";
                     } else {
-                        info.quality = "SD";   // 标清
+                        info.quality = "SD";
                     }
-                    
-                    // ========================================
-                    // 2. 码率（从视频格式获取，单位 MB/s）
-                    // ========================================
                     if (videoFormat.bitrate != Format.NO_VALUE && videoFormat.bitrate > 0) {
-                        // bitrate 是比特每秒(bps)，转换成兆字节每秒(MB/s)
                         double bitrateMBs = videoFormat.bitrate / 8.0 / 1024.0 / 1024.0;
                         info.bitrate = String.format("%.1fMB/s", bitrateMBs);
                     } else {
@@ -313,10 +143,6 @@ public class TVPlayerManager {
                     info.videoWidth = 0;
                     info.videoHeight = 0;
                 }
-                
-                // ========================================
-                // 3. 音频（根据真实声道数判断）
-                // ========================================
                 Format audioFormat = player.getAudioFormat();
                 if (audioFormat != null) {
                     int channels = audioFormat.channelCount;
@@ -325,7 +151,7 @@ public class TVPlayerManager {
                     } else if (channels == 2) {
                         info.audio = "立体声";
                     } else if (channels >= 6) {
-                        info.audio = "5.1";  // 6声道及以上显示 5.1
+                        info.audio = "5.1";
                     } else {
                         info.audio = channels + "声道";
                     }
@@ -343,7 +169,6 @@ public class TVPlayerManager {
             info.audio = "—";
             info.bitrate = "—";
         }
-        
         return info;
     }
     public void setCurrentChannelNumber(int num) {
@@ -384,238 +209,98 @@ public class TVPlayerManager {
         initPlayer();
     }
     // ====================================================================
-    // ✅ 2026-06-25 新增：解码日志接入设置页面 - 辅助方法
+    // ✅ 输出日志到设置页面
     // ====================================================================
-    /**
-     * 输出解码日志到设置页面的播放日志
-     * 
-     * 【作用】
-     * 把关键的解码日志同时输出到 SettingsActivity 的播放日志中，
-     * 用户可以通过设置里的"查看解析日志"按钮直接查看，
-     * 不用再连电脑看 Logcat。
-     * 
-     * 【为什么加 try-catch？】
-     * 防止 SettingsActivity 或 LogManager 未初始化时崩溃。
-     * TVPlayerManager 可能在 Application 或 MainActivity 中初始化，
-     * 这时候 SettingsActivity 可能还没创建，
-     * 但 SettingsActivity.log() 是静态方法，内部调用的是 LogManager.log()，
-     * 理论上不会有问题，但加个保护更安全。
-     * 
-     * 【日志格式】
-     * 加上【解码】前缀，和其他播放日志区分开。
-     * 时间戳由 SettingsActivity.log() 内部自动添加。
-     * 
-     * @param msg 日志内容
-     */
     private void logToSettings(String msg) {
         try {
-            // 加上【解码】前缀，方便区分日志类型
             SettingsActivity.log("【解码】" + msg);
         } catch (Exception e) {
-            // 忽略，日志输出失败不影响播放功能
             Log.w(TAG, "输出设置日志失败（忽略）：" + e.getMessage());
         }
     }
-    /**
-     * ✅ 初始化播放器
-     * 单独抽出来，方便重试时重新创建
-     * 
-     * 【2026-06-23 新增：FFmpeg 软解码器集成】
-     * 
-     * 【三种扩展渲染器模式】
-     * 1. EXTENSION_RENDERER_MODE_OFF：不使用扩展渲染器（默认）
-     *    - 只用系统 MediaCodec 解码器
-     *    - 性能最好，但兼容性一般
-     * 
-     * 2. EXTENSION_RENDERER_MODE_ON：使用扩展渲染器，作为备用方案
-     *    - 先尝试系统 MediaCodec 硬解码
-     *    - 硬解码不支持时，自动回退到 FFmpeg 软解码
-     *    - 推荐！兼顾性能和兼容性
-     * 
-     * 3. EXTENSION_RENDERER_MODE_PREFER：优先使用扩展渲染器
-     *    - 优先用 FFmpeg 软解码
-     *    - 不推荐，软解码性能差，耗电高
-     * 
-     * 【我们的策略】
-     * - 硬解码模式（默认）：EXTENSION_RENDERER_MODE_ON
-     *   系统硬解优先，FFmpeg 作为备用
-     * 
-     * - 软解码模式：EXTENSION_RENDERER_MODE_PREFER
-     *   优先使用 FFmpeg 软解（如果用户手动切到软解模式）
-     */
+    // ====================================================================
+    // ✅ 初始化播放器
+    // ====================================================================
     private void initPlayer() {
-        // 初始化渲染器工厂
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
-        
         if (useSoftwareDecoder) {
-            // ====================================================================
-            // ✅ 软解码模式：优先使用 FFmpeg 软解码器
-            // ====================================================================
-            // 【为什么用 PREFER 模式？】
-            // 用户手动切到软解码模式，说明硬解码有问题，
-            // 这时候应该优先用 FFmpeg 软解，而不是再去试硬解码。
-            //
-            // 【EXTENSION_RENDERER_MODE_PREFER 的含义】
-            // 扩展渲染器（FFmpeg）优先，系统 MediaCodec 作为备用。
-            //
-            // 【注意】
-            // FFmpeg 是软解码，CPU 占用高，耗电多，
-            // 只在硬解码确实有问题时才用。
             renderersFactory.setExtensionRendererMode(
                 DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
             );
-            
-            // 启用解码器降级（软解不行也可以再试其他）
             try {
                 renderersFactory.setEnableDecoderFallback(true);
             } catch (Exception e) {
-                Log.e(TAG, "设置软解码失败", e);
+                Log.e(TAG, "设置软解失败", e);
             }
-            
             Log.d(TAG, "【FFmpeg】软解码模式：优先使用 FFmpeg 解码器");
-            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
             logToSettings("软解码模式：优先使用 FFmpeg 解码器");
         } else {
-            // ====================================================================
-            // ✅ 硬解码模式（默认）：FFmpeg 作为备用方案
-            // ====================================================================
-            // 【为什么用 ON 模式？】
-            // 正常情况下用系统硬解码，性能好，省电。
-            // 但是有些特殊格式的直播源，硬解码不支持，
-            // 这时候自动回退到 FFmpeg 软解码，保证能播出来。
-            //
-            // 【EXTENSION_RENDERER_MODE_ON 的含义】
-            // 系统 MediaCodec 优先，扩展渲染器（FFmpeg）作为备用。
-            // 当系统解码器都不支持时，才尝试 FFmpeg。
-            //
-            // 【好处】
-            // 1. 大部分情况用硬解，性能好，省电
-            // 2. 特殊格式自动用 FFmpeg 软解，兼容性好
-            // 3. 用户无感知，自动切换
             renderersFactory.setExtensionRendererMode(
                 DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
             );
-            
-            // 启用解码器降级（硬解不行自动降级到软解）
             renderersFactory.setEnableDecoderFallback(true);
-            
-            Log.d(TAG, "【FFmpeg】硬解码模式：系统硬解优先，FFmpeg 作为备用");
-            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
-            logToSettings("硬解码模式：系统硬解优先，FFmpeg 作为备用");
+            Log.d(TAG, "【FFmpeg】硬解码模式：系统硬解优先，FFmpeg 备用");
+            logToSettings("硬解码模式：系统硬解优先，FFmpeg 备用");
         }
-        // ================================================
-        // ✅ 2026-06-24 修改：抗卡顿优化 - 调整缓冲配置
-        // ================================================
-        /**
-         * 【参数说明】
-         *
-         * minBufferMs：最小缓冲，低于这个值就继续加载
-         * maxBufferMs：最大缓冲，超过这个值就停止加载
-         * bufferForPlaybackMs：开始播放所需的最小缓冲量
-         * bufferForPlaybackAfterRebufferMs：重缓冲后开始播放所需的最小缓冲量
-         *
-         * 【优化思路】
-         * 之前的配置追求"快速出画"，但抗网络波动能力差，个别频道容易卡顿。
-         * 现在调整为"流畅优先"：
-         * - bufferForPlaybackMs 从 300ms → 1500ms：多缓冲一点再开始播，首帧更流畅
-         * - minBufferMs 从 2000ms → 5000ms：增大最小缓冲，抗网络波动能力更强
-         * - bufferForPlaybackAfterRebufferMs 从 500ms → 2000ms：重缓冲后多缓冲一点再播，减少反复缓冲
-         *
-         * 【注意】
-         * minBufferMs 必须 >= bufferForPlaybackAfterRebufferMs
-         * 否则 ExoPlayer 会崩溃
-         * 
-         * 【为什么这么调？】
-         * Media3 1.5.0 对某些 HLS 流的处理不如新版本，
-         * 增大缓冲可以有效减少卡顿，代价是首帧出画慢一点（约 1-2 秒），
-         * 但换来的是播放过程更流畅，不会频繁缓冲。
-         */
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                        5000,      // minBufferMs - 最小缓冲 5秒（抗卡顿优化：从2秒→5秒）
-                        50000,     // maxBufferMs - 最大缓冲 50秒（抗网络波动）
-                        1500,      // bufferForPlaybackMs - 有 1.5秒 就开始播（抗卡顿优化：从300ms→1500ms）
-                        2000       // bufferForPlaybackAfterRebufferMs - 重缓冲后 2秒 就播（抗卡顿优化：从500ms→2000ms）
+                        5000,   // minBufferMs
+                        50000,  // maxBufferMs
+                        1500,   // bufferForPlaybackMs
+                        2000    // bufferForPlaybackAfterRebufferMs
                 )
-                .setPrioritizeTimeOverSizeThresholds(true) // 优先保证时间缓冲
+                .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
-        // 创建ExoPlayer实例
         player = new ExoPlayer.Builder(context)
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
                 .build();
-        // 初始化播放监听器
         initPlayerListener();
-        // 初始化Cookie管理器
         CookieSyncManager.createInstance(context);
         CookieManager.getInstance().setAcceptCookie(true);
-        
-        // ====================================================================
-        // ✅ 2026-06-24 新增：重置性能统计
-        // ====================================================================
         resetPerformanceStats();
     }
     // ====================================================================
-    // ✅ 2026-06-24 新增：重置性能统计
+    // ✅ 重置性能统计数据
     // ====================================================================
     /**
-     * 重置性能统计数据
-     * 
-     * 【作用】
-     * 切换频道或重新播放时，清空上一次的统计数据，
-     * 确保每次统计都是针对当前频道的。
-     * 
-     * 【调用时机】
-     * 1. initPlayer() 初始化播放器时
-     * 2. playUrl() 切换频道时
-     * 
-     * 【2026-06-25 新增】
-     * 增加 hasSwitchedDecoder 重置，
-     * 每个新频道都有一次自动切换解码器的机会。
+     * 【注意】
+     * hasSwitchedDecoder 不在此重置，
+     * 只在 playUrl() 切换频道时重置，
+     * 避免切换解码器时把标记意外清零。
      */
     private void resetPerformanceStats() {
         playStartTime = 0;
+        initialPlayStartTime = 0; // ✅ 重置真正的播放开始时间
         totalBufferCount = 0;
         totalBufferDuration = 0;
         lastBufferStartTime = 0;
         totalDroppedFrames = 0;
-        // ====================================================================
-        // ✅ 2026-06-25 新增：重置自动切换解码器标记
-        // ====================================================================
-        // 每个新频道都有一次自动切换的机会
-        hasSwitchedDecoder = false;
+        // hasSwitchedDecoder 不在此重置！
     }
-    /**
-     * ✅ 初始化播放状态监听器
-     */
+    // ====================================================================
+    // ✅ 初始化播放器监听器
+    // ====================================================================
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
-                // ====================================================================
-                // ✅ 2026-06-24 新增：打印详细错误信息，方便排查卡顿/失效问题
-                // ====================================================================
-                String errorDetail = "错误码: " + error.errorCode 
+                String errorDetail = "错误码: " + error.errorCode
                     + ", 错误类型: " + getErrorTypeName(error.errorCode);
                 Log.e(TAG, "【错误详情】" + errorDetail);
                 if (error.getCause() != null) {
                     Log.e(TAG, "【错误原因】" + error.getCause().getMessage());
                 }
-                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
                 logToSettings("播放异常：" + error.getMessage());
                 logToSettings("错误详情：" + errorDetail);
                 if (error.getCause() != null) {
                     logToSettings("错误原因：" + error.getCause().getMessage());
                 }
-                
-                // 停止性能统计
                 stopPerformanceLog();
-                
                 if (listener != null) {
                     listener.onPlayError(error.getMessage());
                 }
-                // ✅ 播放错误时自动重试
                 autoRetry("播放错误");
             }
             @Override
@@ -625,34 +310,27 @@ public class TVPlayerManager {
                     notifyLiveInfoUpdate();
                     showChannelAndAutoHide();
                     if (listener != null) listener.onPlayReady();
-                    // 播放就绪，重置重试计数
                     retryCount = 0;
                     isRetrying = false;
-                    // 开始卡住检测
                     startStuckDetection();
-                    
                     // ====================================================================
-                    // ✅ 2026-06-24 新增：开始性能统计
+                    // ✅ 2026-06-25 修复：区分两种开始时间
                     // ====================================================================
+                    // playStartTime：每次缓冲完都重置，用于性能统计周期计算
                     playStartTime = System.currentTimeMillis();
+                    // initialPlayStartTime：只在第一次播放时设置，用于自动切换解码器判断
+                    if (initialPlayStartTime == 0) {
+                        initialPlayStartTime = System.currentTimeMillis();
+                        Log.d(TAG, "【自动切换】记录初始播放时间");
+                    }
                     startPerformanceLog();
-                    
-                    // ====================================================================
-                    // ✅ 2026-06-23 新增：打印当前使用的解码器信息
-                    // ====================================================================
-                    // 【作用】
-                    // 方便调试，看看当前用的是硬解码还是 FFmpeg 软解
-                    // 可以从 videoFormat 的名称里看出来
+                    // —— 打印解码器信息 ——
                     try {
                         Format videoFormat = player.getVideoFormat();
                         if (videoFormat != null) {
                             String decoderName = videoFormat.sampleMimeType;
-                            boolean isFfmpeg = decoderName != null 
+                            boolean isFfmpeg = decoderName != null
                                 && decoderName.toLowerCase().contains("ffmpeg");
-                            
-                            // ====================================================================
-                            // ✅ 2026-06-24 新增：详细的解码器信息日志
-                            // ====================================================================
                             Log.d(TAG, "========================================");
                             Log.d(TAG, "【解码器信息】");
                             Log.d(TAG, "  解码器类型: " + (isFfmpeg ? "FFmpeg 软解" : "系统硬解"));
@@ -661,18 +339,7 @@ public class TVPlayerManager {
                             Log.d(TAG, "  分辨率: " + videoFormat.width + "×" + videoFormat.height);
                             Log.d(TAG, "  码率: " + (videoFormat.bitrate / 1024) + "kbps");
                             Log.d(TAG, "  帧率: " + videoFormat.frameRate);
-                            // ====================================================================
-                            // ⚠️ 2026-06-24 修改：去掉颜色空间（Media3 1.5.0 没有这个 API）
-                            // ====================================================================
-                            // 【为什么去掉？】
-                            // videoFormat.colorSpace 是 Media3 1.6.0 之后才添加的，
-                            // 1.5.0 版本没有这个字段，编译会报错。
-                            // 颜色空间对卡顿分析影响不大，暂时去掉不影响使用。
-                            // Log.d(TAG, "  颜色空间: " + videoFormat.colorSpace);
                             Log.d(TAG, "========================================");
-                            
-                            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
-                            // 把解码器信息输出到设置页面，用户可以直接查看
                             logToSettings("========================================");
                             logToSettings("【解码器信息】");
                             logToSettings("  解码器类型: " + (isFfmpeg ? "FFmpeg 软解" : "系统硬解"));
@@ -682,90 +349,50 @@ public class TVPlayerManager {
                             logToSettings("  码率: " + (videoFormat.bitrate / 1024) + "kbps");
                             logToSettings("  帧率: " + videoFormat.frameRate);
                             logToSettings("========================================");
-                            
-                            // 如果是软解，打印警告
                             if (isFfmpeg) {
                                 Log.w(TAG, "【警告】当前使用 FFmpeg 软解码，CPU 占用较高，可能导致卡顿");
-                                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
                                 logToSettings("【警告】当前使用 FFmpeg 软解码，CPU 占用较高，可能导致卡顿");
                             }
                         }
                     } catch (Exception e) {
-                        // 忽略，获取解码器信息失败不影响播放
+                        // 忽略
                     }
                 } else if (state == Player.STATE_BUFFERING) {
                     if (listener != null) listener.onBuffering();
-                    // 缓冲中也重置卡住检测
                     lastPositionUpdateTime = System.currentTimeMillis();
-                    
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：缓冲统计日志
-                    // ====================================================================
+                    // —— 缓冲统计 ——
                     lastBufferStartTime = System.currentTimeMillis();
                     totalBufferCount++;
-                    
                     try {
                         long bufferedDuration = player.getBufferedPosition() - player.getCurrentPosition();
-                        Log.d(TAG, "【缓冲】第 " + totalBufferCount + " 次缓冲开始，当前已缓冲: " 
-                            + bufferedDuration + "ms");
-                        // ✅ 2026-06-25 新增：输出到设置页面的播放日志
-                        logToSettings("第 " + totalBufferCount + " 次缓冲开始，当前已缓冲: " 
-                            + bufferedDuration + "ms");
+                        Log.d(TAG, "【缓冲】第 " + totalBufferCount
+                            + " 次缓冲开始，当前已缓冲: " + bufferedDuration + "ms");
+                        logToSettings("第 " + totalBufferCount
+                            + " 次缓冲开始，当前已缓冲: " + bufferedDuration + "ms");
                     } catch (Exception e) {
                         // 忽略
                     }
-                    
                     // ====================================================================
-                    // ✅ 2026-06-25 新增：自动切换解码器（硬解→软解）
+                    // ✅ 2026-06-25 修复：自动切换解码器（使用 initialPlayStartTime）
                     // ====================================================================
-                    // 【逻辑】
-                    // 播放开始后 30 秒内，如果缓冲次数超过 2 次，
-                    // 自动从硬解切换到软解试试，只切一次。
-                    //
-                    // 【为什么只切一次？】
-                    // 避免反复切换（硬解→软解→硬解→软解...），
-                    // 反复切换会导致播放频繁中断，体验更差。
-                    // 切到软解后，不管效果好不好，都保持软解，
-                    // 用户可以手动切回去。
-                    //
-                    // 【为什么 30 秒 / 2 次？】
-                    // 正常的直播源，30 秒内一般只会缓冲 0-1 次（开头的一次），
-                    // 如果 30 秒内缓冲超过 2 次，说明这个源用硬解有问题，
-                    // 试试软解可能会好一些（虽然软解性能差，但兼容性好）。
-                    //
-                    // 【注意】
-                    // 必须是硬解模式才自动切换（软解模式就不用再切了）
-                    // 必须还没切换过（只切一次）
-                    // 必须已经开始播放了（playStartTime > 0）
-                    if (!useSoftwareDecoder && !hasSwitchedDecoder && playStartTime > 0) {
-                        long playDuration = System.currentTimeMillis() - playStartTime;
-                        if (playDuration <= AUTO_SWITCH_TIME_WINDOW 
+                    if (!useSoftwareDecoder && !hasSwitchedDecoder && initialPlayStartTime > 0) {
+                        long totalPlayDuration = System.currentTimeMillis() - initialPlayStartTime;
+                        if (totalPlayDuration <= AUTO_SWITCH_TIME_WINDOW
                                 && totalBufferCount > AUTO_SWITCH_BUFFER_THRESHOLD) {
-                            // 标记已经切换过，只切一次
-                            hasSwitchedDecoder = true;
-                            
-                            Log.w(TAG, "【自动切换】30秒内缓冲 " + totalBufferCount 
+                            hasSwitchedDecoder = true; // 标记已切换，只切一次
+                            Log.w(TAG, "【自动切换】播放 " + (totalPlayDuration / 1000)
+                                + " 秒内缓冲 " + totalBufferCount
                                 + " 次，自动切换到软解");
-                            // ✅ 输出到设置页面的播放日志
-                            logToSettings("【自动切换】30秒内缓冲 " + totalBufferCount 
+                            logToSettings("【自动切换】播放 " + (totalPlayDuration / 1000)
+                                + " 秒内缓冲 " + totalBufferCount
                                 + " 次，自动切换到软解");
-                            
-                            // 切换到软解（会重新创建播放器，重新开始播放）
                             setSoftwareDecoder(true);
-                            
-                            // 切换后不再继续处理后面的逻辑
-                            return;
+                            return; // 切换后不再继续处理
                         }
                     }
                 } else if (state == Player.STATE_ENDED) {
                     if (listener != null) listener.onPlayEnd();
-                    
-                    // ====================================================================
-                    // ✅ 2026-06-24 新增：停止性能统计
-                    // ====================================================================
                     stopPerformanceLog();
-                    
-                    // ✅ 直播流意外结束，自动重试
                     autoRetry("播放结束");
                 } else if (state == Player.STATE_IDLE) {
                     if (listener != null) listener.onIdle();
@@ -775,43 +402,24 @@ public class TVPlayerManager {
             }
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
-                // 播放状态变化时更新卡住检测
                 if (isPlaying) {
                     lastPositionUpdateTime = System.currentTimeMillis();
                 }
             }
-            // ====================================================================
-            // ✅ 视频分辨率变化时触发
-            // ====================================================================
-            /**
-             * 为什么需要这个？
-             * 有些直播流刚开始时分辨率还没确定，
-             * 等视频解码器初始化完成后，才会回调真实的分辨率。
-             * 这时候我们需要更新一下信息栏的画质标签。
-             */
             @Override
             public void onVideoSizeChanged(VideoSize videoSize) {
                 int width = videoSize.width;
                 int height = videoSize.height;
                 Log.d(TAG, "视频分辨率变化：" + width + "×" + height);
-                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
                 logToSettings("视频分辨率变化：" + width + "×" + height);
-                // 分辨率变化时，通知 UI 更新
                 notifyLiveInfoUpdate();
             }
         };
         player.addListener(playerListener);
     }
     // ====================================================================
-    // ✅ 2026-06-24 新增：错误码转名称，方便排查问题
+    // ✅ 错误码转名称
     // ====================================================================
-    /**
-     * 把 PlaybackException 的错误码转换成可读的名称
-     * 
-     * 【作用】
-     * 方便在日志里快速判断是什么类型的错误，
-     * 不用每次都去查错误码对照表。
-     */
     private String getErrorTypeName(int errorCode) {
         switch (errorCode) {
             case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED:
@@ -823,7 +431,7 @@ public class TVPlayerManager {
             case PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED:
                 return "不允许明文传输";
             case PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS:
-                return "HTTP状态码错误";
+                return "HTTP 状态码错误";
             case PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND:
                 return "文件不存在";
             case PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED:
@@ -839,136 +447,64 @@ public class TVPlayerManager {
         }
     }
     // ====================================================================
-    // ✅ 2026-06-24 新增：性能统计日志
+    // ✅ 性能统计日志
     // ====================================================================
-    /**
-     * 开始性能统计日志
-     * 
-     * 【作用】
-     * 每隔 5 秒打印一次播放性能统计，方便分析卡顿原因。
-     * 统计内容包括：缓冲次数、缓冲时长、丢帧数等。
-     * 
-     * 【为什么需要这个？】
-     * 光看"卡不卡"的主观感受不够，
-     * 通过量化的数据可以更准确地判断卡顿原因：
-     * - 缓冲次数多 → 网络问题
-     * - 丢帧多 → 解码性能问题
-     * - 码率高 → 带宽不足
-     */
     private void startPerformanceLog() {
         stopPerformanceLog();
         performanceHandler.postDelayed(performanceLogRunnable, PERFORMANCE_LOG_INTERVAL);
     }
-    /**
-     * 停止性能统计日志
-     */
     private void stopPerformanceLog() {
         performanceHandler.removeCallbacks(performanceLogRunnable);
     }
-    /**
-     * 性能统计 Runnable
-     * 
-     * 【统计内容】
-     * 1. 播放时长
-     * 2. 缓冲次数和缓冲率
-     * 3. 当前缓冲时长
-     * 4. 当前码率
-     * 5. 丢帧统计
-     */
     private final Runnable performanceLogRunnable = new Runnable() {
         @Override
         public void run() {
             if (player == null) return;
-            
             try {
                 long playDuration = System.currentTimeMillis() - playStartTime;
                 long bufferedDuration = player.getBufferedPosition() - player.getCurrentPosition();
                 int droppedFrames = 0;
-                
-                // ====================================================================
-                // ⚠️ 2026-06-24 修改：去掉 getVideoFrameProcessingOffset（Media3 1.5.0 没有这个 API）
-                // ====================================================================
-                // 【为什么去掉？】
-                // player.getVideoFrameProcessingOffset() 是 Media3 1.6.0 之后才添加的，
-                // 1.5.0 版本没有这个方法，编译会报错。
-                //
-                // 【替代方案】
-                // 丢帧统计暂时用 0 代替，不影响其他功能。
-                // 主要还是通过缓冲次数、缓冲率来判断卡顿原因。
-                // 如果以后升级到更高版本的 Media3，可以再把这行加回来。
-                
-                // 获取丢帧数（Media3 1.5.0 没有这个 API，暂时注释掉）
-                // try {
-                //     droppedFrames = player.getVideoFrameProcessingOffset();
-                // } catch (Exception e) {
-                //     // 旧版本没有这个方法，忽略
-                // }
-                
-                double bufferRate = playDuration > 0 
-                    ? (totalBufferDuration * 100.0 / playDuration) 
+                double bufferRate = playDuration > 0
+                    ? (totalBufferDuration * 100.0 / playDuration)
                     : 0;
-                
                 Log.d(TAG, "【性能统计】");
                 Log.d(TAG, "  播放时长: " + (playDuration / 1000) + "秒");
                 Log.d(TAG, "  缓冲次数: " + totalBufferCount + " 次");
                 Log.d(TAG, "  缓冲率: " + String.format("%.1f", bufferRate) + "%");
                 Log.d(TAG, "  当前缓冲: " + bufferedDuration + "ms");
                 Log.d(TAG, "  丢帧数: " + droppedFrames + "（1.5.0 暂不支持统计）");
-                
-                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
                 logToSettings("【性能统计】");
                 logToSettings("  播放时长: " + (playDuration / 1000) + "秒");
                 logToSettings("  缓冲次数: " + totalBufferCount + " 次");
                 logToSettings("  缓冲率: " + String.format("%.1f", bufferRate) + "%");
                 logToSettings("  当前缓冲: " + bufferedDuration + "ms");
                 logToSettings("  丢帧数: " + droppedFrames + "（1.5.0 暂不支持统计）");
-                
-                // 判断卡顿原因
                 if (totalBufferCount > 3 && bufferRate > 10) {
                     Log.w(TAG, "【卡顿分析】缓冲频繁，可能是网络带宽不足或直播源不稳定");
-                    // ✅ 2026-06-25 新增：输出到设置页面的播放日志
                     logToSettings("【卡顿分析】缓冲频繁，可能是网络带宽不足或直播源不稳定");
                 }
-                // 丢帧判断暂时注释掉（因为拿不到丢帧数据）
-                // if (droppedFrames > 10) {
-                //     Log.w(TAG, "【卡顿分析】丢帧较多，可能是解码性能不足（软解导致）");
-                // }
-                
             } catch (Exception e) {
                 Log.e(TAG, "性能统计异常", e);
             }
-            
-            // 继续下一次统计
             performanceHandler.postDelayed(this, PERFORMANCE_LOG_INTERVAL);
         }
     };
-    // ================================================
-    // ✅ 优化2：卡住检测 + 自动重试
-    // ================================================
-    /**
-     * 开始卡住检测
-     * 每隔2秒检查一次播放位置，如果长时间没动，说明卡住了
-     */
+    // ====================================================================
+    // ✅ 卡住检测
+    // ====================================================================
     private void startStuckDetection() {
         stuckHandler.removeCallbacks(stuckCheckRunnable);
         lastPositionUpdateTime = System.currentTimeMillis();
         lastPosition = 0;
         stuckHandler.postDelayed(stuckCheckRunnable, 2000);
     }
-    /**
-     * 停止卡住检测
-     */
     private void stopStuckDetection() {
         stuckHandler.removeCallbacks(stuckCheckRunnable);
     }
-    /**
-     * 卡住检测Runnable
-     */
     private final Runnable stuckCheckRunnable = new Runnable() {
         @Override
         public void run() {
             if (player == null || !player.isPlaying()) {
-                // 没在播放，不检测
                 stuckHandler.postDelayed(this, 2000);
                 return;
             }
@@ -976,47 +512,25 @@ public class TVPlayerManager {
                 long currentPosition = player.getCurrentPosition();
                 long now = System.currentTimeMillis();
                 if (currentPosition != lastPosition) {
-                    // 播放位置在动，正常
                     lastPosition = currentPosition;
                     lastPositionUpdateTime = now;
                 } else {
-                    // 播放位置没动，检查超时
                     if (now - lastPositionUpdateTime > STUCK_TIMEOUT) {
-                        // 卡住了，自动重试
                         Log.w(TAG, "检测到播放卡住，自动重试...");
-                        // ✅ 2026-06-25 新增：输出到设置页面的播放日志
                         logToSettings("检测到播放卡住，自动重试...");
                         autoRetry("播放卡住");
-                        return; // 重试后不再继续检测
+                        return;
                     }
                 }
             } catch (Exception e) {
                 Log.e(TAG, "卡住检测异常", e);
             }
-            // 继续下一次检测
             stuckHandler.postDelayed(this, 2000);
         }
     };
     // ====================================================================
-    // ✅ 2026-06-24 新增：取消重试任务
+    // ✅ 取消重试
     // ====================================================================
-    /**
-     * 取消待执行的重试任务
-     * 
-     * 【作用】
-     * 切换频道时调用，取消旧频道的重试任务，
-     * 避免旧频道的重试干扰新频道的播放。
-     * 
-     * 【为什么需要这个？】
-     * 自动跳过失效频道时，切到新频道后，
-     * 旧频道的延迟重试任务还在 Handler 队列里，
-     * 1秒后会执行并重新加载（但 currentUrl 已经是新频道了），
-     * 导致新频道被重新加载一次，播放中断，体验不好。
-     * 
-     * 【调用时机】
-     * 1. playUrl() 切换频道时自动调用
-     * 2. 外部也可以手动调用
-     */
     private void cancelRetry() {
         if (retryRunnable != null) {
             mHandler.removeCallbacks(retryRunnable);
@@ -1024,93 +538,50 @@ public class TVPlayerManager {
         }
         isRetrying = false;
     }
-    /**
-     * ✅ 自动重试
-     * @param reason 重试原因（用于日志）
-     * 
-     * 【2026-06-24 修改：保存 retryRunnable 引用】
-     * 【修改说明】
-     * 把重试的 Runnable 保存为成员变量，
-     * 方便 cancelRetry() 取消掉。
-     */
+    // ====================================================================
+    // ✅ 自动重试
+    // ====================================================================
     private void autoRetry(String reason) {
-        if (isRetrying) return; // 已经在重试中，避免重复
+        if (isRetrying) return;
         if (retryCount >= MAX_RETRY_COUNT) {
             Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT);
-            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
             logToSettings("重试次数已达上限：" + MAX_RETRY_COUNT);
             return;
         }
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
-        // ✅ 2026-06-25 新增：输出到设置页面的播放日志
         logToSettings("自动重试（第" + retryCount + "次），原因：" + reason);
-        
-        // ✅ 2026-06-24 修改：保存重试任务的引用，方便后续取消
         retryRunnable = new Runnable() {
             @Override
             public void run() {
                 if (!TextUtils.isEmpty(currentUrl)) {
-                    // 重新播放当前地址
                     playUrlInternal(currentUrl);
                 }
-                // 执行完后清空引用
                 retryRunnable = null;
             }
         };
-        
-        // 延迟1秒后重新加载
         mHandler.postDelayed(retryRunnable, 1000);
     }
-    /**
-     * 切换软解码/硬解码
-     * @param useSoftware true=软解码，false=硬解码
-     * 
-     * 【2026-06-23 更新】
-     * 软解码模式现在会优先使用 FFmpeg 解码器，
-     * 而不是系统的 MediaCodec 软解。
-     * FFmpeg 兼容性更好，支持更多格式。
-     * 
-     * 【2026-06-25 新增：自动切换标记重置逻辑】
-     * 【修改说明】
-     * 如果用户手动切换到硬解（useSoftware = false），
-     * 重置 hasSwitchedDecoder 标记，给用户一次重试机会。
-     * 
-     * 【为什么要重置？】
-     * 用户手动切换到硬解，说明用户想再试试硬解，
-     * 这时候应该重置自动切换标记，
-     * 如果还是缓冲频繁，还能再自动切回软解。
-     * 
-     * 自动切换的时候调用 setSoftwareDecoder(true)，
-     * 因为 useSoftware = true，所以不会重置标记，
-     * 这样就保证了只切一次。
-     */
+    // ====================================================================
+    // ✅ 切换软解/硬解
+    // ====================================================================
     public void setSoftwareDecoder(boolean useSoftware) {
         if (useSoftwareDecoder == useSoftware) return;
         useSoftwareDecoder = useSoftware;
         Log.d(TAG, "切换解码器：" + (useSoftware ? "FFmpeg 软解码" : "系统硬解码"));
-        // ✅ 2026-06-25 新增：输出到设置页面的播放日志
         logToSettings("切换解码器：" + (useSoftware ? "FFmpeg 软解码" : "系统硬解码"));
-        
-        // ====================================================================
-        // ✅ 2026-06-25 新增：如果切换到硬解，重置自动切换标记
-        // ====================================================================
-        // 【为什么只在切换到硬解时重置？】
-        // - 切换到硬解：用户手动切的，想再试试硬解，给一次机会
-        // - 切换到软解：可能是自动切换的，不能重置，否则会反复切换
+        // —— 如果切换到硬解，重置自动切换标记（给用户一次重试机会）——
         if (!useSoftware) {
             hasSwitchedDecoder = false;
             Log.d(TAG, "【自动切换】切换到硬解，重置自动切换标记");
             logToSettings("【自动切换】切换到硬解，重置自动切换标记");
         }
-        
-        // 重新创建播放器
+        // —— 重新创建播放器 ——
         if (player != null) {
             try {
                 stopStuckDetection();
-                stopPerformanceLog(); // ✅ 停止性能统计
-                // ✅ 2026-06-24 新增：重新创建播放器前取消重试
+                stopPerformanceLog();
                 cancelRetry();
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -1125,13 +596,15 @@ public class TVPlayerManager {
         if (playerView != null) {
             playerView.setPlayer(player);
         }
-        // 重新播放当前地址
         if (!TextUtils.isEmpty(currentUrl)) {
             retryCount = 0;
             isRetrying = false;
             playUrlInternal(currentUrl);
         }
     }
+    // ====================================================================
+    // ✅ 前后台切换
+    // ====================================================================
     public void onForeground() {
         try {
             if (player != null && playerView != null) {
@@ -1151,11 +624,17 @@ public class TVPlayerManager {
             Log.e(TAG, "切后台异常", e);
         }
     }
+    // ====================================================================
+    // ✅ 绑定 PlayerView
+    // ====================================================================
     public void attachPlayerView(PlayerView view) {
         playerView = view;
         playerView.setPlayer(player);
         playerView.setUseController(false);
     }
+    // ====================================================================
+    // ✅ 唤醒锁
+    // ====================================================================
     private void updateWakeLock(boolean enable) {
         isPlaying = enable;
         if (playerView != null) {
@@ -1165,6 +644,9 @@ public class TVPlayerManager {
     private String getLogTime() {
         return "[" + logSdf.format(new Date()) + "]";
     }
+    // ====================================================================
+    // ✅ 请求头
+    // ====================================================================
     private Map<String, String> getHeaders(String url) {
         Map<String, String> headers = new HashMap<>();
         headers.put("User-Agent", "ExoPlayer");
@@ -1176,12 +658,10 @@ public class TVPlayerManager {
         if (isHuya) {
             headers.put("Referer", "https://www.huya.com/");
             Log.d(TAG, "虎牙直播，设置虎牙Referer");
-        }
-        else if (isDouyu) {
+        } else if (isDouyu) {
             headers.put("Referer", "https://www.douyu.com/");
             Log.d(TAG, "斗鱼直播，设置斗鱼Referer");
-        }
-        else {
+        } else {
             headers.put("Referer", "https://www.huya.com/");
         }
         String cookies = CookieManager.getInstance().getCookie(url);
@@ -1190,135 +670,64 @@ public class TVPlayerManager {
         }
         return headers;
     }
+    // ====================================================================
+    // ✅ 播放入口
+    // ====================================================================
     public void play(String url) {
         playUrl(url);
     }
-    /**
-     * 播放指定URL（对外接口）
-     * 切换频道时调用，重置重试计数
-     * 
-     * 【2026-06-24 修改：切换频道时取消旧重试任务】
-     * 【修改说明】
-     * 切换到新频道前，先调用 cancelRetry() 取消旧频道的重试任务，
-     * 避免旧频道的延迟重试干扰新频道的播放。
-     */
     public void playUrl(String url) {
-        // ✅ 2026-06-24 新增：切换频道，先取消之前的重试任务
         cancelRetry();
-        // 切换频道，重置重试计数
         retryCount = 0;
         isRetrying = false;
-        // ✅ 2026-06-24 新增：重置性能统计
         resetPerformanceStats();
+        // ✅ 切换频道时重置自动切换标记（每个新频道都有一次机会）
+        hasSwitchedDecoder = false;
         playUrlInternal(url);
     }
-    /**
-     * ✅ 内部播放方法
-     *
-     * 【优化3】换回 DefaultHttpDataSource
-     * 自定义的 RedirectLoggingHttpDataSource 可能有bug，先换回官方的稳定版
-     * 如果需要看重定向日志，可以再切回去
-     *
-     * 【优化4】切台保持最后一帧
-     * 去掉 player.stop() 和 player.clearMediaItems()
-     * 直接用 setMediaSource 切换，旧画面会保留到新画面出来
-     * 这样就完全避免了切台黑屏的问题
-     * 
-     * 【2026-06-24 修改：抗卡顿优化】
-     * 【修改说明】
-     * HLS 流增加容错配置，提高对不规范直播源的兼容性。
-     */
+    // ====================================================================
+    // ✅ 内部播放方法
+    // ====================================================================
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
-            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
             logToSettings("开始播放：" + currentUrl);
-            // ====================================================================
-            // ✅ 关键修改：去掉 player.stop() 和 player.clearMediaItems()
-            // ====================================================================
-            /**
-             * 【为什么去掉 stop() 就能保持最后一帧？】
-             *
-             * 调用 player.stop() 会立刻清空渲染器的画面，导致黑屏。
-             * 直接调用 setMediaSource() + prepare()，旧画面会保留到新画面渲染出来。
-             *
-             * 用户看到的效果：旧画面静止不动 → 新画面突然出现
-             * 而不是：黑屏 → 新画面出现
-             *
-             * 这样就完全避免了切台黑屏的问题。
-             *
-             * 【为什么去掉 clearMediaItems()？】
-             * setMediaSource(mediaSource, true) 会自动替换所有媒体源，
-             * 不需要先 clear 再 set。
-             *
-             * 【第二个参数 true 是什么意思？】
-             * setMediaSource(mediaSource, resetPosition = true)
-             * true = 重置播放位置到开头（直播流必须用 true）
-             * false = 保持当前播放位置（点播连播时用 false）
-             */
-            // player.stop();          // ✅ 注释掉，保持最后一帧
-            // player.clearMediaItems(); // ✅ 注释掉，保持最后一帧
-            // ===== 创建数据源（带重定向日志版） =====
-            // 每一重定向都会打印详细日志，方便调试直播源
             RedirectLoggingHttpDataSource.Factory httpFactory =
                     new RedirectLoggingHttpDataSource.Factory();
             httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
             httpFactory.setAllowCrossProtocolRedirects(true);
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
-            // ====================================================================
-            // ✅ 2026-06-23 修改：MediaSource 类型改成 Media3 的
-            // ====================================================================
-                        // 从 com.google.android.exoplayer2.source.MediaSource
-            // 改成 androidx.media3.exoplayer.source.MediaSource
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
-                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
                 logToSettings("流格式：HLS (m3u8)");
-                // ====================================================================
-                // ✅ 2026-06-24 修改：抗卡顿优化 - HLS 增加容错配置
-                // ====================================================================
-                // 【为什么要改？】
-                // Media3 1.5.0 对某些不规范的 HLS 流处理不如新版本，
-                // 增加容错配置可以提高兼容性，减少卡顿。
-                //
-                // 【配置说明】
-                // - setAllowChunklessPreparation(true)：允许无块准备，提高容错
-                // - 其他保持默认
                 mediaSource = new HlsMediaSource.Factory(httpFactory)
-                        .setAllowChunklessPreparation(true) // 允许无块准备，提高容错
+                        .setAllowChunklessPreparation(true)
                         .createMediaSource(mediaItem);
             } else {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
-                // ✅ 2026-06-25 新增：输出到设置页面的播放日志
                 logToSettings("流格式：普通流 (Progressive)");
-                mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
+                mediaSource = new ProgressiveMediaSource.Factory(httpFactory)
+                        .createMediaSource(mediaItem);
             }
-            // ====================================================================
-            // ✅ 关键修改：直接设置新的媒体源，第二个参数 true = 重置到开头
-            // ====================================================================
             player.setMediaSource(mediaSource, true);
             player.prepare();
             player.play();
-            // 开始卡住检测
             startStuckDetection();
         } catch (Exception e) {
             Log.e(TAG, "播放异常", e);
-            // ✅ 2026-06-25 新增：输出到设置页面的播放日志
             logToSettings("播放异常：" + e.getMessage());
             autoRetry("播放异常：" + e.getMessage());
         }
     }
+    // ====================================================================
+    // ✅ 画面比例
+    // ====================================================================
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
-            // ====================================================================
-            // ✅ 2026-06-23 修改：AspectRatioFrameLayout 包名改成 Media3 的
-            // ====================================================================
-            // 从 com.google.android.exoplayer2.ui.AspectRatioFrameLayout
-            // 改成 androidx.media3.ui.AspectRatioFrameLayout
             switch (mode) {
                 case FIT:
                     playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
@@ -1334,6 +743,9 @@ public class TVPlayerManager {
             Log.e(TAG, "设置缩放模式异常", e);
         }
     }
+    // ====================================================================
+    // ✅ 播放状态回调
+    // ====================================================================
     public interface OnPlayStateListener {
         void onIdle();
         void onBuffering();
@@ -1344,6 +756,9 @@ public class TVPlayerManager {
     public void setOnPlayStateListener(OnPlayStateListener l) {
         listener = l;
     }
+    // ====================================================================
+    // ✅ 暂停/恢复/释放
+    // ====================================================================
     public void pause() {
         try { if (player != null) player.pause(); } catch (Exception e) {
             Log.e(TAG, "暂停异常", e);
@@ -1357,8 +772,7 @@ public class TVPlayerManager {
     public void release() {
         try {
             stopStuckDetection();
-            stopPerformanceLog(); // ✅ 停止性能统计
-            // ✅ 2026-06-24 新增：释放时取消重试任务
+            stopPerformanceLog();
             cancelRetry();
             mHandler.removeCallbacks(hideChannelRunnable);
             updateWakeLock(false);
@@ -1375,4 +789,3 @@ public class TVPlayerManager {
         }
     }
 }
-           
