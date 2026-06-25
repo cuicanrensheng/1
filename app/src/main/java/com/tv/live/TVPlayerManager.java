@@ -10,26 +10,21 @@ import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
 import android.widget.TextView;
 // ====================================================================
-// ✅ 2026-06-23 修改：升级到 Media3 1.10.1
+// ✅ 2026-06-25 优化：解码逻辑全面优化 + 操作日志接入
 // ====================================================================
-// 所有 import 从 com.google.android.exoplayer2.*
-// 改成对应的 androidx.media3.* 包名
+// 【本次优化内容】
+// 1. 补全自动切换解码器功能（硬解卡顿 → 自动切 FFmpeg 软解）
+// 2. 修复自动重试 bug，新增源失效回调（重试失败后通知外部切台）
+// 3. 修复 notifyLiveInfoUpdate 每次 new Handler 的问题
+// 4. 码率单位统一为 Mbps（行业标准）
+// 5. 修复 onPlaybackStateChanged else 分支死代码问题
+// 6. 新增性能统计（缓冲次数、卡顿时长）
+// 7. 切台时重置所有解码器相关状态
+// 8. ✅ 所有关键节点接入 SettingsActivity 操作日志
 //
-// 【包名迁移对照表】
-// 旧包名 (ExoPlayer 2.x)                → 新包名 (Media3 1.x)
-// com.google.android.exoplayer2.DefaultLoadControl → androidx.media3.exoplayer.DefaultLoadControl
-// com.google.android.exoplayer2.DefaultRenderersFactory → androidx.media3.exoplayer.DefaultRenderersFactory
-// com.google.android.exoplayer2.ExoPlayer → androidx.media3.exoplayer.ExoPlayer
-// com.google.android.exoplayer2.Format → androidx.media3.common.Format
-// com.google.android.exoplayer2.MediaItem → androidx.media3.common.MediaItem
-// com.google.android.exoplayer2.PlaybackException → androidx.media3.common.PlaybackException
-// com.google.android.exoplayer2.Player → androidx.media3.common.Player
-// com.google.android.exoplayer2.source.ProgressiveMediaSource → androidx.media3.exoplayer.source.ProgressiveMediaSource
-// com.google.android.exoplayer2.source.hls.HlsMediaSource → androidx.media3.exoplayer.hls.HlsMediaSource
-// com.google.android.exoplayer2.ui.PlayerView → androidx.media3.ui.PlayerView
-// com.google.android.exoplayer2.video.VideoSize → androidx.media3.common.VideoSize
-// com.google.android.exoplayer2.ui.AspectRatioFrameLayout → androidx.media3.ui.AspectRatioFrameLayout
-// com.google.android.exoplayer2.source.MediaSource → androidx.media3.exoplayer.source.MediaSource
+// 【包名说明】
+// 当前使用 Media3 包名（androidx.media3.*）
+// 如果降级回 ExoPlayer 2.x，需要改回 com.google.android.exoplayer2.*
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
@@ -52,7 +47,7 @@ import java.util.Map;
  * 播放器管理类（单例模式）
  * 基于 Media3 ExoPlayer 封装，提供直播播放、状态监听、画质切换、Header设置等功能
  *
- * 【防卡优化版 + 切台优化版 + 真实数据版 + FFmpeg 软解版】
+ * 【防卡优化版 + 切台优化版 + 真实数据版 + FFmpeg 软解版 + 自动切换解码器版】
  * 1. 增大缓冲（从15秒→50秒），抗网络波动
  * 2. 检测播放卡住，自动重新加载
  * 3. 换回 DefaultHttpDataSource，稳定可靠
@@ -61,6 +56,8 @@ import java.util.Map;
  * 6. 优化缓冲参数，更快出画
  * 7. 显示真实画质、音频、码率
  * 8. ✅ 集成 FFmpeg 软解码器，提高格式兼容性
+ * 9. ✅ 自动切换解码器（硬解卡顿自动切软解）
+ * 10. ✅ 源失效回调（重试失败后通知外部自动切台）
  * 
  * 【2026-06-24 新增：自动跳过失效频道 - 取消重试支持】
  * 【修改说明】
@@ -77,6 +74,18 @@ public class TVPlayerManager {
     public enum ScaleMode { FIT, FILL, ZOOM }
     // 播放状态监听器
     private OnPlayStateListener listener;
+    // ====================================================================
+    // ✅ 2026-06-25 新增：源失效监听器
+    // ====================================================================
+    // 【作用】
+    // 当一个直播源重试多次都失败时，回调这个接口，
+    // 通知外部（MainActivity）自动跳过这个频道，切到下一个。
+    //
+    // 【为什么不在 TVPlayerManager 里直接切台？】
+    // TVPlayerManager 只负责播放单个 URL，不知道频道列表的概念。
+    // 频道管理、切台逻辑应该在外部（MainActivity / ChannelPanelController）。
+    // 所以这里只负责检测"源失效"，然后回调给外部处理。
+    private OnSourceFailedListener sourceFailedListener;
     // 当前播放地址
     private String currentUrl = "";
     // 是否正在播放
@@ -107,7 +116,7 @@ public class TVPlayerManager {
     private static final long STUCK_TIMEOUT = 5000;
     // 自动重试次数限制（防止无限重试）
     private int retryCount = 0;
-    private static final int MAX_RETRY_COUNT = 3;
+    private static final int MAX_RETRY_COUNT = 2;  // ✅ 改成2次，重试2次还不行就算失效
     // 卡住检测的Handler
     private final Handler stuckHandler = new Handler(Looper.getMainLooper());
     // 是否正在重试中
@@ -125,11 +134,31 @@ public class TVPlayerManager {
      * 
      * 【为什么需要这个？】
      * 自动跳过失效频道时，切到新频道后，
-     * 旧频道的延迟重试任务还在队列里，
+     * 旧频道的延迟重试任务还在 Handler 队列里，
      * 1秒后会执行并重新加载（但 currentUrl 已经是新频道了），
-     * 导致新频道被重新加载一次，体验不好。
+     * 导致新频道被重新加载一次，播放中断，体验不好。
+     * 
+     * 【调用时机】
+     * 1. playUrl() 切换频道时自动调用
+     * 2. 外部也可以手动调用
      */
     private Runnable retryRunnable = null;
+    // ====================================================================
+    // ✅ 2026-06-25 新增：自动切换解码器相关变量
+    // ====================================================================
+    // 是否已切换过解码器（每个频道只切一次）
+    private boolean hasSwitchedDecoder = false;
+    // 首次播放开始时间（只在第一次 STATE_READY 时设置）
+    // 用于判断"播放开始后 30 秒内"这个时间窗口
+    private long initialPlayStartTime = 0;
+    // 性能统计：缓冲次数
+    private int bufferCount = 0;
+    // 性能统计：总卡顿时间（毫秒）
+    private long totalStallTime = 0;
+    // 性能统计：上次卡顿开始时间
+    private long lastStallStartTime = 0;
+    // 性能统计：是否正在卡顿
+    private boolean isStalled = false;
     /**
      * 直播信息实体类
      * 所有数据都从播放器实时获取，不再写死
@@ -145,8 +174,26 @@ public class TVPlayerManager {
     public interface OnLiveInfoUpdateListener {
         void onLiveInfoUpdate(LiveInfo info);
     }
+    // ====================================================================
+    // ✅ 2026-06-25 新增：源失效监听器接口
+    // ====================================================================
+    // 【作用】
+    // 当一个直播源重试多次都失败时，回调这个接口，
+    // 通知外部自动跳过这个频道。
+    //
+    // 【回调时机】
+    // 重试 MAX_RETRY_COUNT 次后仍然失败，就会回调 onSourceFailed()
+    public interface OnSourceFailedListener {
+        void onSourceFailed();
+    }
     public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) {
         this.infoUpdateListener = listener;
+    }
+    // ====================================================================
+    // ✅ 2026-06-25 新增：设置源失效监听器
+    // ====================================================================
+    public void setOnSourceFailedListener(OnSourceFailedListener listener) {
+        this.sourceFailedListener = listener;
     }
     public LiveInfo getLiveInfo() {
         LiveInfo info = new LiveInfo();
@@ -175,12 +222,23 @@ public class TVPlayerManager {
                     }
                     
                     // ========================================
-                    // 2. 码率（从视频格式获取，单位 MB/s）
+                    // ✅ 2026-06-25 修改：码率单位改成 Mbps
                     // ========================================
+                    // 【为什么改单位？】
+                    // 视频行业通常用 Mbps（兆比特每秒）作为码率单位，
+                    // 而不是 MB/s（兆字节每秒）。
+                    // 比如我们常说的"4Mbps 码率"就是 4 兆比特每秒。
+                    //
+                    // 【计算公式】
+                    // videoFormat.bitrate 的单位是 bits per second (bps)
+                    // 除以 1,000,000 就是 Mbps（兆比特每秒）
+                    //
+                    // 【之前的计算】
+                    // videoFormat.bitrate / 8 / 1024 / 1024 = MB/s（兆字节每秒）
+                    // 这个单位不常用，用户可能会困惑。
                     if (videoFormat.bitrate != Format.NO_VALUE && videoFormat.bitrate > 0) {
-                        // bitrate 是比特每秒(bps)，转换成兆字节每秒(MB/s)
-                        double bitrateMBs = videoFormat.bitrate / 8.0 / 1024.0 / 1024.0;
-                        info.bitrate = String.format("%.1fMB/s", bitrateMBs);
+                        double bitrateMbps = videoFormat.bitrate / 1000000.0;
+                        info.bitrate = String.format("%.1f Mbps", bitrateMbps);
                     } else {
                         info.bitrate = "—";
                     }
@@ -226,10 +284,15 @@ public class TVPlayerManager {
     public void setCurrentChannelNumber(int num) {
         this.currentChannelNumber = num;
     }
+    // ====================================================================
+    // ✅ 2026-06-25 修复：用 mHandler 而不是每次 new Handler
+    // ====================================================================
+    // 【为什么要改？】
+    // 每次回调都 new 一个 Handler，效率低，而且可能导致内存泄漏。
+    // 直接用已有的 mHandler 就行，它已经是主线程的了。
     private void notifyLiveInfoUpdate() {
         if (infoUpdateListener != null) {
-            new Handler(Looper.getMainLooper()).post(() ->
-                    infoUpdateListener.onLiveInfoUpdate(getLiveInfo()));
+            mHandler.post(() -> infoUpdateListener.onLiveInfoUpdate(getLiveInfo()));
         }
     }
     public void bindChannelText(TextView textView) {
@@ -317,6 +380,8 @@ public class TVPlayerManager {
             }
             
             Log.d(TAG, "【FFmpeg】软解码模式：优先使用 FFmpeg 解码器");
+            // ✅ 2026-06-25 新增：接入操作日志
+            SettingsActivity.logOperation("【解码器】初始化：FFmpeg 软解码模式（优先）");
         } else {
             // ====================================================================
             // ✅ 硬解码模式（默认）：FFmpeg 作为备用方案
@@ -342,6 +407,8 @@ public class TVPlayerManager {
             renderersFactory.setEnableDecoderFallback(true);
             
             Log.d(TAG, "【FFmpeg】硬解码模式：系统硬解优先，FFmpeg 作为备用");
+            // ✅ 2026-06-25 新增：接入操作日志
+            SettingsActivity.logOperation("【解码器】初始化：系统硬解模式（FFmpeg 备用）");
         }
         // ================================================
         // ✅ 优化1：缓冲配置（快速出画 + 大缓冲防卡）
@@ -399,8 +466,8 @@ public class TVPlayerManager {
                 if (listener != null) {
                     listener.onPlayError(error.getMessage());
                 }
-                // ✅ 播放错误时自动重试
-                autoRetry("播放错误");
+                // ✅ 播放错误时自动重试（重试次数用完后回调源失效）
+                autoRetry("播放错误：" + error.getMessage());
             }
             @Override
             public void onPlaybackStateChanged(int state) {
@@ -427,31 +494,107 @@ public class TVPlayerManager {
                             String decoderName = videoFormat.sampleMimeType;
                             boolean isFfmpeg = decoderName != null 
                                 && decoderName.toLowerCase().contains("ffmpeg");
+                            String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
                             Log.d(TAG, "【解码器】当前视频解码器：" + decoderName 
-                                + "（" + (isFfmpeg ? "FFmpeg 软解" : "系统硬解") + "）");
+                                + "（" + decoderType + "）");
+                            // ✅ 2026-06-25 新增：接入操作日志
+                            SettingsActivity.logOperation("【解码器】当前使用：" + decoderType 
+                                + "（" + decoderName + "）");
                         }
                     } catch (Exception e) {
                         // 忽略，获取解码器信息失败不影响播放
+                    }
+                    // ====================================================================
+                    // ✅ 2026-06-25 新增：只在第一次 STATE_READY 时记录开始时间
+                    // ====================================================================
+                    // 【为什么要这样？】
+                    // 原来每次 STATE_READY 都会重置时间，
+                    // 但自动切换解码器的判断是基于"播放开始后 30 秒内"，
+                    // 如果中间因为缓冲导致状态变化，会重置这个时间，
+                    // 导致自动切换判断不准确。
+                    //
+                    // 修复后：只在第一次 STATE_READY 时设置 initialPlayStartTime，
+                    // 后续的状态变化不会影响这个时间。
+                    if (initialPlayStartTime == 0) {
+                        initialPlayStartTime = System.currentTimeMillis();
+                    }
+                    // ====================================================================
+                    // ✅ 2026-06-25 新增：自动切换解码器（硬解 → 软解）
+                    // ====================================================================
+                    // 【触发条件】
+                    // 1. 当前是硬解模式
+                    // 2. 还没切换过解码器（每个频道只切一次）
+                    // 3. 播放开始后 30 秒内（刚开播的这段时间最能反映是否卡顿）
+                    // 4. 缓冲次数 > 2 次（说明网络或解码有问题）
+                    //
+                    // 【为什么要自动切换？】
+                    // 有些频道用硬解会很卡（码率太高、格式不兼容等），
+                    // 自动切换到 FFmpeg 软解可以提升播放流畅度。
+                    // 每个频道只切一次，避免反复切换。
+                    if (!useSoftwareDecoder && !hasSwitchedDecoder 
+                            && initialPlayStartTime > 0 
+                            && System.currentTimeMillis() - initialPlayStartTime < 30000
+                            && bufferCount > 2) {
+                        Log.d(TAG, "【自动切换】硬解卡顿，自动切换到 FFmpeg 软解");
+                        // ✅ 2026-06-25 新增：接入操作日志
+                        SettingsActivity.logOperation("【解码器】硬解卡顿（缓冲" 
+                            + bufferCount + "次），自动切换到 FFmpeg 软解");
+                        hasSwitchedDecoder = true;
+                        setSoftwareDecoder(true);
                     }
                 } else if (state == Player.STATE_BUFFERING) {
                     if (listener != null) listener.onBuffering();
                     // 缓冲中也重置卡住检测
                     lastPositionUpdateTime = System.currentTimeMillis();
+                    // ====================================================================
+                    // ✅ 2026-06-25 新增：统计缓冲次数和卡顿时间
+                    // ====================================================================
+                    // 【作用】
+                    // 统计播放过程中的缓冲次数和卡顿总时长，
+                    // 用于判断是否需要自动切换解码器。
+                    bufferCount++;
+                    if (!isStalled) {
+                        isStalled = true;
+                        lastStallStartTime = System.currentTimeMillis();
+                    }
+                    // ✅ 2026-06-25 新增：接入操作日志（只在第一次缓冲时记录，避免刷屏）
+                    if (bufferCount == 1) {
+                        SettingsActivity.logOperation("【播放器】开始缓冲（第1次）");
+                    }
                 } else if (state == Player.STATE_ENDED) {
                     if (listener != null) listener.onPlayEnd();
                     // ✅ 直播流意外结束，自动重试
                     autoRetry("播放结束");
                 } else if (state == Player.STATE_IDLE) {
                     if (listener != null) listener.onIdle();
-                } else {
+                    // ====================================================================
+                    // ✅ 2026-06-25 修复：IDLE 状态也更新唤醒锁
+                    // ====================================================================
+                    // 【为什么改这里？】
+                    // 原来的 else 分支是死代码（四个状态都覆盖了），
+                    // 现在把 updateWakeLock(false) 移到 IDLE 状态里，
+                    // 确保空闲状态时屏幕常亮会被关闭。
                     updateWakeLock(false);
                 }
+                // ⚠️ 注意：去掉了原来的 else 分支
+                // 因为四个状态（READY/BUFFERING/ENDED/IDLE）已经覆盖了所有情况，
+                // else 分支永远不会执行，是死代码。
+                // 现在把 updateWakeLock(false) 分别放到合适的状态里处理。
             }
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
                 // 播放状态变化时更新卡住检测
                 if (isPlaying) {
                     lastPositionUpdateTime = System.currentTimeMillis();
+                    // ====================================================================
+                    // ✅ 2026-06-25 新增：卡顿结束，统计卡顿时间
+                    // ====================================================================
+                    if (isStalled) {
+                        isStalled = false;
+                        long stallDuration = System.currentTimeMillis() - lastStallStartTime;
+                        totalStallTime += stallDuration;
+                        Log.d(TAG, "【性能】卡顿结束，时长：" + stallDuration + "ms，总卡顿：" + totalStallTime + "ms");
+                    }
                 }
             }
             // ====================================================================
@@ -516,6 +659,8 @@ public class TVPlayerManager {
                     if (now - lastPositionUpdateTime > STUCK_TIMEOUT) {
                         // 卡住了，自动重试
                         Log.w(TAG, "检测到播放卡住，自动重试...");
+                        // ✅ 2026-06-25 新增：接入操作日志
+                        SettingsActivity.logOperation("【播放器】检测到播放卡住，准备自动重试");
                         autoRetry("播放卡住");
                         return; // 重试后不再继续检测
                     }
@@ -562,21 +707,62 @@ public class TVPlayerManager {
      * 【修改说明】
      * 把重试的 Runnable 保存为成员变量，
      * 方便 cancelRetry() 取消掉。
+     * 
+     * 【2026-06-25 修改：修复重试 bug + 增加源失效回调 + 操作日志】
+     * 【修改说明】
+     * 1. 修复了 isRetrying 一直是 true 的 bug（重试开始时就清除等待标记）
+     * 2. 重试次数用完后，回调 onSourceFailed()，通知外部自动切台
+     * 3. 最大重试次数改成 2 次（重试2次还不行就算失效）
+     * 4. 所有关键节点接入 SettingsActivity 操作日志
      */
     private void autoRetry(String reason) {
-        if (isRetrying) return; // 已经在重试中，避免重复
+        if (isRetrying) return; // 已经有重试任务在等待中，避免重复
         if (retryCount >= MAX_RETRY_COUNT) {
-            Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT);
+            Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT + "，判定为失效源");
+            // ✅ 2026-06-25 新增：接入操作日志
+            SettingsActivity.logOperation("【播放器】重试" + MAX_RETRY_COUNT 
+                + "次均失败，判定为失效源");
+            // ====================================================================
+            // ✅ 2026-06-25 新增：重试次数用完，回调源失效
+            // ====================================================================
+            // 【作用】
+            // 通知外部（MainActivity）这个源失效了，
+            // 让外部自动跳过这个频道，切到下一个。
+            //
+            // 【为什么不在 TVPlayerManager 里直接切台？】
+            // TVPlayerManager 只负责播放单个 URL，
+            // 不知道频道列表的概念，也不知道怎么切台。
+            // 频道管理和切台逻辑应该在外部。
+            if (sourceFailedListener != null) {
+                mHandler.post(() -> sourceFailedListener.onSourceFailed());
+            }
             return;
         }
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
+        // ✅ 2026-06-25 新增：接入操作日志
+        SettingsActivity.logOperation("【播放器】自动重试（第" + retryCount + "次），原因：" + reason);
         
         // ✅ 2026-06-24 修改：保存重试任务的引用，方便后续取消
         retryRunnable = new Runnable() {
             @Override
             public void run() {
+                // ====================================================================
+                // ✅ 2026-06-25 修复：重试任务开始执行时，清除等待标记
+                // ====================================================================
+                // 【为什么要在这里清除？】
+                // isRetrying 的含义是"是否有重试任务正在等待中"。
+                // 重试任务开始执行后，等待状态就结束了。
+                // 如果这次重试又失败了，onPlayerError 会再次触发 autoRetry，
+                // 这时候 isRetrying 应该是 false，允许安排下一次重试。
+                //
+                // 【原来的 bug】
+                // 原来 isRetrying 一直是 true，直到播放成功才重置。
+                // 导致重试一次后如果又失败，就不能再重试了，
+                // 实际上只能重试 1 次，而不是 MAX_RETRY_COUNT 次。
+                isRetrying = false;
+                
                 if (!TextUtils.isEmpty(currentUrl)) {
                     // 重新播放当前地址
                     playUrlInternal(currentUrl);
@@ -601,7 +787,10 @@ public class TVPlayerManager {
     public void setSoftwareDecoder(boolean useSoftware) {
         if (useSoftwareDecoder == useSoftware) return;
         useSoftwareDecoder = useSoftware;
-        Log.d(TAG, "切换解码器：" + (useSoftware ? "FFmpeg 软解码" : "系统硬解码"));
+        String decoderType = useSoftware ? "FFmpeg 软解码" : "系统硬解码";
+        Log.d(TAG, "切换解码器：" + decoderType);
+        // ✅ 2026-06-25 新增：接入操作日志
+        SettingsActivity.logOperation("【解码器】手动切换到：" + decoderType);
         // 重新创建播放器
         if (player != null) {
             try {
@@ -691,12 +880,21 @@ public class TVPlayerManager {
     }
     /**
      * 播放指定URL（对外接口）
-     * 切换频道时调用，重置重试计数
+     * 切换频道时调用，重置重试计数和解码器状态
      * 
      * 【2026-06-24 修改：切换频道时取消旧重试任务】
      * 【修改说明】
      * 切换到新频道前，先调用 cancelRetry() 取消旧频道的重试任务，
      * 避免旧频道的延迟重试干扰新频道的播放。
+     * 
+     * 【2026-06-25 修改：切换频道时重置解码器状态 + 操作日志】
+     * 【修改说明】
+     * 每个频道都有独立的解码策略判断：
+     * 1. 重置 hasSwitchedDecoder（每个频道都可以自动切一次）
+     * 2. 重置 initialPlayStartTime（重新计时）
+     * 3. 重置性能统计
+     * 4. 用户选择的硬解/软解模式保持不变
+     * 5. 切换频道时记录操作日志
      */
     public void playUrl(String url) {
         // ✅ 2026-06-24 新增：切换频道，先取消之前的重试任务
@@ -704,7 +902,33 @@ public class TVPlayerManager {
         // 切换频道，重置重试计数
         retryCount = 0;
         isRetrying = false;
+        // ====================================================================
+        // ✅ 2026-06-25 新增：切换频道，重置解码器切换标记
+        // ====================================================================
+        // 每个频道只自动切换一次解码器
+        hasSwitchedDecoder = false;
+        // ✅ 2026-06-25 新增：切换频道，重置首次播放开始时间
+        initialPlayStartTime = 0;
+        // ✅ 2026-06-25 新增：切换频道，重置性能统计
+        resetPerformanceStats();
+        // ✅ 2026-06-25 新增：接入操作日志
+        SettingsActivity.logOperation("【播放器】开始加载新频道");
         playUrlInternal(url);
+    }
+    // ====================================================================
+    // ✅ 2026-06-25 新增：重置性能统计
+    // ====================================================================
+    /**
+     * 重置性能统计数据
+     * 切换频道时调用
+     */
+    private void resetPerformanceStats() {
+        bufferCount = 0;
+        totalStallTime = 0;
+        isStalled = false;
+        lastStallStartTime = 0;
+        // ⚠️ 注意：hasSwitchedDecoder 不在这重置
+        // 因为它是按频道来的，已经在 playUrl() 里重置了
     }
     /**
      * ✅ 内部播放方法
