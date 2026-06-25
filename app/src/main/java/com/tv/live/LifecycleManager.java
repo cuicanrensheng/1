@@ -31,64 +31,200 @@ import java.util.List;
  * 把 MainActivity 里的 onPause、onStop、onResume、onWindowFocusChanged、onDestroy
  * 等生命周期方法里的逻辑抽离到这里，统一管理生命周期相关的逻辑。
  *
- * 【2026-06-25 合并：UiInitializer】
- * 【合并说明】
- * 把 UiInitializer 的 UI 初始化逻辑合并到这里，减少文件数量。
- * 原来的 UiInitializer 是独立的单例，现在直接作为 LifecycleManager 的一部分。
- * 生命周期和初始化本来就是紧密相关的，放在一起更合理。
- *
  * 【职责】
- * - 初始化基础配置（屏幕方向、全屏、保持屏幕常亮等）
- * - 初始化各个 Manager
- * - 绑定各个 Manager 之间的关系
- * - 设置各种监听器和回调
  * - onPause：暂停相关逻辑（画中画保持播放等）
  * - onStop：停止相关逻辑
  * - onResume：恢复相关逻辑（重新加载设置、恢复播放等）
  * - onWindowFocusChanged：窗口焦点变化逻辑
  * - onDestroy：释放资源
+ *
+ * 【2026-06-25 合并：UiInitializer】
+ * 【合并说明】
+ * 把 UiInitializer 的 UI 初始化逻辑合并到这里，减少文件数量。
+ * 原来的 UiInitializer 是独立的单例，现在直接作为 LifecycleManager 的一部分。
+ * 生命周期管理和 UI 初始化本来就是紧密相关的，放在一起更合理。
+ *
+ * 【为什么合并？】
+ * 1. UiInitializer 本身就很小，只是一堆 initXxx() 方法
+ * 2. 生命周期管理和 UI 初始化逻辑上紧密相关
+ * 3. 减少文件数量，让项目结构更清晰
+ * 4. 避免重复的成员变量（两个类里都有很多相同的 Manager 引用）
+ * 5. 避免循环引用（UiInitializer 里有 lifecycleManager，LifecycleManager 里又有 UiInitializer）
  */
 public class LifecycleManager {
 
+    // ====================== 单例模式 ======================
     private static LifecycleManager instance;
 
-    private Activity activity;
+    private LifecycleManager() {
+    }
 
-    private AppCoreManager appCoreManager;
-    private PictureInPictureManager pipManager;
-    private TVPlayerManager playerManager;
-    private SettingsManager settingsManager;
-    private ScreenRatioManager screenRatioManager;
-    private DisplayManager displayManager;
-    private TvRemoteManager remoteManager;
-    private ChannelPanelController channelPanelController;
-    private InfoDisplayManager infoDisplayManager;
-    private ChannelNumberManager channelNumberManager;
-    private ChannelPlayManager channelPlayManager;
-    private PanelAutoHideManager panelAutoHideManager;
-
-    private boolean isOpeningSettings = false;
+    public static synchronized LifecycleManager getInstance() {
+        if (instance == null) {
+            instance = new LifecycleManager();
+        }
+        return instance;
+    }
 
     // ====================================================================
-    // ✅ 2026-06-25 合并：UiInitializer - 初始化相关
+    // ✅ 2026-06-25 合并：UiInitializer - 初始化完成回调接口
     // ====================================================================
-    private AppConfig appConfig;
-    private PlayerStateListenerImpl playerStateListener;
-    private GestureManager gestureManager;
-    private KeyEventManager keyEventManager;
-    private KeyDispatcher keyDispatcher;
-    private PlayerView playerView;
-
     /**
-     * 初始化完成监听器
+     * 初始化完成回调接口
      * 【2026-06-25 合并：从 UiInitializer 移过来】
      */
     public interface OnInitCompleteListener {
         void onInitComplete();
     }
 
+    // ====================== 基础成员变量 ======================
+    private Activity activity;
+
+    // ====================================================================
+    // ✅ 2026-06-25 合并：UiInitializer - 各个 Manager 引用
+    // ====================================================================
+    // 注意：以下成员变量有一部分是 LifecycleManager 原来就有的，
+    // 另一部分是从 UiInitializer 合并过来的。
+    // 合并后统一放在这里，避免重复。
+
+    /** 显示管理器 */
+    private DisplayManager displayManager;
+    /** 信息展示管理器 */
+    private InfoDisplayManager infoDisplayManager;
+    /** 应用配置 */
+    private AppConfig appConfig;
+    /** 设置管理器 */
+    private SettingsManager settingsManager;
+    /** 自动跳过管理器 */
+    private AutoSkipManager autoSkipManager;
+    /** 面板自动隐藏管理器 */
+    private PanelAutoHideManager panelAutoHideManager;
+    /** 频道播放管理器 */
+    private ChannelPlayManager channelPlayManager;
+    /** 方向键处理器 */
+    private DirectionKeyHandler directionKeyHandler;
+    /** 按键分发器 */
+    private KeyDispatcher keyDispatcher;
+    /** 返回键处理器 */
+    private BackPressHandler backPressHandler;
+    /** 播放器视图 */
+    private PlayerView playerView;
+    /** 频道面板控制器 */
+    private ChannelPanelController channelPanelController;
+    /** 遥控器管理器 */
+    private TvRemoteManager remoteManager;
+    /** 画中画管理器 */
+    private PictureInPictureManager pipManager;
+    /** 播放器管理器 */
+    private TVPlayerManager playerManager;
+    /** 播放器状态监听器 */
+    private PlayerStateListenerImpl playerStateListener;
+    /** 屏幕比例管理器 */
+    private ScreenRatioManager screenRatioManager;
+    /** 手势管理器 */
+    private GestureManager gestureManager;
+    /** 按键事件管理器 */
+    private KeyEventManager keyEventManager;
+    /** 数字选台管理器 */
+    private ChannelNumberManager channelNumberManager;
+    /** 应用核心管理器 */
+    private AppCoreManager appCoreManager;
+    /** 日志辅助类 */
+    private LogHelper logHelper;
+
+    // ====================== 生命周期相关 ======================
+    /** 是否正在打开设置页面（用于区分 onPause 场景） */
+    private boolean isOpeningSettings = false;
+
+    // ====================== 监听器 ======================
+    /** 初始化完成监听器（从 UiInitializer 合并过来） */
     private OnInitCompleteListener initCompleteListener;
 
+    // ====================================================================
+    // Setter 方法
+    // ====================================================================
+
+    public void setActivity(Activity activity) {
+        this.activity = activity;
+    }
+
+    public void setAppCoreManager(AppCoreManager manager) {
+        this.appCoreManager = manager;
+    }
+
+    public void setPipManager(PictureInPictureManager manager) {
+        this.pipManager = manager;
+    }
+
+    public void setPlayerManager(TVPlayerManager manager) {
+        this.playerManager = manager;
+    }
+
+    public void setSettingsManager(SettingsManager manager) {
+        this.settingsManager = manager;
+    }
+
+    public void setScreenRatioManager(ScreenRatioManager manager) {
+        this.screenRatioManager = manager;
+    }
+
+    public void setDisplayManager(DisplayManager manager) {
+        this.displayManager = manager;
+    }
+
+    public void setRemoteManager(TvRemoteManager manager) {
+        this.remoteManager = manager;
+    }
+
+    public void setChannelPanelController(ChannelPanelController controller) {
+        this.channelPanelController = controller;
+    }
+
+    public void setInfoDisplayManager(InfoDisplayManager manager) {
+        this.infoDisplayManager = manager;
+    }
+
+    public void setChannelNumberManager(ChannelNumberManager manager) {
+        this.channelNumberManager = manager;
+    }
+
+    public void setChannelPlayManager(ChannelPlayManager manager) {
+        this.channelPlayManager = manager;
+    }
+
+    public void setPanelAutoHideManager(PanelAutoHideManager manager) {
+        this.panelAutoHideManager = manager;
+    }
+
+    public void setAutoSkipManager(AutoSkipManager manager) {
+        this.autoSkipManager = manager;
+    }
+
+    public void setOpeningSettings(boolean opening) {
+        this.isOpeningSettings = opening;
+    }
+
+    public boolean isOpeningSettings() {
+        return isOpeningSettings;
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-25 合并：UiInitializer - 向后兼容方法
+    // ====================================================================
+    /**
+     * 【2026-06-25 合并：保留 setUiInitializer 方法用于向后兼容】
+     * 现在 UiInitializer 已经合并到 LifecycleManager 里了，
+     * 这个方法主要是为了不让旧代码报错。
+     */
+    @Deprecated
+    public void setUiInitializer(Object initializer) {
+        // 空实现，向后兼容
+        SettingsActivity.logOperation("【兼容】setUiInitializer 已废弃，UiInitializer 已合并到 LifecycleManager");
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-25 合并：UiInitializer - 初始化完成监听器
+    // ====================================================================
     /**
      * 设置初始化完成监听器
      * 【2026-06-25 合并：从 UiInitializer 移过来】
@@ -97,28 +233,106 @@ public class LifecycleManager {
         this.initCompleteListener = listener;
     }
 
-    // ===== 各种 getter 方法 =====
-    public DisplayManager getDisplayManager() { return displayManager; }
-    public InfoDisplayManager getInfoDisplayManager() { return infoDisplayManager; }
-    public AppConfig getAppConfig() { return appConfig; }
-    public SettingsManager getSettingsManager() { return settingsManager; }
-    public ChannelPlayManager getChannelPlayManager() { return channelPlayManager; }
-    public KeyDispatcher getKeyDispatcher() { return keyDispatcher; }
-    public PlayerView getPlayerView() { return playerView; }
-    public ChannelPanelController getChannelPanelController() { return channelPanelController; }
-    public TvRemoteManager getRemoteManager() { return remoteManager; }
-    public PictureInPictureManager getPipManager() { return pipManager; }
-    public TVPlayerManager getPlayerManager() { return playerManager; }
-    public ScreenRatioManager getScreenRatioManager() { return screenRatioManager; }
-    public GestureManager getGestureManager() { return gestureManager; }
-    public KeyEventManager getKeyEventManager() { return keyEventManager; }
-    public ChannelNumberManager getChannelNumberManager() { return channelNumberManager; }
-    public AppCoreManager getAppCoreManager() { return appCoreManager; }
-    public PanelAutoHideManager getPanelAutoHideManager() { return panelAutoHideManager; }
+    // ====================================================================
+    // ✅ 2026-06-25 合并：UiInitializer - Getter 方法
+    // ====================================================================
+
+    public DisplayManager getDisplayManager() {
+        return displayManager;
+    }
+
+    public InfoDisplayManager getInfoDisplayManager() {
+        return infoDisplayManager;
+    }
+
+    public AppConfig getAppConfig() {
+        return appConfig;
+    }
+
+    public SettingsManager getSettingsManager() {
+        return settingsManager;
+    }
+
+    public AutoSkipManager getAutoSkipManager() {
+        return autoSkipManager;
+    }
+
+    public PanelAutoHideManager getPanelAutoHideManager() {
+        return panelAutoHideManager;
+    }
+
+    public ChannelPlayManager getChannelPlayManager() {
+        return channelPlayManager;
+    }
+
+    public DirectionKeyHandler getDirectionKeyHandler() {
+        return directionKeyHandler;
+    }
+
+    public KeyDispatcher getKeyDispatcher() {
+        return keyDispatcher;
+    }
+
+    public BackPressHandler getBackPressHandler() {
+        return backPressHandler;
+    }
+
+    public PlayerView getPlayerView() {
+        return playerView;
+    }
+
+    public ChannelPanelController getChannelPanelController() {
+        return channelPanelController;
+    }
+
+    public TvRemoteManager getRemoteManager() {
+        return remoteManager;
+    }
+
+    public PictureInPictureManager getPipManager() {
+        return pipManager;
+    }
+
+    public TVPlayerManager getPlayerManager() {
+        return playerManager;
+    }
+
+    public ScreenRatioManager getScreenRatioManager() {
+        return screenRatioManager;
+    }
+
+    public GestureManager getGestureManager() {
+        return gestureManager;
+    }
+
+    public KeyEventManager getKeyEventManager() {
+        return keyEventManager;
+    }
+
+    public ChannelNumberManager getChannelNumberManager() {
+        return channelNumberManager;
+    }
+
+    public AppCoreManager getAppCoreManager() {
+        return appCoreManager;
+    }
+
+    public LogHelper getLogHelper() {
+        return logHelper;
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-25 合并：UiInitializer - 初始化方法（全部从 UiInitializer 移过来）
+    // ====================================================================
 
     /**
      * 初始化基础配置
      * 【2026-06-25 合并：从 UiInitializer 移过来】
+     *
+     * 【内容】
+     * 1. 设置屏幕方向（横屏）
+     * 2. 初始化 DisplayManager
+     * 3. 保持屏幕常亮
      */
     public void initBaseConfig() {
         activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
@@ -170,6 +384,7 @@ public class LifecycleManager {
     public void initConfigManagers() {
         appConfig = AppConfig.getInstance(activity);
         settingsManager = SettingsManager.getInstance(activity);
+        logHelper = LogHelper.getInstance();
         SettingsActivity.logOperation("【初始化】配置管理器完成");
     }
 
@@ -178,9 +393,23 @@ public class LifecycleManager {
      * 【2026-06-25 合并：从 UiInitializer 移过来】
      */
     public void initFeatureManagers() {
+        autoSkipManager = AutoSkipManager.getInstance(activity);
+        autoSkipManager.setOnAutoSkipListener(new AutoSkipManager.OnAutoSkipListener() {
+            @Override
+            public void onSkipNext() {
+                if (channelPanelController != null) {
+                    channelPanelController.switchDown();
+                }
+            }
+        });
+
         panelAutoHideManager = PanelAutoHideManager.getInstance();
         channelPlayManager = ChannelPlayManager.getInstance(activity);
+        directionKeyHandler = DirectionKeyHandler.getInstance();
+        // 注意：lifecycleManager 就是自己，不需要再获取了
         keyDispatcher = KeyDispatcher.getInstance();
+        backPressHandler = BackPressHandler.getInstance();
+
         SettingsActivity.logOperation("【初始化】功能管理器完成");
     }
 
@@ -212,6 +441,7 @@ public class LifecycleManager {
         TextView btn_back_group = activity.findViewById(R.id.btn_back_group);
 
         EpgManager.getInstance(activity);
+
         ChannelListManager channelListManager = new ChannelListManager(activity, lvChannelList);
         ChannelListManager channelListManagerEpg = new ChannelListManager(activity, lvChannelListEpg);
         GroupListManager groupListManager = new GroupListManager(activity, lvGroup);
@@ -252,6 +482,7 @@ public class LifecycleManager {
         });
 
         panelAutoHideManager.setPanelController(channelPanelController);
+
         SettingsActivity.logOperation("【初始化】频道面板完成");
     }
 
@@ -267,8 +498,642 @@ public class LifecycleManager {
             public void onPlayChannelUp() {
                 channelPanelController.switchUp();
             }
+
             @Override
             public void onPlayChannelDown() {
                 channelPanelController.switchDown();
             }
+
             @Override
+            public void onPlayTogglePanel() {
+                togglePanel();
+            }
+
+            @Override
+            public void onPlayOpenSettings() {
+            }
+
+            @Override
+            public boolean onPlayBack() {
+                return false;
+            }
+
+            @Override
+            public void onPanelMoveUp() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_UP);
+            }
+
+            @Override
+            public void onPanelMoveDown() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_DOWN);
+            }
+
+            @Override
+            public void onPanelMoveLeft() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_LEFT);
+            }
+
+            @Override
+            public void onPanelMoveRight() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_RIGHT);
+            }
+
+            @Override
+            public void onPanelConfirm() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_CENTER);
+            }
+
+            @Override
+            public boolean onPanelBack() {
+                boolean handled = channelPanelController.handleBackPressed();
+                if (!channelPanelController.isPanelOpen()) {
+                    syncRemoteMode();
+                }
+                return handled;
+            }
+
+            @Override
+            public void onPanelMenu() {
+                boolean isFavorite = channelPanelController.toggleCurrentFavorite();
+                SettingsActivity.logOperation("【遥控】菜单键 → "
+                        + (isFavorite ? "已添加收藏" : "已取消收藏"));
+            }
+
+            @Override
+            public void onPanelNumber(int number) {
+                int keyCode = KeyEvent.KEYCODE_0 + number;
+                channelNumberManager.handleNumberKey(keyCode);
+            }
+
+            @Override
+            public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {
+                SettingsActivity.logOperation("【遥控】面板焦点切换：" + newFocus);
+            }
+
+            @Override public void onSettingsMoveUp() {}
+            @Override public void onSettingsMoveDown() {}
+            @Override public void onSettingsConfirm() {}
+            @Override public boolean onSettingsBack() { return false; }
+            @Override public void onSettingsMenu() {}
+            @Override public void onSettingsFocusChanged(int position) {}
+        });
+
+        SettingsActivity.logOperation("【初始化】遥控器管理器完成");
+    }
+
+    /**
+     * 初始化画中画管理器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initPipManager() {
+        try {
+            pipManager = PictureInPictureManager.getInstance(activity);
+            pipManager.setPipEnabled(settingsManager.isPipEnabled());
+            pipManager.setListener(new PictureInPictureManager.OnPipListener() {
+                @Override
+                public void onPipModeChanged(boolean inPip) {
+                    logHelper.log("【画中画】监听器回调：" + (inPip ? "进入" : "退出"));
+                }
+            });
+
+            logHelper.log("【画中画】初始化完成，开关状态："
+                    + (settingsManager.isPipEnabled() ? "开启" : "关闭"));
+            SettingsActivity.logOperation("【画中画】初始化完成，设备支持："
+                    + pipManager.isPipSupported());
+        } catch (Exception e) {
+            logHelper.log("【画中画】初始化失败：" + e.getMessage());
+            pipManager = null;
+        }
+    }
+
+    /**
+     * 初始化播放器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initPlayer() {
+        playerManager = TVPlayerManager.getInstance(activity);
+        playerManager.attachPlayerView(playerView);
+
+        playerStateListener = new PlayerStateListenerImpl(activity);
+        playerManager.setOnPlayStateListener(playerStateListener);
+
+        playerManager.setOnLiveInfoUpdateListener(new TVPlayerManager.OnLiveInfoUpdateListener() {
+            @Override
+            public void onLiveInfoUpdate(TVPlayerManager.LiveInfo info) {
+                infoDisplayManager.updateLiveInfo(info);
+                if (pipManager != null) {
+                    pipManager.updatePlayState(true);
+                }
+            }
+        });
+
+        playerManager.setOnSourceFailedListener(new TVPlayerManager.OnSourceFailedListener() {
+            @Override
+            public void onSourceFailed() {
+                activity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        String channelName = "";
+                        Channel curr = channelPlayManager.getCurrentChannel();
+                        if (curr != null) {
+                            channelName = curr.getName();
+                        }
+                        autoSkipManager.handleSourceFailed(channelName);
+                    }
+                });
+            }
+        });
+
+        SettingsActivity.logOperation("【初始化】播放器完成");
+    }
+
+    /**
+     * 初始化频道播放管理器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initChannelPlayManager() {
+        channelPlayManager.setPlayerManager(playerManager);
+        channelPlayManager.setInfoDisplayManager(infoDisplayManager);
+        channelPlayManager.setAppConfig(appConfig);
+        channelPlayManager.setPlayerStateListener(playerStateListener);
+        channelPlayManager.setAutoSkipManager(autoSkipManager);
+        channelPlayManager.setPipManager(pipManager);
+        SettingsActivity.logOperation("【初始化】频道播放管理器完成");
+    }
+
+    /**
+     * 初始化方向键处理器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initDirectionKeyHandler() {
+        directionKeyHandler.setPanelController(channelPanelController);
+        directionKeyHandler.setChannelNumberManager(channelNumberManager);
+        directionKeyHandler.setPanelToggleCallback(new DirectionKeyHandler.PanelToggleCallback() {
+            @Override
+            public void onTogglePanel() {
+                togglePanel();
+            }
+        });
+        directionKeyHandler.setChannelReverse(settingsManager.isChannelReverse());
+        SettingsActivity.logOperation("【初始化】方向键处理器完成");
+    }
+
+    /**
+     * 初始化生命周期管理器（自己）
+     * 【2026-06-25 合并：从 UiInitializer 移过来，已修改】
+     *
+     * 【修改说明】
+     * 原来 UiInitializer 里的 initLifecycleManager() 是给 lifecycleManager 设置各种引用，
+     * 现在 lifecycleManager 就是自己，所以直接设置自己的成员变量。
+     * 但实际上，这些成员变量在各个 initXxx() 方法里已经设置过了，
+     * 所以这个方法主要是为了保持调用顺序的一致性，以及记录日志。
+     */
+    public void initLifecycleManager() {
+        // 注意：现在 lifecycleManager 就是自己，
+        // 各个成员变量已经在对应的 initXxx() 方法里设置了。
+        // 这里只需要记录日志即可。
+        SettingsActivity.logOperation("【初始化】生命周期管理器完成");
+    }
+
+    /**
+     * 初始化按键分发器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initKeyDispatcher() {
+        keyDispatcher.setPipManager(pipManager);
+        keyDispatcher.setPanelAutoHideManager(panelAutoHideManager);
+        keyDispatcher.setRemoteManager(remoteManager);
+        keyDispatcher.setChannelNumberManager(channelNumberManager);
+        keyDispatcher.setChannelPanelController(channelPanelController);
+        keyDispatcher.setDirectionKeyHandler(directionKeyHandler);
+        keyDispatcher.setKeyEventManager(keyEventManager);
+
+        keyDispatcher.setOnKeyDispatcherListener(new KeyDispatcher.OnKeyDispatcherListener() {
+            @Override
+            public boolean onPipBackKey() {
+                activity.moveTaskToBack(false);
+                return true;
+            }
+
+            @Override
+            public void onSuperKeyDown(int keyCode, android.view.KeyEvent event) {
+            }
+        });
+
+        SettingsActivity.logOperation("【初始化】按键分发器完成");
+    }
+
+    /**
+     * 初始化返回键处理器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initBackPressHandler() {
+        backPressHandler.setPipManager(pipManager);
+        backPressHandler.setChannelNumberManager(channelNumberManager);
+        backPressHandler.setRemoteManager(remoteManager);
+        backPressHandler.setChannelPanelController(channelPanelController);
+        backPressHandler.setPlayerView(playerView);
+
+        backPressHandler.setOnBackPressListener(new BackPressHandler.OnBackPressListener() {
+            @Override
+            public void onMoveTaskToBack() {
+                activity.moveTaskToBack(false);
+            }
+
+            @Override
+            public void onSyncRemoteMode() {
+                syncRemoteMode();
+            }
+
+            @Override
+            public void onSuperBackPressed() {
+            }
+        });
+
+        SettingsActivity.logOperation("【初始化】返回键处理器完成");
+    }
+
+    /**
+     * 初始化屏幕比例管理器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initScreenRatioManager() {
+        screenRatioManager = new ScreenRatioManager(playerManager, appConfig);
+        screenRatioManager.apply();
+        SettingsActivity.logOperation("【初始化】屏幕比例管理器完成");
+    }
+
+    /**
+     * 初始化手势管理器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initGestureManager() {
+        gestureManager = new GestureManager(activity);
+        final PlayerGestureHelper gestureHelper = gestureManager.create();
+        playerView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, android.view.MotionEvent event) {
+                gestureHelper.handleTouch(event);
+                return true;
+            }
+        });
+        SettingsActivity.logOperation("【初始化】手势管理器完成");
+    }
+
+    /**
+     * 初始化按键事件管理器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initKeyEventManager() {
+        keyEventManager = new KeyEventManager(activity);
+        SettingsActivity.logOperation("【初始化】按键事件管理器完成");
+    }
+
+    /**
+     * 初始化数字选台管理器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initChannelNumberManager() {
+        channelNumberManager = new ChannelNumberManager(
+                new ChannelNumberManager.OnChannelNumberListener() {
+                    @Override
+                    public void onChannelSelected(int channelIndex) {
+                        channelPanelController.playChannel(channelIndex);
+                    }
+
+                    @Override
+                    public void showChannelNumber(String number) {
+                        try {
+                            infoDisplayManager.showChannelNum(Integer.parseInt(number));
+                        } catch (Exception e) {
+                        }
+                    }
+
+                    @Override
+                    public void hideChannelNumber() {
+                        infoDisplayManager.hideChannelNum();
+                    }
+                },
+                settingsManager.isNumberChannelEnabled()
+        );
+        SettingsActivity.logOperation("【初始化】数字选台管理器完成");
+    }
+
+    /**
+     * 初始化应用核心管理器
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void initAppCoreManager() {
+        appCoreManager = new AppCoreManager(activity, playerManager, appConfig);
+
+        appCoreManager.setOnDataLoadListener(new AppCoreManager.OnDataLoadListener() {
+            @Override
+            public void onLiveSourceLoaded(java.util.List<Channel> channels, boolean fromCache) {
+                activity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        channelPlayManager.updateChannelSourceList(channels);
+                        channelPanelController.setChannels(channels);
+
+                        if (!appCoreManager.hasPlayedWithCache()) {
+                            int lastIndex = channelPlayManager.getCurrentPlayIndex();
+                            if (lastIndex >= 0 && lastIndex < channels.size()) {
+                                Channel ch = channels.get(lastIndex);
+                                channelPlayManager.playChannel(ch, lastIndex);
+                                appCoreManager.setHasPlayedWithCache(true);
+                            }
+                        }
+
+                        displayManager.hideLoading();
+                        logHelper.log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channels.size());
+                    }
+                });
+            }
+
+            @Override
+            public void onLiveSourceFailed(String errorMsg) {
+                activity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        java.util.List<Channel> list = channelPlayManager.getChannelSourceList();
+                        if (list == null || list.isEmpty()) {
+                            displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
+                            SettingsActivity.logOperation("【加载】直播源加载失败：" + errorMsg);
+                        } else {
+                            logHelper.log("【缓存】使用缓存数据继续播放");
+                            displayManager.hideLoading();
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onEpgLoaded() {
+                activity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Channel curr = channelPlayManager.getCurrentChannel();
+                        if (curr != null) {
+                            infoDisplayManager.updateEpgInfo(curr);
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onLoadTimeout(boolean hasData) {
+                activity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        logHelper.log("【加载】超时，自动隐藏加载动画");
+                        if (!hasData) {
+                            displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
+                            SettingsActivity.logOperation("【加载】直播源加载超时");
+                        }
+                        displayManager.hideLoading();
+                    }
+                });
+            }
+        });
+
+        appCoreManager.registerReceivers();
+        SettingsActivity.logOperation("【初始化】应用核心管理器完成");
+    }
+
+    /**
+     * 加载上次播放索引
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void loadLastPlayIndex() {
+        int lastPlayIndex = appConfig.getLastPlayIndex();
+        channelPlayManager.setCurrentPlayIndex(lastPlayIndex);
+        channelPanelController.setCurrentPlayIndex(lastPlayIndex);
+        SettingsActivity.logOperation("【播放】记录上次播放索引：" + lastPlayIndex);
+    }
+
+    /**
+     * 开始加载
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    public void startLoading() {
+        displayManager.showLoading("正在加载直播源...");
+        appCoreManager.loadLiveAndEpg();
+    }
+
+    // ====================================================================
+    // 生命周期方法（LifecycleManager 原有）
+    // ====================================================================
+
+    public void onPause() {
+        if (appCoreManager != null) {
+            appCoreManager.onPause();
+        }
+        if (pipManager != null) {
+            pipManager.handleOnPause(new Runnable() {
+                @Override
+                public void run() {
+                    if (playerManager != null) {
+                        playerManager.resume();
+                        SettingsActivity.logOperation("【画中画】✅ onPause后立即恢复播放（防止暂停）");
+                    }
+                }
+            });
+        }
+    }
+
+    public void onStop() {
+        if (pipManager != null) {
+            pipManager.setStopCalled(true);
+            SettingsActivity.logOperation("【画中画】onStop 被调用");
+        }
+    }
+
+    public void onResume() {
+        isOpeningSettings = false;
+        if (appCoreManager != null) {
+            appCoreManager.onResume();
+        }
+        if (pipManager != null) {
+            pipManager.setStopCalled(false);
+        }
+        applySettings();
+        if (screenRatioManager != null) {
+            screenRatioManager.apply();
+        }
+        if (displayManager != null) {
+            displayManager.reapplyFullScreen();
+        }
+        if (pipManager == null || !pipManager.isInPipMode()) {
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    resumeCurrentChannel();
+                }
+            }, 200);
+        }
+        syncRemoteMode();
+    }
+
+    public void onWindowFocusChanged(boolean hasFocus) {
+        if (hasFocus && displayManager != null) {
+            displayManager.reapplyFullScreen();
+        }
+        if (appCoreManager != null) {
+            appCoreManager.onWindowFocusChanged(hasFocus);
+        }
+    }
+
+    public void onDestroy(BroadcastReceiver decoderModeReceiver) {
+        if (panelAutoHideManager != null) {
+            panelAutoHideManager.release();
+        }
+        if (channelPlayManager != null) {
+            channelPlayManager.release();
+        }
+        if (infoDisplayManager != null) {
+            infoDisplayManager.release();
+        }
+        if (channelNumberManager != null) {
+            channelNumberManager.release();
+        }
+        if (displayManager != null) {
+            displayManager.release();
+        }
+        if (channelPanelController != null) {
+            channelPanelController.release();
+        }
+        if (appCoreManager != null) {
+            appCoreManager.release();
+        }
+        if (pipManager != null) {
+            pipManager.release();
+        }
+        if (autoSkipManager != null) {
+            autoSkipManager.release();
+        }
+        if (decoderModeReceiver != null && activity != null) {
+            try {
+                activity.unregisterReceiver(decoderModeReceiver);
+                decoderModeReceiver = null;
+                SettingsActivity.logOperation("【解码器】广播接收器已注销");
+            } catch (Exception e) {
+            }
+        }
+        if (playerManager != null) {
+            playerManager.release();
+        }
+        SettingsActivity.logOperation("【系统】APP退出");
+    }
+
+    // ====================================================================
+    // 私有方法（LifecycleManager 原有）
+    // ====================================================================
+
+    private void applySettings() {
+        if (settingsManager == null) return;
+
+        boolean epg_enable = settingsManager.isEpgEnabled();
+        boolean channel_reverse = settingsManager.isChannelReverse();
+        boolean number_channel_enable = settingsManager.isNumberChannelEnabled();
+        boolean auto_update_source = settingsManager.isAutoUpdateSource();
+        boolean pipEnable = settingsManager.isPipEnabled();
+        int decoderMode = settingsManager.getDecoderModeInt();
+
+        if (playerManager != null) {
+            playerManager.setDecoderMode(decoderMode);
+        }
+        String modeName = SettingsManager.getDecoderModeName(decoderMode);
+        SettingsActivity.logOperation("【设置】解码器模式：" + modeName);
+
+        if (channelNumberManager != null) {
+            channelNumberManager.setEnable(number_channel_enable);
+        }
+
+        if (channelPanelController != null) {
+            channelPanelController.setEpgEnable(epg_enable);
+            channelPanelController.setReverse(channel_reverse);
+        }
+
+        if (pipManager != null) {
+            pipManager.setPipEnabled(pipEnable);
+        }
+
+        SettingsActivity.logOperation("【设置】EPG开关：" + epg_enable);
+        SettingsActivity.logOperation("【设置】切台反转：" + channel_reverse);
+        SettingsActivity.logOperation("【设置】数字选台：" + number_channel_enable);
+        SettingsActivity.logOperation("【设置】自动更新源：" + auto_update_source);
+        SettingsActivity.logOperation("【设置】画中画开关：" + pipEnable);
+    }
+
+    /**
+     * 同步遥控器模式
+     * 【2026-06-25 合并说明】
+     * LifecycleManager 和 UiInitializer 里都有这个方法，功能一样，
+     * 合并后保留一个即可。
+     */
+    private void syncRemoteMode() {
+        if (remoteManager == null || channelPanelController == null) return;
+        if (channelPanelController.isPanelOpen()) {
+            remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
+            remoteManager.setRightPanelOpen(channelPanelController.isRightPanelOpen());
+        } else {
+            remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
+        }
+    }
+
+    private void resumeCurrentChannel() {
+        try {
+            if (playerManager != null) {
+                playerManager.resume();
+            }
+        } catch (Exception e) {
+            SettingsActivity.logOperation("【画中画】恢复播放失败：" + e.getMessage());
+        }
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-25 合并：UiInitializer - 私有方法
+    // ====================================================================
+
+    /**
+     * 切换面板
+     * 【2026-06-25 合并：从 UiInitializer 移过来】
+     */
+    private void togglePanel() {
+        channelPanelController.togglePanel();
+        syncRemoteMode();
+    }
+
+    // ====================================================================
+    // 资源释放
+    // ====================================================================
+    public void release() {
+        // LifecycleManager 原有
+        activity = null;
+        appCoreManager = null;
+        pipManager = null;
+        playerManager = null;
+        settingsManager = null;
+        screenRatioManager = null;
+        displayManager = null;
+        remoteManager = null;
+        channelPanelController = null;
+        infoDisplayManager = null;
+        channelNumberManager = null;
+        channelPlayManager = null;
+        panelAutoHideManager = null;
+        autoSkipManager = null;
+
+        // ✅ 2026-06-25 合并：UiInitializer 相关资源释放
+        directionKeyHandler = null;
+        keyDispatcher = null;
+        backPressHandler = null;
+        playerView = null;
+        playerStateListener = null;
+        gestureManager = null;
+        keyEventManager = null;
+        appConfig = null;
+        logHelper = null;
+        initCompleteListener = null;
+    }
+}
