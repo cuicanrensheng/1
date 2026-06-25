@@ -1,7 +1,8 @@
 package com.tv.live.manager;
 
-import com.tv.live.TVPlayerManager;
+import android.util.Log;
 
+import com.tv.live.TVPlayerManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -29,22 +30,31 @@ import java.util.List;
  * 1. 数据加载（直播源加载、EPG 加载、M3U 解析、缓存管理）
  * 2. 广播管理（注册/注销广播接收器、处理广播事件）
  * 3. 生命周期管理（前后台切换、播放器暂停/恢复、进入设置不暂停）
+ * 4. 本地日志管理（记录调试日志，用于排查问题）
  *
  * 【2026-06-21 优化：日志分类】
  * 【优化内容】
  * 1. 生命周期/焦点/广播相关的日志 → 操作日志（logOperation）
  * 2. 数据加载/解析相关的日志 → 播放日志（log）
  * 3. 两种日志分开，互不混淆
+ *
+ * 【2026-06-25 合并：LogHelper】
+ * 【合并说明】
+ * 把 LogHelper 的本地日志列表功能合并到这里，减少文件数量。
+ * 原来的 LogHelper 是独立的单例，现在直接作为 AppCoreManager 的一部分。
+ * 注意：这是 MainActivity 本地的简单日志列表（用于调试），
+ * 和 SettingsActivity 里的 LogManager（全局日志系统）不一样。
  */
 public class AppCoreManager {
 
     // ====================== 常量 ======================
-
     /** 加载超时时间（15 秒） */
     private static final long LOAD_TIMEOUT = 15000;
 
-    // ====================== 上下文与管理器 ======================
+    /** 日志 TAG */
+    private static final String TAG = "MainActivity";
 
+    // ====================== 上下文与管理器 ======================
     private Context context;
     /** 播放器管理器 */
     private TVPlayerManager playerManager;
@@ -54,7 +64,6 @@ public class AppCoreManager {
     private CacheManager cacheManager;
 
     // ====================== 数据相关 ======================
-
     /** 全部频道列表 */
     private List<Channel> channelSourceList = new ArrayList<>();
     /** 是否已用缓存播放过（防止重复播放） */
@@ -65,7 +74,6 @@ public class AppCoreManager {
     private boolean isLoading = false;
 
     // ====================== 广播相关 ======================
-
     /** 切换控制器的广播接收器 */
     private BroadcastReceiver toggleControllerReceiver;
     /** 刷新直播源/EPG 的广播接收器 */
@@ -74,21 +82,71 @@ public class AppCoreManager {
     private boolean receiversRegistered = false;
 
     // ====================== 生命周期相关 ======================
-
     /** 是否正在打开设置页面（用于区分 onPause 场景） */
     private boolean isOpeningSettings = false;
     /** 播放器控制器是否可见 */
     private boolean isControllerVisible = false;
 
     // ====================== 回调监听器 ======================
-
     /** 数据加载监听器 */
     private OnDataLoadListener dataLoadListener;
     /** 配置刷新监听器 */
     private OnRefreshListener refreshListener;
 
-    // ====================== 接口定义 ======================
+    // ====================================================================
+    // ✅ 2026-06-25 合并：LogHelper - 本地日志列表相关
+    // ====================================================================
+    /** 本地日志列表（用于调试） */
+    private final List<String> logList = new ArrayList<>();
 
+    /**
+     * 记录本地日志
+     * 【2026-06-25 合并：从 LogHelper 移过来】
+     */
+    public void log(String msg) {
+        logList.add(msg);
+        Log.d(TAG, msg);
+    }
+
+    /**
+     * 获取日志列表
+     * 【2026-06-25 合并：从 LogHelper 移过来】
+     */
+    public List<String> getLogList() {
+        return logList;
+    }
+
+    /**
+     * 获取日志字符串
+     * 【2026-06-25 合并：从 LogHelper 移过来】
+     */
+    public String getLogString() {
+        StringBuilder sb = new StringBuilder();
+        for (String line : logList) {
+            sb.append(line).append("\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 清空日志
+     * 【2026-06-25 合并：从 LogHelper 移过来】
+     */
+    public void clearLog() {
+        logList.clear();
+    }
+
+    /**
+     * 获取日志条数
+     * 【2026-06-25 合并：从 LogHelper 移过来】
+     */
+    public int getLogSize() {
+        return logList.size();
+    }
+
+    // ====================================================================
+    // 接口定义
+    // ====================================================================
     /**
      * 数据加载监听器
      */
@@ -133,7 +191,6 @@ public class AppCoreManager {
     }
 
     // ====================== 构造函数 ======================
-
     /**
      * 构造函数
      *
@@ -151,7 +208,6 @@ public class AppCoreManager {
     // ====================================================================
     // 1. 直播源 & EPG 加载相关
     // ====================================================================
-
     /**
      * 加载直播源和 EPG 节目单
      *
@@ -299,11 +355,13 @@ public class AppCoreManager {
         if (TextUtils.isEmpty(content)) {
             return channels;
         }
+
         String[] lines = content.split("\n");
         String currentName = "";
         String currentGroup = "";
         String currentLogo = "";
         String currentTvgId = "";
+
         for (String line : lines) {
             line = line.trim();
             if (line.startsWith("#EXTINF:")) {
@@ -341,6 +399,7 @@ public class AppCoreManager {
                 currentTvgId = "";
             }
         }
+
         // ✅ 保留：数据解析相关 → 播放日志
         log("【缓存】解析完成，共 " + channels.size() + " 个频道");
         return channels;
@@ -376,7 +435,6 @@ public class AppCoreManager {
     // ====================================================================
     // 2. 广播管理相关
     // ====================================================================
-
     /**
      * 注册所有广播接收器
      */
@@ -426,7 +484,6 @@ public class AppCoreManager {
             context.registerReceiver(refreshReceiver,
                     new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG"));
             receiversRegistered = true;
-
             // ✅ 修改：广播注册 → 操作日志
             SettingsActivity.logOperation("【广播】广播接收器已注册");
         } catch (Exception e) {
@@ -449,7 +506,6 @@ public class AppCoreManager {
                 context.unregisterReceiver(refreshReceiver);
             }
             receiversRegistered = false;
-
             // ✅ 修改：广播注销 → 操作日志
             SettingsActivity.logOperation("【广播】广播接收器已注销");
         } catch (Exception e) {
@@ -473,200 +529,96 @@ public class AppCoreManager {
     // ====================================================================
 
     /**
-     * 页面暂停（onPause）
-     *
-     * 【进入设置不暂停】
-     * 如果 isOpeningSettings 为 true，说明是打开设置页面，
-     * 不暂停播放器，直接返回。
-     *
-     * @return 是否真的暂停了（false=进入设置，继续播放）
-     */
-    public boolean onPause() {
-        if (isOpeningSettings) {
-            // ✅ 修改：生命周期 → 操作日志
-            SettingsActivity.logOperation("【主页】onPause -> 打开设置页面，继续播放");
-            return false;
-        }
-        // ✅ 修改：生命周期 → 操作日志
-        SettingsActivity.logOperation("【主页】onPause -> 切到后台");
-        SettingsActivity.logOperation("【系统】APP切到后台");
-        if (playerManager != null) {
-            playerManager.onBackground();
-        }
-        return true;
-    }
-
-    /**
-     * 页面恢复（onResume）
-     *
-     * 【进入设置不暂停】
-     * 如果 isOpeningSettings 为 true，说明是从设置页面回来，
-     * 重置标志位即可，不需要调用 onForeground。
-     *
-     * @return 是否真的恢复了（false=从设置回来，不用恢复）
-     */
-    public boolean onResume() {
-        if (isOpeningSettings) {
-            isOpeningSettings = false;
-            // ✅ 修改：生命周期 → 操作日志
-            SettingsActivity.logOperation("【主页】onResume -> 从设置页面回来");
-            return false;
-        }
-        // ✅ 修改：生命周期 → 操作日志
-        SettingsActivity.logOperation("【主页】onResume -> 回到前台");
-        SettingsActivity.logOperation("【系统】APP回到前台");
-        if (playerManager != null) {
-            playerManager.onForeground();
-        }
-        return true;
-    }
-
-    /**
-     * 窗口焦点变化
-     *
-     * @param hasFocus 是否获得焦点
-     */
-    public void onWindowFocusChanged(boolean hasFocus) {
-        // 窗口焦点变化的逻辑主要是全面屏重应用
-        // 这个由 DisplayManager 处理，这里只记录日志
-
-        // ✅ 修改：窗口焦点 → 操作日志（用户最关心的这个！）
-        if (hasFocus) {
-            SettingsActivity.logOperation("【主页】窗口获得焦点");
-        } else {
-            SettingsActivity.logOperation("【主页】窗口失去焦点");
-        }
-    }
-
-    /**
-     * 页面销毁（onDestroy）
-     */
-    public void onDestroy() {
-        // ✅ 修改：生命周期 → 操作日志
-        SettingsActivity.logOperation("【主页】onDestroy -> 页面销毁");
-        SettingsActivity.logOperation("【系统】APP退出");
-        // 注销广播
-        unregisterReceivers();
-        // 取消超时
-        timeoutHandler.removeCallbacksAndMessages(null);
-        // 释放播放器
-        if (playerManager != null) {
-            playerManager.release();
-        }
-        // 清空引用
-        channelSourceList = null;
-    }
-
-    /**
-     * 打开设置页面
-     * 设置 isOpeningSettings 标志，让 onPause 时不暂停播放器
-     */
-    public void beforeOpenSettings() {
-        isOpeningSettings = true;
-        SettingsActivity.logOperation("【系统】打开设置页面");
-    }
-
-    /**
-     * 是否正在打开设置页面
-     *
-     * @return 是否正在打开设置
-     */
-    public boolean isOpeningSettings() {
-        return isOpeningSettings;
-    }
-
-    // ====================================================================
-    // 4. 远程配置接收
-    // ====================================================================
-
-    /**
-     * 接收远程配置（网页后台下发）
-     *
-     * @param liveUrl 直播源地址
-     * @param epgUrl  EPG 地址
-     */
-    public void onReceiveConfig(final String liveUrl, final String epgUrl) {
-        appConfig.setCustomUrls(liveUrl, epgUrl);
-        if (liveUrl != null) UrlConfig.LIVE_URL = liveUrl;
-        if (epgUrl != null) UrlConfig.EPG_URL = epgUrl;
-
-        // ✅ 保留：配置更新/数据相关 → 播放日志
-        log("【远程配置】更新直播源：" + liveUrl);
-        log("【远程配置】更新EPG：" + epgUrl);
-
-        SettingsActivity.logOperation("【远程配置】更新直播源/EPG地址");
-        // 重置缓存播放标志
-        hasPlayedWithCache = false;
-        // 重新加载
-        loadLiveAndEpg();
-    }
-
-    // ====================================================================
-    // 5. 监听器设置
-    // ====================================================================
-
-    /**
      * 设置数据加载监听器
-     *
-     * @param listener 监听器
      */
     public void setOnDataLoadListener(OnDataLoadListener listener) {
         this.dataLoadListener = listener;
     }
 
     /**
-     * 设置配置刷新监听器
-     *
-     * @param listener 监听器
+     * 设置刷新监听器
      */
     public void setOnRefreshListener(OnRefreshListener listener) {
         this.refreshListener = listener;
     }
 
-    // ====================================================================
-    // 6. 日志工具
-    // ====================================================================
-
     /**
-     * 记录播放日志（仅数据加载/播放相关的日志才调用这个）
-     *
-     * 【说明】
-     * 这个方法只记录真正的播放/数据相关日志，会输出到"解析 & 播放日志"。
-     *
-     * 【哪些日志应该调用这个？】
-     * - 直播源加载（成功、失败、缓存）
-     * - EPG 加载
-     * - 数据解析
-     * - 配置地址更新
-     *
-     * 【哪些日志不应该调用这个？】
-     * - 页面生命周期（onCreate、onPause、onResume、onDestroy）
-     * - 窗口焦点变化
-     * - 广播注册/注销
-     * - 这些应该调用 SettingsActivity.logOperation()
-     *
-     * @param msg 日志内容
+     * 是否正在打开设置页面
      */
-    private void log(String msg) {
-        // 同步到 SettingsActivity 的播放日志
-        SettingsActivity.log(msg);
+    public boolean isOpeningSettings() {
+        return isOpeningSettings;
     }
 
-    // ====================================================================
-    // 7. 资源释放
-    // ====================================================================
+    /**
+     * 设置是否正在打开设置页面
+     */
+    public void setOpeningSettings(boolean opening) {
+        this.isOpeningSettings = opening;
+    }
+
+    /**
+     * 打开设置页面前的准备工作
+     */
+    public void beforeOpenSettings() {
+        isOpeningSettings = true;
+    }
+
+    /**
+     * 处理配置更新广播
+     */
+    public void onReceiveConfig(final String liveUrl, final String epgUrl) {
+        if (liveUrl != null) {
+            UrlConfig.LIVE_URL = liveUrl;
+            log("【配置】收到新的直播源地址：" + liveUrl);
+        }
+        if (epgUrl != null) {
+            UrlConfig.EPG_URL = epgUrl;
+            log("【配置】收到新的 EPG 地址：" + epgUrl);
+        }
+        hasPlayedWithCache = false;
+        loadLiveAndEpg();
+    }
+
+    /**
+     * onPause 回调
+     */
+    public void onPause() {
+        SettingsActivity.logOperation("【生命周期】onPause");
+    }
+
+    /**
+     * onResume 回调
+     */
+    public void onResume() {
+        isOpeningSettings = false;
+        SettingsActivity.logOperation("【生命周期】onResume");
+    }
+
+    /**
+     * onWindowFocusChanged 回调
+     */
+    public void onWindowFocusChanged(boolean hasFocus) {
+        SettingsActivity.logOperation("【生命周期】窗口焦点变化：" + hasFocus);
+    }
 
     /**
      * 释放资源
-     * Activity onDestroy 时调用
      */
     public void release() {
-        onDestroy();
-        context = null;
+        unregisterReceivers();
+        if (timeoutHandler != null) {
+            timeoutHandler.removeCallbacksAndMessages(null);
+        }
+        dataLoadListener = null;
+        refreshListener = null;
         playerManager = null;
         appConfig = null;
         cacheManager = null;
-        dataLoadListener = null;
-        refreshListener = null;
+        if (channelSourceList != null) {
+            channelSourceList.clear();
+            channelSourceList = null;
+        }
+        logList.clear();
+        context = null;
     }
 }
