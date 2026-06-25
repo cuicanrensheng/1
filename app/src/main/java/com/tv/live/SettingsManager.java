@@ -24,7 +24,7 @@ public class SettingsManager {
     public static final int DECODE_HARD = 1;
     public static final int DECODE_SOFT = 2;
 
-    // ====================== 2026-06-25 新增：MainActivity 用到的设置项 ======================
+    // ====================== MainActivity 用到的设置项 ======================
 
     public static final String KEY_EPG_ENABLE = "epg_enable";
     public static final String KEY_CHANNEL_REVERSE = "channel_reverse";
@@ -32,6 +32,13 @@ public class SettingsManager {
     public static final String KEY_AUTO_UPDATE_SOURCE = "auto_update_source";
     public static final String KEY_PIP_ENABLE = "pip_enable";
     public static final String KEY_DECODER_MODE_STRING = "decoder_mode";
+
+    // ====================== SettingsActivity 用到的设置项 ======================
+
+    public static final String KEY_BOOT_AUTO_START = "boot_auto_start";
+    public static final String KEY_SCREEN_RATIO = "screen_ratio";
+    public static final String KEY_CUSTOM_LIVE_URL = "custom_live_url";
+    public static final String KEY_CUSTOM_EPG_URL = "custom_epg_url";
 
     private SettingsManager(Context context) {
         sp = context.getApplicationContext().getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
@@ -53,7 +60,7 @@ public class SettingsManager {
         return sp.getInt(KEY_LINE_INDEX, 0);
     }
 
-    // ====================== 画面比例 ======================
+    // ====================== 画面比例（int，旧版） ======================
     public void setScale(int scale) {
         sp.edit().putInt(KEY_VIDEO_SCALE, scale).apply();
     }
@@ -62,7 +69,7 @@ public class SettingsManager {
         return sp.getInt(KEY_VIDEO_SCALE, SCALE_FIT);
     }
 
-    // ====================== 解码模式（int） ======================
+    // ====================== 解码模式（int，旧版） ======================
     public void setDecode(int mode) {
         sp.edit().putInt(KEY_DECODE_MODE, mode).apply();
     }
@@ -102,7 +109,7 @@ public class SettingsManager {
         return sp.getString(KEY_SUB_URL, "https://gitee.com/qf_1111/iptv/raw/master/playlist.m3u");
     }
 
-    // ====================== 2026-06-25 新增：EPG开关 ======================
+    // ====================== EPG开关 ======================
     public boolean isEpgEnabled() {
         return sp.getBoolean(KEY_EPG_ENABLE, true);
     }
@@ -111,7 +118,7 @@ public class SettingsManager {
         sp.edit().putBoolean(KEY_EPG_ENABLE, enabled).apply();
     }
 
-    // ====================== 2026-06-25 新增：切台反转 ======================
+    // ====================== 切台反转 ======================
     public boolean isChannelReverse() {
         return sp.getBoolean(KEY_CHANNEL_REVERSE, false);
     }
@@ -120,7 +127,7 @@ public class SettingsManager {
         sp.edit().putBoolean(KEY_CHANNEL_REVERSE, reverse).apply();
     }
 
-    // ====================== 2026-06-25 新增：数字选台开关 ======================
+    // ====================== 数字选台开关 ======================
     public boolean isNumberChannelEnabled() {
         return sp.getBoolean(KEY_NUMBER_CHANNEL_ENABLE, true);
     }
@@ -129,7 +136,7 @@ public class SettingsManager {
         sp.edit().putBoolean(KEY_NUMBER_CHANNEL_ENABLE, enabled).apply();
     }
 
-    // ====================== 2026-06-25 新增：自动更新源 ======================
+    // ====================== 自动更新源 ======================
     public boolean isAutoUpdateSource() {
         return sp.getBoolean(KEY_AUTO_UPDATE_SOURCE, true);
     }
@@ -138,7 +145,7 @@ public class SettingsManager {
         sp.edit().putBoolean(KEY_AUTO_UPDATE_SOURCE, auto).apply();
     }
 
-    // ====================== 2026-06-25 新增：画中画开关 ======================
+    // ====================== 画中画开关 ======================
     public boolean isPipEnabled() {
         return sp.getBoolean(KEY_PIP_ENABLE, false);
     }
@@ -147,7 +154,7 @@ public class SettingsManager {
         sp.edit().putBoolean(KEY_PIP_ENABLE, enabled).apply();
     }
 
-    // ====================== 2026-06-25 新增：解码器模式（String，兼容旧版） ======================
+    // ====================== 解码器模式（String，新版） ======================
     public String getDecoderModeString() {
         return sp.getString(KEY_DECODER_MODE_STRING, "auto");
     }
@@ -177,6 +184,42 @@ public class SettingsManager {
             default:
                 return "自动（推荐）";
         }
+    }
+
+    // ====================== 开机自启 ======================
+    public boolean isBootAutoStart() {
+        return sp.getBoolean(KEY_BOOT_AUTO_START, false);
+    }
+
+    public void setBootAutoStart(boolean enable) {
+        sp.edit().putBoolean(KEY_BOOT_AUTO_START, enable).apply();
+    }
+
+    // ====================== 屏幕比例（String，新版） ======================
+    public String getScreenRatio() {
+        return sp.getString(KEY_SCREEN_RATIO, "全屏");
+    }
+
+    public void setScreenRatio(String ratio) {
+        sp.edit().putString(KEY_SCREEN_RATIO, ratio).apply();
+    }
+
+    // ====================== 自定义直播源 ======================
+    public String getCustomLiveUrl() {
+        return sp.getString(KEY_CUSTOM_LIVE_URL, "");
+    }
+
+    public void setCustomLiveUrl(String url) {
+        sp.edit().putString(KEY_CUSTOM_LIVE_URL, url).apply();
+    }
+
+    // ====================== 自定义节目单 ======================
+    public String getCustomEpgUrl() {
+        return sp.getString(KEY_CUSTOM_EPG_URL, "");
+    }
+
+    public void setCustomEpgUrl(String url) {
+        sp.edit().putString(KEY_CUSTOM_EPG_URL, url).apply();
     }
 
     // ====================== 通用方法 ======================
