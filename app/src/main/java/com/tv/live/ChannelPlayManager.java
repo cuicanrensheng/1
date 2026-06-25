@@ -6,7 +6,7 @@ import android.widget.Toast;
 import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
 import com.tv.live.manager.InfoDisplayManager;
-import com.tv.live.manager.TVPlayerManager;
+import com.tv.live.TVPlayerManager;
 
 import java.util.List;
 
