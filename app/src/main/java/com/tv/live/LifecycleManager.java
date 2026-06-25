@@ -733,16 +733,27 @@ public class LifecycleManager {
 
         SettingsActivity.logOperation("【初始化】应用核心管理器完成");
     }
-
-    public void loadLastPlayIndex() {
-        int lastIndex = settingsManager.getLastPlayIndex();
-        if (lastIndex >= 0) {
-            channelPlayManager.setCurrentPlayIndex(lastIndex);
-            appCoreManager.log("【初始化】上次播放索引：" + lastIndex);
-        }
-        SettingsActivity.logOperation("【初始化】加载上次播放索引完成");
+    // ✅ 修复后的（正确）
+// 【修复原因】
+// SettingsManager 里没有 getLastPlayIndex() 方法。
+// 上次播放索引存在 "app_settings" 这个 SharedPreferences 文件里，
+// 和 SettingsManager 用的 "tv_live_setting" 不是同一个文件。
+// 直接通过 SharedPreferences 读取更准确，不会丢失用户原有数据。
+public void loadLastPlayIndex() {
+    int lastIndex = 0;
+    try {
+        android.content.SharedPreferences sp = activity.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
+        lastIndex = sp.getInt("last_play_index", 0);
+    } catch (Exception e) {
+        appCoreManager.log("【初始化】读取上次播放索引失败：" + e.getMessage());
     }
-
+    
+    if (lastIndex >= 0) {
+        channelPlayManager.setCurrentPlayIndex(lastIndex);
+        appCoreManager.log("【初始化】上次播放索引：" + lastIndex);
+    }
+    SettingsActivity.logOperation("【初始化】加载上次播放索引完成");
+}
     public void startLoading() {
         displayManager.showLoading();
         appCoreManager.loadLiveAndEpg();
