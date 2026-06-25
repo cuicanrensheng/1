@@ -349,7 +349,7 @@ public class MainActivity extends AppCompatActivity {
     private void initDecoderModeReceiver() {
         decoderModeReceiver = new BroadcastReceiver() {
             @Override
-            public void onReceive(Context context, Intent intent) {
+           public void onReceive(Context context, Intent intent) {
                 if ("com.tv.live.DECODER_MODE_CHANGED".equals(intent.getAction())) {
                     // 从 SharedPreferences 读取新的解码器模式
                     SharedPreferences sp = getSharedPreferences("app_settings", MODE_PRIVATE);
