@@ -17,9 +17,22 @@
   - 2026-06-25：minSdk 升到 23，删除 tools:overrideLibrary
                 原因：minSdk 已经和 Media3 要求的 23 一致，
                 不需要再强制覆盖了，Manifest 合并可以正常通过。
+  - 2026-06-25：改回 minSdk 21，重新加上 tools:overrideLibrary
+                原因：需要兼容低端电视（Android 5.1 / API 22），
+                所以把 minSdk 降回 21，重新加上强制覆盖。
+                风险：Media3 1.10.1 内部可能使用了 API 23 才有的接口，
+                在 Android 5.x 设备上可能运行时崩溃，需要实际测试验证。
 -->
 
+<!-- ==================================================================== -->
+<!-- ✅ 2026-06-25 重新加上：tools 命名空间 -->
+<!-- ==================================================================== -->
+<!-- 【为什么加？】 -->
+<!-- tools:overrideLibrary 需要 tools 命名空间支持。 -->
+<!-- xmlns:tools 是 Android 开发工具专用的命名空间， -->
+<!-- 用于在 Manifest 中给编译器/打包工具传递指令。 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.tv.live">
 
     <!-- 网络相关权限 -->
@@ -43,6 +56,54 @@
 
     <!-- 唤醒锁权限 -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- ==================================================================== -->
+    <!-- ✅ 2026-06-25 重新加上：强制覆盖所有 Media3 模块的 minSdk 限制 -->
+    <!-- ==================================================================== -->
+    <!-- 【为什么加这个？】 -->
+    <!-- Media3 1.10.1 的多个模块都在自己的 Manifest 里声明了 minSdk=23， -->
+    <!-- 意思是「我这个库只用了 API 23 以上的接口，低于 23 的设备我不保证能跑」。 -->
+    <!-- 我们项目把 minSdk 降到了 21，Manifest 合并的时候就会报错： -->
+    <!-- "minSdk 版本 21 不能小于库中声明的版本 23" -->
+    <!--  -->
+    <!-- 【已经确认会报错的模块】 -->
+    <!-- 1. androidx.media3.exoplayer.hls   - HLS 直播流支持 -->
+    <!-- 2. androidx.media3.exoplayer.dash  - DASH 流支持 -->
+    <!--  -->
+    <!-- 【可能也会报错的模块（提前加上，避免反复编译）】 -->
+    <!-- 3. androidx.media3.exoplayer       - 核心播放器 -->
+    <!-- 4. androidx.media3.ui              - UI 组件（PlayerView） -->
+    <!-- 5. androidx.media3.common          - 通用工具类 -->
+    <!-- 6. androidx.media3.datasource      - 数据源模块 -->
+    <!--  -->
+    <!-- 【tools:overrideLibrary 的作用】 -->
+    <!-- 告诉 Manifest 合并工具：「我知道这些库要求 minSdk 23， -->
+    <!-- 但我硬要降到 21，出了问题我自己负责，你别报错了」。 -->
+    <!-- 工具就会跳过这个检查，让合并通过。 -->
+    <!--  -->
+    <!-- 【风险提示】 -->
+    <!-- ⚠️ 这只是跳过了编译时的检查，不代表库在 API 21 上一定能跑。 -->
+    <!-- 这些模块内部可能真的使用了 API 23 才有的类或方法， -->
+    <!-- 在 Android 5.0/5.1（API 21-22）设备上运行时可能会崩溃。 -->
+    <!--  -->
+    <!-- 【怎么办？】 -->
+    <!-- 1. 先加上这个，让编译通过 -->
+    <!-- 2. 拿到那台低端电视上实际测试能不能播 -->
+    <!-- 3. 如果能播 → 完美，就这样用 -->
+    <!-- 4. 如果崩了 → 再降级到 Media3 1.7.1（官方支持 minSdk 21 的最后一个版本） -->
+    <!--  -->
+    <!-- 【为什么放在这里？】 -->
+    <!-- <uses-sdk> 标签必须在 <application> 标签之前， -->
+    <!-- 这是 Android Manifest 的规范要求。 -->
+    <uses-sdk
+        tools:overrideLibrary="
+            androidx.media3.exoplayer.hls,
+            androidx.media3.exoplayer.dash,
+            androidx.media3.exoplayer,
+            androidx.media3.ui,
+            androidx.media3.common,
+            androidx.media3.datasource
+        " />
 
     <application
         android:name=".MyApplication"
