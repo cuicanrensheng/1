@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.pm.ActivityInfo;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ListView;
@@ -26,21 +27,9 @@ import java.util.List;
 /**
  * 生命周期管理器
  * 作用：统一管理 MainActivity 的生命周期逻辑和 UI 初始化逻辑
- *
- * 【2026-06-25 合并：UiInitializer】
- * 【合并说明】把 UiInitializer 的 UI 初始化逻辑合并到这里。
- *
- * 【2026-06-25 修复：更新所有已合并类的引用】
- * 【修复说明】
- * - AutoSkipManager → ChannelPlayManager（已合并）
- * - PanelAutoHideManager → ChannelPanelController（已合并）
- * - DirectionKeyHandler → KeyDispatcher（已合并）
- * - BackPressHandler → KeyDispatcher（已合并）
- * - LogHelper → AppCoreManager（已合并）
  */
 public class LifecycleManager {
 
-    // ====================== 单例模式 ======================
     private static LifecycleManager instance;
 
     private LifecycleManager() {
@@ -53,19 +42,17 @@ public class LifecycleManager {
         return instance;
     }
 
-    // ====================================================================
-    // 接口定义
-    // ====================================================================
     public interface OnInitCompleteListener {
         void onInitComplete();
     }
 
-    // ====================== 基础成员变量 ======================
-    private Activity activity;
+    // ✅ 2026-06-25 修复：改成 MainActivity 类型
+    // 【为什么？】
+    // GestureManager 和 KeyEventManager 的构造函数需要 MainActivity 类型，
+    // 而不是通用的 Activity 类型。
+    // LifecycleManager 本来就是给 MainActivity 用的，所以直接用 MainActivity 更准确。
+    private MainActivity activity;
 
-    // ====================================================================
-    // 各个 Manager 引用（已合并去重）
-    // ====================================================================
     private DisplayManager displayManager;
     private InfoDisplayManager infoDisplayManager;
     private AppConfig appConfig;
@@ -84,18 +71,25 @@ public class LifecycleManager {
     private ChannelNumberManager channelNumberManager;
     private AppCoreManager appCoreManager;
 
-    // ====================== 生命周期相关 ======================
     private boolean isOpeningSettings = false;
 
-    // ====================== 监听器 ======================
     private OnInitCompleteListener initCompleteListener;
 
     // ====================================================================
     // Setter 方法
     // ====================================================================
 
-    public void setActivity(Activity activity) {
+    // ✅ 2026-06-25 修复：参数类型改成 MainActivity
+    public void setActivity(MainActivity activity) {
         this.activity = activity;
+    }
+
+    // 保留一个 Activity 版本的 setter，用于向后兼容
+    @Deprecated
+    public void setActivity(Activity activity) {
+        if (activity instanceof MainActivity) {
+            this.activity = (MainActivity) activity;
+        }
     }
 
     public void setAppCoreManager(AppCoreManager manager) {
@@ -142,16 +136,12 @@ public class LifecycleManager {
         this.channelPlayManager = manager;
     }
 
-    // ✅ 2026-06-25 修复：PanelAutoHideManager 已合并到 ChannelPanelController
     @Deprecated
     public void setPanelAutoHideManager(Object manager) {
-        // 空实现，向后兼容
     }
 
-    // ✅ 2026-06-25 修复：AutoSkipManager 已合并到 ChannelPlayManager
     @Deprecated
     public void setAutoSkipManager(Object manager) {
-        // 空实现，向后兼容
     }
 
     public void setOpeningSettings(boolean opening) {
@@ -162,10 +152,8 @@ public class LifecycleManager {
         return isOpeningSettings;
     }
 
-    // ✅ 2026-06-25 修复：UiInitializer 已合并到 LifecycleManager
     @Deprecated
     public void setUiInitializer(Object initializer) {
-        // 空实现，向后兼容
     }
 
     public void setOnInitCompleteListener(OnInitCompleteListener listener) {
@@ -173,7 +161,7 @@ public class LifecycleManager {
     }
 
     // ====================================================================
-    // Getter 方法（已更新，去掉已删除的类）
+    // Getter 方法
     // ====================================================================
 
     public DisplayManager getDisplayManager() {
@@ -192,13 +180,11 @@ public class LifecycleManager {
         return settingsManager;
     }
 
-    // ✅ 2026-06-25 修复：AutoSkipManager → ChannelPlayManager
     @Deprecated
     public Object getAutoSkipManager() {
         return channelPlayManager;
     }
 
-    // ✅ 2026-06-25 修复：PanelAutoHideManager → ChannelPanelController
     @Deprecated
     public Object getPanelAutoHideManager() {
         return channelPanelController;
@@ -208,7 +194,6 @@ public class LifecycleManager {
         return channelPlayManager;
     }
 
-    // ✅ 2026-06-25 修复：DirectionKeyHandler → KeyDispatcher
     @Deprecated
     public Object getDirectionKeyHandler() {
         return keyDispatcher;
@@ -218,7 +203,6 @@ public class LifecycleManager {
         return keyDispatcher;
     }
 
-    // ✅ 2026-06-25 修复：BackPressHandler → KeyDispatcher
     @Deprecated
     public Object getBackPressHandler() {
         return keyDispatcher;
@@ -264,14 +248,13 @@ public class LifecycleManager {
         return appCoreManager;
     }
 
-    // ✅ 2026-06-25 修复：LogHelper → AppCoreManager
     @Deprecated
     public Object getLogHelper() {
         return appCoreManager;
     }
 
     // ====================================================================
-    // 初始化方法（全部从 UiInitializer 移过来，已更新引用）
+    // 初始化方法
     // ====================================================================
 
     public void initBaseConfig() {
@@ -316,12 +299,10 @@ public class LifecycleManager {
     public void initConfigManagers() {
         appConfig = AppConfig.getInstance(activity);
         settingsManager = SettingsManager.getInstance(activity);
-        // ✅ 修复：LogHelper 已合并到 AppCoreManager，这里不需要单独初始化了
         SettingsActivity.logOperation("【初始化】配置管理器完成");
     }
 
     public void initFeatureManagers() {
-        // ✅ 修复：AutoSkipManager 已合并到 ChannelPlayManager
         channelPlayManager = ChannelPlayManager.getInstance(activity);
         channelPlayManager.setOnAutoSkipListener(new ChannelPlayManager.OnAutoSkipListener() {
             @Override
@@ -332,10 +313,7 @@ public class LifecycleManager {
             }
         });
 
-        // ✅ 修复：PanelAutoHideManager 已合并到 ChannelPanelController
-        // ✅ 修复：DirectionKeyHandler 已合并到 KeyDispatcher
         keyDispatcher = KeyDispatcher.getInstance();
-        // ✅ 修复：BackPressHandler 已合并到 KeyDispatcher
 
         SettingsActivity.logOperation("【初始化】功能管理器完成");
     }
@@ -399,8 +377,6 @@ public class LifecycleManager {
                 channelPlayManager.playChannel(channel, index);
             }
         });
-
-        // ✅ 修复：PanelAutoHideManager 已合并到 ChannelPanelController，不需要单独设置了
 
         SettingsActivity.logOperation("【初始化】频道面板完成");
     }
@@ -503,18 +479,15 @@ public class LifecycleManager {
             pipManager.setListener(new PictureInPictureManager.OnPipListener() {
                 @Override
                 public void onPipModeChanged(boolean inPip) {
-                    // ✅ 修复：LogHelper → AppCoreManager
                     appCoreManager.log("【画中画】监听器回调：" + (inPip ? "进入" : "退出"));
                 }
             });
 
-            // ✅ 修复：LogHelper → AppCoreManager
             appCoreManager.log("【画中画】初始化完成，开关状态："
                     + (settingsManager.isPipEnabled() ? "开启" : "关闭"));
             SettingsActivity.logOperation("【画中画】初始化完成，设备支持："
                     + pipManager.isPipSupported());
         } catch (Exception e) {
-            // ✅ 修复：LogHelper → AppCoreManager
             appCoreManager.log("【画中画】初始化失败：" + e.getMessage());
             pipManager = null;
         }
@@ -548,7 +521,6 @@ public class LifecycleManager {
                         if (curr != null) {
                             channelName = curr.getName();
                         }
-                        // ✅ 修复：AutoSkipManager → ChannelPlayManager
                         channelPlayManager.handleSourceFailed(channelName);
                     }
                 });
@@ -563,12 +535,10 @@ public class LifecycleManager {
         channelPlayManager.setInfoDisplayManager(infoDisplayManager);
         channelPlayManager.setAppConfig(appConfig);
         channelPlayManager.setPlayerStateListener(playerStateListener);
-        // ✅ 修复：AutoSkipManager 已合并到 ChannelPlayManager，不需要单独设置了
         channelPlayManager.setPipManager(pipManager);
         SettingsActivity.logOperation("【初始化】频道播放管理器完成");
     }
 
-    // ✅ 2026-06-25 修复：DirectionKeyHandler → KeyDispatcher
     public void initDirectionKeyHandler() {
         keyDispatcher.setPanelController(channelPanelController);
         keyDispatcher.setChannelNumberManager(channelNumberManager);
@@ -588,11 +558,9 @@ public class LifecycleManager {
 
     public void initKeyDispatcher() {
         keyDispatcher.setPipManager(pipManager);
-        // ✅ 修复：PanelAutoHideManager 已合并到 ChannelPanelController
         keyDispatcher.setRemoteManager(remoteManager);
         keyDispatcher.setChannelNumberManager(channelNumberManager);
         keyDispatcher.setChannelPanelController(channelPanelController);
-        // ✅ 修复：DirectionKeyHandler 已合并到 KeyDispatcher
         keyDispatcher.setKeyEventManager(keyEventManager);
 
         keyDispatcher.setOnKeyDispatcherListener(new KeyDispatcher.OnKeyDispatcherListener() {
@@ -610,7 +578,6 @@ public class LifecycleManager {
         SettingsActivity.logOperation("【初始化】按键分发器完成");
     }
 
-    // ✅ 2026-06-25 修复：BackPressHandler → KeyDispatcher
     public void initBackPressHandler() {
         keyDispatcher.setPlayerView(playerView);
         keyDispatcher.setOnBackPressListener(new KeyDispatcher.OnBackPressListener() {
@@ -638,6 +605,7 @@ public class LifecycleManager {
         SettingsActivity.logOperation("【初始化】屏幕比例管理器完成");
     }
 
+    // ✅ 2026-06-25 修复：GestureManager 需要 MainActivity 类型
     public void initGestureManager() {
         gestureManager = new GestureManager(activity);
         final PlayerGestureHelper gestureHelper = gestureManager.create();
@@ -651,6 +619,7 @@ public class LifecycleManager {
         SettingsActivity.logOperation("【初始化】手势管理器完成");
     }
 
+    // ✅ 2026-06-25 修复：KeyEventManager 需要 MainActivity 类型
     public void initKeyEventManager() {
         keyEventManager = new KeyEventManager(activity);
         SettingsActivity.logOperation("【初始化】按键事件管理器完成");
@@ -704,7 +673,6 @@ public class LifecycleManager {
                         }
 
                         displayManager.hideLoading();
-                        // ✅ 修复：LogHelper → AppCoreManager
                         appCoreManager.log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channels.size());
                     }
                 });
@@ -720,7 +688,6 @@ public class LifecycleManager {
                             displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
                             SettingsActivity.logOperation("【加载】直播源加载失败：" + errorMsg);
                         } else {
-                            // ✅ 修复：LogHelper → AppCoreManager
                             appCoreManager.log("【缓存】使用缓存数据继续播放");
                             displayManager.hideLoading();
                         }
@@ -746,223 +713,5 @@ public class LifecycleManager {
                 activity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        // ✅ 修复：LogHelper → AppCoreManager
                         appCoreManager.log("【加载】超时，自动隐藏加载动画");
-                        if (!hasData) {
-                            displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
-                            SettingsActivity.logOperation("【加载】直播源加载超时");
-                        }
-                        displayManager.hideLoading();
-                    }
-                });
-            }
-        });
-
-        appCoreManager.registerReceivers();
-        SettingsActivity.logOperation("【初始化】应用核心管理器完成");
-    }
-
-    public void loadLastPlayIndex() {
-        int lastPlayIndex = appConfig.getLastPlayIndex();
-        channelPlayManager.setCurrentPlayIndex(lastPlayIndex);
-        channelPanelController.setCurrentPlayIndex(lastPlayIndex);
-        SettingsActivity.logOperation("【播放】记录上次播放索引：" + lastPlayIndex);
-    }
-
-    public void startLoading() {
-        displayManager.showLoading("正在加载直播源...");
-        appCoreManager.loadLiveAndEpg();
-    }
-
-    // ====================================================================
-    // 生命周期方法
-    // ====================================================================
-
-    public void onPause() {
-        if (appCoreManager != null) {
-            appCoreManager.onPause();
-        }
-        if (pipManager != null) {
-            pipManager.handleOnPause(new Runnable() {
-                @Override
-                public void run() {
-                    if (playerManager != null) {
-                        playerManager.resume();
-                        SettingsActivity.logOperation("【画中画】✅ onPause后立即恢复播放（防止暂停）");
-                    }
-                }
-            });
-        }
-    }
-
-    public void onStop() {
-        if (pipManager != null) {
-            pipManager.setStopCalled(true);
-            SettingsActivity.logOperation("【画中画】onStop 被调用");
-        }
-    }
-
-    public void onResume() {
-        isOpeningSettings = false;
-        if (appCoreManager != null) {
-            appCoreManager.onResume();
-        }
-        if (pipManager != null) {
-            pipManager.setStopCalled(false);
-        }
-        applySettings();
-        if (screenRatioManager != null) {
-            screenRatioManager.apply();
-        }
-        if (displayManager != null) {
-            displayManager.reapplyFullScreen();
-        }
-        if (pipManager == null || !pipManager.isInPipMode()) {
-            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    resumeCurrentChannel();
-                }
-            }, 200);
-        }
-        syncRemoteMode();
-    }
-
-    public void onWindowFocusChanged(boolean hasFocus) {
-        if (hasFocus && displayManager != null) {
-            displayManager.reapplyFullScreen();
-        }
-        if (appCoreManager != null) {
-            appCoreManager.onWindowFocusChanged(hasFocus);
-        }
-    }
-
-    // ✅ 2026-06-25 修复：加上 BroadcastReceiver 类型
-    public void onDestroy(BroadcastReceiver decoderModeReceiver) {
-        // ✅ 修复：PanelAutoHideManager 已合并到 ChannelPanelController
-        if (channelPlayManager != null) {
-            channelPlayManager.release();
-        }
-        if (infoDisplayManager != null) {
-            infoDisplayManager.release();
-        }
-        if (channelNumberManager != null) {
-            channelNumberManager.release();
-        }
-        if (displayManager != null) {
-            displayManager.release();
-        }
-        if (channelPanelController != null) {
-            channelPanelController.release();
-        }
-        if (appCoreManager != null) {
-            appCoreManager.release();
-        }
-        if (pipManager != null) {
-            pipManager.release();
-        }
-        // ✅ 修复：AutoSkipManager 已合并到 ChannelPlayManager
-        if (decoderModeReceiver != null && activity != null) {
-            try {
-                activity.unregisterReceiver(decoderModeReceiver);
-                decoderModeReceiver = null;
-                SettingsActivity.logOperation("【解码器】广播接收器已注销");
-            } catch (Exception e) {
-            }
-        }
-        if (playerManager != null) {
-            playerManager.release();
-        }
-        SettingsActivity.logOperation("【系统】APP退出");
-    }
-
-    // ====================================================================
-    // 私有方法
-    // ====================================================================
-
-    private void applySettings() {
-        if (settingsManager == null) return;
-
-        boolean epg_enable = settingsManager.isEpgEnabled();
-        boolean channel_reverse = settingsManager.isChannelReverse();
-        boolean number_channel_enable = settingsManager.isNumberChannelEnabled();
-        boolean auto_update_source = settingsManager.isAutoUpdateSource();
-        boolean pipEnable = settingsManager.isPipEnabled();
-        int decoderMode = settingsManager.getDecoderModeInt();
-
-        if (playerManager != null) {
-            playerManager.setDecoderMode(decoderMode);
-        }
-        String modeName = SettingsManager.getDecoderModeName(decoderMode);
-        SettingsActivity.logOperation("【设置】解码器模式：" + modeName);
-
-        if (channelNumberManager != null) {
-            channelNumberManager.setEnable(number_channel_enable);
-        }
-
-        if (channelPanelController != null) {
-            channelPanelController.setEpgEnable(epg_enable);
-            channelPanelController.setReverse(channel_reverse);
-        }
-
-        if (pipManager != null) {
-            pipManager.setPipEnabled(pipEnable);
-        }
-
-        SettingsActivity.logOperation("【设置】EPG开关：" + epg_enable);
-        SettingsActivity.logOperation("【设置】切台反转：" + channel_reverse);
-        SettingsActivity.logOperation("【设置】数字选台：" + number_channel_enable);
-        SettingsActivity.logOperation("【设置】自动更新源：" + auto_update_source);
-        SettingsActivity.logOperation("【设置】画中画开关：" + pipEnable);
-    }
-
-    private void syncRemoteMode() {
-        if (remoteManager == null || channelPanelController == null) return;
-        if (channelPanelController.isPanelOpen()) {
-            remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
-            remoteManager.setRightPanelOpen(channelPanelController.isRightPanelOpen());
-        } else {
-            remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
-        }
-    }
-
-    private void resumeCurrentChannel() {
-        try {
-            if (playerManager != null) {
-                playerManager.resume();
-            }
-        } catch (Exception e) {
-            SettingsActivity.logOperation("【画中画】恢复播放失败：" + e.getMessage());
-        }
-    }
-
-    private void togglePanel() {
-        channelPanelController.togglePanel();
-        syncRemoteMode();
-    }
-
-    // ====================================================================
-    // 资源释放
-    // ====================================================================
-    public void release() {
-        activity = null;
-        appCoreManager = null;
-        pipManager = null;
-        playerManager = null;
-        settingsManager = null;
-        screenRatioManager = null;
-        displayManager = null;
-        remoteManager = null;
-        channelPanelController = null;
-        infoDisplayManager = null;
-        channelNumberManager = null;
-        channelPlayManager = null;
-        keyDispatcher = null;
-        playerView = null;
-        playerStateListener = null;
-        gestureManager = null;
-        keyEventManager = null;
-        appConfig = null;
-        initCompleteListener = null;
-    }
-}
+                       
