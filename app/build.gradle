@@ -145,22 +145,23 @@ dependencies {
     implementation "androidx.media3:media3-datasource:1.10.1"
 
     // ====================================================================
-    // ⚠️ FFmpeg 软解码器扩展（必须基于 1.10.1 重新编译！）
+    // ✅ 2026-06-25 更新：FFmpeg 软解码器扩展（已基于 1.10.1 编译）
     // ====================================================================
-    // 【为什么要重新编译？】
-    // FFmpeg 扩展依赖 Media3 的内部 API，
-    // 你现在的 AAR 是基于 1.5.0 编译的，
-    // 跨这么多版本升级，内部 API 变化很大，
-    // 不重新编译运行时肯定会崩溃。
+    // 【作用】
+    // FFmpeg 软解码器扩展，作为系统硬解码的备用方案。
+    // 当系统 MediaCodec 不支持某些视频格式时，自动回退到 FFmpeg 软解码，
+    // 提高格式兼容性，保证更多直播源能正常播放。
     //
-    // 【重新编译方法】
-    // 1. Media3 源码切到 1.10.1 标签
-    // 2. 重新编译 lib-decoder-ffmpeg 模块
-    // 3. 替换掉 app/libs/ 里的旧 AAR
+    // 【编译信息】
+    // - 源码版本：Media3 1.10.1
+    // - 模块名：lib-decoder-ffmpeg
+    // - 编译环境：NDK 23.1.7779620 + JDK 17
+    // - 支持架构：arm64-v8a, armeabi-v7a
+    // - 编译方式：GitHub Actions 自动编译
     //
-    // 【如果暂时不想重新编译】
-    // 先注释掉这行，硬解功能不受影响，
-    // 只是 FFmpeg 软解用不了。
+    // 【工作模式】
+    // - 硬解模式（默认）：系统硬解优先，FFmpeg 作为备用
+    // - 软解模式：优先使用 FFmpeg 软解
     implementation files('libs/lib-decoder-ffmpeg-release.aar')
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
