@@ -32,19 +32,22 @@ import java.util.List;
  * 把 MainActivity 里的画中画相关逻辑全部抽离到这里，
  * 包括：隐藏UI、保持播放、尺寸日志、用户离开处理、模式变化处理。
  * 这样 MainActivity 更清爽，画中画逻辑更集中。
+ *
+ * 【2026-06-25 修复：handleExitPip 缺少 channelPanelController 参数】
+ * 【修复原因】
+ * 原来 handleExitPip 方法体里引用了 channelPanelController 变量，
+ * 但这个变量不在方法参数里，也不是成员变量，导致编译报错。
+ * 现在把它加到参数里，通过外部传入。
  */
 public class PictureInPictureManager {
 
     private static final String LOG_PREFIX = "【画中画】";
-
     private static PictureInPictureManager instance;
     private final Context appContext;
-
     private boolean pipEnabled = false;
     private boolean isInPipMode = false;
     private boolean isPipEntering = false;
     private boolean onStopCalled = false;
-
     private OnPipListener listener;
 
     public static PictureInPictureManager getInstance(Context context) {
@@ -267,6 +270,7 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：隐藏画中画模式下的所有UI
     // ====================================================================
+
     public void hideAllUi(ChannelPanelController channelPanelController,
                           InfoDisplayManager infoDisplayManager) {
         log("========== 隐藏所有UI（画中画模式） ==========");
@@ -289,6 +293,7 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：画中画模式下保持播放
     // ====================================================================
+
     public void keepPlaying(TVPlayerManager playerManager,
                             PlayerView playerView,
                             List<Channel> channelSourceList,
@@ -298,7 +303,6 @@ public class PictureInPictureManager {
             if (playerManager != null) {
                 playerManager.resume();
                 log("✅ 第一重：调用 resume() 恢复播放");
-
                 if (playerView != null) {
                     playerManager.attachPlayerView(playerView);
                     playerManager.resume();
@@ -307,7 +311,6 @@ public class PictureInPictureManager {
             }
         } catch (Exception e) {
             log("❌ 前两重恢复播放失败：" + e.getMessage());
-
             try {
                 if (channelSourceList != null
                         && currentPlayIndex >= 0
@@ -328,6 +331,7 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：打印 View 的详细尺寸信息（调试用）
     // ====================================================================
+
     public void logViewSize(String tag, View view) {
         if (view == null) {
             log("尺寸】" + tag + "：View 为 null");
@@ -338,26 +342,22 @@ public class PictureInPictureManager {
                     + "，top=" + view.getTop()
                     + "，right=" + view.getRight()
                     + "，bottom=" + view.getBottom());
-
             log("尺寸】" + tag + "尺寸：宽=" + view.getWidth()
                     + "，高=" + view.getHeight());
-
             ViewGroup.LayoutParams lp = view.getLayoutParams();
             if (lp != null) {
                 String widthStr = lp.width == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
-                                  lp.width == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
-                                  String.valueOf(lp.width);
+                        lp.width == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
+                                String.valueOf(lp.width);
                 String heightStr = lp.height == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
-                                   lp.height == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
-                                   String.valueOf(lp.height);
-
+                        lp.height == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
+                                String.valueOf(lp.height);
                 log("尺寸】" + tag + "布局参数：width=" + widthStr
                         + "，height=" + heightStr);
             }
-
             int visibility = view.getVisibility();
             String visStr = visibility == View.VISIBLE ? "VISIBLE" :
-                            visibility == View.INVISIBLE ? "INVISIBLE" : "GONE";
+                    visibility == View.INVISIBLE ? "INVISIBLE" : "GONE";
             log("尺寸】" + tag + "可见性：" + visStr);
         } catch (Exception e) {
             log("尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
@@ -367,6 +367,7 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：打印窗口和屏幕尺寸（调试用）
     // ====================================================================
+
     public void logWindowSize(Activity activity) {
         if (activity == null) {
             log("尺寸】Activity 为 null，无法获取窗口尺寸");
@@ -376,11 +377,9 @@ public class PictureInPictureManager {
             Rect rect = new Rect();
             activity.getWindow().getDecorView().getWindowVisibleDisplayFrame(rect);
             log("尺寸】窗口可见区域：宽=" + rect.width() + "，高=" + rect.height());
-
             DisplayMetrics metrics = new DisplayMetrics();
             activity.getWindowManager().getDefaultDisplay().getMetrics(metrics);
             log("尺寸】屏幕尺寸：宽=" + metrics.widthPixels + "，高=" + metrics.heightPixels);
-
             View decorView = activity.getWindow().getDecorView();
             log("尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
         } catch (Exception e) {
@@ -391,12 +390,9 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：处理用户按 Home 键（onUserLeaveHint）
     // ====================================================================
+
     /**
      * 处理用户按 Home 键时的画中画逻辑
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity.onUserLeaveHint() 里，现在统一封装到画中画管理器。
-     * Activity 里只需要调用这一个方法就行。
      *
      * @param activity           当前 Activity
      * @param isOpeningSettings  是否正在打开设置页面（打开设置不进入画中画）
@@ -410,27 +406,22 @@ public class PictureInPictureManager {
                                        TVPlayerManager playerManager) {
         log("排查】========== 开始 ==========");
         log("排查】onUserLeaveHint 被调用");
-
         if (isOpeningSettings) {
             log("排查】打开设置页面，跳过");
             log("排查】========== 结束 ==========");
             return false;
         }
-
         if (instance == null) {
             log("排查】❌ pipManager 为 null");
             log("排查】========== 结束 ==========");
             return false;
         }
-
         boolean shouldEnter = shouldEnterPip();
-
         log("排查】MainActivity开关状态：" + mainPipEnable);
         log("排查】设备支持：" + isPipSupported());
         log("排查】PIP管理器开关：" + isPipEnabled());
         log("排查】已在画中画模式：" + isInPipMode());
         log("排查】正在进入画中画：" + isPipEntering());
-
         if (shouldEnter) {
             log("排查】所有条件满足，尝试进入画中画...");
             try {
@@ -454,7 +445,6 @@ public class PictureInPictureManager {
         } else {
             log("排查】❌ 条件不满足，不进入画中画");
         }
-
         log("排查】========== 结束 ==========");
         return false;
     }
@@ -462,12 +452,9 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：处理进入画中画后的UI逻辑
     // ====================================================================
+
     /**
      * 处理进入画中画模式后的UI逻辑
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity.onPictureInPictureModeChanged() 的 if(isInPip) 分支里，
-     * 现在统一封装到画中画管理器。
      *
      * @param activity              当前 Activity
      * @param channelPanelController 频道面板控制器
@@ -481,13 +468,10 @@ public class PictureInPictureManager {
                                TVPlayerManager playerManager,
                                PlayerView playerView) {
         log("========== 进入画中画 ==========");
-
         hideAllUi(channelPanelController, infoDisplayManager);
-
         if (activity != null) {
             activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
-
         if (playerManager != null) {
             try {
                 playerManager.resume();
@@ -496,15 +480,19 @@ public class PictureInPictureManager {
                 log("恢复播放失败：" + e.getMessage());
             }
         }
-
         logViewSize("进入画中画时", playerView);
-
         log("================================");
     }
 
     // ====================================================================
-    // ✅ 2026-06-25 新增：处理退出画中画后的UI逻辑
+    // ✅ 2026-06-25 修复：加上 channelPanelController 参数
     // ====================================================================
+    // 【修复原因】
+    // 原来方法体里引用了 channelPanelController 变量，
+    // 但这个变量不在方法参数里，也不是成员变量，导致编译报错。
+    // 现在把它加到参数里，通过外部传入。
+    // ====================================================================
+
     /**
      * 处理退出画中画模式后的UI逻辑
      *
@@ -518,6 +506,7 @@ public class PictureInPictureManager {
      * @param playerManager         播放器管理器
      * @param remoteManager         遥控器管理器（用于同步模式）
      * @param infoDisplayManager    信息展示管理器
+     * @param channelPanelController 频道面板控制器（用于同步面板状态） ✅ 新增参数
      * @param channelSourceList     频道列表
      * @param currentPlayIndex      当前播放索引
      * @param onExitComplete        退出完成后的回调（可选）
@@ -528,11 +517,11 @@ public class PictureInPictureManager {
                               final TVPlayerManager playerManager,
                               final TvRemoteManager remoteManager,
                               final InfoDisplayManager infoDisplayManager,
+                              final ChannelPanelController channelPanelController,  // ✅ 2026-06-25 新增参数
                               final List<Channel> channelSourceList,
                               final int currentPlayIndex,
                               final Runnable onExitComplete) {
         log("========== 退出画中画 ==========");
-
         handleExitPip(new Runnable() {
             @Override
             public void run() {
@@ -542,22 +531,18 @@ public class PictureInPictureManager {
                 }
             }
         });
-
         log("尺寸】===== 1. 刚退出画中画（初始状态） =====");
         logViewSize("PlayerView", playerView);
         if (playerView != null && playerView.getParent() instanceof View) {
             logViewSize("父布局", (View) playerView.getParent());
         }
         logWindowSize(activity);
-
         if (displayManager != null) {
             log("尺寸】执行 displayManager.reapplyFullScreen()");
             displayManager.reapplyFullScreen();
         }
-
         log("尺寸】===== 2. reapplyFullScreen 后 =====");
         logViewSize("PlayerView", playerView);
-
         if (playerView != null) {
             playerView.post(new Runnable() {
                 @Override
@@ -573,7 +558,6 @@ public class PictureInPictureManager {
                     }
                 }
             });
-
             playerView.postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -597,8 +581,8 @@ public class PictureInPictureManager {
                 }
             }, 200);
         }
-
         if (remoteManager != null) {
+            // ✅ 2026-06-25 修复：channelPanelController 现在是方法参数了，可以正常使用
             if (channelPanelController != null && channelPanelController.isPanelOpen()) {
                 remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
                 remoteManager.setRightPanelOpen(channelPanelController.isRightPanelOpen());
@@ -606,7 +590,6 @@ public class PictureInPictureManager {
                 remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
             }
         }
-
         if (infoDisplayManager != null && channelSourceList != null
                 && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
             Channel currChannel = channelSourceList.get(currentPlayIndex);
@@ -617,11 +600,9 @@ public class PictureInPictureManager {
             infoDisplayManager.showInfoBar(currChannel, liveInfo);
             infoDisplayManager.showChannelNum(currentPlayIndex + 1);
         }
-
         if (activity != null) {
             activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
-
         try {
             if (playerManager != null) {
                 playerManager.resume();
@@ -629,7 +610,6 @@ public class PictureInPictureManager {
         } catch (Exception e) {
             log("恢复播放失败：" + e.getMessage());
         }
-
         log("退出画中画完成");
         log("================================");
     }
