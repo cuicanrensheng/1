@@ -7,7 +7,7 @@ import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
-
+import androidx.media3.ui.PlayerView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.tv.live.config.AppConfig;
@@ -375,7 +375,7 @@ public class MainActivity extends AppCompatActivity {
     private void handleExitPip() {
         PictureInPictureManager pipManager = lifecycleManager.getPipManager();
         DisplayManager displayManager = lifecycleManager.getDisplayManager();
-        View playerView = lifecycleManager.getPlayerView();
+        PlayerView playerView = lifecycleManager.getPlayerView();
         TVPlayerManager playerManager = lifecycleManager.getPlayerManager();
         TvRemoteManager remoteManager = lifecycleManager.getRemoteManager();
         InfoDisplayManager infoDisplayManager = lifecycleManager.getInfoDisplayManager();
