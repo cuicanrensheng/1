@@ -10,7 +10,6 @@ import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.ScrollView;
@@ -97,14 +96,14 @@ import java.util.List;
  * 【存储 Key】pip_enable，默认 false（关闭）
  * 【兼容性】仅 Android 8.0 (API 26) 及以上系统支持
  *
- * 【2026-06-25 优化：问题修复 + 日志优化 + 全面屏适配升级】
+ * 【2026-06-25 优化：问题修复 + 日志优化 + 崩溃防护】
  * 
  * 【本次优化内容】
  * 1. ✅ 精简 updateSettingsFocus() 日志（从每次17+条精简到1条）
  * 2. ✅ 优化 log() / logOperation() 方法，减少不必要的 StringBuilder 创建
  * 3. ✅ 遥控器上下键移动焦点时记录操作日志
  * 4. ✅ 修复 onSettingsFocusChanged 和 onSettingsMoveUp/Down 重复调用问题
- * 5. ✅ 全面屏设置升级：Android 11+ 用 WindowInsetsController，旧版本兼容
+ * 5. ✅ 全面屏设置增加 try-catch 崩溃防护（用旧 API，兼容性最好）
  * 6. ✅ 统一清空日志的顺序（先清 LogManager 再清本地缓存）
  * 7. ✅ 所有优化点接入操作日志
  */
@@ -302,39 +301,43 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // ====================================================================
-        // ✅ 2026-06-25 优化：全面屏设置升级
+        // ✅ 2026-06-25 优化：全面屏设置（加 try-catch 崩溃防护）
         // ====================================================================
-        // 【原来的问题】
-        // 使用的是 setSystemUiVisibility()，这个方法在 Android 11 (API 30) 已废弃。
-        // 虽然还能用，但推荐用 WindowInsetsController。
-        //
-        // 【优化方案】
-        // 加版本判断：
-        // - Android 11+ (API 30)：用 WindowInsetsController（新API）
-        // - Android 10 及以下：用 setSystemUiVisibility（旧API，兼容）
-        //
-        // 【为什么不直接全用新API？】
-        // 因为 minSdk 是 21 (Android 5.0)，
-        // 低版本系统不支持 WindowInsetsController，
-        // 所以必须做版本兼容。
-        applyFullScreen();
+        // 【为什么用旧 API（setSystemUiVisibility）？】
+        // 虽然 Android 11+ 已废弃，但所有系统版本都能用，兼容性最好。
+        // 新 API（WindowInsetsController）在某些厂商定制系统上可能有兼容性问题，
+        // 导致进入设置页面直接崩溃。
+        // 【防护措施】加 try-catch，即使全面屏设置失败也不能崩溃。
+        try {
+            applyFullScreen();
+        } catch (Exception e) {
+            // 兜底：全面屏设置失败也不能让页面崩溃
+        }
         // ====================================================================
         // 刘海屏/挖孔屏适配
         // ====================================================================
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-            WindowManager.LayoutParams lp = getWindow().getAttributes();
-            lp.layoutInDisplayCutoutMode =
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            getWindow().setAttributes(lp);
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                WindowManager.LayoutParams lp = getWindow().getAttributes();
+                lp.layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                getWindow().setAttributes(lp);
+            }
+        } catch (Exception e) {
+            // 兜底：刘海屏适配失败也不能崩溃
         }
         // ====================================================================
         // 彻底清除背景变暗（三重保险）
         // ====================================================================
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-        layoutParams.dimAmount = 0f;
-        getWindow().setAttributes(layoutParams);
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        try {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+            layoutParams.dimAmount = 0f;
+            getWindow().setAttributes(layoutParams);
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        } catch (Exception e) {
+            // 兜底：清除背景变暗失败也不能崩溃
+        }
         // ===== 窗口设置 =====
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -512,42 +515,25 @@ public class SettingsActivity extends AppCompatActivity {
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
         logOperation("【设置】打开设置页面");
-        logOperation("【设置】全面屏适配方式：" 
-            + (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ? "WindowInsetsController（新API）" : "setSystemUiVisibility（旧API）"));
     }
     // ====================================================================
-    // ✅ 2026-06-25 新增：全面屏设置（版本兼容）
+    // ✅ 2026-06-25 优化：全面屏设置（旧 API + try-catch 防护）
     // ====================================================================
     /**
      * 应用全面屏设置（隐藏状态栏 + 导航栏）
      * 
-     * 【版本兼容说明】
-     * - Android 11+ (API 30)：用 WindowInsetsController（新API，官方推荐）
-     * - Android 10 及以下：用 setSystemUiVisibility（旧API，已废弃但仍可用）
+     * 【为什么用旧 API（setSystemUiVisibility）？】
+     * 虽然 Android 11+ 已废弃这个方法，但所有系统版本都能用，兼容性最好。
+     * 新 API（WindowInsetsController）在某些厂商定制系统上可能有兼容性问题，
+     * 导致进入页面直接崩溃。
      * 
-     * 【为什么要做版本兼容？】
-     * 因为 minSdk 是 21 (Android 5.0)，
-     * 低版本系统不支持 WindowInsetsController，
-     * 所以必须做版本判断，保证所有系统都能正常运行。
-     * 
-     * 【两种方式的区别】
-     * 旧API：setSystemUiVisibility()，通过位运算设置各种 flag
-     * 新API：WindowInsetsController.hide()，更简洁，功能更强
+     * 【崩溃防护】
+     * 加 try-catch，即使全面屏设置失败也不能让页面崩溃。
+     * 大不了就是状态栏/导航栏没隐藏，至少页面能正常打开。
      */
     private void applyFullScreen() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+：用 WindowInsetsController（新API）
-            WindowInsetsController controller = getWindow().getInsetsController();
-            if (controller != null) {
-                // 隐藏状态栏和导航栏
-                controller.hide(android.view.WindowInsets.Type.statusBars() 
-                    | android.view.WindowInsets.Type.navigationBars());
-                // 沉浸式粘性模式（用户滑动时暂时显示，过会儿自动隐藏）
-                controller.setSystemBarsBehavior(
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-            }
-        } else {
-            // Android 10 及以下：用旧 API（setSystemUiVisibility）
+        try {
+            // 统一用旧 API，兼容性最好（所有 Android 版本都支持）
             int uiOptions = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                     | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                     | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
@@ -555,6 +541,10 @@ public class SettingsActivity extends AppCompatActivity {
                     | View.SYSTEM_UI_FLAG_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
             getWindow().getDecorView().setSystemUiVisibility(uiOptions);
+        } catch (Exception e) {
+            // 兜底：全面屏设置失败也不能崩溃
+            // 记录日志，方便排查
+            logOperation("【设置】全面屏适配失败：" + e.getMessage());
         }
     }
     // ====================================================================
@@ -1209,16 +1199,18 @@ public class SettingsActivity extends AppCompatActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
-            // ✅ 2026-06-25 优化：用统一的 applyFullScreen() 方法
-            // 原来这里又写了一遍全面屏设置的代码，重复了。
-            // 现在直接调用 applyFullScreen()，保持代码统一。
-            applyFullScreen();
-            // 清除背景变暗
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-                        layoutParams.dimAmount = 0f;
-            getWindow().setAttributes(layoutParams);
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            try {
+                // 重新设置全面屏（隐藏状态栏 + 导航栏）
+                applyFullScreen();
+                // 清除背景变暗
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+                layoutParams.dimAmount = 0f;
+                getWindow().setAttributes(layoutParams);
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            } catch (Exception e) {
+                // 兜底：窗口焦点变化时的设置失败也不能崩溃
+            }
         }
     }
     // ====================== onDestroy 生命周期 ======================
