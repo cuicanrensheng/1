@@ -10,6 +10,15 @@ import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.tv.live.config.AppConfig;
+import com.tv.live.manager.AppCoreManager;
+import com.tv.live.manager.ChannelPanelController;
+import com.tv.live.manager.DisplayManager;
+import com.tv.live.manager.InfoDisplayManager;
+import com.tv.live.manager.TvRemoteManager;
+
+import java.util.List;
+
 /**
  * 主页面
  *
@@ -18,22 +27,21 @@ import androidx.appcompat.app.AppCompatActivity;
  * 1. 把 MainActivity 里的各个功能模块抽离到独立的 Manager 类
  * 2. 然后又把功能重复的小 Manager 合并到大的 Manager 里
  * 3. 最终 MainActivity 只负责生命周期和简单的转发逻辑
- *
- * 【合并后引用变化】
- * - UiInitializer → LifecycleManager（已合并）
- * - AutoSkipManager → ChannelPlayManager（已合并）
- * - PanelAutoHideManager → ChannelPanelController（已合并）
- * - DirectionKeyHandler → KeyDispatcher（已合并）
- * - BackPressHandler → KeyDispatcher（已合并）
- * - LogHelper → AppCoreManager（已合并）
  */
 public class MainActivity extends AppCompatActivity {
 
     public static MainActivity mInstance;
 
-    // ✅ 2026-06-25 合并：UiInitializer 已合并到 LifecycleManager
-    private LifecycleManager lifecycleManager;
+    // ✅ 2026-06-25 兼容层：保留旧的 public 变量，供外部类访问
+    // 【为什么保留？】
+    // EpgManagerWrapper、ChannelListActivity 等外部类还在引用这些变量，
+    // 为了不改动太多文件，保留这些变量名，实际值从 Manager 里获取。
+    // 注意：这些变量会在初始化后同步，但建议外部类逐步改用 Manager 的方式访问。
+    public List<Channel> channelSourceList;
+    public int currentPlayIndex = 0;
+    public TVPlayerManager mPlayerManager;
 
+    private LifecycleManager lifecycleManager;
     private BroadcastReceiver decoderModeReceiver;
     private boolean mIsFirstLaunch = true;
 
@@ -45,7 +53,6 @@ public class MainActivity extends AppCompatActivity {
 
         mInstance = this;
 
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         lifecycleManager = LifecycleManager.getInstance();
         lifecycleManager.setActivity(this);
 
@@ -85,7 +92,6 @@ public class MainActivity extends AppCompatActivity {
         // 初始化解码器模式广播接收器
         initDecoderModeReceiver();
 
-        // ✅ 2026-06-25 合并：PanelAutoHideManager → ChannelPanelController
         // 首次启动延迟隐藏面板
         if (mIsFirstLaunch) {
             lifecycleManager.getChannelPanelController().postFirstLaunchAutoHide();
@@ -101,8 +107,7 @@ public class MainActivity extends AppCompatActivity {
         // 初始化数字选台管理器
         lifecycleManager.initChannelNumberManager();
 
-        // ✅ 2026-06-25 合并：DirectionKeyHandler → KeyDispatcher
-        // 初始化方向键处理器（已合并到 KeyDispatcher，这里直接初始化 KeyDispatcher）
+        // 初始化方向键处理器（已合并到 KeyDispatcher）
         lifecycleManager.initDirectionKeyHandler();
 
         // 初始化屏幕比例管理器
@@ -114,14 +119,13 @@ public class MainActivity extends AppCompatActivity {
         // 初始化按键事件管理器
         lifecycleManager.initKeyEventManager();
 
-        // ✅ 2026-06-25 合并：LifecycleManager 就是自己，这里调用 initLifecycleManager 只是记录日志
+        // 初始化生命周期管理器（自己，记录日志）
         lifecycleManager.initLifecycleManager();
 
         // 初始化按键分发器
         lifecycleManager.initKeyDispatcher();
 
-        // ✅ 2026-06-25 合并：BackPressHandler → KeyDispatcher
-        // 初始化返回键处理器（已合并到 KeyDispatcher，这里直接初始化 KeyDispatcher）
+        // 初始化返回键处理器（已合并到 KeyDispatcher）
         lifecycleManager.initBackPressHandler();
 
         // 初始化应用核心管理器
@@ -132,13 +136,29 @@ public class MainActivity extends AppCompatActivity {
 
         // 开始加载
         lifecycleManager.startLoading();
+
+        // ✅ 2026-06-25 兼容层：同步旧变量
+        syncCompatVariables();
     }
 
     /**
-     * 加载设置
+     * ✅ 2026-06-25 兼容层：同步旧变量
+     * 【为什么需要？】
+     * EpgManagerWrapper、ChannelListActivity 等外部类还在引用
+     * channelSourceList、currentPlayIndex、mPlayerManager 这些旧变量。
+     * 为了保持向后兼容，这里同步一下这些变量的值。
      */
+    private void syncCompatVariables() {
+        if (lifecycleManager != null) {
+            mPlayerManager = lifecycleManager.getPlayerManager();
+            if (lifecycleManager.getChannelPlayManager() != null) {
+                channelSourceList = lifecycleManager.getChannelPlayManager().getChannelSourceList();
+                currentPlayIndex = lifecycleManager.getChannelPlayManager().getCurrentPlayIndex();
+            }
+        }
+    }
+
     private void loadSettings() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         SettingsManager settingsManager = lifecycleManager.getSettingsManager();
         ChannelPanelController panelController = lifecycleManager.getChannelPanelController();
 
@@ -156,18 +176,8 @@ public class MainActivity extends AppCompatActivity {
         SettingsActivity.logOperation("【设置】自动更新源：" + auto_update_source);
     }
 
-    /**
-     * 加载自定义配置
-     *
-     * ✅ 2026-06-25 合并：LogHelper → AppCoreManager
-     * 【修改说明】
-     * 原来调用 logHelper.log()，现在改成 appCoreManager.log()
-     */
     private void loadCustomConfig() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         AppConfig appConfig = lifecycleManager.getAppConfig();
-
-        // ✅ 2026-06-25 合并：LogHelper → AppCoreManager
         AppCoreManager appCoreManager = lifecycleManager.getAppCoreManager();
 
         String customLive = appConfig.getCustomLiveUrl();
@@ -176,24 +186,15 @@ public class MainActivity extends AppCompatActivity {
         if (customLive != null) UrlConfig.LIVE_URL = customLive;
         if (customEpg != null) UrlConfig.EPG_URL = customEpg;
 
-        // ✅ 2026-06-25 合并：LogHelper → AppCoreManager
         appCoreManager.log("【配置】直播源地址：" + UrlConfig.LIVE_URL);
         appCoreManager.log("【配置】EPG地址：" + UrlConfig.EPG_URL);
     }
 
-    /**
-     * 初始化画中画
-     */
     private void initPictureInPicture() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         lifecycleManager.initPipManager();
     }
 
-    /**
-     * 初始化解码器模式广播接收器
-     */
     private void initDecoderModeReceiver() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         final SettingsManager settingsManager = lifecycleManager.getSettingsManager();
         final TVPlayerManager playerManager = lifecycleManager.getPlayerManager();
 
@@ -216,17 +217,7 @@ public class MainActivity extends AppCompatActivity {
         SettingsActivity.logOperation("【解码器】广播接收器已注册");
     }
 
-    /**
-     * 是否开启切台反转
-     *
-     * ✅ 2026-06-25 合并：DirectionKeyHandler → KeyDispatcher
-     * 【修改说明】
-     * 原来调用 directionKeyHandler.isChannelReverse()，
-     * 现在 DirectionKeyHandler 已经合并到 KeyDispatcher 里了，
-     * 直接调用 keyDispatcher.isChannelReverse()。
-     */
     public boolean isChannelReverse() {
-        // ✅ 2026-06-25 合并：DirectionKeyHandler → KeyDispatcher
         KeyDispatcher dispatcher = lifecycleManager.getKeyDispatcher();
         if (dispatcher != null) {
             return dispatcher.isChannelReverse();
@@ -234,11 +225,7 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    /**
-     * 切换面板
-     */
     public void togglePanel() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         ChannelPanelController controller = lifecycleManager.getChannelPanelController();
         TvRemoteManager remoteManager = lifecycleManager.getRemoteManager();
 
@@ -255,40 +242,41 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 播放上一个频道
-     */
     public void playPrev() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         ChannelPlayManager manager = lifecycleManager.getChannelPlayManager();
         if (manager != null) {
             manager.playPrev();
+            // 同步兼容变量
+            currentPlayIndex = manager.getCurrentPlayIndex();
         }
     }
 
-    /**
-     * 播放下一个频道
-     */
     public void playNext() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         ChannelPlayManager manager = lifecycleManager.getChannelPlayManager();
         if (manager != null) {
             manager.playNext();
+            // 同步兼容变量
+            currentPlayIndex = manager.getCurrentPlayIndex();
         }
     }
 
     /**
-     * 返回键处理
-     *
-     * ✅ 2026-06-25 合并：BackPressHandler → KeyDispatcher
-     * 【修改说明】
-     * 原来调用 backPressHandler.handleBackPressed()，
-     * 现在 BackPressHandler 已经合并到 KeyDispatcher 里了，
-     * 直接调用 keyDispatcher.handleBackPressed()。
+     * ✅ 2026-06-25 兼容层：playChannel 方法
+     * 【为什么保留？】
+     * ChannelListActivity 等外部类还在调用 MainActivity.mInstance.playChannel(position)，
+     * 为了保持向后兼容，保留这个方法，内部转发给 ChannelPlayManager。
      */
+    public void playChannel(int position) {
+        ChannelPlayManager manager = lifecycleManager.getChannelPlayManager();
+        if (manager != null) {
+            manager.playChannel(position);
+            // 同步兼容变量
+            currentPlayIndex = manager.getCurrentPlayIndex();
+        }
+    }
+
     @Override
     public void onBackPressed() {
-        // ✅ 2026-06-25 合并：BackPressHandler → KeyDispatcher
         KeyDispatcher dispatcher = lifecycleManager.getKeyDispatcher();
         if (dispatcher != null && dispatcher.handleBackPressed()) {
             return;
@@ -296,12 +284,8 @@ public class MainActivity extends AppCompatActivity {
         super.onBackPressed();
     }
 
-    /**
-     * 按键事件处理
-     */
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         KeyDispatcher dispatcher = lifecycleManager.getKeyDispatcher();
         if (dispatcher != null) {
             if (dispatcher.dispatchKeyEvent(keyCode, event)) {
@@ -311,19 +295,9 @@ public class MainActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    /**
-     * 打开设置页面
-     *
-     * ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
-     * 【修改说明】
-     * 原来通过 uiInitializer.getLifecycleManager() 获取，
-     * 现在 LifecycleManager 就是 lifecycleManager 本身，直接用。
-     */
     public void openSettings() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         AppCoreManager appCoreManager = lifecycleManager.getAppCoreManager();
 
-        // ✅ 2026-06-25 合并：LifecycleManager 就是自己，直接调用
         lifecycleManager.setOpeningSettings(true);
 
         if (appCoreManager != null) {
@@ -333,25 +307,17 @@ public class MainActivity extends AppCompatActivity {
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
-    /**
-     * 接收远程配置
-     */
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         AppCoreManager appCoreManager = lifecycleManager.getAppCoreManager();
         if (appCoreManager != null) {
             appCoreManager.onReceiveConfig(liveUrl, epgUrl);
         }
     }
 
-    /**
-     * 用户按 Home 键
-     */
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
 
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         PictureInPictureManager pipManager = lifecycleManager.getPipManager();
         SettingsManager settingsManager = lifecycleManager.getSettingsManager();
         TVPlayerManager playerManager = lifecycleManager.getPlayerManager();
@@ -364,9 +330,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 画中画模式变化
-     */
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode);
@@ -374,7 +337,6 @@ public class MainActivity extends AppCompatActivity {
         SettingsActivity.logOperation("【画中画】模式变化 → "
                 + (isInPictureInPictureMode ? "进入" : "退出"));
 
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         PictureInPictureManager pipManager = lifecycleManager.getPipManager();
 
         if (pipManager != null) {
@@ -392,11 +354,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 进入画中画
-     */
     private void handleEnterPip() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         PictureInPictureManager pipManager = lifecycleManager.getPipManager();
         ChannelPanelController panelController = lifecycleManager.getChannelPanelController();
         InfoDisplayManager infoDisplayManager = lifecycleManager.getInfoDisplayManager();
@@ -414,11 +372,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 退出画中画
-     */
     private void handleExitPip() {
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         PictureInPictureManager pipManager = lifecycleManager.getPipManager();
         DisplayManager displayManager = lifecycleManager.getDisplayManager();
         View playerView = lifecycleManager.getPlayerView();
@@ -426,6 +380,7 @@ public class MainActivity extends AppCompatActivity {
         TvRemoteManager remoteManager = lifecycleManager.getRemoteManager();
         InfoDisplayManager infoDisplayManager = lifecycleManager.getInfoDisplayManager();
         ChannelPlayManager channelPlayManager = lifecycleManager.getChannelPlayManager();
+        ChannelPanelController panelController = lifecycleManager.getChannelPanelController();
 
         if (pipManager != null && channelPlayManager != null) {
             pipManager.handleExitPip(
@@ -435,6 +390,7 @@ public class MainActivity extends AppCompatActivity {
                     playerManager,
                     remoteManager,
                     infoDisplayManager,
+                    panelController,
                     channelPlayManager.getChannelSourceList(),
                     channelPlayManager.getCurrentPlayIndex(),
                     new Runnable() {
@@ -445,56 +401,41 @@ public class MainActivity extends AppCompatActivity {
                     }
             );
         }
+
+        // 同步兼容变量
+        syncCompatVariables();
     }
 
-    /**
-     * 页面暂停
-     */
     @Override
     protected void onPause() {
         super.onPause();
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         lifecycleManager.onPause();
     }
 
-    /**
-     * 页面停止
-     */
     @Override
     protected void onStop() {
         super.onStop();
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         lifecycleManager.onStop();
     }
 
-    /**
-     * 页面恢复
-     */
     @Override
     protected void onResume() {
         super.onResume();
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         lifecycleManager.onResume();
+        // 同步兼容变量
+        syncCompatVariables();
     }
 
-    /**
-     * 窗口焦点变化
-     */
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         lifecycleManager.onWindowFocusChanged(hasFocus);
     }
 
-    /**
-     * 页面销毁
-     */
     @Override
     protected void onDestroy() {
         super.onDestroy();
 
-        // ✅ 2026-06-25 合并：UiInitializer → LifecycleManager
         lifecycleManager.onDestroy(decoderModeReceiver);
         lifecycleManager.release();
 
