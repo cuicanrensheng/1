@@ -1,229 +1,135 @@
 plugins {
-
     id 'com.android.application'
-
 }
 
 android {
-
     namespace "com.tv.live"
 
     // ====================================================================
-
-    // ✅ 2026-06-24 修改：compileSdk 34 → 36
-
+    // ✅ compileSdk 保持 36
     // ====================================================================
-
-    // 【为什么用 36？】
-
-    // Media3 1.5.0 要求 compileSdk 至少 35，我们直接用 36，
-
-    // 跟之前 1.10.1 保持一致，省得来回改。
-
-    //
-
-    // 【注意】
-
-    // compileSdk 只是编译时用的 SDK 版本，不影响运行时行为。
-
-    // minSdk 还是 21，照样兼容 Android 5.0+ 的设备。
-
+    // Media3 1.10.1 要求 compileSdk 至少 33，36 完全够用。
     compileSdk 36
 
     compileOptions {
-
         sourceCompatibility JavaVersion.VERSION_1_8
-
         targetCompatibility JavaVersion.VERSION_1_8
-
         coreLibraryDesugaringEnabled true
-
     }
 
     buildFeatures {
-
         buildConfig true
-
     }
 
     defaultConfig {
-
         applicationId "com.tv.live"
 
         // ====================================================================
-
-        // ✅ minSdk 保持 21
+        // ✅ 2026-06-25 升级：minSdk 21 → 23
+        // ====================================================================
+        // 【为什么升到 23？】
+        // Media3 从 1.8.0 开始官方把 minSdk 升到了 23，
+        // 升到 23 后就可以用最新的 Media3 1.10.1，
+        // 享受最新的 bug 修复和性能优化。
+        //
+        // 【影响】
+        // Android 5.0/5.1（API 21-22）的设备将无法安装。
+        // 但目前 Android 5.x 的市场占有率已经很低了，
+        // 而且电视设备大部分都是 Android 6.0+，影响不大。
+        minSdk 23
 
         // ====================================================================
-
-        // Media3 1.5.0 官方支持 minSdk 21，
-
-        // 不需要 tools:overrideLibrary，直接用就行。
-
-        minSdk 21
-
-        // ====================================================================
-
         // ✅ targetSdk 保持 36
-
         // ====================================================================
-
-        // 跟 compileSdk 保持一致。
-
         targetSdk 36
 
         versionCode 20
-
         versionName "2.0"
 
         multiDexEnabled true
 
         buildConfigField "int", "VERSION_CODE", "${versionCode}"
-
         buildConfigField "String", "VERSION_NAME", "\"${versionName}\""
 
         ndk {
-
             abiFilters 'arm64-v8a', 'armeabi-v7a'
-
         }
-
     }
 
     signingConfigs {
-
         release {
-
             storeFile file("../release.keystore")
-
             storePassword "admin123"
-
             keyAlias "myreleasekey"
-
             keyPassword "admin123"
-
-            // ✅ 显式开启 v1 + v2 签名
-
             v1SigningEnabled true
-
             v2SigningEnabled true
-
         }
-
         debug {
-
             storeFile file("../debug.keystore")
-
             storePassword "android"
-
             keyAlias "androiddebugkey"
-
             keyPassword "android"
-
             v1SigningEnabled true
-
             v2SigningEnabled true
-
         }
-
     }
 
     buildTypes {
-
         release {
-
             minifyEnabled false
-
             shrinkResources false
-
             crunchPngs false
-
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-
             signingConfig signingConfigs.release
-
         }
-
         debug {
-
             signingConfig signingConfigs.debug
-
         }
-
     }
 
     packagingOptions {
-
         resources {
-
             pickFirsts += ['META-INF/com.android.tools/proguard/coroutines.pro']
-
         }
-
     }
 
     // ====================================================================
-
     // ✅ 配置 libs 目录为 AAR 仓库
-
     // ====================================================================
-
     repositories {
-
         flatDir {
-
             dirs 'libs'
-
         }
-
     }
-
 }
 
 dependencies {
-
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
     implementation "androidx.appcompat:appcompat:1.6.1"
-
     implementation "com.google.android.material:material:1.11.0"
-
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
-
     implementation "androidx.recyclerview:recyclerview:1.3.2"
-
     implementation 'com.google.zxing:core:3.5.1'
-
     implementation 'com.google.code.gson:gson:2.10.1'
 
     // ====================================================================
-
-    // ✅ Media3 1.5.0
-
+    // ✅ Media3 1.10.1（最新稳定版）
     // ====================================================================
-
-    // 【为什么用 1.5.0？】
-
-    // Media3 从 1.8.0 开始把 minSdk 从 21 升到了 23，
-
-    // 1.5.0 是官方支持 minSdk 21 的版本，不需要 tools:overrideLibrary。
-
+    // 【为什么用 1.10.1？】
+    // minSdk 升到 23 后，就可以用最新的 Media3 稳定版了。
+    // 1.10.1 是目前（2026年5月）最新的稳定版本，
+    // 包含了大量 bug 修复、性能优化和新功能。
     //
-
-    // 【注意】
-
-    // 1.5.0 要求 compileSdk 至少 35，所以我们用 36。
-
-    // compileSdk 只是编译时用的，不影响运行时兼容性。
-
-    // ====================================================================
-
-    // ====================================================================
-    // ✅ 2026-06-24 修改：FFmpeg 用自己编译的 AAR
-
-    // ====================================================================
-        // ⚠️ AndroidManifest 里的 tools:overrideLibrary 可以删掉了
-    // 因为 minSdk 已经升到 23，和 Media3 要求一致，不需要强制覆盖了。
+    // 【主要优势】
+    // 1. 大量 bug 修复，稳定性大幅提升
+    // 2. HLS/DASH 处理优化，减少卡顿和缓冲
+    // 3. 解码器兼容性改进，支持更多格式
+    // 4. 性能优化，启动更快，内存占用更低
+    // 5. PlayerView 控件优化
+    // 6. 新增更多 API 和配置选项
+    // 7. 安全漏洞修复
 
     // ✅ Media3 核心播放器
     implementation "androidx.media3:media3-exoplayer:1.10.1"
@@ -238,57 +144,32 @@ dependencies {
     // ✅ Media3 数据源
     implementation "androidx.media3:media3-datasource:1.10.1"
 
-
-    // 【为什么用 AAR 而不是 Maven？】
-
-    // 官方 Maven 仓库没有 media3-decoder-ffmpeg 预编译包，
-
-    // 需要自己从源码编译。
-
+    // ====================================================================
+    // ⚠️ FFmpeg 软解码器扩展（必须基于 1.10.1 重新编译！）
+    // ====================================================================
+    // 【为什么要重新编译？】
+    // FFmpeg 扩展依赖 Media3 的内部 API，
+    // 你现在的 AAR 是基于 1.5.0 编译的，
+    // 跨这么多版本升级，内部 API 变化很大，
+    // 不重新编译运行时肯定会崩溃。
     //
-
-    // 【编译信息】
-
-    // - 源码版本：Media3 1.5.0
-
-    // - 模块名：lib-decoder-ffmpeg
-
-    // - 编译环境：NDK 23.1.7779620 + JDK 17
-
-    // - 支持架构：arm64-v8a, armeabi-v7a
-
-    // - 编译方式：GitHub Actions 自动编译
-
+    // 【重新编译方法】
+    // 1. Media3 源码切到 1.10.1 标签
+    // 2. 重新编译 lib-decoder-ffmpeg 模块
+    // 3. 替换掉 app/libs/ 里的旧 AAR
     //
-
-    // 【作用】
-
-    // FFmpeg 软解码器扩展，作为系统硬解码的备用方案。
-
-    // 当系统 MediaCodec 不支持某些视频格式时，自动回退到 FFmpeg 软解码，
-
-    // 提高格式兼容性，保证更多直播源能正常播放。
-
-    // ✅ FFmpeg 软解码器扩展（自己编译的 AAR）
-
+    // 【如果暂时不想重新编译】
+    // 先注释掉这行，硬解功能不受影响，
+    // 只是 FFmpeg 软解用不了。
     implementation files('libs/lib-decoder-ffmpeg-release.aar')
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
-
     implementation "com.squareup.retrofit2:retrofit:2.11.0"
-
     implementation "com.squareup.retrofit2:converter-gson:2.11.0"
-
     implementation "com.github.bumptech.glide:glide:4.16.0"
-
     annotationProcessor "com.github.bumptech.glide:compiler:4.16.0"
-
     implementation "org.apache.commons:commons-lang3:3.14.0"
-
     implementation "com.blankj:utilcodex:1.31.1"
-
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
-
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'
-
 }
