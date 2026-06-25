@@ -5,14 +5,20 @@ import android.app.PictureInPictureParams;
 import android.content.Context;
 import android.graphics.Rect;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
+import android.util.Rational;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 
 import androidx.media3.ui.PlayerView;
 
 import com.tv.live.manager.ChannelPanelController;
+import com.tv.live.manager.DisplayManager;
 import com.tv.live.manager.InfoDisplayManager;
+import com.tv.live.manager.TvRemoteManager;
 
 import java.util.List;
 
@@ -21,10 +27,10 @@ import java.util.List;
  * 作用：统一管理画中画的初始化、开关、状态回调、兼容性判断、生命周期处理
  * 设计：单例模式，全局唯一实例，避免重复创建
  *
- * 【2026-06-25 增强：抽离 MainActivity 中的画中画辅助方法】
+ * 【2026-06-25 增强：抽离 MainActivity 中的画中画逻辑】
  * 【修改说明】
- * 把 MainActivity 里的画中画相关辅助方法抽离到这里，
- * 包括：隐藏所有UI、保持播放、打印View尺寸、打印窗口尺寸。
+ * 把 MainActivity 里的画中画相关逻辑全部抽离到这里，
+ * 包括：隐藏UI、保持播放、尺寸日志、用户离开处理、模式变化处理。
  * 这样 MainActivity 更清爽，画中画逻辑更集中。
  */
 public class PictureInPictureManager {
@@ -261,16 +267,6 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：隐藏画中画模式下的所有UI
     // ====================================================================
-    /**
-     * 画中画模式下隐藏所有 UI
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity 里，现在统一放到画中画管理器里，
-     * 逻辑更集中，MainActivity 更清爽。
-     *
-     * @param channelPanelController 频道面板控制器
-     * @param infoDisplayManager     信息展示管理器
-     */
     public void hideAllUi(ChannelPanelController channelPanelController,
                           InfoDisplayManager infoDisplayManager) {
         log("========== 隐藏所有UI（画中画模式） ==========");
@@ -293,22 +289,6 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：画中画模式下保持播放
     // ====================================================================
-    /**
-     * 画中画模式下保持播放（三重保险）
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity 里，现在统一放到画中画管理器里。
-     *
-     * 【三重保险机制】
-     * 1. 直接调用 resume() 恢复播放
-     * 2. 重新绑定 PlayerView 后再次 resume()
-     * 3. 兜底：重新加载当前频道
-     *
-     * @param playerManager      播放器管理器
-     * @param playerView         播放器视图
-     * @param channelSourceList  频道列表
-     * @param currentPlayIndex   当前播放索引
-     */
     public void keepPlaying(TVPlayerManager playerManager,
                             PlayerView playerView,
                             List<Channel> channelSourceList,
@@ -348,16 +328,6 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：打印 View 的详细尺寸信息（调试用）
     // ====================================================================
-    /**
-     * 打印 View 的详细尺寸信息（用于画中画调试）
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity 里，现在统一放到画中画管理器里，
-     * 作为调试工具方法。
-     *
-     * @param tag  日志标签
-     * @param view 要打印的 View
-     */
     public void logViewSize(String tag, View view) {
         if (view == null) {
             log("尺寸】" + tag + "：View 为 null");
@@ -397,15 +367,6 @@ public class PictureInPictureManager {
     // ====================================================================
     // ✅ 2026-06-25 新增：打印窗口和屏幕尺寸（调试用）
     // ====================================================================
-    /**
-     * 打印窗口和屏幕尺寸信息（用于画中画调试）
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity 里，现在统一放到画中画管理器里，
-     * 作为调试工具方法。
-     *
-     * @param activity 当前 Activity
-     */
     public void logWindowSize(Activity activity) {
         if (activity == null) {
             log("尺寸】Activity 为 null，无法获取窗口尺寸");
@@ -425,6 +386,252 @@ public class PictureInPictureManager {
         } catch (Exception e) {
             log("尺寸】获取窗口尺寸失败：" + e.getMessage());
         }
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-25 新增：处理用户按 Home 键（onUserLeaveHint）
+    // ====================================================================
+    /**
+     * 处理用户按 Home 键时的画中画逻辑
+     *
+     * 【为什么要抽离到这里？】
+     * 原来在 MainActivity.onUserLeaveHint() 里，现在统一封装到画中画管理器。
+     * Activity 里只需要调用这一个方法就行。
+     *
+     * @param activity           当前 Activity
+     * @param isOpeningSettings  是否正在打开设置页面（打开设置不进入画中画）
+     * @param mainPipEnable      MainActivity 里的开关状态（用于日志对比）
+     * @param playerManager      播放器管理器（用于更新播放状态）
+     * @return 是否成功进入画中画
+     */
+    public boolean handleUserLeaveHint(Activity activity,
+                                       boolean isOpeningSettings,
+                                       boolean mainPipEnable,
+                                       TVPlayerManager playerManager) {
+        log("排查】========== 开始 ==========");
+        log("排查】onUserLeaveHint 被调用");
+
+        if (isOpeningSettings) {
+            log("排查】打开设置页面，跳过");
+            log("排查】========== 结束 ==========");
+            return false;
+        }
+
+        if (instance == null) {
+            log("排查】❌ pipManager 为 null");
+            log("排查】========== 结束 ==========");
+            return false;
+        }
+
+        boolean shouldEnter = shouldEnterPip();
+
+        log("排查】MainActivity开关状态：" + mainPipEnable);
+        log("排查】设备支持：" + isPipSupported());
+        log("排查】PIP管理器开关：" + isPipEnabled());
+        log("排查】已在画中画模式：" + isInPipMode());
+        log("排查】正在进入画中画：" + isPipEntering());
+
+        if (shouldEnter) {
+            log("排查】所有条件满足，尝试进入画中画...");
+            try {
+                PictureInPictureParams pipParams = null;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    PictureInPictureParams.Builder pipBuilder = new PictureInPictureParams.Builder();
+                    pipBuilder.setAspectRatio(new Rational(16, 9));
+                    pipParams = pipBuilder.build();
+                }
+                if (playerManager != null) {
+                    updatePlayState(true);
+                }
+                boolean result = enterPictureInPicture(activity, pipParams);
+                log("排查】进入结果：" + (result ? "✅ 成功" : "❌ 失败"));
+                log("排查】========== 结束 ==========");
+                return result;
+            } catch (Exception e) {
+                log("排查】❌ 异常：" + e.getMessage());
+                e.printStackTrace();
+            }
+        } else {
+            log("排查】❌ 条件不满足，不进入画中画");
+        }
+
+        log("排查】========== 结束 ==========");
+        return false;
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-25 新增：处理进入画中画后的UI逻辑
+    // ====================================================================
+    /**
+     * 处理进入画中画模式后的UI逻辑
+     *
+     * 【为什么要抽离到这里？】
+     * 原来在 MainActivity.onPictureInPictureModeChanged() 的 if(isInPip) 分支里，
+     * 现在统一封装到画中画管理器。
+     *
+     * @param activity              当前 Activity
+     * @param channelPanelController 频道面板控制器
+     * @param infoDisplayManager    信息展示管理器
+     * @param playerManager         播放器管理器
+     * @param playerView            播放器视图
+     */
+    public void handleEnterPip(Activity activity,
+                               ChannelPanelController channelPanelController,
+                               InfoDisplayManager infoDisplayManager,
+                               TVPlayerManager playerManager,
+                               PlayerView playerView) {
+        log("========== 进入画中画 ==========");
+
+        hideAllUi(channelPanelController, infoDisplayManager);
+
+        if (activity != null) {
+            activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+
+        if (playerManager != null) {
+            try {
+                playerManager.resume();
+                log("✅ 恢复播放");
+            } catch (Exception e) {
+                log("恢复播放失败：" + e.getMessage());
+            }
+        }
+
+        logViewSize("进入画中画时", playerView);
+
+        log("================================");
+    }
+
+    // ====================================================================
+    // ✅ 2026-06-25 新增：处理退出画中画后的UI逻辑
+    // ====================================================================
+    /**
+     * 处理退出画中画模式后的UI逻辑
+     *
+     * 【为什么要抽离到这里？】
+     * 原来在 MainActivity.onPictureInPictureModeChanged() 的 else 分支里，
+     * 现在统一封装到画中画管理器。
+     *
+     * @param activity              当前 Activity
+     * @param displayManager        显示管理器（用于重新应用全屏）
+     * @param playerView            播放器视图
+     * @param playerManager         播放器管理器
+     * @param remoteManager         遥控器管理器（用于同步模式）
+     * @param infoDisplayManager    信息展示管理器
+     * @param channelSourceList     频道列表
+     * @param currentPlayIndex      当前播放索引
+     * @param onExitComplete        退出完成后的回调（可选）
+     */
+    public void handleExitPip(final Activity activity,
+                              final DisplayManager displayManager,
+                              final PlayerView playerView,
+                              final TVPlayerManager playerManager,
+                              final TvRemoteManager remoteManager,
+                              final InfoDisplayManager infoDisplayManager,
+                              final List<Channel> channelSourceList,
+                              final int currentPlayIndex,
+                              final Runnable onExitComplete) {
+        log("========== 退出画中画 ==========");
+
+        handleExitPip(new Runnable() {
+            @Override
+            public void run() {
+                log("应用已关闭，释放播放器");
+                if (onExitComplete != null) {
+                    onExitComplete.run();
+                }
+            }
+        });
+
+        log("尺寸】===== 1. 刚退出画中画（初始状态） =====");
+        logViewSize("PlayerView", playerView);
+        if (playerView != null && playerView.getParent() instanceof View) {
+            logViewSize("父布局", (View) playerView.getParent());
+        }
+        logWindowSize(activity);
+
+        if (displayManager != null) {
+            log("尺寸】执行 displayManager.reapplyFullScreen()");
+            displayManager.reapplyFullScreen();
+        }
+
+        log("尺寸】===== 2. reapplyFullScreen 后 =====");
+        logViewSize("PlayerView", playerView);
+
+        if (playerView != null) {
+            playerView.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        playerView.requestLayout();
+                        playerView.invalidate();
+                        log("✅ 立即刷新 PlayerView 布局");
+                        log("尺寸】===== 3. 立即 requestLayout 后 =====");
+                        logViewSize("PlayerView", playerView);
+                    } catch (Exception e) {
+                        log("刷新 PlayerView 失败：" + e.getMessage());
+                    }
+                }
+            });
+
+            playerView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        playerView.requestLayout();
+                        playerView.invalidate();
+                        if (playerManager != null) {
+                            playerManager.attachPlayerView(playerView);
+                            playerManager.resume();
+                        }
+                        log("✅ 延迟刷新 PlayerView + 重新绑定");
+                        log("尺寸】===== 4. 延迟200ms刷新 + 重新绑定后 =====");
+                        logViewSize("PlayerView", playerView);
+                        if (playerView.getParent() instanceof View) {
+                            logViewSize("父布局", (View) playerView.getParent());
+                        }
+                        log("尺寸】========================================");
+                    } catch (Exception e) {
+                        log("延迟刷新失败：" + e.getMessage());
+                    }
+                }
+            }, 200);
+        }
+
+        if (remoteManager != null) {
+            if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+                remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
+                remoteManager.setRightPanelOpen(channelPanelController.isRightPanelOpen());
+            } else {
+                remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
+            }
+        }
+
+        if (infoDisplayManager != null && channelSourceList != null
+                && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+            Channel currChannel = channelSourceList.get(currentPlayIndex);
+            TVPlayerManager.LiveInfo liveInfo = null;
+            if (playerManager != null) {
+                liveInfo = playerManager.getLiveInfo();
+            }
+            infoDisplayManager.showInfoBar(currChannel, liveInfo);
+            infoDisplayManager.showChannelNum(currentPlayIndex + 1);
+        }
+
+        if (activity != null) {
+            activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+
+        try {
+            if (playerManager != null) {
+                playerManager.resume();
+            }
+        } catch (Exception e) {
+            log("恢复播放失败：" + e.getMessage());
+        }
+
+        log("退出画中画完成");
+        log("================================");
     }
 
     public void release() {
