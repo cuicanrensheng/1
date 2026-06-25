@@ -27,6 +27,17 @@ import java.util.List;
 /**
  * 生命周期管理器
  * 作用：统一管理 MainActivity 的生命周期逻辑和 UI 初始化逻辑
+ *
+ * 【2026-06-25 合并：LifecycleManager + UiInitializer】
+ * 【合并说明】
+ * 把 UiInitializer 的所有 initXxx() 方法合并到 LifecycleManager 里，
+ * 减少一个文件，让结构更清晰。
+ *
+ * 【2026-06-25 修复：activity 类型 + KeyEvent import】
+ * 【修复原因】
+ * 1. GestureManager 和 KeyEventManager 的构造函数需要 MainActivity 类型，
+ *    而不是通用的 Activity 类型，所以把 activity 变量改成 MainActivity。
+ * 2. 缺少 import android.view.KeyEvent，导致 KeyEvent.KEYCODE_DPAD_UP 等找不到。
  */
 public class LifecycleManager {
 
@@ -254,7 +265,7 @@ public class LifecycleManager {
     }
 
     // ====================================================================
-    // 初始化方法
+    // 初始化方法（从 UiInitializer 合并过来）
     // ====================================================================
 
     public void initBaseConfig() {
@@ -714,4 +725,182 @@ public class LifecycleManager {
                     @Override
                     public void run() {
                         appCoreManager.log("【加载】超时，自动隐藏加载动画");
-                       
+                        displayManager.hideLoading();
+                    }
+                });
+            }
+        });
+
+        SettingsActivity.logOperation("【初始化】应用核心管理器完成");
+    }
+
+    public void loadLastPlayIndex() {
+        int lastIndex = settingsManager.getLastPlayIndex();
+        if (lastIndex >= 0) {
+            channelPlayManager.setCurrentPlayIndex(lastIndex);
+            appCoreManager.log("【初始化】上次播放索引：" + lastIndex);
+        }
+        SettingsActivity.logOperation("【初始化】加载上次播放索引完成");
+    }
+
+    public void startLoading() {
+        displayManager.showLoading();
+        appCoreManager.loadLiveAndEpg();
+        SettingsActivity.logOperation("【初始化】开始加载直播源和EPG");
+    }
+
+    // ====================================================================
+    // 公共方法
+    // ====================================================================
+
+    public void togglePanel() {
+        if (channelPanelController != null) {
+            channelPanelController.togglePanel();
+            syncRemoteMode();
+        }
+    }
+
+    public void syncRemoteMode() {
+        if (remoteManager != null && channelPanelController != null) {
+            if (channelPanelController.isPanelOpen()) {
+                remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
+                remoteManager.setRightPanelOpen(channelPanelController.isRightPanelOpen());
+            } else {
+                remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
+            }
+        }
+    }
+
+    // ====================================================================
+    // 生命周期方法
+    // ====================================================================
+
+    public void onPause() {
+        if (pipManager != null) {
+            pipManager.handleOnPause(
+                    () -> {
+                        if (playerManager != null) {
+                            playerManager.resume();
+                        }
+                    },
+                    () -> {
+                        if (playerManager != null) {
+                            playerManager.pause();
+                        }
+                    }
+            );
+        }
+        if (appCoreManager != null) {
+            appCoreManager.onPause();
+        }
+        SettingsActivity.logOperation("【生命周期】onPause");
+    }
+
+    public void onStop() {
+        if (pipManager != null) {
+            pipManager.setStopCalled(true);
+        }
+        SettingsActivity.logOperation("【生命周期】onStop");
+    }
+
+    public void onResume() {
+        if (pipManager != null) {
+            pipManager.setStopCalled(false);
+            if (pipManager.isInPipMode()) {
+                pipManager.keepPlaying(
+                        playerManager,
+                        playerView,
+                        channelPlayManager.getChannelSourceList(),
+                        channelPlayManager.getCurrentPlayIndex()
+                );
+            }
+        }
+        if (appCoreManager != null) {
+            appCoreManager.onResume();
+        }
+        SettingsActivity.logOperation("【生命周期】onResume");
+    }
+
+    public void onWindowFocusChanged(boolean hasFocus) {
+        if (appCoreManager != null) {
+            appCoreManager.onWindowFocusChanged(hasFocus);
+        }
+        if (displayManager != null && hasFocus) {
+            displayManager.reapplyFullScreen();
+        }
+    }
+
+    public void onDestroy(BroadcastReceiver decoderModeReceiver) {
+        if (decoderModeReceiver != null) {
+            try {
+                activity.unregisterReceiver(decoderModeReceiver);
+            } catch (Exception e) {
+            }
+        }
+        if (appCoreManager != null) {
+            appCoreManager.onDestroy();
+        }
+        if (playerManager != null) {
+            playerManager.release();
+        }
+        SettingsActivity.logOperation("【生命周期】onDestroy");
+    }
+
+    public void applySettings() {
+        if (settingsManager != null) {
+            boolean epgEnable = settingsManager.isEpgEnabled();
+            boolean channelReverse = settingsManager.isChannelReverse();
+
+            if (channelPanelController != null) {
+                channelPanelController.setEpgEnable(epgEnable);
+                channelPanelController.setReverse(channelReverse);
+            }
+
+            if (keyDispatcher != null) {
+                keyDispatcher.setChannelReverse(channelReverse);
+            }
+
+            if (pipManager != null) {
+                pipManager.setPipEnabled(settingsManager.isPipEnabled());
+            }
+
+            SettingsActivity.logOperation("【设置】应用设置完成");
+        }
+    }
+
+    public void resumeCurrentChannel() {
+        if (channelPlayManager != null && playerManager != null) {
+            Channel curr = channelPlayManager.getCurrentChannel();
+            if (curr != null) {
+                playerManager.playUrl(curr.getPlayUrl());
+            }
+        }
+    }
+
+    // ====================================================================
+    // 释放资源
+    // ====================================================================
+
+    public void release() {
+        activity = null;
+        displayManager = null;
+        infoDisplayManager = null;
+        appConfig = null;
+        settingsManager = null;
+        channelPlayManager = null;
+        keyDispatcher = null;
+        playerView = null;
+        channelPanelController = null;
+        remoteManager = null;
+        pipManager = null;
+        playerManager = null;
+        playerStateListener = null;
+        screenRatioManager = null;
+        gestureManager = null;
+        keyEventManager = null;
+        channelNumberManager = null;
+        appCoreManager = null;
+        initCompleteListener = null;
+        instance = null;
+    }
+}
