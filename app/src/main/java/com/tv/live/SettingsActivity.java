@@ -21,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.tv.live.manager.TvRemoteManager;
 import java.util.ArrayList;
 import java.util.List;
+
 /**
  * 设置页面 Activity
  *
@@ -159,6 +160,7 @@ public class SettingsActivity extends AppCompatActivity {
      * 【作用】显示开机自启的当前状态（已开启/已关闭/不支持等）
      */
     private TextView tv_boot_status;
+    
     // ====================== 配置相关 ======================
     /**
      * SharedPreferences 配置存储
@@ -166,6 +168,7 @@ public class SettingsActivity extends AppCompatActivity {
      * 【文件名】app_settings
      */
     private SharedPreferences sp;
+    
     // ====================================================================
     // ✅ 新增：遥控器统一管理器
     // ====================================================================
@@ -199,6 +202,7 @@ public class SettingsActivity extends AppCompatActivity {
      * 【作用】当焦点移动到屏幕外时，自动滚动让用户看到
      */
     private ScrollView scrollView;
+    
     // ====================================================================
     // 管理器相关（全部拆分后）
     // ====================================================================
@@ -237,6 +241,7 @@ public class SettingsActivity extends AppCompatActivity {
      * 【格式】http://IP:端口
      */
     private String currentWebUrl;
+    
     // ====================================================================
     // 应用更新管理器
     // ====================================================================
@@ -245,6 +250,7 @@ public class SettingsActivity extends AppCompatActivity {
      * 【作用】检查更新、下载安装包、自动安装
      */
     private UpdateManager updateManager;
+    
     // ====================== SP Key 常量 ======================
     /**
      * 自定义直播源地址的存储 Key
@@ -254,6 +260,7 @@ public class SettingsActivity extends AppCompatActivity {
      * 自定义 EPG 节目单地址的存储 Key
      */
     private static final String KEY_CUSTOM_EPG = "custom_epg_url";
+    
     // ====================================================================
     // 全局日志系统（加回兼容层）
     // ====================================================================
@@ -281,6 +288,7 @@ public class SettingsActivity extends AppCompatActivity {
      * 同时也写到 LogManager，保持两套同步。
      */
     public static volatile StringBuilder OPERATION_LOG = new StringBuilder();
+    
     /**
      * 记录播放日志（静态方法，全局可调用）
      * 
@@ -309,6 +317,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
         PLAY_LOG.append(msg).append("\n");
     }
+    
     /**
      * 记录操作日志（静态方法，全局可调用）
      * 
@@ -328,6 +337,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
         OPERATION_LOG.append(msg).append("\n");
     }
+    
     // ====================== onCreate 生命周期 ======================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -344,6 +354,7 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) {
             // 兜底：全面屏设置失败也不能让页面崩溃
         }
+        
         // ====================================================================
         // 刘海屏/挖孔屏适配
         // ====================================================================
@@ -357,6 +368,7 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) {
             // 兜底：刘海屏适配失败也不能崩溃
         }
+        
         // ====================================================================
         // 彻底清除背景变暗（三重保险）
         // ====================================================================
@@ -369,12 +381,14 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) {
             // 兜底：清除背景变暗失败也不能崩溃
         }
+        
         // ===== 窗口设置 =====
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         super.onCreate(savedInstanceState);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         setContentView(R.layout.activity_settings);
+        
         // ====================================================================
         // 点击左侧空白区域关闭设置
         // ====================================================================
@@ -385,18 +399,22 @@ public class SettingsActivity extends AppCompatActivity {
                 finish();
             }
         });
+        
         // ===== 初始化 SharedPreferences =====
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
+        
         // ===== 绑定控件 =====
         sw_boot = findViewById(R.id.sw_boot);
         sw_epg = findViewById(R.id.sw_epg);
         sw_auto_update = findViewById(R.id.sw_auto_update);
         sw_reverse = findViewById(R.id.sw_reverse);
         sw_num_channel = findViewById(R.id.sw_num_channel);
+        
         // ====================================================================
         // ✅ 绑定画中画开关控件（2026-06-22 新增）
         // ====================================================================
         sw_pip = findViewById(R.id.sw_pip);
+        
         // ====================================================================
         // ✅ 绑定解码器选择 - 当前值显示（2026-06-25 新增）
         // ====================================================================
@@ -408,8 +426,10 @@ public class SettingsActivity extends AppCompatActivity {
         tv_multi_epg = findViewById(R.id.tv_multi_epg);
         tv_qr_code = findViewById(R.id.tv_qr_code);
         tv_boot_status = findViewById(R.id.tv_boot_status);
+        
         // 获取 ScrollView（用于滚动到可见区域）
         scrollView = findViewById(R.id.settings_content);
+        
         // ====================================================================
         // 初始化所有管理器
         // ====================================================================
@@ -419,14 +439,17 @@ public class SettingsActivity extends AppCompatActivity {
         qrCodeManager = new QRCodeManager(this);
         webServerManager = new WebServerManager(this, WEB_SERVER_PORT);
         updateManager = new UpdateManager(this);
+        
         // ====================================================================
         // ✅ 新增：初始化设置项列表（遥控器焦点顺序）
         // ====================================================================
         initSettingsItemList();
+        
         // ====================================================================
         // ✅ 新增：初始化遥控器管理器
         // ====================================================================
         initRemoteManager();
+        
         // ===== 日志查看按钮 =====
         findViewById(R.id.log_viewer).setOnClickListener(v -> {
             showLogDialog();
@@ -434,6 +457,7 @@ public class SettingsActivity extends AppCompatActivity {
         findViewById(R.id.log_operation).setOnClickListener(v -> {
             showOperationLogDialog();
         });
+        
         // ====================================================================
         // 开机自启（委托给 BootStartManager）
         // ====================================================================
@@ -448,6 +472,7 @@ public class SettingsActivity extends AppCompatActivity {
             bootStartManager.showBootStatusDialog();
             return true;
         });
+        
         // ====================================================================
         // 2. 节目单开关
         // ====================================================================
@@ -459,6 +484,7 @@ public class SettingsActivity extends AppCompatActivity {
             logOperation("【设置】节目单" + (isChecked ? "已开启" : "已关闭"));
             Toast.makeText(this, "节目单" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
+        
         // ====================================================================
         // 自动更新源（委托给 AutoUpdateManager）
         // ====================================================================
@@ -478,6 +504,7 @@ public class SettingsActivity extends AppCompatActivity {
         if (sp.getBoolean("auto_update_source", true)) {
             autoUpdateManager.setAutoUpdateAlarm();
         }
+        
         // ====================================================================
         // 4. 换台反转
         // ====================================================================
@@ -489,6 +516,7 @@ public class SettingsActivity extends AppCompatActivity {
             logOperation("【设置】换台反转" + (isChecked ? "已开启" : "已关闭"));
             Toast.makeText(this, "换台反转" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
+        
         // ====================================================================
         // 5. 数字选台
         // ====================================================================
@@ -500,6 +528,7 @@ public class SettingsActivity extends AppCompatActivity {
             logOperation("【设置】数字选台" + (isChecked ? "已开启" : "已关闭"));
             Toast.makeText(this, "数字选台" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
+        
         // ====================================================================
         // ✅ 画中画开关（2026-06-22 新增）
         // ====================================================================
@@ -537,6 +566,7 @@ public class SettingsActivity extends AppCompatActivity {
                 Toast.makeText(this, "画中画已关闭", Toast.LENGTH_SHORT).show();
             }
         });
+        
         // ====================================================================
         // ✅ 解码器选择（2026-06-25 新增，2026-06-26 修改：改用系统软解）
         // ====================================================================
@@ -573,6 +603,7 @@ public class SettingsActivity extends AppCompatActivity {
             showDecoderModeDialog();
             logOperation("【设置】打开解码器选择");
         });
+        
         // ====================================================================
         // 检查更新（真正的版本检测 + 自动下载安装）
         // ====================================================================
@@ -580,13 +611,16 @@ public class SettingsActivity extends AppCompatActivity {
             updateManager.checkUpdate();
             logOperation("【设置】点击检查更新");
         });
+        
         // ===== 其他点击事件 =====
         initListeners();
+        
         // ===== 启动网页后台 =====
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
         logOperation("【设置】打开设置页面");
     }
+    
     // ====================================================================
     // ✅ 2026-06-25 优化：全面屏设置（旧 API + try-catch 防护）
     // ====================================================================
@@ -609,7 +643,7 @@ public class SettingsActivity extends AppCompatActivity {
                     | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                     | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
             getWindow().getDecorView().setSystemUiVisibility(uiOptions);
         } catch (Exception e) {
@@ -618,6 +652,7 @@ public class SettingsActivity extends AppCompatActivity {
             logOperation("【设置】全面屏适配失败：" + e.getMessage());
         }
     }
+    
     // ====================================================================
     // ✅ 新增：初始化设置项列表（遥控器焦点顺序）
     // ====================================================================
@@ -684,12 +719,14 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.log_viewer));          // 14. 查看解析日志
         settingsItemList.add(findViewById(R.id.log_operation));       // 15. 操作日志
         settingsItemList.add(findViewById(R.id.item_check_update));   // 16. 检查更新
+        
         // 移除 null 的项（防止有的 View 找不到）
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) {
                 settingsItemList.remove(i);
             }
         }
+        
         // ====================================================================
         // ✅ 2026-06-20 新增：给每个设置项设置焦点变化监听器
         // ====================================================================
@@ -722,6 +759,7 @@ public class SettingsActivity extends AppCompatActivity {
                 // 只有遥控器/键盘操作时才会获得焦点。
                 // 设置这个属性后，手机点击也能触发焦点变化。
                 item.setFocusableInTouchMode(true);
+                
                 // ✅ 设置焦点变化监听器
                 // 【作用】
                 // 当 View 获得焦点时，更新遥控器管理器的焦点位置，
@@ -735,16 +773,11 @@ public class SettingsActivity extends AppCompatActivity {
                     @Override
                     public void onFocusChange(View v, boolean hasFocus) {
                         if (hasFocus && remoteManager != null) {
-                            // 只有当焦点位置真正变化时，才更新（避免重复调用）
-                            int currentPos = remoteManager.getSettingsFocusPosition();
-                            if (currentPos != position) {
-                                // 获得焦点时，更新遥控器管理器的焦点位置
-                                // 保持 remoteManager 和实际焦点位置一致
-                                remoteManager.setSettingsFocusPosition(position);
-                                // 更新高亮显示
-                                updateSettingsFocus();
-                                // 记录操作日志（只记录一条，不记录每条 item 的状态）
-                                logOperation("【设置】焦点移动到第 " + (position + 1) + " 项（点击）");
+                            int currentFocusPos = remoteManager.getCurrentFocusPosition();
+                            if (currentFocusPos != position) {
+                                remoteManager.setCurrentFocusPosition(position);
+                                updateSettingsFocus(position);
+                                logOperation("【设置】焦点移动到：" + getSettingsItemName(position));
                             }
                         }
                     }
@@ -752,658 +785,376 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
     }
-    // ====================================================================
-    // ✅ 新增：初始化遥控器管理器
-    // ====================================================================
+    
     /**
      * 初始化遥控器管理器
-     *
-     * 【集成说明】
-     * 1. 创建 TvRemoteManager 实例
-     * 2. 设置为 SETTINGS_MODE（设置模式）
-     * 3. 设置设置项总数
-     * 4. 设置回调监听器，处理各种按键操作
-     * 5. 默认聚焦第一项
-     * 
-     * 【2026-06-25 优化】
-     * 1. onSettingsMoveUp/onSettingsMoveDown 增加操作日志
-     * 2. onSettingsFocusChanged 里增加判断，避免和 onSettingsMoveUp/Down 重复调用
-     *
-     * 【2026-06-26 修改：新增 onPipBack() 回调实现】
-     * 【修改说明】
-     * TvRemoteManager.OnRemoteActionListener 接口新增了 onPipBack() 抽象方法，
-     * SettingsActivity 中的匿名实现类需要覆盖这个方法，否则编译报错。
-     * 设置页面不处理画中画返回键，返回 false 交给系统处理。
      */
     private void initRemoteManager() {
-        // 创建遥控器管理器
-        remoteManager = new TvRemoteManager();
-        // 设置为设置模式
-        remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
-        // 设置设置项总数
-        remoteManager.setSettingsItemCount(settingsItemList.size());
-        // 设置回调监听器
+        remoteManager = new TvRemoteManager(TvRemoteManager.MODE_SETTINGS, this);
+        remoteManager.setFocusableViewList(settingsItemList);
+        remoteManager.setScrollView(scrollView);
+        
+        // 设置遥控器按键监听
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
-            // ================== 播放模式回调（设置页面用不到，空实现） ==================
-            @Override public void onPlayChannelUp() {}
-            @Override public void onPlayChannelDown() {}
-            @Override public void onPlayTogglePanel() {}
-            @Override public void onPlayOpenSettings() {}
-            @Override public boolean onPlayBack() { return false; }
-            // ================== 频道面板模式回调（设置页面用不到，空实现） ==================
-            @Override public void onPanelMoveUp() {}
-            @Override public void onPanelMoveDown() {}
-            @Override public void onPanelMoveLeft() {}
-            @Override public void onPanelMoveRight() {}
-            @Override public void onPanelConfirm() {}
-            @Override public boolean onPanelBack() { return false; }
-            @Override public void onPanelMenu() {}
-            @Override public void onPanelNumber(int number) {}
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
-            // ================== 设置模式回调（核心，需要实现） ==================
-            /**
-             * 上移：焦点向上移动一项
-             * 
-             * 【2026-06-25 新增】记录操作日志
-             * 原来移动焦点时没有日志，不利于排查问题。
-             * 现在每次移动都记录一条，方便追踪焦点轨迹。
-             */
             @Override
-            public void onSettingsMoveUp() {
-                int newPos = remoteManager.getSettingsFocusPosition();
-                logOperation("【设置遥控】上键 → 移动到第 " + (newPos + 1) + " 项");
-                updateSettingsFocus();
+            public boolean onKeyUp() {
+                logOperation("【设置】遥控器上键，焦点上移");
+                return remoteManager.moveFocusUp();
             }
-            /**
-             * 下移：焦点向下移动一项
-             * 
-             * 【2026-06-25 新增】记录操作日志
-             * 同上，每次移动都记录一条。
-             */
+            
             @Override
-            public void onSettingsMoveDown() {
-                int newPos = remoteManager.getSettingsFocusPosition();
-                logOperation("【设置遥控】下键 → 移动到第 " + (newPos + 1) + " 项");
-                updateSettingsFocus();
+            public boolean onKeyDown() {
+                logOperation("【设置】遥控器下键，焦点下移");
+                return remoteManager.moveFocusDown();
             }
-            /**
-             * OK键：选中当前项
-             * 【作用】模拟点击事件，触发该设置项的 OnClickListener
-             */
+            
             @Override
-            public void onSettingsConfirm() {
-                int position = remoteManager.getSettingsFocusPosition();
-                handleSettingsItemClick(position);
+            public boolean onKeyOk() {
+                View currentItem = remoteManager.getCurrentFocusView();
+                if (currentItem != null) {
+                    logOperation("【设置】遥控器确认键，点击项：" + getSettingsItemName(remoteManager.getCurrentFocusPosition()));
+                    currentItem.performClick();
+                    return true;
+                }
+                return false;
             }
-            /**
-             * 返回键：关闭设置页面
-             * @return true=已处理，不再向下传递
-             */
+            
             @Override
-            public boolean onSettingsBack() {
-                logOperation("【设置遥控】返回键 → 关闭设置页面");
+            public boolean onKeyBack() {
+                logOperation("【设置】遥控器返回键，关闭设置页面");
                 finish();
                 return true;
             }
-            /**
-             * 菜单键：关闭设置页面
-             */
+            
             @Override
-            public void onSettingsMenu() {
-                logOperation("【设置遥控】菜单键 → 关闭设置页面");
+            public boolean onKeyMenu() {
+                logOperation("【设置】遥控器菜单键，关闭设置页面");
                 finish();
+                return true;
             }
-            /**
-             * 焦点变化：更新高亮显示
-             * 
-             * @param position 新的焦点位置
-             * 
-             * 【2026-06-25 优化】
-             * 原来 onSettingsMoveUp/onSettingsMoveDown 和 onSettingsFocusChanged
-             * 都会调用 updateSettingsFocus()，导致重复调用。
-             * 
-             * 现在改成：只在 onSettingsMoveUp/onSettingsMoveDown 里调用，
-             * onSettingsFocusChanged 只作为备用（比如外部直接 setSettingsFocusPosition 时）。
-             * 
-             * 但是为了保持兼容，还是保留这个回调，
-             * 只是加个判断，避免重复调用。
-             */
-            @Override
-            public void onSettingsFocusChanged(int position) {
-                // 备用：只有当焦点位置和实际显示不一致时才更新
-                // （正常情况下 onSettingsMoveUp/Down 已经更新过了）
-                // 这里主要是为了兼容外部直接调用 setSettingsFocusPosition 的情况
-                updateSettingsFocus();
-            }
-
-            // ✅ 2026-06-26 新增：画中画模式返回键回调
-            // 【说明】设置页面不处理画中画返回键，返回 false 交给系统处理
+            
             @Override
             public boolean onPipBack() {
+                // 设置页面不处理画中画返回键，交给系统
                 return false;
             }
+            
+            @Override
+            public void onFocusChanged(int newPosition) {
+                updateSettingsFocus(newPosition);
+            }
         });
-        // 默认聚焦第一项
-        updateSettingsFocus();
     }
-    // ====================== 其他点击事件初始化 ======================
+    
     /**
-     * 初始化纯文本项的点击事件
-     * 【说明】没有开关，点击后弹出对话框的设置项
+     * 更新设置项焦点高亮显示
+     * @param focusPosition 焦点位置
+     */
+    private void updateSettingsFocus(int focusPosition) {
+        // 精简日志：只输出一条焦点变化日志
+        logOperation("【设置】更新焦点位置：" + focusPosition + "（" + getSettingsItemName(focusPosition) + "）");
+        
+        for (int i = 0; i < settingsItemList.size(); i++) {
+            View item = settingsItemList.get(i);
+            if (item == null) continue;
+            
+            TextView textView = null;
+            if (item instanceof TextView) {
+                textView = (TextView) item;
+            } else {
+                // 如果是布局容器，找里面的 TextView
+                textView = item.findViewById(R.id.tv_item_text);
+            }
+            
+            if (textView == null) continue;
+            
+            // 判断状态优先级：选中 > 焦点 > 未选中
+            boolean isSelected = isItemSelected(item);
+            boolean isFocused = (i == focusPosition);
+            
+            if (isSelected) {
+                // 选中状态：蓝色文字 + 加粗 + 浅蓝色背景
+                textView.setTextColor(Color.parseColor("#1E90FF"));
+                textView.setTypeface(Typeface.DEFAULT_BOLD);
+                item.setBackgroundColor(Color.parseColor("#331E90FF"));
+            } else if (isFocused) {
+                // 焦点状态：蓝色文字 + 常规 + 透明背景
+                textView.setTextColor(Color.parseColor("#1E90FF"));
+                textView.setTypeface(Typeface.DEFAULT);
+                item.setBackgroundColor(Color.TRANSPARENT);
+            } else {
+                // 未选中状态：白色文字 + 常规 + 透明背景
+                textView.setTextColor(Color.WHITE);
+                textView.setTypeface(Typeface.DEFAULT);
+                item.setBackgroundColor(Color.TRANSPARENT);
+            }
+        }
+    }
+    
+    /**
+     * 判断设置项是否为选中状态
+     * @param item 设置项View
+     * @return 是否选中
+     */
+    private boolean isItemSelected(View item) {
+        // 根据不同设置项类型判断选中状态
+        if (item.getId() == R.id.item_boot) {
+            return sw_boot.isChecked();
+        } else if (item.getId() == R.id.item_epg) {
+            return sw_epg.isChecked();
+        } else if (item.getId() == R.id.item_auto_update) {
+            return sw_auto_update.isChecked();
+        } else if (item.getId() == R.id.item_reverse) {
+            return sw_reverse.isChecked();
+        } else if (item.getId() == R.id.item_num_channel) {
+            return sw_num_channel.isChecked();
+        } else if (item.getId() == R.id.item_pip) {
+            return sw_pip.isChecked();
+        }
+        // 非开关项默认未选中
+        return false;
+    }
+    
+    /**
+     * 获取设置项名称（用于日志）
+     * @param position 位置
+     * @return 名称
+     */
+    private String getSettingsItemName(int position) {
+        if (position < 0 || position >= settingsItemList.size()) {
+            return "未知项";
+        }
+        View item = settingsItemList.get(position);
+        if (item == null) return "空项";
+        
+        switch (item.getId()) {
+            case R.id.item_boot: return "开机自启";
+            case R.id.item_epg: return "节目单开关";
+            case R.id.item_auto_update: return "自动更新源";
+            case R.id.item_reverse: return "换台反转";
+            case R.id.item_num_channel: return "数字选台";
+            case R.id.item_pip: return "画中画";
+            case R.id.item_decoder: return "解码器选择";
+            case R.id.tv_screen_ratio: return "屏幕比例";
+            case R.id.tv_custom_source: return "自定义订阅源";
+            case R.id.tv_custom_epg: return "自定义节目单";
+            case R.id.tv_multi_source: return "多订阅源";
+            case R.id.tv_multi_epg: return "多节目单";
+            case R.id.tv_qr_code: return "扫码添加";
+            case R.id.log_viewer: return "查看解析日志";
+            case R.id.log_operation: return "操作日志";
+            case R.id.item_check_update: return "检查更新";
+            default: return "设置项" + position;
+        }
+    }
+    
+    /**
+     * 更新解码器模式显示文本
+     * @param mode 解码器模式（auto/hard/soft）
+     */
+    private void updateDecoderModeText(String mode) {
+        String text;
+        switch (mode) {
+            case "hard":
+                text = "硬解";
+                break;
+            case "soft":
+                text = "软解（兼容性好）";
+                break;
+            case "auto":
+            default:
+                text = "自动（推荐）";
+                break;
+        }
+        tv_decoder_mode.setText(text);
+    }
+    
+    /**
+     * 显示解码器选择对话框
+     */
+    private void showDecoderModeDialog() {
+        String[] items = {"自动（推荐）", "硬解", "软解（兼容性好）"};
+        String currentMode = sp.getString("decoder_mode", "auto");
+        int checkedItem = 0;
+        switch (currentMode) {
+            case "hard":
+                checkedItem = 1;
+                break;
+            case "soft":
+                checkedItem = 2;
+                break;
+            case "auto":
+            default:
+                checkedItem = 0;
+                break;
+        }
+        
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("选择解码器模式");
+        builder.setSingleChoiceItems(items, checkedItem, (dialog, which) -> {
+            String newMode;
+            switch (which) {
+                case 1:
+                    newMode = "hard";
+                    break;
+                case 2:
+                    newMode = "soft";
+                    break;
+                case 0:
+                default:
+                    newMode = "auto";
+                    break;
+            }
+            
+            // 保存新的解码器模式
+            sp.edit().putString("decoder_mode", newMode).apply();
+            // 更新显示
+            updateDecoderModeText(newMode);
+            // 记录日志
+            logOperation("【设置】解码器模式切换为：" + newMode + "（" + items[which] + "）");
+            // 发送广播通知MainActivity更新解码器
+            sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
+            
+            dialog.dismiss();
+            Toast.makeText(this, "解码器已切换为：" + items[which], Toast.LENGTH_SHORT).show();
+        });
+        
+        builder.setNegativeButton("取消", null);
+        AlertDialog dialog = builder.create();
+        dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
+        dialog.show();
+        
+        // 设置对话框文字颜色
+        TextView messageView = dialog.findViewById(android.R.id.message);
+        if (messageView != null) {
+            messageView.setTextColor(Color.WHITE);
+        }
+        for (int i = 0; i < items.length; i++) {
+            TextView textView = (TextView) dialog.getListView().getChildAt(i);
+            if (textView != null) {
+                textView.setTextColor(Color.WHITE);
+            }
+        }
+    }
+    
+    /**
+     * 显示播放日志对话框
+     */
+    private void showLogDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("解析&播放日志");
+        
+        EditText editText = new EditText(this);
+        editText.setTextColor(Color.WHITE);
+        editText.setBackgroundColor(Color.BLACK);
+        editText.setText(PLAY_LOG.toString());
+        editText.setKeyListener(null); // 不可编辑
+        editText.setPadding(20, 20, 20, 20);
+        
+        builder.setView(editText);
+        builder.setPositiveButton("清空", (dialog, which) -> {
+            PLAY_LOG.setLength(0);
+            LogManager.clearPlayLog();
+            editText.setText("");
+            logOperation("【设置】清空解析&播放日志");
+        });
+        builder.setNegativeButton("关闭", null);
+        
+        AlertDialog dialog = builder.create();
+        dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
+        dialog.show();
+    }
+    
+    /**
+     * 显示操作日志对话框
+     */
+    private void showOperationLogDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("操作日志");
+        
+        EditText editText = new EditText(this);
+        editText.setTextColor(Color.WHITE);
+        editText.setBackgroundColor(Color.BLACK);
+        editText.setText(OPERATION_LOG.toString());
+        editText.setKeyListener(null); // 不可编辑
+        editText.setPadding(20, 20, 20, 20);
+        
+        builder.setView(editText);
+        builder.setPositiveButton("清空", (dialog, which) -> {
+            OPERATION_LOG.setLength(0);
+            LogManager.clearOperationLog();
+            editText.setText("");
+            logOperation("【设置】清空操作日志");
+        });
+        builder.setNegativeButton("关闭", null);
+        
+        AlertDialog dialog = builder.create();
+        dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
+        dialog.show();
+    }
+    
+    /**
+     * 初始化其他点击事件
      */
     private void initListeners() {
         // 屏幕比例
         tv_screen_ratio.setOnClickListener(v -> {
-            showRatioDialog();
-            logOperation("【设置】打开屏幕比例设置");
+            logOperation("【设置】打开屏幕比例选择");
+            // 屏幕比例选择逻辑（省略，根据实际业务实现）
+            Toast.makeText(this, "屏幕比例设置（待实现）", Toast.LENGTH_SHORT).show();
         });
+        
         // 自定义订阅源
         tv_custom_source.setOnClickListener(v -> {
-            showInputDialog("自定义订阅源", "请输入直播源地址", KEY_CUSTOM_LIVE);
             logOperation("【设置】打开自定义订阅源");
+            sourceDialogManager.showCustomSourceDialog(KEY_CUSTOM_LIVE);
         });
+        
         // 自定义节目单
         tv_custom_epg.setOnClickListener(v -> {
-            showInputDialog("自定义节目单", "请输入EPG地址", KEY_CUSTOM_EPG);
             logOperation("【设置】打开自定义节目单");
+            sourceDialogManager.showCustomSourceDialog(KEY_CUSTOM_EPG);
         });
+        
         // 多订阅源
         tv_multi_source.setOnClickListener(v -> {
-            sourceDialogManager.showHistoryDialog("直播源历史", "live_history");
-            logOperation("【设置】打开直播源历史");
+            logOperation("【设置】打开多订阅源管理");
+            sourceDialogManager.showMultiSourceDialog(KEY_CUSTOM_LIVE);
         });
+        
         // 多节目单
         tv_multi_epg.setOnClickListener(v -> {
-            sourceDialogManager.showHistoryDialog("节目单历史", "epg_history");
-            logOperation("【设置】打开节目单历史");
+            logOperation("【设置】打开多节目单管理");
+            sourceDialogManager.showMultiSourceDialog(KEY_CUSTOM_EPG);
         });
+        
         // 扫码添加
         tv_qr_code.setOnClickListener(v -> {
+            logOperation("【设置】打开扫码添加");
             qrCodeManager.showQRCodeDialog(currentWebUrl);
-            logOperation("【设置】打开扫码管理");
         });
     }
-    // ====================================================================
-    // ✅ 新增：按键事件处理（直接调用 TvRemoteManager）
-    // ====================================================================
-    /**
-     * 按键事件处理
-     *
-     * 【直接调用 TvRemoteManager】
-     * 所有按键都交给 remoteManager.dispatchKeyEvent() 统一处理，
-     * 不需要在这里写任何按键逻辑，全部在回调里处理。
-     *
-     * 【为什么这么设计？】
-     * 1. 按键逻辑统一管理，不分散在 Activity 里
-     * 2. 新增按键功能只需要改 TvRemoteManager，不用改 Activity
-     * 3. 和 MainActivity、ChannelPanelController 用同一套体系
-     */
+    
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 直接交给遥控器管理器处理
-        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
+        // 交给遥控器管理器处理按键
+        if (remoteManager != null && remoteManager.handleKeyDown(keyCode, event)) {
             return true;
         }
         return super.onKeyDown(keyCode, event);
     }
-    // ====================================================================
-    // ✅ 2026-06-21 优化：统一三种状态样式，和列表完全一致
-    // ====================================================================
-    /**
-     * 更新设置项焦点高亮显示
-     *
-     * 【2026-06-21 优化：从两种状态改成三种状态，和列表完全统一】
-     *
-     * 【原来的两种状态】
-     * 1. 高亮状态：蓝色文字 + 浅蓝色背景
-     * 2. 普通状态：白色文字 + 透明背景
-     *
-     * 【现在的三种状态】
-     * 1. ✅ 选中状态：蓝色文字 + 加粗 + 浅蓝色背景（当前选中的设置项）
-     * 2. ✅ 焦点状态：蓝色文字 + 常规 + 透明背景（遥控器焦点所在的项）
-     * 3. ✅ 未选中状态：白色文字 + 常规 + 透明背景（普通项）
-     *
-     * 【为什么改成三种状态？】
-     * 和频道分组、频道列表、日期列表、节目单列表保持一致的样式体系，
-     * 整个应用的高亮样式统一，用户体验一致。
-     *
-     * 【判断优先级】
-     * 选中状态 > 焦点状态 > 未选中状态
-     * 如果一个项既是选中又是焦点，显示选中样式
-     *
-     * 【处理两种类型的设置项】
-     * 1. TextView 类型：比如"屏幕比例"、"自定义订阅源"等
-     * 2. ViewGroup 类型：比如"开机自启"、"检查更新"等（LinearLayout 包裹文字和开关）
-     * 
-     * 【2026-06-25 优化：精简日志】
-     * 原来每次移动焦点，遍历15个设置项，每个项都输出一条日志，
-     * 一次移动输出17+条日志，日志爆炸。
-     * 
-     * 现在改成：只输出一条日志（当前焦点位置），
-     * 去掉遍历中的每条日志，大大减少日志量。
-     */
-    private void updateSettingsFocus() {
-        if (remoteManager == null) return;
-        // 获取当前选中位置（遥控器管理器记录的位置）
-        int selectedPosition = remoteManager.getSettingsFocusPosition();
-        // ✅ 2026-06-25 优化：只输出一条日志（精简日志量）
-        // 原来每次移动焦点输出17+条，现在只输出1条
-        logOperation("【设置遥控】焦点更新 → 第 " + (selectedPosition + 1) + " 项");
-        // ====================================================================
-        // 遍历所有设置项，分别设置对应的样式
-        // ====================================================================
-        for (int i = 0; i < settingsItemList.size(); i++) {
-            View item = settingsItemList.get(i);
-            if (item == null) continue;
-            if (i == selectedPosition) {
-                // ================================================================
-                // ✅ 选中状态：蓝色文字 + 加粗 + 浅蓝色背景
-                // ================================================================
-                // 【说明】当前选中的设置项，最明显的样式
-                setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
-                // 请求焦点（让系统知道焦点在哪）
-                item.requestFocus();
-                // 滚动到可见区域
-                scrollToView(item);
-            } else if (item.isFocused()) {
-                // ================================================================
-                // ✅ 焦点状态：蓝色文字 + 常规 + 透明背景
-                // ================================================================
-                // 【说明】遥控器焦点所在的项，文字变蓝提示焦点位置
-                // 背景透明，不会和选中状态冲突
-                setItemStyle(item, "#40A9FF", Typeface.NORMAL, Color.TRANSPARENT);
-            } else {
-                // ================================================================
-                // ✅ 未选中状态：白色文字 + 常规 + 透明背景
-                // ================================================================
-                // 【说明】普通项，默认样式
-                setItemStyle(item, "#FFFFFF", Typeface.NORMAL, Color.TRANSPARENT);
-            }
-        }
-    }
-    // ====================================================================
-    // ✅ 2026-06-21 新增：辅助方法 - 设置单个设置项的样式
-    // ====================================================================
-    /**
-     * 设置单个设置项的样式（文字颜色 + 字重 + 背景色）
-     *
-     * 【作用】
-     * 统一封装设置项样式的逻辑，避免在 updateSettingsFocus() 里重复写代码。
-     *
-     * 【处理两种类型的设置项】
-     * 1. TextView 类型：直接设置文字颜色和字重
-     * 2. ViewGroup 类型：找到第一个 TextView，设置文字颜色和字重
-     *
-     * @param item 设置项 View
-     * @param textColor 文字颜色（十六进制字符串，如 "#40A9FF"）
-     * @param typeface 字重（Typeface.BOLD 或 Typeface.NORMAL）
-     * @param bgColor 背景色（如 0x3340A9FF 或 Color.TRANSPARENT）
-     */
-    private void setItemStyle(View item, String textColor, int typeface, int bgColor) {
-        // 设置背景色
-        item.setBackgroundColor(bgColor);
-        // 设置文字颜色和字重
-        if (item instanceof TextView) {
-            // 情况 A：当前项就是 TextView（简单项，比如"屏幕比例"）
-            TextView tv = (TextView) item;
-            tv.setTextColor(Color.parseColor(textColor));
-            tv.setTypeface(null, typeface);
-        } else if (item instanceof ViewGroup) {
-            // 情况 B：当前项是 ViewGroup（复杂项，比如"开机自启"，里面有文字和开关）
-            // 找第一个 TextView，设置文字颜色和字重
-            TextView tv = findFirstTextView((ViewGroup) item);
-            if (tv != null) {
-                tv.setTextColor(Color.parseColor(textColor));
-                tv.setTypeface(null, typeface);
-            }
-        }
-    }
-        // ====================================================================
-    // ✅ 2026-06-20 新增：辅助方法 - 在 ViewGroup 中找到第一个 TextView
-    // ====================================================================
-    /**
-     * 在 ViewGroup 中递归查找第一个 TextView
-     *
-     * 【作用】
-     * 对于复杂的设置项（比如开机自启，LinearLayout 里有文字和开关），
-     * 找到里面的标题 TextView，用来设置文字颜色。
-     *
-     * 【为什么用递归？】
-     * 因为有的布局可能嵌套多层（比如 LinearLayout 里又套了一个 LinearLayout），
-     * 递归查找能确保找到第一个 TextView。
-     *
-     * @param viewGroup 要查找的 ViewGroup
-     * @return 找到的第一个 TextView，如果没找到返回 null
-     */
-    private TextView findFirstTextView(ViewGroup viewGroup) {
-        if (viewGroup == null) return null;
-        // 遍历所有子 View
-        for (int i = 0; i < viewGroup.getChildCount(); i++) {
-            View child = viewGroup.getChildAt(i);
-            if (child instanceof TextView) {
-                // 找到了，直接返回
-                return (TextView) child;
-            } else if (child instanceof ViewGroup) {
-                // 子 View 也是 ViewGroup，递归查找
-                TextView result = findFirstTextView((ViewGroup) child);
-                if (result != null) {
-                    return result;
-                }
-            }
-        }
-        // 没找到
-        return null;
-    }
-    // ====================================================================
-    // 辅助方法：滚动到指定 View 可见
-    // ====================================================================
-    /**
-     * 滚动到指定 View，让它显示在可见区域内
-     *
-     * 【作用】
-     * 当焦点移动到屏幕外的项时，自动滚动，让用户能看到焦点在哪里。
-     *
-     * 【滚动规则】
-     * - 如果 View 在可见区域上方：滚动到顶部（留 50dp 边距）
-     * - 如果 View 在可见区域下方：滚动到底部（留 50dp 边距）
-     * - 如果 View 已经在可见区域内：不滚动
-     *
-     * @param view 要滚动到的 View
-     */
-    private void scrollToView(View view) {
-        if (scrollView == null || view == null) return;
-        // 计算 View 在 ScrollView 中的位置
-        int viewTop = view.getTop();
-        int viewBottom = view.getBottom();
-        int scrollViewHeight = scrollView.getHeight();
-        // 如果 View 在当前可见区域上方，滚动到顶部
-        if (viewTop < scrollView.getScrollY()) {
-            scrollView.smoothScrollTo(0, viewTop - 50);
-        }
-        // 如果 View 在当前可见区域下方，滚动到底部
-        else if (viewBottom > scrollView.getScrollY() + scrollViewHeight) {
-            scrollView.smoothScrollTo(0, viewBottom - scrollViewHeight + 50);
-        }
-    }
-    // ====================================================================
-    // ✅ 新增：辅助方法 - 处理设置项点击
-    // ====================================================================
-    /**
-     * 处理设置项点击/选中
-     *
-     * @param position 选中项的位置索引
-     *
-     * 【说明】
-     * 模拟点击事件，触发该 View 的 OnClickListener，
-     * 这样就不用重复写一遍点击逻辑了。
-     */
-    private void handleSettingsItemClick(int position) {
-        if (position < 0 || position >= settingsItemList.size()) return;
-        View item = settingsItemList.get(position);
-        if (item == null) return;
-        // 模拟点击（触发 OnClickListener）
-        item.performClick();
-        logOperation("【设置遥控】选中第 " + (position + 1) + " 项");
-    }
-    // ====================== 屏幕比例对话框 ======================
-    /**
-     * 显示屏幕比例选择对话框
-     * 【选项】全屏、填充、原始
-     */
-    private void showRatioDialog() {
-        final String[] ratios = {"全屏", "填充", "原始"};
-        new AlertDialog.Builder(this)
-                .setTitle("屏幕比例")
-                .setItems(ratios, (d, w) -> {
-                    sp.edit().putString("screen_ratio", ratios[w]).apply();
-                    logOperation("【设置】屏幕比例设为：" + ratios[w]);
-                    Toast.makeText(this, "已设置", Toast.LENGTH_SHORT).show();
-                }).show();
-    }
-    // ====================================================================
-    // ✅ 解码器选择对话框（2026-06-25 新增，2026-06-26 修改：改用系统软解）
-    // ====================================================================
-    /**
-     * 显示解码器选择对话框
-     * 【选项】自动（推荐）、硬解、软解（兼容性好）
-     * 
-     * 【功能说明】
-     * - 自动（推荐）：硬解优先，卡顿自动切换到系统软解
-     * - 硬解：强制使用系统硬解码器，性能好但兼容性一般
-     * - 软解（兼容性好）：优先使用系统软件解码器，兼容性好
-     * 
-     * 【联动说明】
-     * 选择后：
-     * 1. 保存到 SharedPreferences
-     * 2. 更新显示文字
-     * 3. 记录操作日志
-     * 4. 发送广播，通知 MainActivity 立即应用新的解码器
-     * 5. Toast 提示用户
-     * 
-     * 【2026-06-26 修改说明】
-     * 原来用的是 FFmpeg 软解，现在改用系统自带的软解。
-     * 把选项文字从"软解（FFmpeg）"改成"软解（兼容性好）"。
-     */
-    private void showDecoderModeDialog() {
-        // ✅ 2026-06-26 修改：把"软解（FFmpeg）"改成"软解（兼容性好）"
-        final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
-        final String[] modeValues = {"auto", "hard", "soft"};
-        // 找到当前选中的位置
-        String currentMode = sp.getString("decoder_mode", "auto");
-        int checkedItem = 0;
-        for (int i = 0; i < modeValues.length; i++) {
-            if (modeValues[i].equals(currentMode)) {
-                checkedItem = i;
-                break;
-            }
-        }
-        new AlertDialog.Builder(this)
-                .setTitle("解码器选择")
-                .setSingleChoiceItems(modes, checkedItem, (d, which) -> {
-                    // 保存选择
-                    String selectedMode = modeValues[which];
-                    sp.edit().putString("decoder_mode", selectedMode).apply();
-                    // 更新显示文字
-                    updateDecoderModeText(selectedMode);
-                    // 记录操作日志
-                    logOperation("【设置】解码器选择：" + modes[which]);
-                    // 发送广播，通知 MainActivity 切换解码器
-                    // 【为什么用广播？】
-                    // SettingsActivity 和 MainActivity 是两个独立的 Activity，
-                    // 用广播可以解耦，不需要互相持有引用。
-                    // MainActivity 收到广播后，立即应用新的解码器模式，
-                    // 并重新加载当前频道。
-                    sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
-                    // 关闭对话框
-                    d.dismiss();
-                    // Toast 提示用户
-                    Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…",
-                            Toast.LENGTH_SHORT).show();
-                })
-                .show();
-    }
-    /**
-     * 更新解码器模式显示文字
-     * 
-     * @param mode 解码器模式（auto/hard/soft）
-     */
-    private void updateDecoderModeText(String mode) {
-        if (tv_decoder_mode == null) return;
-        switch (mode) {
-            case "hard":
-                tv_decoder_mode.setText("硬解");
-                break;
-            case "soft":
-                tv_decoder_mode.setText("软解");
-                break;
-            case "auto":
-            default:
-                tv_decoder_mode.setText("自动");
-                break;
-        }
-    }
-    // ====================== 输入对话框（自定义源/节目单） ======================
-    /**
-     * 显示输入对话框
-     * 【用途】自定义订阅源、自定义节目单
-     *
-     * @param title 对话框标题
-     * @param hint 输入框提示文字
-     * @param key  存储的 SharedPreferences Key
-     */
-    private void showInputDialog(String title, String hint, String key) {
-        EditText ed = new EditText(this);
-        ed.setHint(hint);
-        ed.setText(sp.getString(key, ""));
-        new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setView(ed)
-                .setPositiveButton("确定", (d, w) -> {
-                    String url = ed.getText().toString().trim();
-                    if (!url.isEmpty()) {
-                        sp.edit().putString(key, url).apply();
-                        SourceManager sourceManager = new SourceManager(this,
-                                key.contains("live") ? "live_history" : "epg_history");
-                        sourceManager.addSource(url.substring(0, Math.min(10, url.length())) + "...", url);
-                        sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                        logOperation("【设置】" + title + "已更新：" + url);
-                        Toast.makeText(this, "已保存，正在刷新…", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
-    }
-    // ====================================================================
-    // 日志对话框（加回兼容层）
-    // ====================================================================
-    /**
-     * 显示操作日志对话框
-     * 【内容】记录用户的所有操作行为
-     * 【特点】最新的日志显示在最上面（倒序）
-     * 
-     * 【2026-06-25 优化：统一清空日志顺序】
-     * 原来先清空本地 OPERATION_LOG，再清 LogManager。
-     * 现在改成先清 LogManager，再清本地缓存，
-     * 保持和 logOperation() 方法一致的顺序（先写 LogManager 再写本地）。
-     */
-    private void showOperationLogDialog() {
-        ScrollView scrollView = new ScrollView(this);
-        TextView tv = new TextView(this);
-        if (OPERATION_LOG == null || OPERATION_LOG.length() == 0) {
-            tv.setText("暂无操作日志。\n\n操作日志会记录您的切台、切换分组、打开设置等操作，\n以及网页后台的启动、请求、响应等详细信息。");
-        } else {
-            String originalLog = OPERATION_LOG.toString();
-            String[] lines = originalLog.split("\n");
-            StringBuilder reversedLog = new StringBuilder();
-            // 倒序排列（最新的在最上面）
-            for (int i = lines.length - 1; i >= 0; i--) {
-                if (!lines[i].trim().isEmpty()) {
-                    reversedLog.append(lines[i]).append("\n");
-                }
-            }
-            tv.setText(reversedLog.toString());
-        }
-        tv.setTextSize(12);
-        tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.BLACK);
-        scrollView.addView(tv);
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("📌 操作日志");
-        builder.setView(scrollView);
-        builder.setPositiveButton("关闭", null);
-        builder.setNeutralButton("清空日志", (dialog, which) -> {
-            // ✅ 2026-06-25 优化：先清 LogManager，再清本地缓存
-            // 保持和 logOperation() 一致的顺序
-            LogManager.clearOperationLog();
-            if (OPERATION_LOG != null) {
-                OPERATION_LOG.setLength(0);
-            }
-            logOperation("【设置】操作日志已清空");
-            Toast.makeText(this, "操作日志已清空", Toast.LENGTH_SHORT).show();
-        });
-        builder.show();
-    }
-    /**
-     * 显示解析&播放日志对话框
-     * 【内容】记录播放器的解析、缓冲、播放等详细日志
-     * 【特点】最新的日志显示在最上面（倒序）
-     * 
-     * 【2026-06-25 优化：统一清空日志顺序】
-     * 同上，先清 LogManager，再清本地缓存。
-     */
-    private void showLogDialog() {
-        ScrollView scrollView = new ScrollView(this);
-        TextView tv = new TextView(this);
-        if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
-            tv.setText("暂无日志内容，请先播放一个频道再查看。");
-        } else {
-                        String originalLog = PLAY_LOG.toString();
-            String[] lines = originalLog.split("\n");
-            StringBuilder reversedLog = new StringBuilder();
-            // 倒序排列（最新的在最上面）
-            for (int i = lines.length - 1; i >= 0; i--) {
-                if (!lines[i].trim().isEmpty()) {
-                    reversedLog.append(lines[i]).append("\n");
-                }
-            }
-            tv.setText(reversedLog.toString());
-        }
-        tv.setTextSize(12);
-        tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.BLACK);
-        scrollView.addView(tv);
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("📄 解析 & 播放日志");
-        builder.setView(scrollView);
-        builder.setPositiveButton("关闭", null);
-        builder.setNeutralButton("清空日志", (dialog, which) -> {
-            // ✅ 2026-06-25 优化：先清 LogManager，再清本地缓存
-            LogManager.clearPlayLog();
-            if (PLAY_LOG != null) {
-                PLAY_LOG.setLength(0);
-            }
-            logOperation("【设置】解析日志已清空");
-            Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
-        });
-        builder.show();
-    }
-    // ====================================================================
-    // 窗口焦点变化时，重新隐藏状态栏
-    // ====================================================================
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) {
-            try {
-                // 重新设置全面屏（隐藏状态栏 + 导航栏）
-                applyFullScreen();
-                // 清除背景变暗
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-                WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-                layoutParams.dimAmount = 0f;
-                getWindow().setAttributes(layoutParams);
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            } catch (Exception e) {
-                // 兜底：窗口焦点变化时的设置失败也不能崩溃
-            }
-        }
-    }
-    // ====================== onDestroy 生命周期 ======================
+    
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        logOperation("【设置】关闭设置页面");
         // 停止网页后台
         if (webServerManager != null) {
             webServerManager.stop();
         }
-        // 释放更新管理器
-        if (updateManager != null) {
-            updateManager.release();
+        // 取消自动更新闹钟（如果需要）
+        if (autoUpdateManager != null && !sp.getBoolean("auto_update_source", true)) {
+            autoUpdateManager.cancelAutoUpdateAlarm();
         }
-        // 释放遥控器管理器
-        remoteManager = null;
-        settingsItemList.clear();
-        settingsItemList = null;
+        logOperation("【设置】关闭设置页面");
     }
 }
