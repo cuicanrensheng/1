@@ -530,162 +530,152 @@ public class TVPlayerManager {
                 String name = codec.name;
                 if (isSoftwareDecoder(name)) {
                     softCount++;
-                    if (softCount <= 3) {
-                        if (softCount > 1) softNames.append(", ");
-                        softNames.append(name);
-                    }
+                    softNames.append(name).append(", ");
                 } else {
                     hardCount++;
-                    if (hardCount <= 3) {
-                        if (hardCount > 1) hardNames.append(", ");
-                        hardNames.append(name);
-                    }
+                    hardNames.append(name).append(", ");
                 }
             }
-            Log.d(TAG, "【解码器】H.264 解码器统计：软解 " + softCount 
-                    + " 个，硬解 " + hardCount + " 个");
-            Log.d(TAG, "【解码器】软解解码器：" + softNames.toString());
-            Log.d(TAG, "【解码器】硬解解码器：" + hardNames.toString());
-            SettingsActivity.logOperation("【解码器】系统解码器：软解 " + softCount 
-                    + " 个，硬解 " + hardCount + " 个");
-            if (softCount == 0) {
-                Log.w(TAG, "【解码器】⚠️ 系统未找到软件解码器，软解模式可能不生效");
-                SettingsActivity.logOperation("【解码器】⚠️ 警告：未找到系统软件解码器");
-            }
+            Log.d(TAG, "【解码器】系统 H.264 解码器总数：" + h264Codecs.size());
+            Log.d(TAG, "【解码器】软件解码器：" + softCount + " 个 - " + softNames);
+            Log.d(TAG, "【解码器】硬件解码器：" + hardCount + " 个 - " + hardNames);
+            SettingsActivity.logOperation("【解码器】系统H.264解码器：软解" 
+                    + softCount + "个，硬解" + hardCount + "个");
         } catch (Exception e) {
             Log.e(TAG, "【解码器】检测系统解码器失败：" + e.getMessage());
         }
-        // 初始化播放监听器
+        // 初始化播放器监听器
         initPlayerListener();
-        // 初始化Cookie管理器
-        CookieSyncManager.createInstance(context);
-        CookieManager.getInstance().setAcceptCookie(true);
+        // 开始卡住检测
+        stuckHandler.postDelayed(stuckCheckRunnable, 2000);
     }
     // ====================================================================
-    // ✅ 判断是否是软件解码器（2026-06-26 新增）
+    // ✅ 判断是否为软件解码器（2026-06-26 新增）
     // ====================================================================
     /**
-     * 判断解码器名称是否是软件解码器
-     *
-     * 【识别规则】
-     * 软件解码器的名称通常以以下前缀开头：
-     * - OMX.google. （旧版软件解码器）
-     * - c2.android. （新版 Codec2 软件解码器）
-     *
-     * 硬件解码器的名称通常以厂商前缀开头：
-     * - OMX.qcom. / c2.qti. （高通）
-     * - OMX.hisi. / c2.hisi. （海思）
-     * - OMX.MTK. / c2.mtk. （联发科）
-     * - OMX.Exynos. / c2.exynos. （三星）
-     * - 等等
+     * 判断解码器名称是否为软件解码器
      *
      * @param codecName 解码器名称
-     * @return true = 软件解码器，false = 硬件解码器
+     * @return true=软件解码器，false=硬件解码器
+     *
+     * 【2026-06-26 新增】
+     *
+     * 【识别规则】
+     * 1. 名称以 OMX.google. 开头 → 旧版软件解码器
+     * 2. 名称以 c2.android. 开头 → 新版 Codec2 软件解码器
+     * 3. 其他 → 硬件解码器
+     *
+     * 【常见硬件解码器前缀】
+     * - OMX.qcom. / c2.qti.（高通）
+     * - OMX.hisi. / c2.hisi.（海思）
+     * - OMX.MTK. / c2.mtk.（联发科）
+     * - OMX.rk. / c2.rk.（瑞芯微）
+     * - OMX.amlogic. / c2.amlogic.（晶晨）
      */
     private static boolean isSoftwareDecoder(String codecName) {
         if (codecName == null) return false;
-        String lowerName = codecName.toLowerCase();
-        return lowerName.startsWith("omx.google.") 
-                || lowerName.startsWith("c2.android.");
+        // 旧版软件解码器
+        if (codecName.startsWith("OMX.google.")) {
+            return true;
+        }
+        // 新版 Codec2 软件解码器
+        if (codecName.startsWith("c2.android.")) {
+            return true;
+        }
+        return false;
     }
-        // ====================================================================
-    // ✅ 初始化播放状态监听器
+    // ====================================================================
+    // 初始化播放器监听器
     // ====================================================================
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
             @Override
-            public void onPlayerError(PlaybackException error) {
-                Log.e(TAG, "播放异常: " + error.getMessage());
-                if (listener != null) {
-                    listener.onPlayError(error.getMessage());
-                }
-                // 播放错误时自动重试（重试次数用完后回调源失效）
-                autoRetry("播放错误：" + error.getMessage());
-            }
-            @Override
-            public void onPlaybackStateChanged(int state) {
-                if (state == Player.STATE_READY) {
-                    updateWakeLock(true);
-                    notifyLiveInfoUpdate();
-                    showChannelAndAutoHide();
-                    if (listener != null) listener.onPlayReady();
-                    // 播放就绪，重置重试计数
-                    retryCount = 0;
-                    isRetrying = false;
-                    // 开始卡住检测
-                    startStuckDetection();
-                    // ====================================================================
-                    // 只在第一次 STATE_READY 时记录开始时间
-                    // ====================================================================
+            public void onPlaybackStateChanged(int playbackState) {
+                // 播放状态变化
+                if (playbackState == Player.STATE_READY) {
+                    // 首次播放开始时间（只设置一次）
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
-                    // ====================================================================
-                    // ✅ 自动切换解码器（硬解 → 软解）（2026-06-25 调优）
-                    // ====================================================================
-                    if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
-                            && initialPlayStartTime > 0
-                            && System.currentTimeMillis() - initialPlayStartTime < 15000
-                            && bufferCount > 1) {
-                        Log.d(TAG, "【自动切换】硬解卡顿，自动切换到系统软解");
-                        SettingsActivity.logOperation("【解码器】硬解卡顿（缓冲"
-                                + bufferCount + "次），自动切换到系统软解");
-                        hasSwitchedDecoder = true;
-                        setDecoderMode(DECODER_MODE_SOFT);
+                    isPlaying = true;
+                    if (listener != null) {
+                        listener.onPlaySuccess();
                     }
-                } else if (state == Player.STATE_BUFFERING) {
-                    if (listener != null) listener.onBuffering();
-                    // 缓冲中也重置卡住检测
-                    lastPositionUpdateTime = System.currentTimeMillis();
-                    // ====================================================================
-                    // 统计缓冲次数和卡顿时间
-                    // ====================================================================
-                    bufferCount++;
-                    if (!isStalled) {
-                        isStalled = true;
-                        lastStallStartTime = System.currentTimeMillis();
-                    }
-                    // 只在第一次缓冲时记录操作日志，避免刷屏
-                    if (bufferCount == 1) {
-                        SettingsActivity.logOperation("【播放器】开始缓冲（第1次）");
-                    }
-                } else if (state == Player.STATE_ENDED) {
-                    if (listener != null) listener.onPlayEnd();
-                    // 直播流意外结束，自动重试
-                    autoRetry("播放结束");
-                } else if (state == Player.STATE_IDLE) {
-                    if (listener != null) listener.onIdle();
-                    // ====================================================================
-                    // IDLE 状态也更新唤醒锁
-                    // ====================================================================
-                    updateWakeLock(false);
-                }
-            }
-            @Override
-            public void onIsPlayingChanged(boolean isPlaying) {
-                // 播放状态变化时更新卡住检测
-                if (isPlaying) {
-                    lastPositionUpdateTime = System.currentTimeMillis();
-                    // ====================================================================
-                    // 卡顿结束，统计卡顿时间
-                    // ====================================================================
+                    // 结束卡顿统计
                     if (isStalled) {
                         isStalled = false;
                         long stallDuration = System.currentTimeMillis() - lastStallStartTime;
                         totalStallTime += stallDuration;
-                        Log.d(TAG, "【性能】卡顿结束，时长：" + stallDuration + "ms，总卡顿：" + totalStallTime + "ms");
+                        Log.d(TAG, "卡顿结束，持续：" + stallDuration + "ms");
                     }
+                } else if (playbackState == Player.STATE_BUFFERING) {
+                    // 开始卡顿
+                    if (!isStalled) {
+                        isStalled = true;
+                        lastStallStartTime = System.currentTimeMillis();
+                        bufferCount++;
+                        Log.d(TAG, "开始卡顿，第 " + bufferCount + " 次");
+                        // ====================================================================
+                        // ✅ 自动切换解码器（2026-06-25 新增）
+                        // ====================================================================
+                        // 【触发条件】
+                        // 1. 当前是自动模式
+                        // 2. 还没切换过解码器（每个频道只切一次）
+                        // 3. 播放开始后 15 秒内
+                        // 4. 缓冲次数 > 1 次
+                        //
+                        // 【为什么是 15 秒和 1 次？】
+                        // 原来的 30 秒/2 次太宽松了，用户反馈卡顿明显。
+                        // 调灵敏一点，让用户能更快感受到流畅度提升。
+                        if (mDecoderMode == DECODER_MODE_AUTO 
+                                && !hasSwitchedDecoder
+                                && initialPlayStartTime > 0
+                                && System.currentTimeMillis() - initialPlayStartTime < 15000
+                                && bufferCount > 1) {
+                            hasSwitchedDecoder = true;
+                            Log.w(TAG, "【解码器】自动切换到系统软解（15秒内缓冲" 
+                                    + bufferCount + "次）");
+                            SettingsActivity.logOperation("【解码器】自动切换到系统软解（15秒内缓冲" 
+                                    + bufferCount + "次）");
+                            // 切换到软解模式
+                            setDecoderMode(DECODER_MODE_SOFT);
+                        }
+                    }
+                } else if (playbackState == Player.STATE_IDLE) {
+                    isPlaying = false;
                 }
             }
-            // ====================================================================
-            // 视频分辨率变化时触发
-            // ====================================================================
+            @Override
+            public void onPlayerError(PlaybackException error) {
+                // 播放出错
+                Log.e(TAG, "播放出错：" + error.getMessage());
+                isPlaying = false;
+                // 结束卡顿统计
+                if (isStalled) {
+                    isStalled = false;
+                    long stallDuration = System.currentTimeMillis() - lastStallStartTime;
+                    totalStallTime += stallDuration;
+                }
+                // 判断是否是源失效
+                boolean isSourceError = false;
+                Throwable cause = error.getCause();
+                if (cause instanceof HttpDataSource.HttpDataSourceException) {
+                    isSourceError = true;
+                }
+                if (isSourceError) {
+                    // 源失效，自动重试
+                    SettingsActivity.logOperation("【播放器】源失效，准备自动重试");
+                    autoRetry("源失效");
+                } else {
+                    // 其他错误，也重试
+                    autoRetry("播放错误");
+                }
+            }
             @Override
             public void onVideoSizeChanged(VideoSize videoSize) {
                 int width = videoSize.width;
                 int height = videoSize.height;
-                Log.d(TAG, "视频分辨率变化：" + width + "×" + height);
-                
+                Log.d(TAG, "视频尺寸变化：" + width + "x" + height);
                 // ====================================================================
                 // ✅ 2026-06-26 新增：分辨率自适应检测
                 // ====================================================================
@@ -740,7 +730,9 @@ public class TVPlayerManager {
             // 评估解码压力
             int pressure = evaluateDecodePressure(width, height);
             
-            Log.d(TAG, "            Log.d(TAG, "【分辨率】当前：" + width + "×" + height + "，解码压力：" + pressure);
+            // ✅ 修复：去掉多余的嵌套 Log.d，修正中文标点问题
+            Log.d(TAG, "【分辨率】当前：" + width + "x" + height 
+                    + "，解码压力：" + pressure);
             
             // 压力超过 60 分，认为分辨率过高
             if (pressure >= 60) {
@@ -749,10 +741,10 @@ public class TVPlayerManager {
                 // 获取推荐分辨率
                 String recommendedLevel = getRecommendedResolutionLevelName();
                 
-                Log.w(TAG, "【分辨率】⚠️ 分辨率过高！解码压力：" + pressure 
+                Log.w(TAG, "【分辨率】分辨率过高！解码压力：" + pressure 
                         + "，推荐：" + recommendedLevel);
                 SettingsActivity.logOperation("【分辨率】检测到分辨率过高（"
-                        + width + "×" + height + "），压力：" + pressure
+                        + width + "x" + height + "），压力：" + pressure
                         + "，推荐：" + recommendedLevel);
                 
                 // 回调通知外部
@@ -775,7 +767,6 @@ public class TVPlayerManager {
             Log.e(TAG, "【分辨率】检测失败：" + e.getMessage());
         }
     }
-
     /**
      * 评估当前分辨率对设备的解码压力
      *
@@ -799,7 +790,6 @@ public class TVPlayerManager {
      */
     private int evaluateDecodePressure(int width, int height) {
         int pressure = 0;
-
         // 1. 计算分辨率等级差距
         int currentLevel = getResolutionLevel(width, height);
         int recommendedLevel = getRecommendedResolutionLevel();
@@ -807,28 +797,23 @@ public class TVPlayerManager {
         // 等级差距越大，压力越高
         int levelDiff = recommendedLevel - currentLevel;
         pressure += Math.abs(levelDiff) * 20; // 每差一级 +20 分
-
         // 2. 软解模式额外加压力（软解比硬解更耗 CPU）
         if (mDecoderMode == DECODER_MODE_SOFT) {
             pressure += 15;
         }
-
         // 3. 低端机额外加压力
         // （这里简化处理，通过系统版本和 CPU 核心数粗略判断）
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP_MR1
                 || Runtime.getRuntime().availableProcessors() <= 4) {
             pressure += 10;
         }
-
         // 4. 超过 1080P 额外加压力（很多设备硬解 4K 有问题）
         if (currentLevel <= 1) { // FULL_HD 或 ULTRA_HD
             pressure += 10;
         }
-
         // 限制在 0-100
         return Math.min(100, Math.max(0, pressure));
     }
-
     /**
      * 获取分辨率等级（数值越小，分辨率越高）
      *
@@ -840,7 +825,6 @@ public class TVPlayerManager {
      */
     private int getResolutionLevel(int width, int height) {
         int minSide = Math.min(width, height);
-
         if (minSide >= 2160) {
             return 0; // ULTRA_HD (4K)
         } else if (minSide >= 1080) {
@@ -853,7 +837,6 @@ public class TVPlayerManager {
             return 4; // LD (360P)
         }
     }
-
     /**
      * 获取设备推荐的分辨率等级
      *
@@ -869,7 +852,6 @@ public class TVPlayerManager {
     private int getRecommendedResolutionLevel() {
         int cpuCores = Runtime.getRuntime().availableProcessors();
         int sdkVersion = Build.VERSION.SDK_INT;
-
         // 高端机：8核以上 + Android 8+ → 1080P
         if (cpuCores >= 8 && sdkVersion >= Build.VERSION_CODES.O) {
             return 1; // FULL_HD (1080P)
@@ -883,7 +865,6 @@ public class TVPlayerManager {
             return 3; // SD (480P)
         }
     }
-
     /**
      * 获取推荐分辨率等级的显示名称
      *
@@ -902,7 +883,6 @@ public class TVPlayerManager {
             default: return "360P";
         }
     }
-
     /**
      * 设置分辨率过高监听器
      *
@@ -917,7 +897,92 @@ public class TVPlayerManager {
     public void setOnResolutionTooHighListener(OnResolutionTooHighListener listener) {
         mResolutionTooHighListener = listener;
     }
-        /**
+    // ====================================================================
+    // 自动重试
+    // ====================================================================
+    /**
+     * 自动重试
+     * @param reason 重试原因
+     */
+    private void autoRetry(String reason) {
+        if (isRetrying) return;
+        if (retryCount >= MAX_RETRY_COUNT) {
+            // 重试次数用完，回调源失效
+            Log.w(TAG, "重试次数用完，源失效：" + reason);
+            SettingsActivity.logOperation("【播放器】重试" + MAX_RETRY_COUNT 
+                    + "次失败，判定源失效");
+            if (sourceFailedListener != null) {
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        sourceFailedListener.onSourceFailed();
+                    }
+                });
+            }
+            return;
+        }
+        retryCount++;
+        isRetrying = true;
+        Log.d(TAG, "自动重试（第 " + retryCount + " 次），原因：" + reason);
+        SettingsActivity.logOperation("【播放器】自动重试第" + retryCount + "次，原因：" + reason);
+        // 延迟 1 秒后重试
+        retryRunnable = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    isRetrying = false;
+                    if (currentUrl != null) {
+                        playUrlInternal(currentUrl);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "重试失败：" + e.getMessage());
+                }
+            }
+        };
+        mHandler.postDelayed(retryRunnable, 1000);
+    }
+    /**
+     * 取消重试
+     */
+    private void cancelRetry() {
+        if (retryRunnable != null) {
+            mHandler.removeCallbacks(retryRunnable);
+            retryRunnable = null;
+        }
+        isRetrying = false;
+    }
+    // ====================================================================
+    // 播放控制
+    // ====================================================================
+    /**
+     * 内部播放 URL
+     */
+    private void playUrlInternal(String url) {
+        if (url == null || url.isEmpty()) return;
+        currentUrl = url;
+        try {
+            MediaItem mediaItem = MediaItem.fromUri(url);
+            // 根据 URL 后缀判断使用哪种 MediaSource
+            MediaSource mediaSource;
+            if (url.contains(".m3u8") || url.contains("m3u8")) {
+                // HLS 直播流
+                mediaSource = new HlsMediaSource.Factory(
+                        new RedirectLoggingHttpDataSource.Factory())
+                        .createMediaSource(mediaItem);
+            } else {
+                // 普通 progressive 流
+                mediaSource = new ProgressiveMediaSource.Factory(
+                        new RedirectLoggingHttpDataSource.Factory())
+                        .createMediaSource(mediaItem);
+            }
+            player.setMediaSource(mediaSource);
+            player.prepare();
+            player.setPlayWhenReady(true);
+        } catch (Exception e) {
+            Log.e(TAG, "播放URL失败：" + e.getMessage());
+        }
+    }
+    /**
      * 播放指定URL（对外接口）
      * 切换频道时调用，重置重试计数和解码器状态
      */
@@ -945,14 +1010,280 @@ public class TVPlayerManager {
         SettingsActivity.logOperation("【播放器】开始加载新频道");
         playUrlInternal(url);
     }
-        // ====================================================================
+    /**
+     * 重置性能统计
+     */
+    private void resetPerformanceStats() {
+        bufferCount = 0;
+        totalStallTime = 0;
+        isStalled = false;
+        lastStallStartTime = 0;
+    }
+    /**
+     * 暂停
+     */
+    public void pause() {
+        if (player != null) {
+            player.pause();
+            isPlaying = false;
+        }
+    }
+    /**
+     * 恢复播放
+     */
+    public void resume() {
+        if (player != null) {
+            player.play();
+            isPlaying = true;
+        }
+    }
+    /**
+     * 停止
+     */
+    public void stop() {
+        if (player != null) {
+            player.stop();
+            isPlaying = false;
+        }
+    }
+    /**
+     * 释放资源
+     */
+    public void release() {
+        cancelRetry();
+        if (stuckHandler != null) {
+            stuckHandler.removeCallbacks(stuckCheckRunnable);
+        }
+        if (player != null) {
+            player.release();
+            player = null;
+        }
+        instance = null;
+    }
+    /**
+     * 绑定 PlayerView
+     */
+    public void attachPlayerView(PlayerView view) {
+        this.playerView = view;
+        if (player != null && view != null) {
+            view.setPlayer(player);
+        }
+    }
+    /**
+     * 设置缩放模式
+     * @param resizeMode 缩放模式
+     */
+    public void setResizeMode(int resizeMode) {
+        if (playerView != null) {
+            playerView.setResizeMode(resizeMode);
+        }
+    }
+    // ====================================================================
+    // ✅ 解码器模式设置（2026-06-25 新增）
+    // ====================================================================
+    /**
+     * 设置解码器模式
+     *
+     * @param mode 解码器模式
+     *             - DECODER_MODE_AUTO：自动（推荐）
+     *             - DECODER_MODE_HARD：强制硬解
+     *             - DECODER_MODE_SOFT：软解优先
+     *
+     * 【2026-06-25 新增】
+     *
+     * 【实现方式】
+     * 1. 更新 mDecoderMode 变量
+     * 2. 重新创建播放器（因为渲染器工厂需要重新设置）
+     * 3. 重新加载当前频道
+     *
+     * 【为什么需要重新创建播放器？】
+     * 因为 MediaCodecSelector 是在渲染器工厂中设置的，
+     * 而渲染器工厂是在 ExoPlayer 创建时传入的，
+     * 创建后不能动态修改。所以切换解码器模式时，
+     * 需要重新创建播放器。
+     */
+    public void setDecoderMode(int mode) {
+        if (mDecoderMode == mode) return;
+        mDecoderMode = mode;
+        // 记录日志
+        String modeName;
+        switch (mode) {
+            case DECODER_MODE_HARD:
+                modeName = "硬解";
+                break;
+            case DECODER_MODE_SOFT:
+                modeName = "软解（兼容性好）";
+                break;
+            case DECODER_MODE_AUTO:
+            default:
+                modeName = "自动（推荐）";
+                break;
+        }
+        Log.d(TAG, "【解码器】切换模式：" + modeName);
+        SettingsActivity.logOperation("【解码器】切换到：" + modeName);
+        // 保存当前播放位置和 URL
+        long currentPosition = 0;
+        String url = currentUrl;
+        if (player != null) {
+            currentPosition = player.getCurrentPosition();
+        }
+        // 释放旧播放器
+        if (player != null) {
+            if (playerListener != null) {
+                player.removeListener(playerListener);
+            }
+            player.release();
+            player = null;
+        }
+        // 重新创建播放器
+        initPlayer();
+        // 重新绑定 PlayerView
+        if (playerView != null) {
+            playerView.setPlayer(player);
+        }
+        // 重新加载当前频道
+        if (url != null && !url.isEmpty()) {
+            playUrlInternal(url);
+            // 尝试恢复播放位置
+            if (currentPosition > 0) {
+                player.seekTo(currentPosition);
+            }
+        }
+    }
+    /**
+     * 获取当前解码器模式
+     *
+     * @return 当前解码器模式
+     *
+     * 【2026-06-25 新增】
+     */
+    public int getDecoderMode() {
+        return mDecoderMode;
+    }
+    /**
+     * 设置是否使用软解码（向后兼容）
+     *
+     * @param useSoftware true=使用软解，false=使用硬解
+     *
+     * @deprecated 请使用 setDecoderMode(int) 替代
+     *
+     * 【2026-06-25 说明】
+     * 保留这个方法是为了向后兼容，
+     * 内部调用 setDecoderMode() 方法。
+     * - useSoftware=true → DECODER_MODE_SOFT
+     * - useSoftware=false → DECODER_MODE_AUTO
+     *
+     * 【为什么 false 对应 AUTO 而不是 HARD？】
+     * 因为原来的行为就是"不用软解就用硬解"，
+     * 但实际上系统默认就是硬解优先，
+     * 而且自动模式（硬解优先+卡顿自动切软解）体验更好。
+     * 所以 false 对应 AUTO，用户体验更好。
+     */
+    @Deprecated
+    public void setSoftwareDecoder(boolean useSoftware) {
+        this.useSoftwareDecoder = useSoftware;
+        if (useSoftware) {
+            setDecoderMode(DECODER_MODE_SOFT);
+        } else {
+            setDecoderMode(DECODER_MODE_AUTO);
+        }
+    }
+    // ====================================================================
+    // 频道号显示
+    // ====================================================================
+    /**
+     * 显示频道号
+     */
+    public void showChannelNum(int channelNumber) {
+        this.currentChannelNumber = channelNumber;
+        if (channelNumberTextView != null) {
+            channelNumberTextView.setText(String.valueOf(channelNumber));
+            channelNumberTextView.setVisibility(View.VISIBLE);
+        }
+        // 延迟隐藏
+        mHandler.removeCallbacks(hideChannelRunnable);
+        mHandler.postDelayed(hideChannelRunnable, CHANNEL_NUM_HIDE_DELAY);
+    }
+    /**
+     * 隐藏频道号
+     */
+    private void hideChannelNum() {
+        if (channelNumberTextView != null) {
+            channelNumberTextView.setVisibility(View.GONE);
+        }
+    }
+    /**
+     * 设置频道号显示的 TextView
+     */
+    public void setChannelNumberTextView(TextView tv) {
+        this.channelNumberTextView = tv;
+    }
+    // ====================================================================
+    // 监听器设置
+    // ====================================================================
+    /**
+     * 设置播放状态监听器
+     */
+    public void setOnPlayStateListener(OnPlayStateListener listener) {
+        this.listener = listener;
+    }
+    /**
+     * 播放状态监听器接口
+     */
+    public interface OnPlayStateListener {
+        void onPlaySuccess();
+        void onPlayFailed(String error);
+    }
+    /**
+     * 设置源失效监听器
+     *
+     * 【2026-06-25 新增】
+     */
+    public void setOnSourceFailedListener(OnSourceFailedListener listener) {
+        this.sourceFailedListener = listener;
+    }
+    /**
+     * 源失效监听器接口
+     *
+     * 【2026-06-25 新增】
+     */
+    public interface OnSourceFailedListener {
+        void onSourceFailed();
+    }
+    /**
+     * 设置直播信息更新监听器
+     */
+    public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) {
+        this.liveInfoUpdateListener = listener;
+    }
+    /**
+     * 直播信息更新监听器接口
+     */
+    public interface OnLiveInfoUpdateListener {
+        void onLiveInfoUpdate(LiveInfo info);
+    }
+    /**
+     * 通知直播信息更新
+     */
+    private void notifyLiveInfoUpdate() {
+        if (liveInfoUpdateListener != null) {
+            final LiveInfo info = getLiveInfo();
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    liveInfoUpdateListener.onLiveInfoUpdate(info);
+                }
+            });
+        }
+    }
+    // ====================================================================
     // 直播信息
     // ====================================================================
     /**
      * 直播信息类
      */
     public static class LiveInfo {
-        public String resolution = "未知";  // 分辨率（如 1920×1080）
+        public String resolution = "未知";  // 分辨率（如 1920x1080）
         public String resolutionLevel = "未知"; // 分辨率等级（如 1080P）
         public String bitrate = "0";        // 码率（Mbps）
         public String audio = "未知";       // 音频信息
@@ -963,7 +1294,6 @@ public class TVPlayerManager {
         public int decodePressure = 0;      // 解码压力（0-100）
         public String decodePressureDesc = "未知"; // 解码压力描述
     }
-
     /**
      * 获取当前直播信息
      */
@@ -976,7 +1306,7 @@ public class TVPlayerManager {
                     int width = videoFormat.width;
                     int height = videoFormat.height;
                     if (width > 0 && height > 0) {
-                        info.resolution = width + "×" + height;
+                        info.resolution = width + "x" + height;
                         // ====================================================================
                         // ✅ 2026-06-26 新增：分辨率等级
                         // ====================================================================
@@ -999,7 +1329,8 @@ public class TVPlayerManager {
                     // 码率（转成 Mbps，保留1位小数）
                     if (videoFormat.bitrate > 0) {
                         float mbps = videoFormat.bitrate / 1000000f;
-                        info.bitrate = String.format(Locale.getDefault(), "%.1f Mbps", mbps);
+                        info.bitrate = String.format(Locale.getDefault(),
+                                "%.1f Mbps", mbps);
                     }
                 }
                 Format audioFormat = player.getAudioFormat();
@@ -1015,7 +1346,6 @@ public class TVPlayerManager {
         }
         return info;
     }
-
     /**
      * 获取解码压力的文字描述
      *
@@ -1037,7 +1367,7 @@ public class TVPlayerManager {
             return "压力很大";
         }
     }
-        // ====================================================================
+    // ====================================================================
     // ✅ 自定义 MediaCodecSelector（2026-06-26 新增，系统软解方案核心）
     // ====================================================================
     /**
@@ -1115,6 +1445,7 @@ public class TVPlayerManager {
                     return result;
                 case DECODER_MODE_AUTO:
                 default:
+                    // ================================================================
                     // ================================================================
                     // 自动模式：系统默认顺序（硬解优先）
                     // ================================================================
