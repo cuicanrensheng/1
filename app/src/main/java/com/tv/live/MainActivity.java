@@ -78,6 +78,15 @@ import java.util.List;
  * - 画中画参数构建 → 改用 pipManager.buildDefaultPipParams()
  * - 进入画中画流程 → 改用 pipManager.enterPip()
  * MainActivity 只保留生命周期回调，画中画逻辑全部集中在 PictureInPictureManager。
+ *
+ * 【2026-06-26 修改：源失效自动切台合并到 AppCoreManager】
+ * 【修改说明】
+ * 把 MainActivity 中的源失效自动切台逻辑合并到 AppCoreManager：
+ * - mConsecutiveFailedCount → appCoreManager 内部维护
+ * - MAX_CONSECUTIVE_SKIP → AppCoreManager 常量
+ * - handleSourceFailed() → appCoreManager.handleSourceFailed()
+ * - 重置计数 → appCoreManager.resetSourceFailedCount()
+ * MainActivity 只负责回调中的 UI 操作（切台、Toast）。
  */
 public class MainActivity extends AppCompatActivity {
     // ====================== 单例 ======================
@@ -111,9 +120,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean channel_reverse;
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
-    // 源失效自动切台相关变量
-    private int mConsecutiveFailedCount = 0;
-    private static final int MAX_CONSECUTIVE_SKIP = 10;
+    // ✅ 2026-06-26 删除：源失效自动切台相关变量（已合并到 AppCoreManager）
+    // - mConsecutiveFailedCount
+    // - MAX_CONSECUTIVE_SKIP
     private boolean mIsFirstLaunch = true;
     // ====================== 其他 ======================
     public static List<String> logList = new ArrayList<>();
@@ -441,41 +450,29 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-        // 设置源失效监听器（自动切台）
+        // ✅ 2026-06-26 修改：源失效监听器改用 AppCoreManager 处理
         mPlayerManager.setOnSourceFailedListener(new TVPlayerManager.OnSourceFailedListener() {
             @Override
             public void onSourceFailed() {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        handleSourceFailed();
+                        // 获取当前频道名称传给 AppCoreManager
+                        String channelName = "";
+                        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                            Channel ch = channelSourceList.get(currentPlayIndex);
+                            if (ch != null) {
+                                channelName = ch.getName();
+                            }
+                        }
+                        // 委托给 AppCoreManager 处理业务逻辑
+                        appCoreManager.handleSourceFailed(channelName);
                     }
                 });
             }
         });
     }
-    // 处理源失效（自动切台）
-    private void handleSourceFailed() {
-        mConsecutiveFailedCount++;
-        String channelName = "";
-        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-            Channel ch = channelSourceList.get(currentPlayIndex);
-            if (ch != null) {
-                channelName = ch.getName();
-            }
-        }
-        SettingsActivity.logOperation("【自动切台】频道「" + channelName
-                + "」源失效，连续失效第 " + mConsecutiveFailedCount + " 个");
-        if (mConsecutiveFailedCount >= MAX_CONSECUTIVE_SKIP) {
-            SettingsActivity.logOperation("【自动切台】已连续跳过 "
-                    + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过");
-            Toast.makeText(MainActivity.this, "已跳过 " + MAX_CONSECUTIVE_SKIP
-                    + " 个失效频道，请检查直播源", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        SettingsActivity.logOperation("【自动切台】自动切换到下一个频道");
-        channelPanelController.switchDown();
-    }
+    // ✅ 2026-06-26 删除：handleSourceFailed() 方法（已合并到 AppCoreManager）
     // ====================================================================
     // 数字选台管理器初始化
     // ====================================================================
@@ -573,6 +570,27 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
+        // ✅ 2026-06-26 新增：设置源失效自动切台监听器
+        // AppCoreManager 管理业务逻辑（计数、判断）
+        // MainActivity 负责 UI 操作（切台、Toast）
+        appCoreManager.setOnSourceSkipListener(new AppCoreManager.OnSourceSkipListener() {
+            @Override
+            public void onNeedSkipChannel() {
+                // 需要切到下一个频道（UI 操作）
+                channelPanelController.switchDown();
+            }
+            @Override
+            public void onSkipLimitReached(int maxSkip) {
+                // 达到最大跳过数，提示用户（UI 操作）
+                Toast.makeText(MainActivity.this, "已跳过 " + maxSkip
+                        + " 个失效频道，请检查直播源", Toast.LENGTH_SHORT).show();
+            }
+            @Override
+            public void onSourceFailed(String channelName, int failedCount) {
+                // 源失效日志（AppCoreManager 内部已记录，这里留空即可）
+                // 如果需要额外的 UI 处理可以在这里添加
+            }
+        });
         appCoreManager.registerReceivers();
     }
     // ====================== 设置加载 ======================
@@ -654,8 +672,8 @@ public class MainActivity extends AppCompatActivity {
             appConfig.addRecentChannel(channel.getName());
         } catch (Exception e) {
         }
-        // 成功切换频道，重置连续失效计数
-        mConsecutiveFailedCount = 0;
+        // ✅ 2026-06-26 修改：成功切换频道，通过 AppCoreManager 重置连续失效计数
+        appCoreManager.resetSourceFailedCount();
         // 画中画模式下同步频道信息到管理器
         if (pipManager != null && pipManager.isInPipMode() && channel != null) {
             try {
