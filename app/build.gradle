@@ -100,6 +100,9 @@ android {
     // ====================================================================
     // ✅ 配置 libs 目录为 AAR 仓库
     // ====================================================================
+    // 【2026-06-26 说明】
+    // 原来放 FFmpeg AAR 的，现在改用系统软解，不需要了。
+    // 保留这个配置是为了以后可能需要其他 AAR 时方便。
     repositories {
         flatDir {
             dirs 'libs'
@@ -114,7 +117,6 @@ dependencies {
     implementation "com.google.android.material:material:1.11.0"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     implementation "androidx.recyclerview:recyclerview:1.3.2"
-
     implementation 'com.google.zxing:core:3.5.1'
     implementation 'com.google.code.gson:gson:2.10.1'
 
@@ -130,51 +132,23 @@ dependencies {
     // 2. 相比 1.5.0，有更多 bug 修复和性能优化
     // 3. 相比 2.x 版本，API 更稳定，迁移成本更低
     //
-    // ⚠️ 注意：
-    // FFmpeg AAR 也要换成基于 1.7.1 编译的版本，
-    // 否则会因为版本不匹配导致运行时崩溃。
+    // 【2026-06-26 更新：改用系统软解，不再需要 FFmpeg 扩展】
+    // 原来的 FFmpeg 扩展已经移除，改用系统自带的软件解码器。
+    // 优点：无需额外库、不增加 APK 大小、集成简单
+    // 缺点：性能不如 FFmpeg、支持的格式少一些
 
     // ✅ Media3 核心播放器
     implementation "androidx.media3:media3-exoplayer:1.7.1"
-
     // ✅ Media3 UI 组件（PlayerView 等）
     implementation "androidx.media3:media3-ui:1.7.1"
-
     // ✅ Media3 HLS 支持（直播流）
     implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
-
     // ✅ Media3 DASH 支持
     implementation "androidx.media3:media3-exoplayer-dash:1.7.1"
-
     // ✅ Media3 通用工具
     implementation "androidx.media3:media3-common:1.7.1"
-
     // ✅ Media3 数据源
     implementation "androidx.media3:media3-datasource:1.7.1"
-
-    // ====================================================================
-    // ✅ 2026-06-25 更新：FFmpeg 软解码器扩展（需基于 1.7.1 重新编译）
-    // ====================================================================
-    // 【作用】
-    // FFmpeg 软解码器扩展，作为系统硬解码的备用方案。
-    // 当系统 MediaCodec 不支持某些视频格式时，自动回退到 FFmpeg 软解码，
-    // 提高格式兼容性，保证更多直播源能正常播放。
-    //
-    // 【编译信息】
-    // - 源码版本：Media3 1.7.1
-    // - 模块名：lib-decoder-ffmpeg
-    // - 编译环境：NDK 23.1.7779620 + JDK 17
-    // - 支持架构：arm64-v8a, armeabi-v7a
-    // - 编译方式：GitHub Actions 自动编译
-    //
-    // ⚠️ 重要提醒：
-    // 必须使用基于 Media3 1.7.1 编译的 FFmpeg AAR，
-    // 不能用 1.10.1 版本的 AAR，版本不匹配会导致运行时崩溃。
-    //
-    // 【工作模式】
-    // - 硬解模式（默认）：系统硬解优先，FFmpeg 作为备用
-    // - 软解模式：优先使用 FFmpeg 软解
-    implementation files('libs/lib-decoder-ffmpeg-release.aar')
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "com.squareup.retrofit2:retrofit:2.11.0"
