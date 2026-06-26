@@ -20,14 +20,28 @@ import com.tv.live.SettingsActivity;
  * 4. 边界友好：到达边界时有日志，不崩溃
  * 5. 日志完整：每个按键都记录，方便排查
  *
+ * 【2026-06-26 修改：合并 MainActivity 按键分发逻辑】
+ * 【修改说明】
+ * 把原来 MainActivity.onKeyDown() 中的按键分发逻辑全部合并到这里，
+ * 包括：画中画模式判断、面板自动隐藏重置、数字选台、面板内按键、兜底处理。
+ * 合并后 TvRemoteManager 成为唯一的按键分发入口，MainActivity 只需要一行调用。
+ * 
+ * 【按键分发顺序（从高到低）】
+ * 1. 画中画模式判断（画中画模式下只处理返回键）
+ * 2. 面板自动隐藏重置（用户有操作时重置计时）
+ * 3. TvRemoteManager 模式化按键处理（播放/面板/设置）
+ * 4. 数字选台（兜底：ChannelNumberManager）
+ * 5. 面板内按键（兜底：ChannelPanelController.dispatchKeyEvent）
+ * 6. 播放模式方向键（兜底：KeyEventManager）
+ *
  * 【使用方式】
  * 1. 创建实例：TvRemoteManager remoteManager = new TvRemoteManager()
  * 2. 设置模式：remoteManager.setMode(Mode.CHANNEL_PANEL_MODE)
  * 3. 设置回调：remoteManager.setOnRemoteActionListener(listener)
- * 4. 分发按键：remoteManager.dispatchKeyEvent(keyCode)
+ * 4. 设置依赖：remoteManager.setChannelPanelController(...) 等
+ * 5. 分发按键：remoteManager.dispatchKeyEvent(keyCode)
  */
 public class TvRemoteManager {
-
     // ====================== 模式枚举 ======================
 
     /**
@@ -60,21 +74,16 @@ public class TvRemoteManager {
      * 遥控器动作回调监听器
      */
     public interface OnRemoteActionListener {
-
         // ================== 播放模式回调 ==================
 
         /** 上键（播放模式：上一台） */
         void onPlayChannelUp();
-
         /** 下键（播放模式：下一台） */
         void onPlayChannelDown();
-
         /** OK键（播放模式：切换面板） */
         void onPlayTogglePanel();
-
         /** 菜单键（播放模式：打开设置） */
         void onPlayOpenSettings();
-
         /** 返回键（播放模式：退出应用/返回） */
         boolean onPlayBack();
 
@@ -82,28 +91,20 @@ public class TvRemoteManager {
 
         /** 上键（面板模式：列表上移） */
         void onPanelMoveUp();
-
         /** 下键（面板模式：列表下移） */
         void onPanelMoveDown();
-
         /** 左键（面板模式：向左切换列） */
         void onPanelMoveLeft();
-
         /** 右键（面板模式：向右切换列） */
         void onPanelMoveRight();
-
         /** OK键（面板模式：选中当前项） */
         void onPanelConfirm();
-
         /** 返回键（面板模式：返回/关闭） */
         boolean onPanelBack();
-
         /** 菜单键（面板模式：关闭面板） */
         void onPanelMenu();
-
         /** 数字键（面板模式：数字选台） */
         void onPanelNumber(int number);
-
         /** 焦点面板变化 */
         void onPanelFocusChanged(PanelFocus newFocus);
 
@@ -111,42 +112,54 @@ public class TvRemoteManager {
 
         /** 上键（设置模式：上移一项） */
         void onSettingsMoveUp();
-
         /** 下键（设置模式：下移一项） */
         void onSettingsMoveDown();
-
         /** OK键（设置模式：选中当前项） */
         void onSettingsConfirm();
-
         /** 返回键（设置模式：关闭设置） */
         boolean onSettingsBack();
-
         /** 菜单键（设置模式：关闭设置） */
         void onSettingsMenu();
-
         /** 焦点位置变化 */
         void onSettingsFocusChanged(int position);
+
+        // ================== 画中画模式回调 ==================
+
+        /** 返回键（画中画模式：退到后台） */
+        boolean onPipBack();
     }
 
     // ====================== 成员变量 ======================
 
     /** 当前模式 */
     private Mode currentMode = Mode.PLAY_MODE;
-
     /** 回调监听器 */
     private OnRemoteActionListener listener;
 
     // ---------- 频道面板模式相关 ----------
+
     /** 频道面板当前焦点位置 */
     private PanelFocus currentPanelFocus = PanelFocus.LEFT_CHANNEL;
     /** 右侧面板是否打开 */
     private boolean isRightPanelOpen = false;
 
     // ---------- 设置模式相关 ----------
+
     /** 设置项总数 */
     private int settingsItemCount = 0;
     /** 设置当前焦点位置 */
     private int settingsFocusPosition = 0;
+
+    // ---------- 2026-06-26 新增：合并按键分发依赖 ----------
+
+    /** 是否在画中画模式 */
+    private boolean isInPipMode = false;
+    /** 频道面板控制器（用于自动隐藏重置、面板内按键兜底） */
+    private ChannelPanelController channelPanelController;
+    /** 数字选台管理器（用于数字选台兜底） */
+    private ChannelNumberManager channelNumberManager;
+    /** 按键事件管理器（用于播放模式方向键兜底） */
+    private KeyEventManager keyEventManager;
 
     // ====================== 构造函数 ======================
 
@@ -191,24 +204,142 @@ public class TvRemoteManager {
         this.listener = listener;
     }
 
+    // ====================================================================
+    // 2026-06-26 新增：依赖注入 setter 方法
+    // ====================================================================
+
+    /**
+     * 设置画中画模式状态
+     * 
+     * 【作用】
+     * 画中画模式下只处理返回键，其他按键忽略。
+     * MainActivity 在 onPictureInPictureModeChanged 中调用此方法同步状态。
+     */
+    public void setInPipMode(boolean inPipMode) {
+        this.isInPipMode = inPipMode;
+        SettingsActivity.logOperation("【遥控】画中画模式：" + (inPipMode ? "进入" : "退出"));
+    }
+
+    /**
+     * 设置频道面板控制器
+     * 
+     * 【作用】
+     * 1. 用户按键时重置面板自动隐藏计时
+     * 2. 兜底：面板模式下 TvRemoteManager 没处理的按键，交给面板控制器处理
+     */
+    public void setChannelPanelController(ChannelPanelController controller) {
+        this.channelPanelController = controller;
+    }
+
+    /**
+     * 设置数字选台管理器
+     * 
+     * 【作用】
+     * 兜底：TvRemoteManager 没处理的数字键，交给数字选台管理器处理
+     */
+    public void setChannelNumberManager(ChannelNumberManager manager) {
+        this.channelNumberManager = manager;
+    }
+
+    /**
+     * 设置按键事件管理器
+     * 
+     * 【作用】
+     * 兜底：播放模式下 TvRemoteManager 没处理的按键，交给 KeyEventManager 处理
+     */
+    public void setKeyEventManager(KeyEventManager manager) {
+        this.keyEventManager = manager;
+    }
+
     // ====================== 核心：按键分发 ======================
 
     /**
      * 分发遥控器按键事件（统一入口）
+     * 
+     * 【2026-06-26 修改：合并完整的按键分发逻辑】
+     * 【分发顺序】
+     * 1. 画中画模式判断（画中画模式下只处理返回键）
+     * 2. 面板自动隐藏重置
+     * 3. TvRemoteManager 模式化按键处理（播放/面板/设置）
+     * 4. 数字选台兜底（ChannelNumberManager）
+     * 5. 面板内按键兜底（ChannelPanelController.dispatchKeyEvent）
+     * 6. 播放模式方向键兜底（KeyEventManager）
      *
      * @param keyCode 按键码
      * @return true=已处理，false=未处理（继续向上传递）
      */
     public boolean dispatchKeyEvent(int keyCode) {
+        // ====================================================================
+        // 第 1 步：画中画模式判断（画中画模式下只处理返回键）
+        // ====================================================================
+        if (isInPipMode) {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                SettingsActivity.logOperation("【遥控-画中画】返回键 → 退到后台");
+                if (listener != null) {
+                    return listener.onPipBack();
+                }
+                return false;
+            }
+            // 画中画模式下其他按键不处理
+            return false;
+        }
+
+        // ====================================================================
+        // 第 2 步：重置面板自动隐藏计时（用户有操作时重置）
+        // ====================================================================
+        if (channelPanelController != null) {
+            channelPanelController.resetAutoHide();
+        }
+
+        // ====================================================================
+        // 第 3 步：TvRemoteManager 模式化按键处理（核心处理）
+        // ====================================================================
+        boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
-                return dispatchChannelPanelKey(keyCode);
+                handled = dispatchChannelPanelKey(keyCode);
+                break;
             case SETTINGS_MODE:
-                return dispatchSettingsKey(keyCode);
+                handled = dispatchSettingsKey(keyCode);
+                break;
             case PLAY_MODE:
             default:
-                return dispatchPlayKey(keyCode);
+                handled = dispatchPlayKey(keyCode);
+                break;
         }
+        if (handled) {
+            return true;
+        }
+
+        // ====================================================================
+        // 第 4 步：数字选台兜底（ChannelNumberManager）
+        // ====================================================================
+        if (channelNumberManager != null) {
+            if (channelNumberManager.handleNumberKey(keyCode)) {
+                return true;
+            }
+        }
+
+        // ====================================================================
+        // 第 5 步：面板内按键兜底（ChannelPanelController.dispatchKeyEvent）
+        // ====================================================================
+        if (channelPanelController != null) {
+            if (channelPanelController.dispatchKeyEvent(keyCode)) {
+                return true;
+            }
+        }
+
+        // ====================================================================
+        // 第 6 步：播放模式方向键兜底（KeyEventManager）
+        // ====================================================================
+        if (keyEventManager != null) {
+            if (keyEventManager.dispatchKey(keyCode)) {
+                return true;
+            }
+        }
+
+        // 所有层级都没处理，返回 false
+        return false;
     }
 
     // ====================================================================
@@ -379,7 +510,6 @@ public class TvRemoteManager {
      */
     private boolean handlePanelLeftKey() {
         PanelFocus oldFocus = currentPanelFocus;
-
         switch (currentPanelFocus) {
             case LEFT_EPG_BTN:
                 // 节目单按钮 → 频道列表
@@ -406,14 +536,11 @@ public class TvRemoteManager {
                 SettingsActivity.logOperation("【遥控-面板】左键 → 已在最左侧，无法左移");
                 return false;
         }
-
         SettingsActivity.logOperation("【遥控-面板】左键 → " + oldFocus + " → " + currentPanelFocus);
-
         if (listener != null) {
             listener.onPanelMoveLeft();
             listener.onPanelFocusChanged(currentPanelFocus);
         }
-
         return true;
     }
 
@@ -422,7 +549,6 @@ public class TvRemoteManager {
      */
     private boolean handlePanelRightKey() {
         PanelFocus oldFocus = currentPanelFocus;
-
         switch (currentPanelFocus) {
             case LEFT_GROUP:
                 // 分组列表 → 频道列表
@@ -449,14 +575,11 @@ public class TvRemoteManager {
                 SettingsActivity.logOperation("【遥控-面板】右键 → 已在最右侧，无法右移");
                 return false;
         }
-
         SettingsActivity.logOperation("【遥控-面板】右键 → " + oldFocus + " → " + currentPanelFocus);
-
         if (listener != null) {
             listener.onPanelMoveRight();
             listener.onPanelFocusChanged(currentPanelFocus);
         }
-
         return true;
     }
 
