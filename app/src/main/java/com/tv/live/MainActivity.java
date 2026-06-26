@@ -191,7 +191,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPlayTogglePanel() {
                 togglePanel();
-                syncRemoteMode();
+                remoteManager.syncMode();
             }
 
             @Override
@@ -233,7 +233,7 @@ public class MainActivity extends AppCompatActivity {
             public boolean onPanelBack() {
                 boolean handled = channelPanelController.handleBackPressed();
                 if (!channelPanelController.isPanelOpen()) {
-                    syncRemoteMode();
+                    remoteManager.syncMode();
                 }
                 return handled;
             }
@@ -274,15 +274,6 @@ public class MainActivity extends AppCompatActivity {
                 playerView.requestFocus();
             }
         });
-    }
-
-    private void syncRemoteMode() {
-        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-            remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
-            remoteManager.setRightPanelOpen(channelPanelController.isRightPanelOpen());
-        } else {
-            remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
-        }
     }
 
     private void initInfoDisplayManager() {
@@ -583,8 +574,7 @@ public class MainActivity extends AppCompatActivity {
     public boolean isChannelReverse() {
         return channel_reverse;
     }
-
-    public void playChannel(int index) {
+        public void playChannel(int index) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
         if (index < 0 || index >= channelSourceList.size()) return;
         Channel channel = channelSourceList.get(index);
@@ -623,7 +613,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void togglePanel() {
         channelPanelController.togglePanel();
-        syncRemoteMode();
+        remoteManager.syncMode();
     }
 
     public void playPrev() {
@@ -749,7 +739,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }, 200);
             }
-            syncRemoteMode();
+            remoteManager.syncMode();
             if (infoDisplayManager != null && channelSourceList.size() > currentPlayIndex) {
                 Channel currChannel = channelSourceList.get(currentPlayIndex);
                 TVPlayerManager.LiveInfo liveInfo = mPlayerManager.getLiveInfo();
@@ -815,7 +805,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }, 200);
         }
-        syncRemoteMode();
+        remoteManager.syncMode();
     }
 
     @Override
