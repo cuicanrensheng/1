@@ -62,6 +62,12 @@ import java.util.List;
  * 【修改说明】
  * 把原来 MainActivity 中的 handleDirectionKey() 方法合并到 KeyEventManager 中，
  * 统一管理播放模式下的方向键处理，MainActivity 只负责调用。
+ * 
+ * 【2026-06-26 修改：按键分发逻辑合并到 TvRemoteManager】
+ * 【修改说明】
+ * 把原来 MainActivity.onKeyDown() 中的按键分发逻辑（画中画判断、自动隐藏、
+ * 数字选台、面板按键、方向键等）全部合并到 TvRemoteManager 中，
+ * MainActivity.onKeyDown() 简化为只调用 remoteManager.dispatchKeyEvent() 一行。
  */
 public class MainActivity extends AppCompatActivity {
 
@@ -193,6 +199,10 @@ public class MainActivity extends AppCompatActivity {
             channelNumberManager.setEnable(number_channel_enable);
         }
 
+        // ✅ 2026-06-26 新增：给 TvRemoteManager 设置剩余依赖
+        remoteManager.setChannelNumberManager(channelNumberManager);
+        remoteManager.setKeyEventManager(keyEventManager);
+
         initAppCoreManager();
 
         displayManager.showLoading("正在加载直播源...");
@@ -323,6 +333,10 @@ public class MainActivity extends AppCompatActivity {
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
+
+        // ✅ 2026-06-26 新增：设置频道面板控制器（自动隐藏重置 + 面板按键兜底）
+        remoteManager.setChannelPanelController(channelPanelController);
+
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
             @Override
             public void onPlayChannelUp() {
@@ -408,6 +422,13 @@ public class MainActivity extends AppCompatActivity {
             @Override public boolean onSettingsBack() { return false; }
             @Override public void onSettingsMenu() {}
             @Override public void onSettingsFocusChanged(int position) {}
+
+            // ✅ 2026-06-26 新增：画中画模式返回键回调
+            @Override
+            public boolean onPipBack() {
+                moveTaskToBack(false);
+                return true;
+            }
         });
     }
 
@@ -843,29 +864,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (pipManager != null && pipManager.isInPipMode()) {
-            if (keyCode == KeyEvent.KEYCODE_BACK) {
-                moveTaskToBack(false);
-                return true;
-            }
-            return super.onKeyDown(keyCode, event);
-        }
-
-        // ✅ 2026-06-26 修改：重置面板自动隐藏（改用 ChannelPanelController）
-        channelPanelController.resetAutoHide();
-
+        // ✅ 2026-06-26 修改：按键分发统一走 TvRemoteManager
+        // TvRemoteManager 内部处理：画中画判断、自动隐藏重置、模式化按键、数字选台、面板按键、方向键兜底
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
-
-        if (channelNumberManager.handleNumberKey(keyCode)) return true;
-
-        if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
-            return true;
-        }
-
-        if (keyEventManager.dispatchKey(keyCode)) return true;
-
         return super.onKeyDown(keyCode, event);
     }
 
@@ -945,6 +948,11 @@ public class MainActivity extends AppCompatActivity {
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode);
         SettingsActivity.logOperation("【画中画】模式变化 → " + (isInPictureInPictureMode ? "进入" : "退出"));
+
+        // ✅ 2026-06-26 新增：同步画中画状态给 TvRemoteManager
+        if (remoteManager != null) {
+            remoteManager.setInPipMode(isInPictureInPictureMode);
+        }
 
         if (pipManager != null) {
             try {
