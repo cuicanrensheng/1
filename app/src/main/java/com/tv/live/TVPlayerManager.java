@@ -18,21 +18,20 @@ import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.exoplayer.Renderer;
-import androidx.media3.exoplayer.RenderersFactory;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
-import androidx.media3.exoplayer.video.VideoRendererEventListener;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 import com.tv.live.RedirectLoggingHttpDataSource;
-import java.lang.reflect.Constructor;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 /**
@@ -40,7 +39,7 @@ import java.util.Map;
  *
  * 【功能】
  * 1. 封装 ExoPlayer 的播放控制
- * 2. 支持硬解/软解切换（FFmpeg 软解码）
+ * 2. ✅ 支持硬解/软解切换（系统自带软解码，2026-06-26 修改）
  * 3. ✅ 支持三种解码器模式：自动/硬解/软解（2026-06-25 新增）
  * 4. 自动重试机制
  * 5. 卡住检测
@@ -61,19 +60,18 @@ import java.util.Map;
  * 
  * 【解码器模式说明】
  * 1. DECODER_MODE_AUTO（自动，推荐）：
- *    - 硬解优先（EXTENSION_RENDERER_MODE_ON）
- *    - 播放开始后 15 秒内如果缓冲 > 1 次，自动切换到 FFmpeg 软解
+ *    - 硬解优先（系统默认行为）
+ *    - 播放开始后 15 秒内如果缓冲 > 1 次，自动切换到系统软解
  *    - 每个频道只自动切换一次，避免反复切换
  *    - 兼顾性能和兼容性
  *
  * 2. DECODER_MODE_HARD（强制硬解）：
- *    - 只用系统硬解码器（EXTENSION_RENDERER_MODE_OFF）
- *    - 完全不用 FFmpeg
+ *    - 只用系统硬解码器
  *    - 性能最好，最省电，但兼容性一般
  *
- * 3. DECODER_MODE_SOFT（强制软解）：
- *    - 优先使用 FFmpeg 软解码器（EXTENSION_RENDERER_MODE_PREFER）
- *    - 兼容性最好，支持格式最多
+ * 3. DECODER_MODE_SOFT（软解优先）：
+ *    - 优先使用系统软件解码器
+ *    - 兼容性好，不依赖额外库
  *    - 性能稍差，耗电多一些
  *
  * 【自动切换灵敏度调优】
@@ -86,26 +84,18 @@ import java.util.Map;
  * 保留 setSoftwareDecoder(boolean) 方法，内部调用 setDecoderMode()，
  * 确保旧代码不用改也能正常运行。
  *
- * 【2026-06-25 修复：软解模式不生效问题】
- * 【问题描述】
- * 用户选择软解模式后，实际播放时还是用的系统硬解。
- * 【原因分析】
- * 1. setEnableDecoderFallback(true) 导致 FFmpeg 失败时静默降级到硬解
- * 2. FFmpeg 扩展可能未正确加载（so 库缺失、版本不匹配等）
- * 【修复方案】
- * 1. 软解模式下关闭解码器降级，让问题暴露出来
- * 2. 增加 FFmpeg 可用性检测日志
- * 3. 播放时检测实际解码器，与设置不符时给出警告
+ * 【2026-06-26 修改：改用系统自带软解，替代 FFmpeg 方案】
+ * 【为什么改用系统软解？】
+ * FFmpeg 扩展编译复杂、集成麻烦，而且 Media3 的 decoder_ffmpeg
+ * 模块默认只支持音频，视频需要手动编译和加载实验性渲染器。
+ * 系统自带的软件解码器（OMX.google.* / c2.android.*）虽然性能
+ * 不如 FFmpeg，但胜在稳定、无需额外依赖、集成简单。
  *
- * 【2026-06-26 修复：ExperimentalFfmpegVideoRenderer 手动加载】
- * 【问题原因】
- * Media3 的 DefaultRenderersFactory 默认不会加载实验性渲染器
- * （ExperimentalFfmpegVideoRenderer），导致即使 FFmpeg 库可用，
- * 视频软解也不会生效。
- * 【解决方案】
- * 自定义 FfmpegRenderersFactory，实现 RenderersFactory 接口，
- * 内部包装 DefaultRenderersFactory，在 createRenderers 方法中
- * 手动把 ExperimentalFfmpegVideoRenderer 加到渲染器数组里。
+ * 【实现原理】
+ * 通过自定义 MediaCodecSelector 调整解码器优先级：
+ * - 硬解模式：只保留硬件解码器
+ * - 软解模式：软件解码器排在前面，硬件解码器排在后面
+ * - 自动模式：系统默认顺序（硬解优先）
  */
 public class TVPlayerManager {
     // ====================== 常量 ======================
@@ -115,17 +105,17 @@ public class TVPlayerManager {
     // ====================================================================
     /**
      * 解码器模式：自动（推荐）
-     * 硬解优先，卡顿自动切换到 FFmpeg 软解
+     * 硬解优先，卡顿自动切换到系统软解
      */
     public static final int DECODER_MODE_AUTO = 0;
     /**
      * 解码器模式：强制硬解
-     * 只用系统硬解码器，完全不用 FFmpeg
+     * 只用系统硬解码器
      */
     public static final int DECODER_MODE_HARD = 1;
     /**
-     * 解码器模式：强制软解（FFmpeg）
-     * 优先使用 FFmpeg 软解码器
+     * 解码器模式：软解优先（系统自带）
+     * 优先使用系统软件解码器
      */
     public static final int DECODER_MODE_SOFT = 2;
     /**
@@ -171,7 +161,7 @@ public class TVPlayerManager {
      * 【可选值】
      * - DECODER_MODE_AUTO（0）：自动模式
      * - DECODER_MODE_HARD（1）：强制硬解
-     * - DECODER_MODE_SOFT（2）：强制软解
+     * - DECODER_MODE_SOFT（2）：软解优先
      *
      * 【默认值】DECODER_MODE_AUTO（自动模式）
      *
@@ -390,126 +380,52 @@ public class TVPlayerManager {
      * 原来只有硬解/软解两种模式，用 if-else 判断。
      * 现在有三种模式（自动/硬解/软解），改成 switch-case。
      *
-     * 【三种模式对应的扩展渲染器模式】
-     * - AUTO → EXTENSION_RENDERER_MODE_ON（硬解优先，FFmpeg 备用）
-     * - HARD → EXTENSION_RENDERER_MODE_OFF（只用硬解，不用 FFmpeg）
-     * - SOFT → EXTENSION_RENDERER_MODE_PREFER（优先 FFmpeg 软解）
+     * 【2026-06-26 修改：改用系统自带软解，替代 FFmpeg 方案】
+     * 【实现原理】
+     * 通过自定义 MediaCodecSelector 调整解码器优先级：
+     * - 硬解模式：只保留硬件解码器
+     * - 软解模式：软件解码器排在前面，硬件解码器排在后面
+     * - 自动模式：系统默认顺序（硬解优先）
      *
-     * 【2026-06-25 修复：软解模式不生效问题】
-     * 1. 软解模式下关闭解码器降级（setEnableDecoderFallback(false)）
-     *    防止 FFmpeg 失败时静默降级到硬解，让问题暴露出来
-     * 2. 增加 FFmpeg 可用性检测日志
-     *    初始化后检测系统中 FFmpeg 解码器的数量，判断 FFmpeg 是否正确加载
-     *
-     * 【2026-06-26 修复：使用自定义 FfmpegRenderersFactory】
-     * 原来用 DefaultRenderersFactory，它不会自动加载实验性的
-     * ExperimentalFfmpegVideoRenderer。
-     * 现在改用自定义的 FfmpegRenderersFactory，手动添加实验性视频渲染器。
+     * 【为什么不用 FFmpeg 了？】
+     * FFmpeg 扩展编译复杂、集成麻烦，而且 Media3 的 decoder_ffmpeg
+     * 模块默认只支持音频，视频需要手动编译和加载实验性渲染器。
+     * 系统自带的软件解码器虽然性能不如 FFmpeg，但胜在稳定、
+     * 无需额外依赖、集成简单。
      */
     private void initPlayer() {
+        // 创建渲染器工厂
+        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
         // ====================================================================
-        // ✅ 2026-06-26 修改：使用自定义的 FfmpegRenderersFactory
+        // ✅ 2026-06-26 修改：设置自定义 MediaCodecSelector 控制软解/硬解优先级
         // ====================================================================
-        // 【为什么不用 DefaultRenderersFactory？】
-        // DefaultRenderersFactory 默认不会加载实验性渲染器
-        // （ExperimentalFfmpegVideoRenderer），导致软解模式下视频还是硬解。
-        // 自定义的 FfmpegRenderersFactory 会手动把实验性 FFmpeg 视频渲染器
-        // 加到渲染器列表里。
+        // 【为什么需要自定义 MediaCodecSelector？】
+        // Media3 默认是硬解优先，软件解码器排在后面。
+        // 我们通过自定义 MediaCodecSelector 来调整优先级，
+        // 实现"软解优先"和"强制硬解"两种模式。
         //
-        // 【为什么变量类型是 FfmpegRenderersFactory 而不是 RenderersFactory？】
-        // 因为后面还要调用 setExtensionRendererMode() 和 setEnableDecoderFallback()，
-        // 这两个方法是 FfmpegRenderersFactory 自己的，不是 RenderersFactory 接口的。
-        FfmpegRenderersFactory renderersFactory = new FfmpegRenderersFactory(context);
+        // 【软件解码器识别规则】
+        // 名称以 OMX.google. 或 c2.android. 开头的是软件解码器
+        // 其他的一般是硬件解码器（如 OMX.qcom.、OMX.hisi.、c2.qti. 等）
+        SoftwareFirstMediaCodecSelector codecSelector = 
+                new SoftwareFirstMediaCodecSelector(mDecoderMode);
+        renderersFactory.setMediaCodecSelector(codecSelector);
         // ====================================================================
-        // ✅ 根据解码器模式设置扩展渲染器模式（2026-06-25 重构）
+        // ✅ 根据解码器模式输出日志（2026-06-26 修改：去掉 FFmpeg 相关）
         // ====================================================================
         switch (mDecoderMode) {
             case DECODER_MODE_SOFT:
-                // ================================================================
-                // 软解模式：优先使用 FFmpeg 解码器
-                // ================================================================
-                // 【EXTENSION_RENDERER_MODE_PREFER 的含义】
-                // 优先使用扩展渲染器（FFmpeg），系统解码器作为备用。
-                // 只要 FFmpeg 支持的格式，都用 FFmpeg 解码。
-                //
-                // 【好处】
-                // 1. 兼容性最好，支持格式最多
-                // 2. 有些硬解卡顿的源，软解反而流畅
-                //
-                // 【缺点】
-                // 性能稍差，耗电多一些
-                renderersFactory.setExtensionRendererMode(
-                        DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
-                );
-                // ====================================================================
-                // ✅ 2026-06-25 修复：软解模式下关闭解码器降级
-                // ====================================================================
-                // 【为什么要关闭降级？】
-                // 原来 setEnableDecoderFallback(true) 会导致：
-                // FFmpeg 初始化失败 → 自动降级到系统硬解 → 用户以为软解生效了
-                // 结果就是"设置了软解，但实际还是硬解"。
-                //
-                // 【关闭降级后的行为】
-                // FFmpeg 失败 → 直接报错（播放失败）→ 用户能看到问题
-                // 虽然可能导致某些频道播放失败，但至少能暴露真实问题，
-                // 而不是被"假软解"欺骗。
-                //
-                // 【注意】
-                // 如果你的设备上 FFmpeg 确实不可用，开启这个可能导致某些频道播放失败。
-                // 但这样至少能知道真实情况，方便后续排查 FFmpeg 加载问题。
-                renderersFactory.setEnableDecoderFallback(false);
-                // 删掉原来重复的 setExtensionRendererMode 调用（代码里有两次）
-                // 原来的 try-catch 块里又调用了一次，是冗余的，现在去掉
-                Log.d(TAG, "【FFmpeg】软解码模式：优先使用 FFmpeg 解码器（降级已关闭）");
-                SettingsActivity.logOperation("【解码器】初始化：FFmpeg 软解码模式（优先，降级已关闭）");
+                Log.d(TAG, "【解码器】软解模式：优先使用系统软件解码器");
+                SettingsActivity.logOperation("【解码器】初始化：系统软解模式（优先）");
                 break;
             case DECODER_MODE_HARD:
-                // ================================================================
-                // 硬解模式：只用系统硬解码器，完全不用 FFmpeg
-                // ================================================================
-                // 【EXTENSION_RENDERER_MODE_OFF 的含义】
-                // 不使用扩展渲染器（FFmpeg），只用系统的 MediaCodec 硬解码器。
-                //
-                // 【好处】
-                // 1. 性能最好，最省电
-                // 2. 完全不依赖 FFmpeg 库，包体更小
-                //
-                // 【缺点】
-                // 兼容性一般，有些特殊格式的直播源可能不支持
-                renderersFactory.setExtensionRendererMode(
-                        DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
-                );
-                // 禁用解码器降级（硬解不行就报错，不用软解兜底）
-                renderersFactory.setEnableDecoderFallback(false);
-                Log.d(TAG, "【解码器】硬解码模式：只用系统硬解，不使用 FFmpeg");
-                SettingsActivity.logOperation("【解码器】初始化：系统硬解模式（不使用 FFmpeg）");
+                Log.d(TAG, "【解码器】硬解模式：只用系统硬解码器");
+                SettingsActivity.logOperation("【解码器】初始化：系统硬解模式（强制）");
                 break;
             case DECODER_MODE_AUTO:
             default:
-                // ================================================================
-                // 自动模式（默认）：硬解优先，FFmpeg 作为备用方案
-                // ================================================================
-                // 【为什么用 ON 模式？】
-                // 正常情况下用系统硬解码，性能好，省电。
-                // 但是有些特殊格式的直播源，硬解码不支持，
-                // 这时候自动回退到 FFmpeg 软解码，保证能播出来。
-                //
-                // 【EXTENSION_RENDERER_MODE_ON 的含义】
-                // 系统 MediaCodec 优先，扩展渲染器（FFmpeg）作为备用。
-                // 当系统解码器都不支持时，才尝试 FFmpeg。
-                //
-                // 【好处】
-                // 1. 大部分情况用硬解，性能好，省电
-                // 2. 特殊格式自动用 FFmpeg 软解，兼容性好
-                // 3. 用户无感知，自动切换
-                // 4. 配合自动切换解码器功能，卡顿了还能主动切软解
-                renderersFactory.setExtensionRendererMode(
-                        DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
-                );
-                // 启用解码器降级（硬解不行自动降级到软解）
-                renderersFactory.setEnableDecoderFallback(true);
-                Log.d(TAG, "【FFmpeg】硬解码模式：系统硬解优先，FFmpeg 作为备用");
-                SettingsActivity.logOperation("【解码器】初始化：自动模式（系统硬解优先，FFmpeg 备用）");
+                Log.d(TAG, "【解码器】自动模式：系统硬解优先");
+                SettingsActivity.logOperation("【解码器】初始化：自动模式（系统硬解优先）");
                 break;
         }
         // ================================================
@@ -552,80 +468,47 @@ public class TVPlayerManager {
                 .setLoadControl(loadControl)
                 .build();
         // ====================================================================
-        // ✅ 2026-06-26 更新：FFmpeg 可用性检测（反射方式，修正版）
+        // ✅ 2026-06-26 新增：检测系统中可用的软解/硬解解码器数量
         // ====================================================================
-        // 【为什么改用反射？】
-        // 原来用 MediaCodecList API 检测 FFmpeg 解码器，但那是错的！
-        // MediaCodecList 只能检测系统内置的 MediaCodec 解码器，
-        // FFmpeg 扩展是 Media3 自己实现的，不走系统 MediaCodec 框架。
-        // 所以检测结果"未发现 FFmpeg 解码器"是假阴性。
-        //
-        // 【正确检测方法】
-        // 用反射尝试加载 FFmpeg 相关的类，判断 FFmpeg 扩展是否正确集成。
-        //
-        // 【检测内容】
-        // 1. FfmpegLibrary 类是否存在
-        // 2. FfmpegLibrary.isAvailable() 是否返回 true
-        // 3. FfmpegAudioRenderer 类是否存在（音频渲染器）
-        // 4. ExperimentalFfmpegVideoRenderer 类是否存在（视频渲染器，实验性）
-        // 5. FfmpegVideoRenderer 类是否存在（视频渲染器，正式版，备用检测）
+        // 【作用】
+        // 初始化后检测系统中可用的软件解码器和硬件解码器数量，
+        // 方便调试和确认软解模式是否生效。
         try {
-            // 1. 检测 FfmpegLibrary 类是否存在
-            Class<?> ffmpegLibraryClass = Class.forName("androidx.media3.decoder.ffmpeg.FfmpegLibrary");
-            Log.d(TAG, "【解码器】✅ FfmpegLibrary 类存在");
-            
-            // 2. 检测 isAvailable() 方法
-            java.lang.reflect.Method isAvailableMethod = ffmpegLibraryClass.getMethod("isAvailable");
-            boolean isAvailable = (boolean) isAvailableMethod.invoke(null);
-            Log.d(TAG, "【解码器】FfmpegLibrary.isAvailable() = " + isAvailable);
-            SettingsActivity.logOperation("【解码器】FFmpeg 库可用状态：" + (isAvailable ? "✅ 可用" : "❌ 不可用"));
-            
-            if (!isAvailable) {
-                Log.w(TAG, "【解码器】⚠️ FFmpeg 库不可用，软解可能不生效");
-                SettingsActivity.logOperation("【解码器】⚠️ 警告：FFmpeg 库不可用，软解可能不生效");
-            }
-            
-            // 3. 检测音频渲染器
-            try {
-                Class.forName("androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer");
-                Log.d(TAG, "【解码器】✅ FfmpegAudioRenderer 存在（音频渲染器）");
-                SettingsActivity.logOperation("【解码器】FFmpeg 音频渲染器：✅ 可用");
-            } catch (ClassNotFoundException e) {
-                Log.w(TAG, "【解码器】❌ FfmpegAudioRenderer 不存在");
-                SettingsActivity.logOperation("【解码器】FFmpeg 音频渲染器：❌ 不存在");
-            }
-            
-            // 4. 检测视频渲染器（注意：Media3 1.7.1 是 ExperimentalFfmpegVideoRenderer）
-            boolean hasVideoRenderer = false;
-            try {
-                Class<?> videoRendererClass = Class.forName("androidx.media3.decoder.ffmpeg.ExperimentalFfmpegVideoRenderer");
-                Log.d(TAG, "【解码器】✅ ExperimentalFfmpegVideoRenderer 存在（视频渲染器，实验性）");
-                SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：✅ 可用（实验性）");
-                hasVideoRenderer = true;
-            } catch (ClassNotFoundException e) {
-                Log.w(TAG, "【解码器】⚠️ ExperimentalFfmpegVideoRenderer 不存在，尝试检测正式版...");
-                // 再试试 FfmpegVideoRenderer（不带 Experimental，某些版本可能叫这个）
-                try {
-                    Class.forName("androidx.media3.decoder.ffmpeg.FfmpegVideoRenderer");
-                    Log.d(TAG, "【解码器】✅ FfmpegVideoRenderer 存在（视频渲染器）");
-                    SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：✅ 可用");
-                    hasVideoRenderer = true;
-                } catch (ClassNotFoundException e2) {
-                    Log.w(TAG, "【解码器】❌ FfmpegVideoRenderer 也不存在");
-                    SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：❌ 未找到");
+            // 检测 H.264 解码器（最常见的视频格式）
+            List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos(
+                    "video/avc", false, false);
+            int softCount = 0;
+            int hardCount = 0;
+            StringBuilder softNames = new StringBuilder();
+            StringBuilder hardNames = new StringBuilder();
+            for (MediaCodecInfo codec : h264Codecs) {
+                String name = codec.getName();
+                if (isSoftwareDecoder(name)) {
+                    softCount++;
+                    if (softCount <= 3) {
+                        if (softCount > 1) softNames.append(", ");
+                        softNames.append(name);
+                    }
+                } else {
+                    hardCount++;
+                    if (hardCount <= 3) {
+                        if (hardCount > 1) hardNames.append(", ");
+                        hardNames.append(name);
+                    }
                 }
             }
-            
-            // 如果只有音频没有视频，输出警告
-            if (!hasVideoRenderer) {
-                Log.w(TAG, "【解码器】⚠️ 警告：FFmpeg 仅支持音频，视频软解不可用！");
-                Log.w(TAG, "【解码器】这就是设置了软解但视频还是硬解的原因！");
-                SettingsActivity.logOperation("【解码器】⚠️ 警告：FFmpeg 仅支持音频，视频软解不可用");
+            Log.d(TAG, "【解码器】H.264 解码器统计：软解 " + softCount 
+                    + " 个，硬解 " + hardCount + " 个");
+            Log.d(TAG, "【解码器】软解解码器：" + softNames.toString());
+            Log.d(TAG, "【解码器】硬解解码器：" + hardNames.toString());
+            SettingsActivity.logOperation("【解码器】系统解码器：软解 " + softCount 
+                    + " 个，硬解 " + hardCount + " 个");
+            if (softCount == 0) {
+                Log.w(TAG, "【解码器】⚠️ 系统未找到软件解码器，软解模式可能不生效");
+                SettingsActivity.logOperation("【解码器】⚠️ 警告：未找到系统软件解码器");
             }
-            
         } catch (Exception e) {
-            Log.e(TAG, "【解码器】检测 FFmpeg 失败：" + e.getMessage(), e);
-            SettingsActivity.logOperation("【解码器】检测 FFmpeg 失败：" + e.getMessage());
+            Log.e(TAG, "【解码器】检测系统解码器失败：" + e.getMessage());
         }
         // 初始化播放监听器
         initPlayerListener();
@@ -634,6 +517,33 @@ public class TVPlayerManager {
         CookieManager.getInstance().setAcceptCookie(true);
     }
     // ====================================================================
+    // ✅ 判断是否是软件解码器（2026-06-26 新增）
+    // ====================================================================
+    /**
+     * 判断解码器名称是否是软件解码器
+     *
+     * 【识别规则】
+     * 软件解码器的名称通常以以下前缀开头：
+     * - OMX.google. （旧版软件解码器）
+     * - c2.android. （新版 Codec2 软件解码器）
+     *
+     * 硬件解码器的名称通常以厂商前缀开头：
+     * - OMX.qcom. / c2.qti. （高通）
+     * - OMX.hisi. / c2.hisi. （海思）
+     * - OMX.MTK. / c2.mtk. （联发科）
+     * - OMX.Exynos. / c2.exynos. （三星）
+     * - 等等
+     *
+     * @param codecName 解码器名称
+     * @return true = 软件解码器，false = 硬件解码器
+     */
+    private static boolean isSoftwareDecoder(String codecName) {
+        if (codecName == null) return false;
+        String lowerName = codecName.toLowerCase();
+        return lowerName.startsWith("omx.google.") 
+                || lowerName.startsWith("c2.android.");
+    }
+        // ====================================================================
     // ✅ 初始化播放状态监听器
     // ====================================================================
     private void initPlayerListener() {
@@ -660,94 +570,21 @@ public class TVPlayerManager {
                     // 开始卡住检测
                     startStuckDetection();
                     // ====================================================================
-                    // 打印当前使用的解码器信息
-                    // ====================================================================
-                    // 【作用】
-                    // 方便调试，看看当前用的是硬解码还是 FFmpeg 软解
-                    // 可以从 videoFormat 的名称里看出来
-                    try {
-                        Format videoFormat = player.getVideoFormat();
-                        if (videoFormat != null) {
-                            String decoderName = videoFormat.sampleMimeType;
-                            boolean isFfmpeg = decoderName != null
-                                    && decoderName.toLowerCase().contains("ffmpeg");
-                            String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
-                            Log.d(TAG, "【解码器】当前视频解码器：" + decoderName
-                                    + "（" + decoderType + "）");
-                            SettingsActivity.logOperation("【解码器】当前使用：" + decoderType
-                                    + "（" + decoderName + "）");
-                            // ================================================================
-                            // ✅ 2026-06-25 新增：软解模式未生效警告
-                            // ================================================================
-                            // 【作用】
-                            // 如果用户设置了软解模式，但实际播放用的还是系统硬解，
-                            // 就输出警告日志，让用户知道软解没有生效。
-                            //
-                            // 【为什么会出现这种情况？】
-                            // 1. FFmpeg 扩展未正确加载（最常见）
-                            // 2. FFmpeg 不支持该视频格式
-                            // 3. 解码器降级导致静默切换（虽然我们已经关闭了降级，但保险起见还是加上）
-                            //
-                            // 【用户看到这个警告怎么办？】
-                            // 检查 FFmpeg AAR 是否正确导入、so 库是否包含设备架构、
-                            // Media3 版本和 FFmpeg 版本是否匹配。
-                            if (mDecoderMode == DECODER_MODE_SOFT && !isFfmpeg) {
-                                Log.w(TAG, "【解码器】⚠️ 警告：设置了软解模式，但实际使用的是系统硬解！");
-                                Log.w(TAG, "【解码器】可能原因：FFmpeg 扩展未加载 / 不支持该格式 / 解码器降级");
-                                SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效，实际使用系统硬解");
-                            }
-                            // ================================================================
-                            // ✅ 2026-06-25 新增：硬解模式未生效警告
-                            // ================================================================
-                            // 同理，如果设置了硬解模式，但实际用了 FFmpeg，也给出警告
-                            if (mDecoderMode == DECODER_MODE_HARD && isFfmpeg) {
-                                Log.w(TAG, "【解码器】⚠️ 警告：设置了硬解模式，但实际使用的是 FFmpeg 软解！");
-                                SettingsActivity.logOperation("【解码器】⚠️ 警告：硬解模式未生效，实际使用 FFmpeg 软解");
-                            }
-                        }
-                    } catch (Exception e) {
-                        // 忽略，获取解码器信息失败不影响播放
-                    }
-                    // ====================================================================
                     // 只在第一次 STATE_READY 时记录开始时间
                     // ====================================================================
-                    // 【为什么要这样？】
-                    // 原来每次 STATE_READY 都会重置时间，
-                    // 但自动切换解码器的判断是基于"播放开始后 15 秒内"，
-                    // 如果中间因为缓冲导致状态变化，会重置这个时间，
-                    // 导致自动切换判断不准确。
-                    //
-                    // 修复后：只在第一次 STATE_READY 时设置 initialPlayStartTime，
-                    // 后续的状态变化不会影响这个时间。
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
                     // ====================================================================
                     // ✅ 自动切换解码器（硬解 → 软解）（2026-06-25 调优）
                     // ====================================================================
-                    // 【触发条件】
-                    // 1. 当前是自动模式（DECODER_MODE_AUTO）
-                    // 2. 还没切换过解码器（每个频道只切一次）
-                    // 3. 播放开始后 15 秒内（刚开播的这段时间最能反映是否卡顿）
-                    // 4. 缓冲次数 > 1 次（说明网络或解码有问题）
-                    //
-                    // 【为什么要自动切换？】
-                    // 有些频道用硬解会很卡（码率太高、格式不兼容等），
-                    // 自动切换到 FFmpeg 软解可以提升播放流畅度。
-                    // 每个频道只切一次，避免反复切换。
-                    //
-                    // 【2026-06-25 调优】
-                    // 原来：30 秒内缓冲 > 2 次才切换
-                    // 现在：15 秒内缓冲 > 1 次就切换
-                    // 原因：用户反馈画面卡顿，原来的触发条件太宽松了，
-                    // 调灵敏一点，让用户能更快感受到流畅度提升。
                     if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
                             && initialPlayStartTime > 0
                             && System.currentTimeMillis() - initialPlayStartTime < 15000
                             && bufferCount > 1) {
-                        Log.d(TAG, "【自动切换】硬解卡顿，自动切换到 FFmpeg 软解");
+                        Log.d(TAG, "【自动切换】硬解卡顿，自动切换到系统软解");
                         SettingsActivity.logOperation("【解码器】硬解卡顿（缓冲"
-                                + bufferCount + "次），自动切换到 FFmpeg 软解");
+                                + bufferCount + "次），自动切换到系统软解");
                         hasSwitchedDecoder = true;
                         setDecoderMode(DECODER_MODE_SOFT);
                     }
@@ -758,9 +595,6 @@ public class TVPlayerManager {
                     // ====================================================================
                     // 统计缓冲次数和卡顿时间
                     // ====================================================================
-                    // 【作用】
-                    // 统计播放过程中的缓冲次数和卡顿总时长，
-                    // 用于判断是否需要自动切换解码器。
                     bufferCount++;
                     if (!isStalled) {
                         isStalled = true;
@@ -779,16 +613,8 @@ public class TVPlayerManager {
                     // ====================================================================
                     // IDLE 状态也更新唤醒锁
                     // ====================================================================
-                    // 【为什么改这里？】
-                    // 原来的 else 分支是死代码（四个状态都覆盖了），
-                    // 现在把 updateWakeLock(false) 移到 IDLE 状态里，
-                    // 确保空闲状态时屏幕常亮会被关闭。
                     updateWakeLock(false);
                 }
-                // ⚠️ 注意：去掉了原来的 else 分支
-                // 因为四个状态（READY/BUFFERING/ENDED/IDLE）已经覆盖了所有情况，
-                // else 分支永远不会执行，是死代码。
-                // 现在把 updateWakeLock(false) 分别放到合适的状态里处理。
             }
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
@@ -809,12 +635,6 @@ public class TVPlayerManager {
             // ====================================================================
             // 视频分辨率变化时触发
             // ====================================================================
-            /**
-             * 为什么需要这个？
-             * 有些直播流刚开始时分辨率还没确定，
-             * 等视频解码器初始化完成后，才会回调真实的分辨率。
-             * 这时候我们需要更新一下信息栏的画质标签。
-             */
             @Override
             public void onVideoSizeChanged(VideoSize videoSize) {
                 int width = videoSize.width;
@@ -854,16 +674,6 @@ public class TVPlayerManager {
      * 【作用】
      * 切换频道时调用，取消旧频道的重试任务，
      * 避免旧频道的延迟重试干扰新频道的播放。
-     *
-     * 【为什么需要这个？】
-     * 自动跳过失效频道时，切到新频道后，
-     * 旧频道的延迟重试任务还在 Handler 队列里，
-     * 1秒后会执行并重新加载（但 currentUrl 已经是新频道了），
-     * 导致新频道被重新加载一次，播放中断，体验不好。
-     *
-     * 【调用时机】
-     * 1. playUrl() 切换频道时自动调用
-     * 2. 外部也可以手动调用
      */
     private void cancelRetry() {
         if (retryRunnable != null) {
@@ -877,11 +687,6 @@ public class TVPlayerManager {
      * @param reason 重试原因（用于日志）
      *
      * 【2026-06-25 修改：修复重试 bug + 增加源失效回调 + 操作日志】
-     * 【修改说明】
-     * 1. 修复了 isRetrying 一直是 true 的 bug（重试开始时就清除等待标记）
-     * 2. 重试次数用完后，回调 onSourceFailed()，通知外部自动切台
-     * 3. 最大重试次数改成 2 次（重试2次还不行就算失效）
-     * 4. 所有关键节点接入 SettingsActivity 操作日志
      */
     private void autoRetry(String reason) {
         if (isRetrying) return; // 已经有重试任务在等待中，避免重复
@@ -892,14 +697,6 @@ public class TVPlayerManager {
             // ====================================================================
             // 重试次数用完，回调源失效
             // ====================================================================
-            // 【作用】
-            // 通知外部（MainActivity）这个源失效了，
-            // 让外部自动跳过这个频道，切到下一个。
-            //
-            // 【为什么不在 TVPlayerManager 里直接切台？】
-            // TVPlayerManager 只负责播放单个 URL，
-            // 不知道频道列表的概念，也不知道怎么切台。
-            // 频道管理和切台逻辑应该在外部。
             if (sourceFailedListener != null) {
                 mHandler.post(() -> sourceFailedListener.onSourceFailed());
             }
@@ -913,19 +710,6 @@ public class TVPlayerManager {
         retryRunnable = new Runnable() {
             @Override
             public void run() {
-                // ====================================================================
-                // 重试任务开始执行时，清除等待标记
-                // ====================================================================
-                // 【为什么要在这里清除？】
-                // isRetrying 的含义是"是否有重试任务正在等待中"。
-                // 重试任务开始执行后，等待状态就结束了。
-                // 如果这次重试又失败了，onPlayerError 会再次触发 autoRetry，
-                // 这时候 isRetrying 应该是 false，允许安排下一次重试。
-                //
-                // 【原来的 bug】
-                // 原来 isRetrying 一直为 true，直到播放成功才重置。
-                // 导致重试一次后如果又失败，就不能再重试了，
-                // 实际上只能重试 1 次，而不是 MAX_RETRY_COUNT 次。
                 isRetrying = false;
                 if (!TextUtils.isEmpty(currentUrl)) {
                     // 重新播放当前地址
@@ -939,7 +723,7 @@ public class TVPlayerManager {
         mHandler.postDelayed(retryRunnable, 1000);
     }
     // ====================================================================
-    // ✅ 设置解码器模式（2026-06-25 新增）
+    // ✅ 设置解码器模式（2026-06-25 新增，2026-06-26 修改：去掉 FFmpeg 相关）
     // ====================================================================
     /**
      * 设置解码器模式
@@ -947,20 +731,15 @@ public class TVPlayerManager {
      * @param mode 解码器模式
      *             - DECODER_MODE_AUTO：自动模式（推荐）
      *             - DECODER_MODE_HARD：强制硬解
-     *             - DECODER_MODE_SOFT：强制软解（FFmpeg）
+     *             - DECODER_MODE_SOFT：软解优先（系统自带）
      *
      * 【功能】
      * 切换解码器模式后，会重新创建播放器，
      * 并重新加载当前频道，立即生效。
      *
      * 【为什么要重新创建播放器？】
-     * 因为渲染器工厂的扩展模式只能在创建播放器时设置，
+     * 因为 MediaCodecSelector 只能在创建播放器时设置，
      * 播放器创建后不能动态修改，所以必须重新创建。
-     *
-     * 【调用场景】
-     * 1. 用户在设置页面手动切换解码器模式
-     * 2. 自动切换解码器（硬解卡顿自动切软解）
-     * 3. 应用启动时读取设置初始化
      */
     public void setDecoderMode(int mode) {
         // 如果模式没变，不做任何操作
@@ -974,7 +753,7 @@ public class TVPlayerManager {
                 decoderType = "系统硬解码（强制）";
                 break;
             case DECODER_MODE_SOFT:
-                decoderType = "FFmpeg 软解码（强制）";
+                decoderType = "系统软解码（优先）";
                 break;
             case DECODER_MODE_AUTO:
             default:
@@ -1018,7 +797,7 @@ public class TVPlayerManager {
      * @return 当前解码器模式
      *         - DECODER_MODE_AUTO：自动模式
      *         - DECODER_MODE_HARD：强制硬解
-     *         - DECODER_MODE_SOFT：强制软解
+     *         - DECODER_MODE_SOFT：软解优先
      */
     public int getDecoderMode() {
         return mDecoderMode;
@@ -1032,11 +811,6 @@ public class TVPlayerManager {
      * 内部调用 setDecoderMode()，保持向后兼容。
      * - useSoftware=true → DECODER_MODE_SOFT
      * - useSoftware=false → DECODER_MODE_AUTO（自动模式，硬解优先）
-     *
-     * 【为什么 false 对应 AUTO 而不是 HARD？】
-     * 因为原来的 useSoftware=false 行为是"硬解优先，FFmpeg 备用"，
-     * 这和新的 AUTO 模式行为一致，而不是 HARD 模式（完全不用 FFmpeg）。
-     * 这样可以保证旧代码的行为不变。
      *
      * @deprecated 请使用 setDecoderMode(int) 替代
      */
@@ -1130,20 +904,6 @@ public class TVPlayerManager {
     /**
      * 播放指定URL（对外接口）
      * 切换频道时调用，重置重试计数和解码器状态
-     *
-     * 【2026-06-24 修改：切换频道时取消旧重试任务】
-     * 【修改说明】
-     * 切换到新频道前，先调用 cancelRetry() 取消旧频道的重试任务，
-     * 避免旧频道的延迟重试干扰新频道的播放。
-     *
-     * 【2026-06-25 修改：切换频道时重置解码器状态 + 操作日志】
-     * 【修改说明】
-     * 每个频道都有独立的解码策略判断：
-     * 1. 重置 hasSwitchedDecoder（每个频道都可以自动切一次）
-     * 2. 重置 initialPlayStartTime（重新计时）
-     * 3. 重置性能统计
-     * 4. 用户选择的硬解/软解模式保持不变
-     * 5. 切换频道时记录操作日志
      */
     public void playUrl(String url) {
         // 切换频道，先取消之前的重试任务
@@ -1182,11 +942,7 @@ public class TVPlayerManager {
     /**
      * ✅ 内部播放方法
      *
-     * 【优化3】换回 DefaultHttpDataSource
-     * 自定义的 RedirectLoggingHttpDataSource 可能有bug，先换回官方的稳定版
-     * 如果需要看重定向日志，可以再切回去
-     *
-     * 【优化4】切台保持最后一帧
+     * 【优化】切台保持最后一帧
      * 去掉 player.stop() 和 player.clearMediaItems()
      * 直接用 setMediaSource 切换，旧画面会保留到新画面出来
      * 这样就完全避免了切台黑屏的问题
@@ -1196,33 +952,7 @@ public class TVPlayerManager {
             if (player == null || url == null || url.trim().isEmpty()) return;
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
-            // ====================================================================
-            // ✅ 关键修改：去掉 player.stop() 和 player.clearMediaItems()
-            // ====================================================================
-            /**
-             * 【为什么去掉 stop() 就能保持最后一帧？】
-             *
-             * 调用 player.stop() 会立刻清空渲染器的画面，导致黑屏。
-             * 直接调用 setMediaSource() + prepare()，旧画面会保留到新画面渲染出来。
-             *
-             * 用户看到的效果：旧画面静止不动 → 新画面突然出现
-             * 而不是：黑屏 → 新画面出现
-             *
-             * 这样就完全避免了切台黑屏的问题。
-             *
-             * 【为什么去掉 clearMediaItems()？】
-             * setMediaSource(mediaSource, true) 会自动替换所有媒体源，
-             * 不需要先 clear 再 set。
-             *
-             * 【第二个参数 true 是什么意思？】
-             * setMediaSource(mediaSource, resetPosition = true)
-             * true = 重置播放位置到开头（直播流必须用 true）
-             * false = 保持当前播放位置（点播连播时用 false）
-             */
-            // player.stop();          // 注释掉，保持最后一帧
-            // player.clearMediaItems(); // 注释掉，保持最后一帧
             // ===== 创建数据源（带重定向日志版） =====
-            // 每一次重定向都会打印详细日志，方便调试直播源
             RedirectLoggingHttpDataSource.Factory httpFactory =
                     new RedirectLoggingHttpDataSource.Factory();
             httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
@@ -1231,8 +961,6 @@ public class TVPlayerManager {
             // ====================================================================
             // MediaSource 类型改成 Media3 的
             // ====================================================================
-            // 从 com.google.android.exoplayer2.source.MediaSource
-            // 改成 androidx.media3.exoplayer.source.MediaSource
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
@@ -1268,8 +996,6 @@ public class TVPlayerManager {
             // ====================================================================
             // AspectRatioFrameLayout 包名改成 Media3 的
             // ====================================================================
-            // 从 com.google.android.exoplayer2.ui.AspectRatioFrame
-                    // 改成 androidx.media3.ui.AspectRatioFrameLayout
             switch (mode) {
                 case FIT:
                     playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
@@ -1393,10 +1119,6 @@ public class TVPlayerManager {
     }
     /**
      * 源失效监听器
-     * 【作用】
-     * 重试次数用完后，回调这个监听器，
-     * 通知外部这个源失效了，让外部自动切台。
-     *
      * 【2026-06-25 新增】
      */
     public interface OnSourceFailedListener {
@@ -1450,163 +1172,82 @@ public class TVPlayerManager {
         }
     }
     // ====================================================================
-    // ✅ 自定义渲染器工厂（2026-06-26 新增，v4 版本：实现 RenderersFactory 接口）
+    // ✅ 自定义 MediaCodecSelector（2026-06-26 新增，系统软解方案核心）
     // ====================================================================
     /**
-     * 自定义渲染器工厂
+     * 自定义 MediaCodec 选择器
      *
-     * 【为什么需要这个？】
-     * Media3 的 DefaultRenderersFactory 默认不会加载实验性渲染器
-     * （ExperimentalFfmpegVideoRenderer），导致软解模式下视频还是硬解。
-     * 我们实现 RenderersFactory 接口，内部包装 DefaultRenderersFactory，
-     * 在 createRenderers 方法中手动把实验性 FFmpeg 视频渲染器加进去。
+     * 【作用】
+     * 通过调整解码器列表的顺序，实现软解优先或强制硬解。
      *
-     * 【v4 改进】
-     * 不继承 DefaultRenderersFactory（避免父类方法是 final 的无法重写），
-     * 改为直接实现 RenderersFactory 接口，内部用代理模式包装
-     * DefaultRenderersFactory，完全可控，不会因为父类实现变化而出错。
+     * 【三种模式】
+     * 1. DECODER_MODE_AUTO（自动）：系统默认顺序（硬解优先）
+     * 2. DECODER_MODE_HARD（强制硬解）：只保留硬件解码器
+     * 3. DECODER_MODE_SOFT（软解优先）：软件解码器排在前面，硬件解码器排在后面
+     *
+     * 【软件解码器识别规则】
+     * 名称以 OMX.google. 或 c2.android. 开头的是软件解码器
+     *
+     * 【为什么不用 FFmpeg 了？】
+     * FFmpeg 扩展编译复杂、集成麻烦，而且 Media3 的 decoder_ffmpeg
+     * 模块默认只支持音频，视频需要手动编译和加载实验性渲染器。
+     * 系统自带的软件解码器虽然性能不如 FFmpeg，但胜在稳定、
+     * 无需额外依赖、集成简单。
      */
-    private static class FfmpegRenderersFactory implements RenderersFactory {
-        private static final String TAG = "FfmpegRenderersFactory";
-
-        private final DefaultRenderersFactory delegate;
-        private final Context context;
-        private int extensionRendererMode = DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF;
-
-        public FfmpegRenderersFactory(Context context) {
-            this.context = context;
-            this.delegate = new DefaultRenderersFactory(context);
+    private static class SoftwareFirstMediaCodecSelector implements MediaCodecSelector {
+        private final int decoderMode;
+        public SoftwareFirstMediaCodecSelector(int mode) {
+            this.decoderMode = mode;
         }
-
-        /**
-         * 设置扩展渲染器模式
-         */
-        public void setExtensionRendererMode(int mode) {
-            this.extensionRendererMode = mode;
-            delegate.setExtensionRendererMode(mode);
-        }
-
-        /**
-         * 设置是否启用解码器降级
-         */
-        public void setEnableDecoderFallback(boolean enable) {
-            delegate.setEnableDecoderFallback(enable);
-        }
-
         @Override
-        public Renderer[] createRenderers(
-                Handler eventHandler,
-                VideoRendererEventListener videoRendererEventListener,
-                androidx.media3.exoplayer.audio.AudioRendererEventListener audioRendererEventListener,
-                androidx.media3.exoplayer.text.TextOutput textRendererOutput,
-                androidx.media3.exoplayer.metadata.MetadataOutput metadataRendererOutput) {
-
-            // 先调用默认的工厂创建渲染器数组（系统硬解等）
-            Renderer[] renderers = delegate.createRenderers(
-                    eventHandler,
-                    videoRendererEventListener,
-                    audioRendererEventListener,
-                    textRendererOutput,
-                    metadataRendererOutput);
-
-            // 如果是 PREFER 模式或 ON 模式，尝试手动添加 ExperimentalFfmpegVideoRenderer
-            if (extensionRendererMode == DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
-                    || extensionRendererMode == DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON) {
-                try {
-                    // 加载 ExperimentalFfmpegVideoRenderer 类
-                    Class<?> rendererClass = Class.forName(
-                            "androidx.media3.decoder.ffmpeg.ExperimentalFfmpegVideoRenderer");
-
-                    Log.d(TAG, "✅ 找到 ExperimentalFfmpegVideoRenderer 类");
-
-                    // 获取所有构造函数
-                    Constructor<?>[] constructors = rendererClass.getConstructors();
-                    Log.d(TAG, "构造函数数量：" + constructors.length);
-                    SettingsActivity.logOperation("【解码器】找到 " + constructors.length 
-                            + " 个构造函数");
-
-                    if (constructors.length == 0) {
-                        Log.e(TAG, "❌ 没有找到公开的构造函数");
-                        SettingsActivity.logOperation("【解码器】❌ 没有找到公开构造函数");
-                        return renderers;
-                    }
-
-                    // 打印第一个构造函数的详细参数到操作日志
-                    Constructor<?> firstConstructor = constructors[0];
-                    Class<?>[] paramTypes = firstConstructor.getParameterTypes();
-                    StringBuilder paramLog = new StringBuilder();
-                    paramLog.append("【解码器】构造函数参数：");
-                    for (int i = 0; i < paramTypes.length; i++) {
-                        if (i > 0) paramLog.append(", ");
-                        paramLog.append(paramTypes[i].getSimpleName());
-                    }
-                    Log.d(TAG, paramLog.toString());
-                    SettingsActivity.logOperation(paramLog.toString());
-
+        public List<MediaCodecInfo> getDecoderInfos(
+                String mimeType,
+                boolean requiresSecureDecoder,
+                boolean requiresTunnelingDecoder) 
+                throws MediaCodecUtil.DecoderQueryException {
+            // 获取系统默认的解码器列表
+            List<MediaCodecInfo> allCodecs = MediaCodecUtil.getDecoderInfos(
+                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
+            if (allCodecs == null || allCodecs.isEmpty()) {
+                return allCodecs;
+            }
+            switch (decoderMode) {
+                case DECODER_MODE_HARD:
                     // ================================================================
-                    // ✅ 智能匹配构造函数参数
+                    // 强制硬解：只保留硬件解码器
                     // ================================================================
-                    Object[] args = new Object[paramTypes.length];
-                    for (int i = 0; i < paramTypes.length; i++) {
-                        String typeName = paramTypes[i].getName();
-                        
-                        if (typeName.equals("android.os.Handler") 
-                                || typeName.equals("Handler")) {
-                            args[i] = eventHandler;
-                        } else if (typeName.contains("VideoRendererEventListener")) {
-                            args[i] = videoRendererEventListener;
-                        } else if (typeName.equals("long")) {
-                            args[i] = 5000L; // allowedVideoJoiningTimeMs 默认值
-                        } else if (typeName.equals("int")) {
-                            args[i] = 0;
-                        } else if (typeName.equals("boolean")) {
-                            args[i] = false;
-                        } else if (typeName.equals("android.content.Context")
-                                || typeName.equals("Context")) {
-                            args[i] = context;
-                        } else if (typeName.equals("float")) {
-                            args[i] = 0f;
-                        } else {
-                            args[i] = null;
-                            Log.d(TAG, "  ⚠️ 未知参数类型：" + typeName + "，传 null");
+                    List<MediaCodecInfo> hardCodecs = new ArrayList<>();
+                    for (MediaCodecInfo codec : allCodecs) {
+                        if (!isSoftwareDecoder(codec.getName())) {
+                            hardCodecs.add(codec);
                         }
                     }
-
-                    // 尝试创建实例
-                    Renderer renderer = (Renderer) firstConstructor.newInstance(args);
-
-                    // 创建新的数组，把 FFmpeg 渲染器加进去
-                    Renderer[] newRenderers = new Renderer[renderers.length + 1];
-
-                    if (extensionRendererMode == DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER) {
-                        // PREFER 模式：插到最前面，优先使用 FFmpeg 软解
-                        newRenderers[0] = renderer;
-                        System.arraycopy(renderers, 0, newRenderers, 1, renderers.length);
-                        Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（优先模式）");
-                        SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（优先模式）");
-                    } else {
-                        // ON 模式：加到最后，作为备用方案
-                        System.arraycopy(renderers, 0, newRenderers, 0, renderers.length);
-                        newRenderers[renderers.length] = renderer;
-                        Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（备用模式）");
-                        SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（备用模式）");
+                    return hardCodecs;
+                case DECODER_MODE_SOFT:
+                    // ================================================================
+                    // 软解优先：软件解码器排在前面，硬件解码器排在后面
+                    // ================================================================
+                    List<MediaCodecInfo> softCodecs = new ArrayList<>();
+                    List<MediaCodecInfo> hardCodecs2 = new ArrayList<>();
+                    for (MediaCodecInfo codec : allCodecs) {
+                        if (isSoftwareDecoder(codec.getName())) {
+                            softCodecs.add(codec);
+                        } else {
+                            hardCodecs2.add(codec);
+                        }
                     }
-
-                    return newRenderers;
-
-                } catch (ClassNotFoundException e) {
-                    Log.e(TAG, "❌ ExperimentalFfmpegVideoRenderer 类不存在", e);
-                    SettingsActivity.logOperation("【解码器】❌ FFmpeg 视频渲染器类不存在");
-                } catch (Exception e) {
-                    Log.e(TAG, "❌ 创建 ExperimentalFfmpegVideoRenderer 失败", e);
-                    SettingsActivity.logOperation("【解码器】❌ 创建失败：" + e.getMessage());
-                    if (e.getCause() != null) {
-                        SettingsActivity.logOperation("【解码器】原因：" + e.getCause().getMessage());
-                    }
-                }
+                    // 合并：软解在前，硬解在后
+                    List<MediaCodecInfo> result = new ArrayList<>();
+                    result.addAll(softCodecs);
+                    result.addAll(hardCodecs2);
+                    return result;
+                case DECODER_MODE_AUTO:
+                default:
+                    // ================================================================
+                    // 自动模式：系统默认顺序（硬解优先）
+                    // ================================================================
+                    return allCodecs;
             }
-
-            return renderers;
         }
     }
 }
