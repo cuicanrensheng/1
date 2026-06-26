@@ -19,10 +19,13 @@ import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.Renderer;
+import androidx.media3.exoplayer.analytics.AnalyticsListener;
+import androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.exoplayer.util.EventLogger;
 import androidx.media3.exoplayer.video.VideoRendererEventListener;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
@@ -105,6 +108,14 @@ import java.util.Map;
  * 自定义 FfmpegRenderersFactory，继承 DefaultRenderersFactory，
  * 重写 buildVideoRenderers() 方法，手动把 ExperimentalFfmpegVideoRenderer
  * 加到渲染器列表里。
+ *
+ * 【2026-06-26 新增：准确的解码器检测】
+ * 【问题】
+ * 原来用 videoFormat.sampleMimeType 判断解码器，这是错的！
+ * sampleMimeType 是视频格式（如 video/avc），不是解码器名称。
+ * 【解决方案】
+ * 用 AnalyticsListener.onVideoDecoderInitialized 回调获取真实解码器名称。
+ * 同时添加 EventLogger 方便在 logcat 中查看完整的播放器事件。
  */
 public class TVPlayerManager {
     // ====================== 常量 ======================
@@ -404,6 +415,10 @@ public class TVPlayerManager {
      * 原来用 DefaultRenderersFactory，它不会自动加载实验性的
      * ExperimentalFfmpegVideoRenderer。
      * 现在改用自定义的 FfmpegRenderersFactory，手动添加实验性视频渲染器。
+     *
+     * 【2026-06-26 新增：准确的解码器检测】
+     * 添加 EventLogger（打印所有事件到 logcat）和自定义 AnalyticsListener
+     * （把真实解码器名称写到操作日志）。
      */
     private void initPlayer() {
         // ====================================================================
@@ -622,6 +637,45 @@ public class TVPlayerManager {
             Log.e(TAG, "【解码器】检测 FFmpeg 失败：" + e.getMessage(), e);
             SettingsActivity.logOperation("【解码器】检测 FFmpeg 失败：" + e.getMessage());
         }
+        // ====================================================================
+        // ✅ 方案一：添加 EventLogger（自动打印所有事件到 logcat）
+        // ====================================================================
+        // 官方提供的调试工具，会自动打印所有播放器事件，
+        // 包括解码器初始化、缓冲状态、播放状态等。
+        // 在 logcat 中搜索 "EventLogger" 或 "videoDecoderInitialized" 即可查看。
+        player.addAnalyticsListener(new EventLogger());
+        // ====================================================================
+        // ✅ 方案二：自定义 AnalyticsListener（把真实解码器名称写到操作日志）
+        // ====================================================================
+        // 【为什么不用 videoFormat.sampleMimeType？】
+        // 因为 sampleMimeType 是视频格式（如 video/avc），不是解码器名称。
+        // 用 AnalyticsListener.onVideoDecoderInitialized 才能拿到真实解码器名。
+        // 【效果】
+        // 操作日志里会显示：【解码器】真实解码器：FFmpeg 软解（ffmpeg-video）
+        // 或者：【解码器】真实解码器：系统硬解（OMX.qcom.video.decoder.avc）
+        player.addAnalyticsListener(new AnalyticsListener() {
+            @Override
+            public void onVideoDecoderInitialized(EventTime eventTime, String decoderName) {
+                Log.d(TAG, "【解码器】真实解码器名称：" + decoderName);
+                boolean isFfmpeg = decoderName != null 
+                        && decoderName.toLowerCase().contains("ffmpeg");
+                String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
+                SettingsActivity.logOperation("【解码器】真实解码器：" + decoderType 
+                        + "（" + decoderName + "）");
+                
+                // 软解模式下检查是否真的用了 FFmpeg
+                if (mDecoderMode == DECODER_MODE_SOFT && !isFfmpeg) {
+                    Log.w(TAG, "【解码器】⚠️ 警告：软解模式未生效");
+                    SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效");
+                }
+                
+                // 硬解模式下检查是否真的用了硬解
+                if (mDecoderMode == DECODER_MODE_HARD && isFfmpeg) {
+                    Log.w(TAG, "【解码器】⚠️ 警告：硬解模式未生效");
+                    SettingsActivity.logOperation("【解码器】⚠️ 警告：硬解模式未生效");
+                }
+            }
+        });
         // 初始化播放监听器
         initPlayerListener();
         // 初始化Cookie管理器
@@ -654,55 +708,6 @@ public class TVPlayerManager {
                     isRetrying = false;
                     // 开始卡住检测
                     startStuckDetection();
-                    // ====================================================================
-                    // 打印当前使用的解码器信息
-                    // ====================================================================
-                    // 【作用】
-                    // 方便调试，看看当前用的是硬解码还是 FFmpeg 软解
-                    // 可以从 videoFormat 的名称里看出来
-                    try {
-                        Format videoFormat = player.getVideoFormat();
-                        if (videoFormat != null) {
-                            String decoderName = videoFormat.sampleMimeType;
-                            boolean isFfmpeg = decoderName != null
-                                    && decoderName.toLowerCase().contains("ffmpeg");
-                            String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
-                            Log.d(TAG, "【解码器】当前视频解码器：" + decoderName
-                                    + "（" + decoderType + "）");
-                            SettingsActivity.logOperation("【解码器】当前使用：" + decoderType
-                                    + "（" + decoderName + "）");
-                            // ================================================================
-                            // ✅ 2026-06-25 新增：软解模式未生效警告
-                            // ================================================================
-                            // 【作用】
-                            // 如果用户设置了软解模式，但实际播放用的还是系统硬解，
-                            // 就输出警告日志，让用户知道软解没有生效。
-                            //
-                            // 【为什么会出现这种情况？】
-                            // 1. FFmpeg 扩展未正确加载（最常见）
-                            // 2. FFmpeg 不支持该视频格式
-                            // 3. 解码器降级导致静默切换（虽然我们已经关闭了降级，但保险起见还是加上）
-                            //
-                            // 【用户看到这个警告怎么办？】
-                            // 检查 FFmpeg AAR 是否正确导入、so 库是否包含设备架构、
-                            // Media3 版本和 FFmpeg 版本是否匹配。
-                            if (mDecoderMode == DECODER_MODE_SOFT && !isFfmpeg) {
-                                Log.w(TAG, "【解码器】⚠️ 警告：设置了软解模式，但实际使用的是系统硬解！");
-                                Log.w(TAG, "【解码器】可能原因：FFmpeg 扩展未加载 / 不支持该格式 / 解码器降级");
-                                SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效，实际使用系统硬解");
-                            }
-                            // ================================================================
-                            // ✅ 2026-06-25 新增：硬解模式未生效警告
-                            // ================================================================
-                            // 同理，如果设置了硬解模式，但实际用了 FFmpeg，也给出警告
-                            if (mDecoderMode == DECODER_MODE_HARD && isFfmpeg) {
-                                Log.w(TAG, "【解码器】⚠️ 警告：设置了硬解模式，但实际使用的是 FFmpeg 软解！");
-                                SettingsActivity.logOperation("【解码器】⚠️ 警告：硬解模式未生效，实际使用 FFmpeg 软解");
-                            }
-                        }
-                    } catch (Exception e) {
-                        // 忽略，获取解码器信息失败不影响播放
-                    }
                     // ====================================================================
                     // 只在第一次 STATE_READY 时记录开始时间
                     // ====================================================================
@@ -1280,7 +1285,7 @@ public class TVPlayerManager {
             Log.e(TAG, "设置缩放模式异常", e);
         }
     }
-        // ====================================================================
+    // ====================================================================
     // 频道号显示
     // ====================================================================
     /**
@@ -1298,9 +1303,8 @@ public class TVPlayerManager {
     /**
      * 显示频道号并自动隐藏
      */
-  
     private void showChannelAndAutoHide() {
-        if (channelNumberTextView != null && currentChannelNumber > 0) {
+                if (channelNumberTextView != null && currentChannelNumber > 0) {
             channelNumberTextView.setText(String.valueOf(currentChannelNumber));
             channelNumberTextView.setVisibility(View.VISIBLE);
             // 取消之前的隐藏任务
@@ -1445,7 +1449,7 @@ public class TVPlayerManager {
             Log.e(TAG, "释放异常", e);
         }
     }
-        // ====================================================================
+    // ====================================================================
     // ✅ 自定义渲染器工厂（2026-06-26 新增，v2 版本）
     // ====================================================================
     /**
@@ -1590,3 +1594,4 @@ public class TVPlayerManager {
         }
     }
 }
+       
