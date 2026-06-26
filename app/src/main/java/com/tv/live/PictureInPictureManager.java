@@ -1,4 +1,5 @@
 package com.tv.live;
+
 import android.app.Activity;
 import android.app.PictureInPictureParams;
 import android.content.Context;
@@ -8,10 +9,14 @@ import android.util.DisplayMetrics;
 import android.util.Rational;
 import android.view.View;
 import android.view.ViewGroup;
+
 import androidx.media3.ui.PlayerView;
+
 import com.tv.live.manager.ChannelPanelController;
 import com.tv.live.manager.InfoDisplayManager;
+
 import java.util.List;
+
 /**
  * 画中画(PIP)核心管理器
  * 作用：统一管理画中画的初始化、开关、状态回调、兼容性判断、生命周期处理
@@ -28,109 +33,164 @@ import java.util.List;
  * 把 MainActivity 中剩余的画中画辅助方法全部合并到这里，
  * 包括：恢复播放、构建画中画参数、进入画中画便捷方法。
  * MainActivity 只保留生命周期回调，画中画逻辑全部集中在此。
+ *
+ * 【2026-06-26 增强：合并画中画排查日志】
+ * 【修改说明】
+ * 把 MainActivity.onUserLeaveHint() 中的画中画排查日志合并到这里，
+ * 新增 debugLogEnabled 开关，统一管理调试日志输出。
+ * MainActivity 只需一行调用，排查日志由管理器自己输出。
  */
 public class PictureInPictureManager {
+
     private static final String LOG_PREFIX = "【画中画】";
+    private static final String DEBUG_PREFIX = "【画中画排查】";
+
     private static PictureInPictureManager instance;
     private final Context appContext;
+
     private boolean pipEnabled = false;
     private boolean isInPipMode = false;
     private boolean isPipEntering = false;
     private boolean onStopCalled = false;
+
+    // ✅ 2026-06-26 新增：调试日志开关
+    private boolean debugLogEnabled = true;
+
     private OnPipListener listener;
+
     public static PictureInPictureManager getInstance(Context context) {
         if (instance == null) {
             instance = new PictureInPictureManager(context.getApplicationContext());
         }
         return instance;
     }
+
     private PictureInPictureManager(Context context) {
         this.appContext = context;
     }
+
     public interface OnPipListener {
         void onPipModeChanged(boolean inPip);
     }
+
+    // ====================================================================
+    // ✅ 2026-06-26 新增：调试日志开关控制
+    // ====================================================================
+    /**
+     * 设置调试日志开关
+     *
+     * 【作用】
+     * 控制是否输出详细的画中画排查日志。
+     * 开启后会在进入画中画的各个环节输出详细状态，便于排查问题。
+     *
+     * @param enabled true=开启调试日志，false=关闭
+     */
+    public void setDebugLogEnabled(boolean enabled) {
+        this.debugLogEnabled = enabled;
+        logDebug("调试日志：" + (enabled ? "✅ 已开启" : "❌ 已关闭"));
+    }
+
+    /**
+     * 输出调试日志（只有开启时才输出）
+     */
+    private void logDebug(String msg) {
+        if (!debugLogEnabled) return;
+        try {
+            SettingsActivity.logOperation(DEBUG_PREFIX + msg);
+        } catch (Exception e) {
+        }
+    }
+
     public boolean isPipSupported() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O;
     }
+
     public void setPipEnabled(boolean enabled) {
         this.pipEnabled = enabled;
         log("开关设置：" + (enabled ? "✅ 开启" : "❌ 关闭"));
     }
+
     public boolean isPipEnabled() {
         return pipEnabled;
     }
+
     public boolean isInPipMode() {
         return isInPipMode;
     }
+
     public boolean isPipEntering() {
         return isPipEntering;
     }
+
     public void setPipEntering(boolean entering) {
         this.isPipEntering = entering;
         log("设置正在进入标记：" + entering);
     }
+
     public void setStopCalled(boolean stopCalled) {
         this.onStopCalled = stopCalled;
         log("设置onStop标记：" + stopCalled);
     }
+
     public boolean isStopCalled() {
         return onStopCalled;
     }
+
     public void setListener(OnPipListener listener) {
         this.listener = listener;
     }
+
     public boolean shouldEnterPip(boolean isExternalPlayer) {
-        log("========== 进入条件检查 ==========");
+        logDebug("========== 开始 ==========");
+        logDebug("shouldEnterPip 被调用");
+
         if (!isPipSupported()) {
-            log("❌ 不满足：设备不支持画中画（API < 26）");
-            log("================================");
+            logDebug("❌ 不满足：设备不支持画中画（API < 26）");
+            logDebug("========== 结束 ==========");
             return false;
         }
-        log("✅ 满足：设备支持画中画");
+        logDebug("✅ 满足：设备支持画中画");
+
         if (!pipEnabled) {
-            log("❌ 不满足：画中画开关未开启");
-            log("================================");
+            logDebug("❌ 不满足：画中画开关未开启");
+            logDebug("========== 结束 ==========");
             return false;
         }
-        log("✅ 满足：画中画开关已开启");
+        logDebug("✅ 满足：画中画开关已开启");
+
         if (isInPipMode) {
-            log("❌ 不满足：已在画中画模式");
-            log("================================");
+            logDebug("❌ 不满足：已在画中画模式");
+            logDebug("========== 结束 ==========");
             return false;
         }
-        log("✅ 满足：不在画中画模式");
+        logDebug("✅ 满足：不在画中画模式");
+
         if (isPipEntering) {
-            log("❌ 不满足：正在进入画中画中");
-            log("================================");
+            logDebug("❌ 不满足：正在进入画中画中");
+            logDebug("========== 结束 ==========");
             return false;
         }
-        log("✅ 满足：没有正在进入");
+        logDebug("✅ 满足：没有正在进入");
+
         if (isExternalPlayer) {
-            log("❌ 不满足：当前是外部播放器");
-            log("================================");
+            logDebug("❌ 不满足：当前是外部播放器");
+            logDebug("========== 结束 ==========");
             return false;
         }
-        log("✅ 满足：不是外部播放器");
-        log("✅ 所有条件满足，可以进入画中画");
-        log("================================");
+        logDebug("✅ 满足：不是外部播放器");
+
+        logDebug("✅ 所有条件满足，可以进入画中画");
+        logDebug("========== 结束 ==========");
         return true;
     }
+
     public boolean shouldEnterPip() {
         return shouldEnterPip(false);
     }
+
     // ====================================================================
     // ✅ 2026-06-26 新增：构建默认画中画参数（16:9）
     // ====================================================================
-    /**
-     * 构建默认的画中画参数（16:9 比例）
-     *
-     * 【为什么抽离到这里？】
-     * 原来在 MainActivity.onUserLeaveHint() 里，
-     * 现在统一放到画中画管理器中，MainActivity 直接调用。
-     *
-     * @return PictureInPictureParams 对象，不支持时返回 null
-     */
     public PictureInPictureParams buildDefaultPipParams() {
         if (!isPipSupported()) {
             return null;
@@ -147,31 +207,73 @@ public class PictureInPictureManager {
         }
         return null;
     }
+
     // ====================================================================
-    // ✅ 2026-06-26 新增：便捷进入画中画方法
+    // ✅ 2026-06-26 新增：便捷进入画中画方法（含详细排查日志）
     // ====================================================================
     /**
-     * 便捷进入画中画（使用默认 16:9 参数）
+     * 便捷进入画中画（使用默认 16:9 参数，含详细排查日志）
      *
      * 【为什么抽离到这里？】
-     * 封装进入画中画的完整流程，MainActivity 一行调用即可。
+     * 封装进入画中画的完整流程，包括详细的状态排查日志。
+     * MainActivity 只需一行调用，排查日志由管理器自己输出。
      *
      * @param activity      当前 Activity
      * @param playerManager 播放器管理器（用于更新播放状态）
+     * @param mainSwitch    MainActivity 中的开关状态（用于排查日志对比）
      * @return true=进入成功，false=进入失败
      */
+    public boolean enterPip(Activity activity, TVPlayerManager playerManager, boolean mainSwitch) {
+        logDebug("========== 开始 ==========");
+        logDebug("onUserLeaveHint 被调用");
+
+        if (activity == null) {
+            logDebug("❌ Activity 为 null");
+            logDebug("========== 结束 ==========");
+            return false;
+        }
+
+        // 输出 MainActivity 和 PIP管理器的开关状态对比
+        logDebug("MainActivity开关状态：" + mainSwitch);
+        logDebug("设备支持：" + isPipSupported());
+        logDebug("PIP管理器开关：" + isPipEnabled());
+        logDebug("已在画中画模式：" + isInPipMode());
+        logDebug("正在进入画中画：" + isPipEntering());
+
+        boolean shouldEnter = shouldEnterPip();
+        if (shouldEnter) {
+            logDebug("所有条件满足，尝试进入画中画...");
+            boolean result = enterPipInternal(activity, playerManager);
+            logDebug("进入结果：" + (result ? "✅ 成功" : "❌ 失败"));
+            logDebug("========== 结束 ==========");
+            return result;
+        } else {
+            logDebug("❌ 条件不满足，不进入画中画");
+            logDebug("========== 结束 ==========");
+            return false;
+        }
+    }
+
+    /**
+     * 便捷进入画中画（简化版，不传 mainSwitch）
+     */
     public boolean enterPip(Activity activity, TVPlayerManager playerManager) {
+        return enterPip(activity, playerManager, pipEnabled);
+    }
+
+    /**
+     * 内部进入画中画方法（不含排查日志，由 enterPip() 调用）
+     */
+    private boolean enterPipInternal(Activity activity, TVPlayerManager playerManager) {
         log("========== 便捷进入画中画 ==========");
         if (!shouldEnterPip()) {
             log("❌ 条件不满足，不进入画中画");
             return false;
         }
         try {
-            // 更新播放状态
             if (playerManager != null) {
                 updatePlayState(true);
             }
-            // 构建默认参数并进入
             PictureInPictureParams params = buildDefaultPipParams();
             boolean result = enterPictureInPicture(activity, params);
             log("进入结果：" + (result ? "✅ 成功" : "❌ 失败"));
@@ -181,6 +283,7 @@ public class PictureInPictureManager {
         }
         return false;
     }
+
     public boolean enterPictureInPicture(Activity activity, PictureInPictureParams params) {
         log("========== 尝试进入画中画 ==========");
         if (!isPipSupported()) {
@@ -214,6 +317,7 @@ public class PictureInPictureManager {
         }
         return false;
     }
+
     public void handleOnPause(Runnable resumeAction, Runnable pauseAction) {
         log("========== onPause 处理 ==========");
         log("当前状态：isInPipMode=" + isInPipMode + "，isPipEntering=" + isPipEntering);
@@ -247,9 +351,11 @@ public class PictureInPictureManager {
         }
         log("================================");
     }
+
     public void handleOnPause(Runnable resumeAction) {
         handleOnPause(resumeAction, null);
     }
+
     public void onPipModeChanged(Activity activity, boolean isInPip) {
         log("========== 模式变化回调 ==========");
         log("新模式：" + (isInPip ? "✅ 进入画中画" : "❌ 退出画中画"));
@@ -266,6 +372,7 @@ public class PictureInPictureManager {
         }
         log("================================");
     }
+
     public void handleExitPip(Runnable releaseAction) {
         log("========== 退出画中画处理 ==========");
         log("onStopCalled = " + onStopCalled);
@@ -290,25 +397,18 @@ public class PictureInPictureManager {
         log("重置 onStopCalled = false");
         log("================================");
     }
+
     public void updatePlayState(boolean isPlaying) {
         log("更新播放状态：" + (isPlaying ? "▶ 播放中" : "⏸ 已暂停"));
     }
+
     public void updateChannelInfo(int num, String name, String bitrate) {
         log("更新频道信息：" + num + " - " + name + " - " + bitrate);
     }
+
     // ====================================================================
     // ✅ 2026-06-25 新增：隐藏画中画模式下的所有UI
     // ====================================================================
-    /**
-     * 画中画模式下隐藏所有 UI
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity 里，现在统一放到画中画管理器里，
-     * 逻辑更集中，MainActivity 更清爽。
-     *
-     * @param channelPanelController 频道面板控制器
-     * @param infoDisplayManager     信息展示管理器
-     */
     public void hideAllUi(ChannelPanelController channelPanelController,
                           InfoDisplayManager infoDisplayManager) {
         log("========== 隐藏所有UI（画中画模式） ==========");
@@ -327,25 +427,10 @@ public class PictureInPictureManager {
         }
         log("================================");
     }
+
     // ====================================================================
     // ✅ 2026-06-25 新增：画中画模式下保持播放
     // ====================================================================
-    /**
-     * 画中画模式下保持播放（三重保险）
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity 里，现在统一放到画中画管理器里。
-     *
-     * 【三重保险机制】
-     * 1. 直接调用 resume() 恢复播放
-     * 2. 重新绑定 PlayerView 后再次 resume()
-     * 3. 兜底：重新加载当前频道
-     *
-     * @param playerManager      播放器管理器
-     * @param playerView         播放器视图
-     * @param channelSourceList  频道列表
-     * @param currentPlayIndex   当前播放索引
-     */
     public void keepPlaying(TVPlayerManager playerManager,
                             PlayerView playerView,
                             List<Channel> channelSourceList,
@@ -379,18 +464,10 @@ public class PictureInPictureManager {
         }
         log("================================");
     }
+
     // ====================================================================
     // ✅ 2026-06-26 新增：恢复播放（简单版）
     // ====================================================================
-    /**
-     * 恢复播放（简单版，仅调用 resume）
-     *
-     * 【为什么抽离到这里？】
-     * 原来在 MainActivity.resumeCurrentChannel() 里，
-     * 现在统一放到画中画管理器中。
-     *
-     * @param playerManager 播放器管理器
-     */
     public void resumePlayback(TVPlayerManager playerManager) {
         try {
             if (playerManager != null) {
@@ -401,19 +478,10 @@ public class PictureInPictureManager {
             log("❌ 恢复播放失败：" + e.getMessage());
         }
     }
+
     // ====================================================================
     // ✅ 2026-06-25 新增：打印 View 的详细尺寸信息（调试用）
     // ====================================================================
-    /**
-     * 打印 View 的详细尺寸信息（用于画中画调试）
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity 里，现在统一放到画中画管理器里，
-     * 作为调试工具方法。
-     *
-     * @param tag  日志标签
-     * @param view 要打印的 View
-     */
     public void logViewSize(String tag, View view) {
         if (view == null) {
             log("尺寸】" + tag + "：View 为 null");
@@ -445,18 +513,10 @@ public class PictureInPictureManager {
             log("尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
         }
     }
+
     // ====================================================================
     // ✅ 2026-06-25 新增：打印窗口和屏幕尺寸（调试用）
     // ====================================================================
-    /**
-     * 打印窗口和屏幕尺寸信息（用于画中画调试）
-     *
-     * 【为什么要抽离到这里？】
-     * 原来在 MainActivity 里，现在统一放到画中画管理器里，
-     * 作为调试工具方法。
-     *
-     * @param activity 当前 Activity
-     */
     public void logWindowSize(Activity activity) {
         if (activity == null) {
             log("尺寸】Activity 为 null，无法获取窗口尺寸");
@@ -475,6 +535,7 @@ public class PictureInPictureManager {
             log("尺寸】获取窗口尺寸失败：" + e.getMessage());
         }
     }
+
     public void release() {
         log("========== 释放资源 ==========");
         listener = null;
@@ -483,6 +544,7 @@ public class PictureInPictureManager {
         onStopCalled = false;
         log("✅ 资源释放完成");
     }
+
     private void log(String msg) {
         try {
             SettingsActivity.logOperation(LOG_PREFIX + msg);
