@@ -47,6 +47,14 @@ import java.util.List;
  * 7. 数字选台
  * 8. 屏幕比例调整
  * 9. 自动更新直播源
+ * 10. ✅ 分辨率自适应检测（2026-06-26 新增）
+ *
+ * 【2026-06-26 新增：分辨率自适应】
+ * 【功能】
+ * 1. 自动检测当前视频分辨率
+ * 2. 根据设备性能评估解码压力
+ * 3. 分辨率过高时记录日志，可提示用户
+ * 4. 配合 TVPlayerManager 实现完整的分辨率自适应
  */
 public class MainActivity extends AppCompatActivity {
     // ====================== 单例 ======================
@@ -94,6 +102,14 @@ public class MainActivity extends AppCompatActivity {
     private int mConsecutiveFailedCount = 0;
     private static final int MAX_CONSECUTIVE_SKIP = 10;
     private boolean mIsFirstLaunch = true;
+    // ====================================================================
+    // ✅ 分辨率自适应相关（2026-06-26 新增）
+    // ====================================================================
+    /**
+     * 是否启用分辨率过高提示
+     * 默认开启，检测到分辨率过高时记录日志
+     */
+    private boolean mResolutionWarningEnabled = true;
     // ====================== 其他 ======================
     public static List<String> logList = new ArrayList<>();
     // ====================== onCreate 生命周期 ======================
@@ -463,6 +479,93 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
+        // ====================================================================
+        // ✅ 2026-06-26 新增：设置分辨率过高监听器
+        // ====================================================================
+        // 【作用】
+        // 当 TVPlayerManager 检测到视频分辨率超过设备性能时，
+        // 会回调这个监听器，我们在这里记录日志。
+        //
+        // 【扩展功能】
+        // 如果以后需要自动切换低码率源，可以在这里实现：
+        // 1. 获取当前频道的所有源
+        // 2. 找到码率更低的源
+        // 3. 自动切换到低码率源
+        mPlayerManager.setOnResolutionTooHighListener(
+                new TVPlayerManager.OnResolutionTooHighListener() {
+            @Override
+            public void onResolutionTooHigh(int width, int height,
+                                             int decodePressure,
+                                             String recommendedLevel) {
+                handleResolutionTooHigh(width, height, decodePressure, recommendedLevel);
+            }
+        });
+        SettingsActivity.logOperation("【分辨率】自适应检测已启用");
+    }
+    // ====================================================================
+    // ✅ 处理分辨率过高（2026-06-26 新增）
+    // ====================================================================
+    /**
+     * 处理分辨率过高的情况
+     *
+     * @param width 当前视频宽度
+     * @param height 当前视频高度
+     * @param decodePressure 解码压力（0-100）
+     * @param recommendedLevel 推荐的分辨率等级
+     *
+     * 【2026-06-26 新增】
+     *
+     * 【当前行为】
+     * 1. 记录操作日志
+     * 2. 打印调试日志
+     *
+     * 【可扩展功能】
+     * 1. 显示 Toast 提示用户
+     * 2. 自动切换到更低码率的源（如果有的话）
+     * 3. 弹出对话框让用户选择是否切换
+     */
+    private void handleResolutionTooHigh(int width, int height,
+                                          int decodePressure,
+                                          String recommendedLevel) {
+        if (!mResolutionWarningEnabled) return;
+        
+        String channelName = "";
+        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+            Channel ch = channelSourceList.get(currentPlayIndex);
+            if (ch != null) {
+                channelName = ch.getName();
+            }
+        }
+        
+        log("【分辨率】⚠️ 频道「" + channelName + "」分辨率过高：" 
+                + width + "×" + height
+                + "，解码压力：" + decodePressure
+                + "，推荐：" + recommendedLevel);
+        
+        SettingsActivity.logOperation("【分辨率】频道「" + channelName 
+                + "」分辨率过高（" + width + "×" + height 
+                + "），压力：" + decodePressure
+                + "，推荐：" + recommendedLevel);
+        
+        // 可选：显示 Toast 提示
+        // Toast.makeText(this, "当前频道分辨率较高，可能会卡顿", 
+        //         Toast.LENGTH_SHORT).show();
+        
+        // ====================================================================
+        // 【扩展】如果需要自动切换低码率源，可以在这里实现
+        // ====================================================================
+        // 1. 获取当前频道的所有源列表
+        // 2. 找到码率/分辨率更低的源
+        // 3. 自动切换到低码率源
+        //
+        // 示例代码：
+        // Channel channel = channelSourceList.get(currentPlayIndex);
+        // if (channel != null && channel.getSourceCount() > 1) {
+        //     int bestSourceIndex = findBestSourceForDevice(channel);
+        //     if (bestSourceIndex >= 0) {
+        //         switchToSource(bestSourceIndex);
+        //     }
+        // }
     }
     // 处理源失效（自动切台）
     private void handleSourceFailed() {
@@ -614,6 +717,13 @@ public class MainActivity extends AppCompatActivity {
                 break;
         }
         SettingsActivity.logOperation("【设置】解码器模式：" + modeName);
+        // ====================================================================
+        // ✅ 2026-06-26 新增：读取分辨率过高提示开关
+        // ====================================================================
+        // 默认开启，用户可以在设置中关闭
+        mResolutionWarningEnabled = sp.getBoolean("resolution_warning_enable", true);
+        SettingsActivity.logOperation("【设置】分辨率过高提示：" 
+                + (mResolutionWarningEnabled ? "开启" : "关闭"));
         if (channelNumberManager != null) {
             channelNumberManager.setEnable(number_channel_enable);
         }
@@ -1030,7 +1140,7 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager == null || !pipManager.isInPipMode()) {
             new Handler(Looper.getMainLooper()).postDelayed(this::resumeCurrentChannel, 200);
         }
-        syncRemoteMode();
+                syncRemoteMode();
     }
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
