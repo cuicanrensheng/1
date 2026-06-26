@@ -19,6 +19,7 @@ import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.Renderer;
+import androidx.media3.exoplayer.RenderersFactory;
 import androidx.media3.exoplayer.analytics.AnalyticsListener;
 import androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
@@ -79,8 +80,8 @@ import java.util.Map;
  *    - 性能稍差，耗电多一些
  *
  * 【自动切换灵敏度调优】
- * 原来：30 秒内缓冲 > 2 次才切换
- * 现在：15 秒内缓冲 > 1 次就切换
+ * 旧版：30 秒内缓冲 > 2 次才切换
+ * 新版：15 秒内缓冲 > 1 次就切换
  * 【原因】用户反馈画面卡顿，原来的触发条件太宽松了，
  * 调灵敏一点，让用户能更快感受到流畅度提升。
  *
@@ -92,7 +93,7 @@ import java.util.Map;
  * 【问题描述】
  * 用户选择软解模式后，实际播放时还是用的系统硬解。
  * 【原因分析】
- * 1. setEnableDecoderFallback(true) 导致 FFmpeg 失败时静默降级到硬解
+ * 1. setEnableDecoderFallback(true) 导致 FFmpeg 初始化失败时静默降级到硬解
  * 2. FFmpeg 扩展可能未正确加载（so 库缺失、版本不匹配等）
  * 【修复方案】
  * 1. 软解模式下关闭解码器降级，让问题暴露出来
@@ -105,9 +106,9 @@ import java.util.Map;
  * （ExperimentalFfmpegVideoRenderer），导致即使 FFmpeg 库可用，
  * 视频软解也不会生效。
  * 【解决方案】
- * 自定义 FfmpegRenderersFactory，继承 DefaultRenderersFactory，
- * 重写 buildVideoRenderers() 方法，手动把 ExperimentalFfmpegVideoRenderer
- * 加到渲染器列表里。
+ * 自定义 FfmpegRenderersFactory，实现 RenderersFactory 接口，
+ * 内部包装 DefaultRenderersFactory，在 createRenderers 方法中
+ * 手动把 ExperimentalFfmpegVideoRenderer 加到渲染器数组里。
  *
  * 【2026-06-26 新增：准确的解码器检测】
  * 【问题】
@@ -193,9 +194,8 @@ public class TVPlayerManager {
     /**
      * 是否使用软解码（保留，用于向后兼容）
      * 【2026-06-25 说明】
-     * 这个变量保留是为了向后兼容，
-     * 实际逻辑已经迁移到 mDecoderMode。
-     * setSoftwareDecoder() 方法内部会同步更新 mDecoderMode。
+     * 这个变量保留是为了向后兼容，实际逻辑已经迁移到 mDecoderMode。
+     * setSoftwareDecoder() 方法内部会调用 setDecoderMode()。
      *
      * @deprecated 请使用 mDecoderMode 替代
      */
@@ -207,8 +207,7 @@ public class TVPlayerManager {
     /**
      * 是否已切换过解码器（每个频道只切一次）
      * 【作用】
-     * 防止在同一个频道上反复切换解码器，
-     * 导致播放不稳定。
+     * 防止在同一个频道上反复切换解码器，导致播放不稳定。
      *
      * 【重置时机】
      * 切换频道时（playUrl() 方法中）重置为 false
@@ -219,7 +218,7 @@ public class TVPlayerManager {
      * 【作用】
      * 用于判断自动切换解码器的时间窗口（15 秒内）。
      * 只在第一次 STATE_READY 时设置，
-     * 后续的状态变化不会影响这个时间。
+     * 后续的状态变化（如缓冲）不会影响这个时间。
      *
      * 【重置时机】
      * 切换频道时（playUrl() 方法中）重置为 0
@@ -248,8 +247,8 @@ public class TVPlayerManager {
     private boolean isStalled = false;
     /**
      * 上次卡顿开始时间
-     * 【作用】记录卡顿开始的时间点，
-     * 卡顿结束时用当前时间减去这个值，得到卡顿时长。
+     * 【作用】记录上次卡顿开始的时间点，
+     * 卡顿结束时用当前时间减去这个值，得到单次卡顿时长。
      */
     private long lastStallStartTime = 0;
     // ====================================================================
@@ -295,7 +294,7 @@ public class TVPlayerManager {
      * 主线程 Handler
      * 【作用】
      * 1. 延迟隐藏频道号
-     * 2. 回调源失效监听器（切到主线程）
+     * 2. 切到主线程回调源失效监听器
      * 3. 其他需要在主线程执行的任务
      */
     private Handler mHandler;
@@ -314,8 +313,7 @@ public class TVPlayerManager {
      * 源失效监听器
      * 【作用】
      * 重试次数用完后，回调这个监听器，
-     * 通知外部（MainActivity）这个源失效了，
-     * 让外部自动跳过这个频道，切到下一个。
+     * 通知外部（MainActivity）这个源失效了，让外部自动切下一个频道。
      *
      * 【2026-06-25 新增】
      */
@@ -356,7 +354,7 @@ public class TVPlayerManager {
         hideChannelRunnable = new Runnable() {
             @Override
             public void run() {
-                hideChannelNum();
+                hideChannelNumber();
             }
         };
         // 初始化卡住检测 Runnable
@@ -402,8 +400,8 @@ public class TVPlayerManager {
      *
      * 【三种模式对应的扩展渲染器模式】
      * - AUTO → EXTENSION_RENDERER_MODE_ON（硬解优先，FFmpeg 备用）
-     * - HARD → EXTENSION_RENDERER_MODE_OFF（只用硬解，不用 FFmpeg）
-     * - SOFT → EXTENSION_RENDERER_MODE_PREFER（优先 FFmpeg 软解）
+     * - HARD → EXTENSION_RENDERER_MODE_OFF（只用硬解）
+     * - SOFT → EXTENSION_RENDERER_MODE_PREFER（优先 FFmpeg）
      *
      * 【2026-06-25 修复：软解模式不生效问题】
      * 1. 软解模式下关闭解码器降级（setEnableDecoderFallback(false)）
@@ -429,7 +427,7 @@ public class TVPlayerManager {
         // （ExperimentalFfmpegVideoRenderer），导致软解模式下视频还是硬解。
         // 自定义的 FfmpegRenderersFactory 会手动把实验性 FFmpeg 视频渲染器
         // 加到渲染器列表里。
-        DefaultRenderersFactory renderersFactory = new FfmpegRenderersFactory(context);
+        FfmpegRenderersFactory renderersFactory = new FfmpegRenderersFactory(context);
         // ====================================================================
         // ✅ 根据解码器模式设置扩展渲染器模式（2026-06-25 重构）
         // ====================================================================
@@ -523,7 +521,7 @@ public class TVPlayerManager {
                 break;
         }
         // ================================================
-        // ✅ 缓冲配置（快速出画 + 大缓冲防卡）
+        // ✅ 缓冲配置（快速出画 + 大缓冲防卡顿）
         // ================================================
         /**
          * 【参数说明】
@@ -565,7 +563,7 @@ public class TVPlayerManager {
         // ✅ 2026-06-26 更新：FFmpeg 可用性检测（反射方式，修正版）
         // ====================================================================
         // 【为什么改用反射？】
-        // 原来用 MediaCodecList API 检测 FFmpeg 解码器，但那是错的！
+        // 原来用 MediaCodecList API 检测 FFmpeg 解码器，那是错的！
         // MediaCodecList 只能检测系统内置的 MediaCodec 解码器，
         // FFmpeg 扩展是 Media3 自己实现的，不走系统 MediaCodec 框架。
         // 所以检测结果"未发现 FFmpeg 解码器"是假阴性。
@@ -614,7 +612,7 @@ public class TVPlayerManager {
                 hasVideoRenderer = true;
             } catch (ClassNotFoundException e) {
                 Log.w(TAG, "【解码器】⚠️ ExperimentalFfmpegVideoRenderer 不存在，尝试检测正式版...");
-                // 再试试 FfmpegVideoRenderer（不带 Experimental，某些版本可能叫这个）
+                // 再试试 FfmpegVideoRenderer（不带 Experimental，有些版本可能叫这个）
                 try {
                     Class.forName("androidx.media3.decoder.ffmpeg.FfmpegVideoRenderer");
                     Log.d(TAG, "【解码器】✅ FfmpegVideoRenderer 存在（视频渲染器）");
@@ -718,7 +716,7 @@ public class TVPlayerManager {
                     // 导致自动切换判断不准确。
                     //
                     // 修复后：只在第一次 STATE_READY 时设置 initialPlayStartTime，
-                    // 后续的状态变化不会影响这个时间。
+                    // 后续的状态变化（如缓冲）不会影响这个时间。
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
@@ -737,8 +735,8 @@ public class TVPlayerManager {
                     // 每个频道只切一次，避免反复切换。
                     //
                     // 【2026-06-25 调优】
-                    // 原来：30 秒内缓冲 > 2 次才切换
-                    // 现在：15 秒内缓冲 > 1 次就切换
+                    // 旧版：30 秒内缓冲 > 2 次才切换
+                    // 新版：15 秒内缓冲 > 1 次就切换
                     // 原因：用户反馈画面卡顿，原来的触发条件太宽松了，
                     // 调灵敏一点，让用户能更快感受到流畅度提升。
                     if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
@@ -878,7 +876,7 @@ public class TVPlayerManager {
      *
      * 【2026-06-25 修改：修复重试 bug + 增加源失效回调 + 操作日志】
      * 【修改说明】
-     * 1. 修复了 isRetrying 一直是 true 的 bug（重试开始时就清除等待标记）
+     * 1. 修复了 isRetrying 一直为 true 的 bug（重试开始时就清除等待标记）
      * 2. 重试次数用完后，回调 onSourceFailed()，通知外部自动切台
      * 3. 最大重试次数改成 2 次（重试2次还不行就算失效）
      * 4. 所有关键节点接入 SettingsActivity 操作日志
@@ -893,8 +891,7 @@ public class TVPlayerManager {
             // 重试次数用完，回调源失效
             // ====================================================================
             // 【作用】
-            // 通知外部（MainActivity）这个源失效了，
-            // 让外部自动跳过这个频道，切到下一个。
+            // 通知外部（MainActivity）这个源失效了，让外部自动切下一个频道。
             //
             // 【为什么不在 TVPlayerManager 里直接切台？】
             // TVPlayerManager 只负责播放单个 URL，
@@ -923,7 +920,7 @@ public class TVPlayerManager {
                 // 这时候 isRetrying 应该是 false，允许安排下一次重试。
                 //
                 // 【原来的 bug】
-                // 原来 isRetrying 一直是 true，直到播放成功才重置。
+                // 原来 isRetrying 一直为 true，直到播放成功才重置。
                 // 导致重试一次后如果又失败，就不能再重试了，
                 // 实际上只能重试 1 次，而不是 MAX_RETRY_COUNT 次。
                 isRetrying = false;
@@ -1034,7 +1031,7 @@ public class TVPlayerManager {
      * - useSoftware=false → DECODER_MODE_AUTO（自动模式，硬解优先）
      *
      * 【为什么 false 对应 AUTO 而不是 HARD？】
-     * 因为原来的 useSoftware=false 行为是"硬解优先，FFmpeg 备用"，
+     * 因为原来的 useSoftware=false 行为就是"硬解优先，FFmpeg 备用"，
      * 这和新的 AUTO 模式行为一致，而不是 HARD 模式（完全不用 FFmpeg）。
      * 这样可以保证旧代码的行为不变。
      *
@@ -1222,7 +1219,7 @@ public class TVPlayerManager {
             // player.stop();          // 注释掉，保持最后一帧
             // player.clearMediaItems(); // 注释掉，保持最后一帧
             // ===== 创建数据源（带重定向日志版） =====
-            // 每一重定向都会打印详细日志，方便调试直播源
+            // 每一次重定向都会打印详细日志，方便调试直播源
             RedirectLoggingHttpDataSource.Factory httpFactory =
                     new RedirectLoggingHttpDataSource.Factory();
             httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
@@ -1265,7 +1262,7 @@ public class TVPlayerManager {
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
-            // ====================================================================
+                        // ====================================================================
             // AspectRatioFrameLayout 包名改成 Media3 的
             // ====================================================================
             // 从 com.google.android.exoplayer2.ui.AspectRatioFrameLayout
@@ -1297,14 +1294,14 @@ public class TVPlayerManager {
     /**
      * 绑定频道号显示的 TextView
      */
-    public void bindChannelText(TextView textView) {
+    public void bindChannelNumberTextView(TextView textView) {
         channelNumberTextView = textView;
     }
     /**
      * 显示频道号并自动隐藏
      */
     private void showChannelAndAutoHide() {
-                if (channelNumberTextView != null && currentChannelNumber > 0) {
+        if (channelNumberTextView != null && currentChannelNumber > 0) {
             channelNumberTextView.setText(String.valueOf(currentChannelNumber));
             channelNumberTextView.setVisibility(View.VISIBLE);
             // 取消之前的隐藏任务
@@ -1316,7 +1313,7 @@ public class TVPlayerManager {
     /**
      * 隐藏频道号
      */
-    private void hideChannelNum() {
+    private void hideChannelNumber() {
         if (channelNumberTextView != null) {
             channelNumberTextView.setVisibility(View.GONE);
         }
@@ -1395,7 +1392,7 @@ public class TVPlayerManager {
      * 源失效监听器
      * 【作用】
      * 重试次数用完后，回调这个监听器，
-     * 通知外部这个源失效了，让外部自动切台。
+     * 通知外部这个源失效了，让外部自动切下一个。
      *
      * 【2026-06-25 新增】
      */
@@ -1449,8 +1446,8 @@ public class TVPlayerManager {
             Log.e(TAG, "释放异常", e);
         }
     }
-        // ====================================================================
-    // ✅ 自定义渲染器工厂（2026-06-26 新增，v3 版本：重写 createRenderers）
+    // ====================================================================
+    // ✅ 自定义渲染器工厂（2026-06-26 新增，v4 版本：实现 RenderersFactory 接口）
     // ====================================================================
     /**
      * 自定义渲染器工厂
@@ -1458,28 +1455,39 @@ public class TVPlayerManager {
      * 【为什么需要这个？】
      * Media3 的 DefaultRenderersFactory 默认不会加载实验性渲染器
      * （ExperimentalFfmpegVideoRenderer），导致软解模式下视频还是硬解。
-     * 我们继承 DefaultRenderersFactory，重写 createRenderers 方法，
-     * 手动把实验性 FFmpeg 视频渲染器加到渲染器数组里。
+     * 我们实现 RenderersFactory 接口，内部包装 DefaultRenderersFactory，
+     * 在 createRenderers 方法中手动把实验性 FFmpeg 视频渲染器加进去。
      *
-     * 【v3 改进】
-     * 不重写 buildVideoRenderers（方法签名容易随版本变化），
-     * 改为重写 createRenderers（接口标准方法，签名固定），更稳定。
+     * 【v4 改进】
+     * 不继承 DefaultRenderersFactory（避免父类方法是 final 的无法重写），
+     * 改为直接实现 RenderersFactory 接口，内部用代理模式包装
+     * DefaultRenderersFactory，完全可控，不会因为父类实现变化而出错。
      */
-    private static class FfmpegRenderersFactory extends DefaultRenderersFactory {
+    private static class FfmpegRenderersFactory implements RenderersFactory {
         private static final String TAG = "FfmpegRenderersFactory";
 
+        private final DefaultRenderersFactory delegate;
         private final Context context;
-        private int extensionRendererMode = EXTENSION_RENDERER_MODE_OFF;
+        private int extensionRendererMode = DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF;
 
         public FfmpegRenderersFactory(Context context) {
-            super(context);
             this.context = context;
+            this.delegate = new DefaultRenderersFactory(context);
         }
 
-        @Override
+        /**
+         * 设置扩展渲染器模式
+         */
         public void setExtensionRendererMode(int mode) {
             this.extensionRendererMode = mode;
-            super.setExtensionRendererMode(mode);
+            delegate.setExtensionRendererMode(mode);
+        }
+
+        /**
+         * 设置是否启用解码器降级
+         */
+        public void setEnableDecoderFallback(boolean enable) {
+            delegate.setEnableDecoderFallback(enable);
         }
 
         @Override
@@ -1490,8 +1498,8 @@ public class TVPlayerManager {
                 androidx.media3.exoplayer.text.TextOutput textRendererOutput,
                 androidx.media3.exoplayer.metadata.MetadataOutput metadataRendererOutput) {
 
-            // 先调用父类方法，得到默认的渲染器数组（系统硬解等）
-            Renderer[] renderers = super.createRenderers(
+            // 先调用默认的工厂创建渲染器数组（系统硬解等）
+            Renderer[] renderers = delegate.createRenderers(
                     eventHandler,
                     videoRendererEventListener,
                     audioRendererEventListener,
@@ -1499,8 +1507,8 @@ public class TVPlayerManager {
                     metadataRendererOutput);
 
             // 如果是 PREFER 模式或 ON 模式，尝试手动添加 ExperimentalFfmpegVideoRenderer
-            if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER
-                    || extensionRendererMode == EXTENSION_RENDERER_MODE_ON) {
+            if (extensionRendererMode == DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+                    || extensionRendererMode == DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON) {
                 try {
                     // 加载 ExperimentalFfmpegVideoRenderer 类
                     Class<?> rendererClass = Class.forName(
@@ -1567,7 +1575,7 @@ public class TVPlayerManager {
                     // 创建新的数组，把 FFmpeg 渲染器加进去
                     Renderer[] newRenderers = new Renderer[renderers.length + 1];
 
-                    if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) {
+                    if (extensionRendererMode == DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER) {
                         // PREFER 模式：插到最前面，优先使用 FFmpeg 软解
                         newRenderers[0] = renderer;
                         System.arraycopy(renderers, 0, newRenderers, 1, renderers.length);
