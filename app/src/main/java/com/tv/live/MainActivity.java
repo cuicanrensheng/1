@@ -57,6 +57,11 @@ import java.util.List;
  * 【修改说明】
  * 把原来 MainActivity 中的面板自动隐藏逻辑（Handler + Runnable）
  * 合并到 ChannelPanelController 中统一管理，MainActivity 只负责调用。
+ * 
+ * 【2026-06-26 修改：方向键处理逻辑移到 KeyEventManager】
+ * 【修改说明】
+ * 把原来 MainActivity 中的 handleDirectionKey() 方法合并到 KeyEventManager 中，
+ * 统一管理播放模式下的方向键处理，MainActivity 只负责调用。
  */
 public class MainActivity extends AppCompatActivity {
 
@@ -178,7 +183,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         keyEventManager = new KeyEventManager(this);
-
+        keyEventManager.setChannelPanelController(channelPanelController);
         currentPlayIndex = appConfig.getLastPlayIndex();
         channelPanelController.setCurrentPlayIndex(currentPlayIndex);
         SettingsActivity.logOperation("【播放】记录上次播放索引：" + currentPlayIndex);
@@ -596,6 +601,11 @@ public class MainActivity extends AppCompatActivity {
                 },
                 number_channel_enable
         );
+
+        // ✅ 2026-06-26 新增：设置给 KeyEventManager（OK键确认数字选台需要）
+        if (keyEventManager != null) {
+            keyEventManager.setChannelNumberManager(channelNumberManager);
+        }
     }
 
     // ====================================================================
@@ -829,36 +839,6 @@ public class MainActivity extends AppCompatActivity {
         super.onBackPressed();
     }
 
-    // 方向键处理（兜底）
-    private boolean handleDirectionKey(int keyCode) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_UP:
-                SettingsActivity.logOperation("【按键】handleDirectionKey 上键 → 反转状态："
-                        + (channel_reverse ? "开启" : "关闭"));
-                channelPanelController.switchUp();
-                return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                SettingsActivity.logOperation("【按键】handleDirectionKey 下键 → 反转状态："
-                        + (channel_reverse ? "开启" : "关闭"));
-                channelPanelController.switchDown();
-                return true;
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER:
-                if (channelNumberManager.isInputting()) {
-                    channelNumberManager.confirmChannelNum();
-                    return true;
-                }
-                togglePanel();
-                return true;
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                togglePanel();
-                return true;
-            default:
-                return false;
-        }
-    }
-
     // ====================== 按键分发 ======================
 
     @Override
@@ -883,8 +863,6 @@ public class MainActivity extends AppCompatActivity {
         if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
             return true;
         }
-
-        if (handleDirectionKey(keyCode)) return true;
 
         if (keyEventManager.dispatchKey(keyCode)) return true;
 
