@@ -1,4 +1,4 @@
-package com.tv.live;
+       package com.tv.live;
 
 import android.app.PictureInPictureParams;
 import android.content.BroadcastReceiver;
@@ -117,7 +117,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         initPlayer();
-
         mPlayerManager.registerDecoderModeReceiver();
 
         screenRatioManager = new ScreenRatioManager(mPlayerManager, appConfig);
@@ -559,7 +558,9 @@ public class MainActivity extends AppCompatActivity {
             case TVPlayerManager.DECODER_MODE_AUTO:
             default:
                 modeName = "自动（推荐）";
-                        SettingsActivity.logOperation("【设置】解码器模式：" + modeName);
+                break;
+        }
+        SettingsActivity.logOperation("【设置】解码器模式：" + modeName);
 
         if (channelNumberManager != null) {
             channelNumberManager.setEnable(number_channel_enable);
@@ -872,5 +873,4 @@ public class MainActivity extends AppCompatActivity {
         mInstance = null;
         SettingsActivity.logOperation("【系统】APP退出");
     }
-}
-               
+}       
