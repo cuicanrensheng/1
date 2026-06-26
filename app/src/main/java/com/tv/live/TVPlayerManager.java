@@ -20,10 +20,13 @@ import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RenderersFactory;
+import androidx.media3.exoplayer.analytics.AnalyticsListener;
+import androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.exoplayer.util.EventLogger;
 import androidx.media3.exoplayer.video.VideoRendererEventListener;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
@@ -825,6 +828,43 @@ public class TVPlayerManager {
             }
         };
         player.addListener(playerListener);
+
+        // ====================================================================
+        // ✅ 2026-06-26 新增：准确检测真实解码器名称
+        // ====================================================================
+        // 【为什么不用 videoFormat.sampleMimeType？】
+        // sampleMimeType 返回的是视频格式（如 video/avc），不是解码器名称。
+        // 不管用硬解还是 FFmpeg 软解，这个值都是 video/avc，无法区分。
+        //
+        // 【正确方法】
+        // 用 AnalyticsListener 的 onVideoDecoderInitialized 回调，
+        // 可以拿到真实的解码器名称。
+        player.addAnalyticsListener(new AnalyticsListener() {
+            @Override
+            public void onVideoDecoderInitialized(EventTime eventTime, String decoderName) {
+                Log.d(TAG, "【解码器】真实解码器名称：" + decoderName);
+                boolean isFfmpeg = decoderName != null 
+                        && decoderName.toLowerCase().contains("ffmpeg");
+                String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
+                SettingsActivity.logOperation("【解码器】✅ 真实解码器：" + decoderType 
+                        + "（" + decoderName + "）");
+                
+                // 检查软解模式是否生效
+                if (mDecoderMode == DECODER_MODE_SOFT && !isFfmpeg) {
+                    Log.w(TAG, "【解码器】⚠️ 警告：软解模式未生效，实际使用系统硬解");
+                    SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效");
+                }
+                
+                // 检查硬解模式是否生效
+                if (mDecoderMode == DECODER_MODE_HARD && isFfmpeg) {
+                    Log.w(TAG, "【解码器】⚠️ 警告：硬解模式未生效，实际使用 FFmpeg 软解");
+                    SettingsActivity.logOperation("【解码器】⚠️ 警告：硬解模式未生效");
+                }
+            }
+        });
+        
+        // 官方事件日志工具，打印所有播放器事件到 logcat（方便调试）
+        player.addAnalyticsListener(new EventLogger());
     }
     // ================================================
     // ✅ 卡住检测 + 自动重试
@@ -1269,7 +1309,7 @@ public class TVPlayerManager {
             // AspectRatioFrameLayout 包名改成 Media3 的
             // ====================================================================
             // 从 com.google.android.exoplayer2.ui.AspectRatioFrame
-                    // 改成 androidx.media3.ui.AspectRatioFrameLayout
+            // 改成 androidx.media3.ui.AspectRatioFrameLayout
             switch (mode) {
                 case FIT:
                     playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
