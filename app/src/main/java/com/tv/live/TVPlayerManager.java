@@ -1280,8 +1280,25 @@ public class TVPlayerManager {
             Log.e(TAG, "设置缩放模式异常", e);
         }
     }
-         * 显示频道号并自动隐藏
+        // ====================================================================
+    // 频道号显示
+    // ====================================================================
+    /**
+     * 设置当前频道号
      */
+    public void setCurrentChannelNumber(int num) {
+        currentChannelNumber = num;
+    }
+    /**
+     * 绑定频道号显示的 TextView
+     */
+    public void bindChannelText(TextView textView) {
+        channelNumberTextView = textView;
+    }
+    /**
+     * 显示频道号并自动隐藏
+     */
+  
     private void showChannelAndAutoHide() {
         if (channelNumberTextView != null && currentChannelNumber > 0) {
             channelNumberTextView.setText(String.valueOf(currentChannelNumber));
