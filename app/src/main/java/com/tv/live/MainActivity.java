@@ -68,8 +68,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
 
-    private boolean mIsFirstLaunch = true;
-
     public static List<String> logList = new ArrayList<>();
 
     @Override
@@ -109,12 +107,8 @@ public class MainActivity extends AppCompatActivity {
         initRemoteManager();
         initPictureInPicture();
 
-        if (mIsFirstLaunch) {
-            channelPanelController.setAutoHideDelay(3000);
-            channelPanelController.resetAutoHide();
-            channelPanelController.setAutoHideDelay(5000);
-            mIsFirstLaunch = false;
-        }
+        // ✅ 2026-06-26 修改：首次启动面板逻辑交给 ChannelPanelController 处理
+        channelPanelController.handleFirstLaunch();
 
         initPlayer();
         mPlayerManager.registerDecoderModeReceiver();
@@ -359,7 +353,7 @@ public class MainActivity extends AppCompatActivity {
                 playChannel(channel, index);
             }
         });
-    }
+       }
 
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
@@ -574,7 +568,8 @@ public class MainActivity extends AppCompatActivity {
     public boolean isChannelReverse() {
         return channel_reverse;
     }
-        public void playChannel(int index) {
+
+    public void playChannel(int index) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
         if (index < 0 || index >= channelSourceList.size()) return;
         Channel channel = channelSourceList.get(index);
