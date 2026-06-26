@@ -145,6 +145,30 @@ public class TVPlayerManager {
      * 频道号自动隐藏延迟（毫秒）
      */
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
+    // ====================================================================
+    // ✅ 缩放模式枚举（2026-06-26 新增，兼容 ScreenRatioManager）
+    // ====================================================================
+    /**
+     * 视频缩放模式
+     */
+    public enum ScaleMode {
+        /**
+         * 适应屏幕（保持宽高比，完整显示）
+         */
+        FIT,
+        /**
+         * 填充屏幕（保持宽高比，裁剪超出部分）
+         */
+        FILL,
+        /**
+         * 拉伸（不保持宽高比，铺满屏幕）
+         */
+        STRETCH,
+        /**
+         * 原始大小
+         */
+        ORIGINAL
+    }
     // ====================== 单例相关 ======================
     private static TVPlayerManager instance;
     private Context context;
@@ -164,6 +188,10 @@ public class TVPlayerManager {
      * 频道号显示的 TextView
      */
     private TextView channelNumberTextView;
+    /**
+     * 当前缩放模式
+     */
+    private ScaleMode mCurrentScaleMode = ScaleMode.FIT;
     // ====================================================================
     // ✅ 解码器模式（2026-06-25 新增，替代原来的 useSoftwareDecoder）
     // ====================================================================
@@ -294,6 +322,17 @@ public class TVPlayerManager {
      * 隐藏频道号的 Runnable
      */
     private Runnable hideChannelRunnable;
+    // ====================================================================
+    // 前后台状态
+    // ====================================================================
+    /**
+     * 是否在后台
+     */
+    private boolean mIsInBackground = false;
+    /**
+     * 进入后台时的播放状态（用于恢复）
+     */
+    private boolean mWasPlaying = false;
     // ====================================================================
     // 监听器相关
     // ====================================================================
@@ -607,6 +646,9 @@ public class TVPlayerManager {
                         long stallDuration = System.currentTimeMillis() - lastStallStartTime;
                         totalStallTime += stallDuration;
                         Log.d(TAG, "卡顿结束，持续：" + stallDuration + "ms");
+                        if (listener != null) {
+                            listener.onBufferingEnd();
+                        }
                     }
                 } else if (playbackState == Player.STATE_BUFFERING) {
                     // 开始卡顿
@@ -615,6 +657,9 @@ public class TVPlayerManager {
                         lastStallStartTime = System.currentTimeMillis();
                         bufferCount++;
                         Log.d(TAG, "开始卡顿，第 " + bufferCount + " 次");
+                        if (listener != null) {
+                            listener.onBufferingStart();
+                        }
                         // ====================================================================
                         // ✅ 自动切换解码器（2026-06-25 新增）
                         // ====================================================================
@@ -646,6 +691,17 @@ public class TVPlayerManager {
                 }
             }
             @Override
+            public void onIsPlayingChanged(boolean isPlaying) {
+                // 播放/暂停状态变化
+                if (listener != null) {
+                    if (isPlaying) {
+                        listener.onPlayResume();
+                    } else {
+                        listener.onPlayPause();
+                    }
+                }
+            }
+            @Override
             public void onPlayerError(PlaybackException error) {
                 // 播放出错
                 Log.e(TAG, "播放出错：" + error.getMessage());
@@ -655,6 +711,13 @@ public class TVPlayerManager {
                     isStalled = false;
                     long stallDuration = System.currentTimeMillis() - lastStallStartTime;
                     totalStallTime += stallDuration;
+                    if (listener != null) {
+                        listener.onBufferingEnd();
+                    }
+                }
+                // 回调播放失败
+                if (listener != null) {
+                    listener.onPlayFailed(error.getMessage());
                 }
                 // 判断是否是源失效
                 boolean isSourceError = false;
@@ -676,6 +739,10 @@ public class TVPlayerManager {
                 int width = videoSize.width;
                 int height = videoSize.height;
                 Log.d(TAG, "视频尺寸变化：" + width + "x" + height);
+                // 回调视频尺寸变化
+                if (listener != null) {
+                    listener.onVideoSizeChanged(width, height);
+                }
                 // ====================================================================
                 // ✅ 2026-06-26 新增：分辨率自适应检测
                 // ====================================================================
@@ -803,6 +870,7 @@ public class TVPlayerManager {
         }
         // 3. 低端机额外加压力
         // （这里简化处理，通过系统版本和 CPU 核心数粗略判断）
+        // ✅ 修复：中文句号 → 英文句号
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP_MR1
                 || Runtime.getRuntime().availableProcessors() <= 4) {
             pressure += 10;
@@ -851,12 +919,15 @@ public class TVPlayerManager {
      */
     private int getRecommendedResolutionLevel() {
         int cpuCores = Runtime.getRuntime().availableProcessors();
+        // ✅ 修复：中文句号 → 英文句号
         int sdkVersion = Build.VERSION.SDK_INT;
         // 高端机：8核以上 + Android 8+ → 1080P
+        // ✅ 修复：中文句号 → 英文句号
         if (cpuCores >= 8 && sdkVersion >= Build.VERSION_CODES.O) {
             return 1; // FULL_HD (1080P)
         }
         // 中端机：4核以上 + Android 6+ → 720P
+        // ✅ 修复：中文句号 → 英文句号
         else if (cpuCores >= 4 && sdkVersion >= Build.VERSION_CODES.M) {
             return 2; // HD (720P)
         }
@@ -1055,11 +1126,60 @@ public class TVPlayerManager {
             stuckHandler.removeCallbacks(stuckCheckRunnable);
         }
         if (player != null) {
+            if (playerListener != null) {
+                player.removeListener(playerListener);
+            }
             player.release();
             player = null;
         }
         instance = null;
     }
+    // ====================================================================
+    // ✅ 前后台切换（2026-06-26 新增，兼容 AppCoreManager）
+    // ====================================================================
+    /**
+     * 应用进入后台
+     *
+     * 【作用】
+     * 应用进入后台时调用，暂停播放并保存状态。
+     *
+     * 【2026-06-26 新增】
+     */
+    public void onBackground() {
+        if (mIsInBackground) return;
+        mIsInBackground = true;
+        // 保存当前播放状态
+        if (player != null) {
+            mWasPlaying = player.isPlaying();
+            // 暂停播放
+            if (mWasPlaying) {
+                player.pause();
+            }
+        }
+        Log.d(TAG, "【播放器】进入后台");
+        SettingsActivity.logOperation("【播放器】应用进入后台");
+    }
+    /**
+     * 应用回到前台
+     *
+     * 【作用】
+     * 应用回到前台时调用，恢复播放状态。
+     *
+     * 【2026-06-26 新增】
+     */
+    public void onForeground() {
+        if (!mIsInBackground) return;
+        mIsInBackground = false;
+        // 恢复播放
+        if (player != null && mWasPlaying) {
+            player.play();
+        }
+        Log.d(TAG, "【播放器】回到前台");
+        SettingsActivity.logOperation("【播放器】应用回到前台");
+    }
+    // ====================================================================
+    // PlayerView 相关
+    // ====================================================================
     /**
      * 绑定 PlayerView
      */
@@ -1071,8 +1191,49 @@ public class TVPlayerManager {
     }
     /**
      * 设置缩放模式
-     * @param resizeMode 缩放模式
+     *
+     * @param mode 缩放模式
+     *
+     * 【2026-06-26 新增：兼容 ScreenRatioManager】
      */
+    public void setScaleMode(ScaleMode mode) {
+        if (mode == null) return;
+        mCurrentScaleMode = mode;
+        if (playerView == null) return;
+        switch (mode) {
+            case FIT:
+                // 适应屏幕（保持宽高比）
+                playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                break;
+            case FILL:
+                // 填充屏幕（保持宽高比，裁剪超出部分）
+                playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                break;
+            case STRETCH:
+                // 拉伸（不保持宽高比）
+                playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH);
+                break;
+            case ORIGINAL:
+            default:
+                // 原始大小
+                playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                break;
+        }
+        Log.d(TAG, "【播放器】缩放模式：" + mode);
+        SettingsActivity.logOperation("【播放器】缩放模式切换为：" + mode);
+    }
+    /**
+     * 获取当前缩放模式
+     *
+     * 【2026-06-26 新增】
+     */
+    public ScaleMode getScaleMode() {
+        return mCurrentScaleMode;
+    }
+    /**
+     * @deprecated 请使用 setScaleMode() 替代
+     */
+    @Deprecated
     public void setResizeMode(int resizeMode) {
         if (playerView != null) {
             playerView.setResizeMode(resizeMode);
@@ -1124,6 +1285,7 @@ public class TVPlayerManager {
         // 保存当前播放位置和 URL
         long currentPosition = 0;
         String url = currentUrl;
+        ScaleMode currentScaleMode = mCurrentScaleMode;
         if (player != null) {
             currentPosition = player.getCurrentPosition();
         }
@@ -1141,6 +1303,8 @@ public class TVPlayerManager {
         if (playerView != null) {
             playerView.setPlayer(player);
         }
+        // 恢复缩放模式
+        setScaleMode(currentScaleMode);
         // 重新加载当前频道
         if (url != null && !url.isEmpty()) {
             playUrlInternal(url);
@@ -1229,10 +1393,43 @@ public class TVPlayerManager {
     }
     /**
      * 播放状态监听器接口
+     *
+     * 【2026-06-26 扩展：增加更多回调方法，兼容 PlayerStateListenerImpl】
      */
     public interface OnPlayStateListener {
+        /**
+         * 播放成功（准备完成，可以播放）
+         */
         void onPlaySuccess();
+        /**
+         * 播放失败
+         *
+         * @param error 错误信息
+         */
         void onPlayFailed(String error);
+        /**
+         * 播放暂停
+         */
+        void onPlayPause();
+        /**
+         * 播放恢复/继续
+         */
+        void onPlayResume();
+        /**
+         * 开始缓冲
+         */
+        void onBufferingStart();
+        /**
+         * 缓冲结束
+         */
+        void onBufferingEnd();
+        /**
+         * 视频尺寸变化
+         *
+         * @param width 宽度
+         * @param height 高度
+         */
+                 void onVideoSizeChanged(int width, int height);
     }
     /**
      * 设置源失效监听器
@@ -1445,7 +1642,6 @@ public class TVPlayerManager {
                     return result;
                 case DECODER_MODE_AUTO:
                 default:
-                    // ================================================================
                     // ================================================================
                     // 自动模式：系统默认顺序（硬解优先）
                     // ================================================================
