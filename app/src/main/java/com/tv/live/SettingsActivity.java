@@ -123,6 +123,12 @@ import java.util.List;
  * 把"FFmpeg 软解"改成"系统软解"。
  * 因为现在改用系统自带的软件解码器（OMX.google.* / c2.android.*），
  * 不再使用 FFmpeg 扩展了。
+ *
+ * 【2026-06-26 修改：新增 onPipBack() 回调实现】
+ * 【修改说明】
+ * TvRemoteManager.OnRemoteActionListener 接口新增了 onPipBack() 抽象方法，
+ * SettingsActivity 中的匿名实现类需要覆盖这个方法，否则编译报错。
+ * 设置页面不处理画中画返回键，返回 false 交给系统处理。
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
@@ -762,6 +768,12 @@ public class SettingsActivity extends AppCompatActivity {
      * 【2026-06-25 优化】
      * 1. onSettingsMoveUp/onSettingsMoveDown 增加操作日志
      * 2. onSettingsFocusChanged 里增加判断，避免和 onSettingsMoveUp/Down 重复调用
+     *
+     * 【2026-06-26 修改：新增 onPipBack() 回调实现】
+     * 【修改说明】
+     * TvRemoteManager.OnRemoteActionListener 接口新增了 onPipBack() 抽象方法，
+     * SettingsActivity 中的匿名实现类需要覆盖这个方法，否则编译报错。
+     * 设置页面不处理画中画返回键，返回 false 交给系统处理。
      */
     private void initRemoteManager() {
         // 创建遥控器管理器
@@ -862,6 +874,13 @@ public class SettingsActivity extends AppCompatActivity {
                 // （正常情况下 onSettingsMoveUp/Down 已经更新过了）
                 // 这里主要是为了兼容外部直接调用 setSettingsFocusPosition 的情况
                 updateSettingsFocus();
+            }
+
+            // ✅ 2026-06-26 新增：画中画模式返回键回调
+            // 【说明】设置页面不处理画中画返回键，返回 false 交给系统处理
+            @Override
+            public boolean onPipBack() {
+                return false;
             }
         });
         // 默认聚焦第一项
@@ -1318,7 +1337,7 @@ public class SettingsActivity extends AppCompatActivity {
         if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
             tv.setText("暂无日志内容，请先播放一个频道再查看。");
         } else {
-            String originalLog = PLAY_LOG.toString();
+                        String originalLog = PLAY_LOG.toString();
             String[] lines = originalLog.split("\n");
             StringBuilder reversedLog = new StringBuilder();
             // 倒序排列（最新的在最上面）
