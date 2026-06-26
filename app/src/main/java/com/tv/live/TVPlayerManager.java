@@ -473,6 +473,10 @@ public class TVPlayerManager {
         // 【作用】
         // 初始化后检测系统中可用的软件解码器和硬件解码器数量，
         // 方便调试和确认软解模式是否生效。
+        //
+        // 【2026-06-26 修复：codec.getName() → codec.name】
+        // Media3 中 MediaCodecInfo 是数据类，直接用 name 字段，
+        // 没有 getName() 方法。
         try {
             // 检测 H.264 解码器（最常见的视频格式）
             List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos(
@@ -482,7 +486,9 @@ public class TVPlayerManager {
             StringBuilder softNames = new StringBuilder();
             StringBuilder hardNames = new StringBuilder();
             for (MediaCodecInfo codec : h264Codecs) {
-                String name = codec.getName();
+                // ✅ 修复：用 codec.name 而不是 codec.getName()
+                // Media3 中 MediaCodecInfo 是数据类，直接暴露 public final 字段
+                String name = codec.name;
                 if (isSoftwareDecoder(name)) {
                     softCount++;
                     if (softCount <= 3) {
@@ -1193,6 +1199,10 @@ public class TVPlayerManager {
      * 模块默认只支持音频，视频需要手动编译和加载实验性渲染器。
      * 系统自带的软件解码器虽然性能不如 FFmpeg，但胜在稳定、
      * 无需额外依赖、集成简单。
+     *
+     * 【2026-06-26 修复：codec.getName() → codec.name】
+     * Media3 中 MediaCodecInfo 是数据类，直接用 name 字段，
+     * 没有 getName() 方法。这是 Media3 重构时的 API 变化。
      */
     private static class SoftwareFirstMediaCodecSelector implements MediaCodecSelector {
         private final int decoderMode;
@@ -1218,7 +1228,8 @@ public class TVPlayerManager {
                     // ================================================================
                     List<MediaCodecInfo> hardCodecs = new ArrayList<>();
                     for (MediaCodecInfo codec : allCodecs) {
-                        if (!isSoftwareDecoder(codec.getName())) {
+                        // ✅ 修复：用 codec.name 而不是 codec.getName()
+                        if (!isSoftwareDecoder(codec.name)) {
                             hardCodecs.add(codec);
                         }
                     }
@@ -1230,7 +1241,8 @@ public class TVPlayerManager {
                     List<MediaCodecInfo> softCodecs = new ArrayList<>();
                     List<MediaCodecInfo> hardCodecs2 = new ArrayList<>();
                     for (MediaCodecInfo codec : allCodecs) {
-                        if (isSoftwareDecoder(codec.getName())) {
+                        // ✅ 修复：用 codec.name 而不是 codec.getName()
+                        if (isSoftwareDecoder(codec.name)) {
                             softCodecs.add(codec);
                         } else {
                             hardCodecs2.add(codec);
