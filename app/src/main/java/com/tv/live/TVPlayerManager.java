@@ -1,5 +1,4 @@
 package com.tv.live;
-
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Handler;
@@ -10,7 +9,6 @@ import android.view.View;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
-
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
@@ -25,15 +23,12 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
-
 import com.tv.live.RedirectLoggingHttpDataSource;
-
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-
 /**
  * 电视直播播放器管理器
  *
@@ -97,10 +92,8 @@ import java.util.Map;
  * 3. 播放时检测实际解码器，与设置不符时给出警告
  */
 public class TVPlayerManager {
-
     // ====================== 常量 ======================
     private static final String TAG = "TVPlayerManager";
-
     // ====================================================================
     // ✅ 解码器模式常量（2026-06-25 新增）
     // ====================================================================
@@ -109,19 +102,16 @@ public class TVPlayerManager {
      * 硬解优先，卡顿自动切换到 FFmpeg 软解
      */
     public static final int DECODER_MODE_AUTO = 0;
-
     /**
      * 解码器模式：强制硬解
      * 只用系统硬解码器，完全不用 FFmpeg
      */
     public static final int DECODER_MODE_HARD = 1;
-
     /**
      * 解码器模式：强制软解（FFmpeg）
      * 优先使用 FFmpeg 软解码器
      */
     public static final int DECODER_MODE_SOFT = 2;
-
     /**
      * 最大重试次数
      * 【2026-06-25 修改：从 3 改成 2】
@@ -129,42 +119,34 @@ public class TVPlayerManager {
      * 2 次还不行就判定为失效源，自动切下一个。
      */
     private static final int MAX_RETRY_COUNT = 2;
-
     /**
      * 卡住超时时间（毫秒）
      * 播放位置 10 秒没动，就认为卡住了
      */
     private static final long STUCK_TIMEOUT = 10000;
-
     /**
      * 频道号自动隐藏延迟（毫秒）
      */
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
-
     // ====================== 单例相关 ======================
     private static TVPlayerManager instance;
     private Context context;
-
     // ====================== 播放器相关 ======================
     private ExoPlayer player;
     private PlayerView playerView;
     private Player.Listener playerListener;
-
     /**
      * 当前播放的 URL
      */
     private String currentUrl;
-
     /**
      * 当前频道号
      */
     private int currentChannelNumber = 0;
-
     /**
      * 频道号显示的 TextView
      */
     private TextView channelNumberTextView;
-
     // ====================================================================
     // ✅ 解码器模式（2026-06-25 新增，替代原来的 useSoftwareDecoder）
     // ====================================================================
@@ -182,7 +164,6 @@ public class TVPlayerManager {
      * 现在增加了"自动"模式，三种模式，所以改成 int。
      */
     private int mDecoderMode = DECODER_MODE_AUTO;
-
     /**
      * 是否使用软解码（保留，用于向后兼容）
      * 【2026-06-25 说明】
@@ -194,7 +175,6 @@ public class TVPlayerManager {
      */
     @Deprecated
     private boolean useSoftwareDecoder = false;
-
     // ====================================================================
     // 自动切换解码器相关
     // ====================================================================
@@ -208,7 +188,6 @@ public class TVPlayerManager {
      * 切换频道时（playUrl() 方法中）重置为 false
      */
     private boolean hasSwitchedDecoder = false;
-
     /**
      * 首次播放开始时间（只在第一次 STATE_READY 时设置）
      * 【作用】
@@ -220,7 +199,6 @@ public class TVPlayerManager {
      * 切换频道时（playUrl() 方法中）重置为 0
      */
     private long initialPlayStartTime = 0;
-
     // ====================================================================
     // 性能统计相关
     // ====================================================================
@@ -230,28 +208,24 @@ public class TVPlayerManager {
      * 用于判断是否需要自动切换解码器。
      */
     private int bufferCount = 0;
-
     /**
      * 总卡顿时间（毫秒）
      * 【作用】统计播放过程中的总卡顿时长，
      * 用于性能分析和日志记录。
      */
     private long totalStallTime = 0;
-
     /**
      * 是否正在卡顿
      * 【作用】标记当前是否处于卡顿状态，
      * 用于计算单次卡顿的时长。
      */
     private boolean isStalled = false;
-
     /**
      * 上次卡顿开始时间
      * 【作用】记录卡顿开始的时间点，
      * 卡顿结束时用当前时间减去这个值，得到卡顿时长。
      */
     private long lastStallStartTime = 0;
-
     // ====================================================================
     // 重试相关
     // ====================================================================
@@ -259,19 +233,16 @@ public class TVPlayerManager {
      * 当前重试次数
      */
     private int retryCount = 0;
-
     /**
      * 是否正在重试中（有重试任务在等待）
      * 【作用】防止重复安排重试任务。
      */
     private boolean isRetrying = false;
-
     /**
      * 重试任务的引用
      * 【作用】方便 cancelRetry() 取消掉。
      */
     private Runnable retryRunnable;
-
     // ====================================================================
     // 卡住检测相关
     // ====================================================================
@@ -279,22 +250,18 @@ public class TVPlayerManager {
      * 卡住检测的 Handler
      */
     private Handler stuckHandler;
-
     /**
      * 上次播放位置更新时间
      */
     private long lastPositionUpdateTime = 0;
-
     /**
      * 上次记录的播放位置
      */
     private long lastPosition = 0;
-
     /**
      * 卡住检测的 Runnable
      */
     private Runnable stuckCheckRunnable;
-
     // ====================================================================
     // 频道号自动隐藏相关
     // ====================================================================
@@ -306,12 +273,10 @@ public class TVPlayerManager {
      * 3. 其他需要在主线程执行的任务
      */
     private Handler mHandler;
-
     /**
      * 隐藏频道号的 Runnable
      */
     private Runnable hideChannelRunnable;
-
     // ====================================================================
     // 监听器相关
     // ====================================================================
@@ -319,7 +284,6 @@ public class TVPlayerManager {
      * 播放状态监听器
      */
     private OnPlayStateListener listener;
-
     /**
      * 源失效监听器
      * 【作用】
@@ -330,12 +294,10 @@ public class TVPlayerManager {
      * 【2026-06-25 新增】
      */
     private OnSourceFailedListener sourceFailedListener;
-
     /**
      * 直播信息更新监听器
      */
     private OnLiveInfoUpdateListener liveInfoUpdateListener;
-
     // ====================================================================
     // 其他
     // ====================================================================
@@ -344,12 +306,10 @@ public class TVPlayerManager {
      * 【作用】用于控制屏幕常亮。
      */
     private boolean isPlaying = false;
-
     /**
      * 日志时间格式化
      */
     private SimpleDateFormat logSdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
-
     // ====================== 单例获取 ======================
     public static TVPlayerManager getInstance(Context context) {
         if (instance == null) {
@@ -361,13 +321,11 @@ public class TVPlayerManager {
         }
         return instance;
     }
-
     // ====================== 构造方法 ======================
     private TVPlayerManager(Context context) {
         this.context = context;
         mHandler = new Handler(Looper.getMainLooper());
         stuckHandler = new Handler(Looper.getMainLooper());
-
         // 初始化隐藏频道号的 Runnable
         hideChannelRunnable = new Runnable() {
             @Override
@@ -375,7 +333,6 @@ public class TVPlayerManager {
                 hideChannelNum();
             }
         };
-
         // 初始化卡住检测 Runnable
         stuckCheckRunnable = new Runnable() {
             @Override
@@ -404,11 +361,9 @@ public class TVPlayerManager {
                 stuckHandler.postDelayed(this, 2000);
             }
         };
-
         // 初始化播放器
         initPlayer();
     }
-
     // ====================================================================
     // ✅ 初始化播放器
     // ====================================================================
@@ -433,7 +388,6 @@ public class TVPlayerManager {
     private void initPlayer() {
         // 创建渲染器工厂
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
-
         // ====================================================================
         // ✅ 根据解码器模式设置扩展渲染器模式（2026-06-25 重构）
         // ====================================================================
@@ -452,11 +406,9 @@ public class TVPlayerManager {
                 //
                 // 【缺点】
                 // 性能稍差，耗电多一些
-
                 renderersFactory.setExtensionRendererMode(
                         DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
                 );
-
                 // ====================================================================
                 // ✅ 2026-06-25 修复：软解模式下关闭解码器降级
                 // ====================================================================
@@ -474,14 +426,11 @@ public class TVPlayerManager {
                 // 如果你的设备上 FFmpeg 确实不可用，开启这个可能导致某些频道播放失败。
                 // 但这样至少能知道真实情况，方便后续排查 FFmpeg 加载问题。
                 renderersFactory.setEnableDecoderFallback(false);
-
                 // 删掉原来重复的 setExtensionRendererMode 调用（代码里有两次）
                 // 原来的 try-catch 块里又调用了一次，是冗余的，现在去掉
-
                 Log.d(TAG, "【FFmpeg】软解码模式：优先使用 FFmpeg 解码器（降级已关闭）");
                 SettingsActivity.logOperation("【解码器】初始化：FFmpeg 软解码模式（优先，降级已关闭）");
                 break;
-
             case DECODER_MODE_HARD:
                 // ================================================================
                 // 硬解模式：只用系统硬解码器，完全不用 FFmpeg
@@ -495,17 +444,14 @@ public class TVPlayerManager {
                 //
                 // 【缺点】
                 // 兼容性一般，有些特殊格式的直播源可能不支持
-
                 renderersFactory.setExtensionRendererMode(
                         DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                 );
                 // 禁用解码器降级（硬解不行就报错，不用软解兜底）
                 renderersFactory.setEnableDecoderFallback(false);
-
                 Log.d(TAG, "【解码器】硬解码模式：只用系统硬解，不使用 FFmpeg");
                 SettingsActivity.logOperation("【解码器】初始化：系统硬解模式（不使用 FFmpeg）");
                 break;
-
             case DECODER_MODE_AUTO:
             default:
                 // ================================================================
@@ -525,18 +471,15 @@ public class TVPlayerManager {
                 // 2. 特殊格式自动用 FFmpeg 软解，兼容性好
                 // 3. 用户无感知，自动切换
                 // 4. 配合自动切换解码器功能，卡顿了还能主动切软解
-
                 renderersFactory.setExtensionRendererMode(
                         DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
                 );
                 // 启用解码器降级（硬解不行自动降级到软解）
                 renderersFactory.setEnableDecoderFallback(true);
-
                 Log.d(TAG, "【FFmpeg】硬解码模式：系统硬解优先，FFmpeg 作为备用");
                 SettingsActivity.logOperation("【解码器】初始化：自动模式（系统硬解优先，FFmpeg 备用）");
                 break;
         }
-
         // ================================================
         // ✅ 缓冲配置（快速出画 + 大缓冲防卡）
         // ================================================
@@ -571,102 +514,98 @@ public class TVPlayerManager {
                 )
                 .setPrioritizeTimeOverSizeThresholds(true) // 优先保证时间缓冲
                 .build();
-
         // 创建ExoPlayer实例
         player = new ExoPlayer.Builder(context)
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
                 .build();
-
         // ====================================================================
-        // ✅ 2026-06-25 新增：检测 FFmpeg 扩展是否可用
+        // ✅ 2026-06-26 更新：FFmpeg 可用性检测（反射方式，修正版）
         // ====================================================================
-        // 【作用】
-        // 初始化播放器后，检测系统中可用的解码器，
-        // 统计 FFmpeg 解码器的数量，判断 FFmpeg 扩展是否正确加载。
+        // 【为什么改用反射？】
+        // 原来用 MediaCodecList API 检测 FFmpeg 解码器，但那是错的！
+        // MediaCodecList 只能检测系统内置的 MediaCodec 解码器，
+        // FFmpeg 扩展是 Media3 自己实现的，不走系统 MediaCodec 框架。
+        // 所以检测结果"未发现 FFmpeg 解码器"是假阴性。
         //
-        // 【为什么需要这个检测？】
-        // 用户反馈"设置了软解，但实际还是硬解"，
-        // 很可能是 FFmpeg 扩展没有正确加载（so 库缺失、版本不匹配等）。
-        // 加上这个检测后，可以从日志里直接看到 FFmpeg 是否可用。
+        // 【正确检测方法】
+        // 用反射尝试加载 FFmpeg 相关的类，判断 FFmpeg 扩展是否正确集成。
         //
-        // 【检测结果说明】
-        // - FFmpeg 解码器数量 > 0 → FFmpeg 扩展加载成功
-        // - FFmpeg 解码器数量 = 0 → FFmpeg 扩展未加载，软解模式不会生效
-        //
-        // 【检测方法】
-        // 通过 Android 的 MediaCodecList API 获取所有可用的解码器，
-        // 然后筛选名称中包含 "ffmpeg" 的解码器。
-        // FFmpeg 扩展的解码器名称通常以 "OMX.ffmpeg." 或 "ffmpeg" 开头。
+        // 【检测内容】
+        // 1. FfmpegLibrary 类是否存在
+        // 2. FfmpegLibrary.isAvailable() 是否返回 true
+        // 3. FfmpegAudioRenderer 类是否存在（音频渲染器）
+        // 4. ExperimentalFfmpegVideoRenderer 类是否存在（视频渲染器，实验性）
+        // 5. FfmpegVideoRenderer 类是否存在（视频渲染器，正式版，备用检测）
         try {
-            // 获取所有可用的解码器
-            android.media.MediaCodecList codecList = 
-                new android.media.MediaCodecList(android.media.MediaCodecList.ALL_CODECS);
-            android.media.MediaCodecInfo[] codecs = codecList.getCodecInfos();
-
-            int ffmpegCount = 0;
-            int systemCount = 0;
-            StringBuilder ffmpegDecoderNames = new StringBuilder();
-
-            for (android.media.MediaCodecInfo codec : codecs) {
-                // 只统计视频解码器（跳过编码器）
-                if (codec.isEncoder()) continue;
-
-                String name = codec.getName();
-                String lowerName = name.toLowerCase();
-
-                // 判断是否是 FFmpeg 解码器
-                // FFmpeg 扩展的解码器名称通常包含 "ffmpeg"
-                if (lowerName.contains("ffmpeg")) {
-                    ffmpegCount++;
-                    if (ffmpegCount <= 5) { // 只记录前 5 个，避免日志太长
-                        if (ffmpegCount > 1) ffmpegDecoderNames.append(", ");
-                        ffmpegDecoderNames.append(name);
-                    }
-                    Log.d(TAG, "【FFmpeg】发现 FFmpeg 解码器：" + name);
-                } else {
-                    systemCount++;
+            // 1. 检测 FfmpegLibrary 类是否存在
+            Class<?> ffmpegLibraryClass = Class.forName("androidx.media3.decoder.ffmpeg.FfmpegLibrary");
+            Log.d(TAG, "【解码器】✅ FfmpegLibrary 类存在");
+            
+            // 2. 检测 isAvailable() 方法
+            java.lang.reflect.Method isAvailableMethod = ffmpegLibraryClass.getMethod("isAvailable");
+            boolean isAvailable = (boolean) isAvailableMethod.invoke(null);
+            Log.d(TAG, "【解码器】FfmpegLibrary.isAvailable() = " + isAvailable);
+            SettingsActivity.logOperation("【解码器】FFmpeg 库可用状态：" + (isAvailable ? "✅ 可用" : "❌ 不可用"));
+            
+            if (!isAvailable) {
+                Log.w(TAG, "【解码器】⚠️ FFmpeg 库不可用，软解可能不生效");
+                SettingsActivity.logOperation("【解码器】⚠️ 警告：FFmpeg 库不可用，软解可能不生效");
+            }
+            
+            // 3. 检测音频渲染器
+            try {
+                Class.forName("androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer");
+                Log.d(TAG, "【解码器】✅ FfmpegAudioRenderer 存在（音频渲染器）");
+                SettingsActivity.logOperation("【解码器】FFmpeg 音频渲染器：✅ 可用");
+            } catch (ClassNotFoundException e) {
+                Log.w(TAG, "【解码器】❌ FfmpegAudioRenderer 不存在");
+                SettingsActivity.logOperation("【解码器】FFmpeg 音频渲染器：❌ 不存在");
+            }
+            
+            // 4. 检测视频渲染器（注意：Media3 1.7.1 是 ExperimentalFfmpegVideoRenderer）
+            boolean hasVideoRenderer = false;
+            try {
+                Class<?> videoRendererClass = Class.forName("androidx.media3.decoder.ffmpeg.ExperimentalFfmpegVideoRenderer");
+                Log.d(TAG, "【解码器】✅ ExperimentalFfmpegVideoRenderer 存在（视频渲染器，实验性）");
+                SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：✅ 可用（实验性）");
+                hasVideoRenderer = true;
+            } catch (ClassNotFoundException e) {
+                Log.w(TAG, "【解码器】⚠️ ExperimentalFfmpegVideoRenderer 不存在，尝试检测正式版...");
+                // 再试试 FfmpegVideoRenderer（不带 Experimental，某些版本可能叫这个）
+                try {
+                    Class.forName("androidx.media3.decoder.ffmpeg.FfmpegVideoRenderer");
+                    Log.d(TAG, "【解码器】✅ FfmpegVideoRenderer 存在（视频渲染器）");
+                    SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：✅ 可用");
+                    hasVideoRenderer = true;
+                } catch (ClassNotFoundException e2) {
+                    Log.w(TAG, "【解码器】❌ FfmpegVideoRenderer 也不存在");
+                    SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：❌ 未找到");
                 }
             }
-
-            // 输出统计结果
-            Log.d(TAG, "【FFmpeg】解码器统计：FFmpeg=" + ffmpegCount + " 个，系统=" + systemCount + " 个");
-            if (ffmpegCount > 0 && ffmpegCount <= 5) {
-                Log.d(TAG, "【FFmpeg】FFmpeg 解码器列表：" + ffmpegDecoderNames.toString());
-            } else if (ffmpegCount > 5) {
-                Log.d(TAG, "【FFmpeg】FFmpeg 解码器数量：" + ffmpegCount + " 个（仅显示前 5 个：" 
-                    + ffmpegDecoderNames.toString() + " ...）");
+            
+            // 如果只有音频没有视频，输出警告
+            if (!hasVideoRenderer) {
+                Log.w(TAG, "【解码器】⚠️ 警告：FFmpeg 仅支持音频，视频软解不可用！");
+                Log.w(TAG, "【解码器】这就是设置了软解但视频还是硬解的原因！");
+                SettingsActivity.logOperation("【解码器】⚠️ 警告：FFmpeg 仅支持音频，视频软解不可用");
             }
-
-            // 根据检测结果输出警告或成功信息
-            if (ffmpegCount == 0) {
-                Log.w(TAG, "【FFmpeg】⚠️ 未发现任何 FFmpeg 解码器，FFmpeg 扩展可能未正确加载！");
-                Log.w(TAG, "【FFmpeg】可能原因：so 库缺失 / 版本不匹配 / 架构不支持 / 混淆删除");
-                SettingsActivity.logOperation("【解码器】⚠️ 警告：未发现 FFmpeg 解码器，软解可能不生效");
-            } else {
-                Log.d(TAG, "【FFmpeg】✅ FFmpeg 扩展加载成功，共 " + ffmpegCount + " 个解码器");
-                SettingsActivity.logOperation("【解码器】✅ FFmpeg 扩展加载成功，解码器数：" + ffmpegCount);
-            }
-
+            
         } catch (Exception e) {
-            // 检测失败不影响播放，只是少了诊断信息
-            Log.e(TAG, "【FFmpeg】检测解码器失败：" + e.getMessage());
+            Log.e(TAG, "【解码器】检测 FFmpeg 失败：" + e.getMessage(), e);
+            SettingsActivity.logOperation("【解码器】检测 FFmpeg 失败：" + e.getMessage());
         }
-
         // 初始化播放监听器
         initPlayerListener();
-
         // 初始化Cookie管理器
         CookieSyncManager.createInstance(context);
         CookieManager.getInstance().setAcceptCookie(true);
     }
-
     // ====================================================================
     // ✅ 初始化播放状态监听器
     // ====================================================================
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
-
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
@@ -676,7 +615,6 @@ public class TVPlayerManager {
                 // 播放错误时自动重试（重试次数用完后回调源失效）
                 autoRetry("播放错误：" + error.getMessage());
             }
-
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_READY) {
@@ -684,14 +622,11 @@ public class TVPlayerManager {
                     notifyLiveInfoUpdate();
                     showChannelAndAutoHide();
                     if (listener != null) listener.onPlayReady();
-
                     // 播放就绪，重置重试计数
                     retryCount = 0;
                     isRetrying = false;
-
                     // 开始卡住检测
                     startStuckDetection();
-
                     // ====================================================================
                     // 打印当前使用的解码器信息
                     // ====================================================================
@@ -705,12 +640,10 @@ public class TVPlayerManager {
                             boolean isFfmpeg = decoderName != null
                                     && decoderName.toLowerCase().contains("ffmpeg");
                             String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
-
                             Log.d(TAG, "【解码器】当前视频解码器：" + decoderName
                                     + "（" + decoderType + "）");
                             SettingsActivity.logOperation("【解码器】当前使用：" + decoderType
                                     + "（" + decoderName + "）");
-
                             // ================================================================
                             // ✅ 2026-06-25 新增：软解模式未生效警告
                             // ================================================================
@@ -731,7 +664,6 @@ public class TVPlayerManager {
                                 Log.w(TAG, "【解码器】可能原因：FFmpeg 扩展未加载 / 不支持该格式 / 解码器降级");
                                 SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效，实际使用系统硬解");
                             }
-
                             // ================================================================
                             // ✅ 2026-06-25 新增：硬解模式未生效警告
                             // ================================================================
@@ -744,7 +676,6 @@ public class TVPlayerManager {
                     } catch (Exception e) {
                         // 忽略，获取解码器信息失败不影响播放
                     }
-
                     // ====================================================================
                     // 只在第一次 STATE_READY 时记录开始时间
                     // ====================================================================
@@ -759,7 +690,6 @@ public class TVPlayerManager {
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
-
                     // ====================================================================
                     // ✅ 自动切换解码器（硬解 → 软解）（2026-06-25 调优）
                     // ====================================================================
@@ -789,13 +719,10 @@ public class TVPlayerManager {
                         hasSwitchedDecoder = true;
                         setDecoderMode(DECODER_MODE_SOFT);
                     }
-
                 } else if (state == Player.STATE_BUFFERING) {
                     if (listener != null) listener.onBuffering();
-
                     // 缓冲中也重置卡住检测
                     lastPositionUpdateTime = System.currentTimeMillis();
-
                     // ====================================================================
                     // 统计缓冲次数和卡顿时间
                     // ====================================================================
@@ -807,20 +734,16 @@ public class TVPlayerManager {
                         isStalled = true;
                         lastStallStartTime = System.currentTimeMillis();
                     }
-
                     // 只在第一次缓冲时记录操作日志，避免刷屏
                     if (bufferCount == 1) {
                         SettingsActivity.logOperation("【播放器】开始缓冲（第1次）");
                     }
-
                 } else if (state == Player.STATE_ENDED) {
                     if (listener != null) listener.onPlayEnd();
                     // 直播流意外结束，自动重试
                     autoRetry("播放结束");
-
                 } else if (state == Player.STATE_IDLE) {
                     if (listener != null) listener.onIdle();
-
                     // ====================================================================
                     // IDLE 状态也更新唤醒锁
                     // ====================================================================
@@ -830,19 +753,16 @@ public class TVPlayerManager {
                     // 确保空闲状态时屏幕常亮会被关闭。
                     updateWakeLock(false);
                 }
-
                 // ⚠️ 注意：去掉了原来的 else 分支
                 // 因为四个状态（READY/BUFFERING/ENDED/IDLE）已经覆盖了所有情况，
                 // else 分支永远不会执行，是死代码。
                 // 现在把 updateWakeLock(false) 分别放到合适的状态里处理。
             }
-
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
                 // 播放状态变化时更新卡住检测
                 if (isPlaying) {
                     lastPositionUpdateTime = System.currentTimeMillis();
-
                     // ====================================================================
                     // 卡顿结束，统计卡顿时间
                     // ====================================================================
@@ -854,7 +774,6 @@ public class TVPlayerManager {
                     }
                 }
             }
-
             // ====================================================================
             // 视频分辨率变化时触发
             // ====================================================================
@@ -873,10 +792,8 @@ public class TVPlayerManager {
                 notifyLiveInfoUpdate();
             }
         };
-
         player.addListener(playerListener);
     }
-
     // ================================================
     // ✅ 卡住检测 + 自动重试
     // ================================================
@@ -890,14 +807,12 @@ public class TVPlayerManager {
         lastPosition = 0;
         stuckHandler.postDelayed(stuckCheckRunnable, 2000);
     }
-
     /**
      * 停止卡住检测
      */
     private void stopStuckDetection() {
         stuckHandler.removeCallbacks(stuckCheckRunnable);
     }
-
     // ====================================================================
     // 取消重试任务
     // ====================================================================
@@ -925,7 +840,6 @@ public class TVPlayerManager {
         }
         isRetrying = false;
     }
-
     /**
      * ✅ 自动重试
      * @param reason 重试原因（用于日志）
@@ -939,12 +853,10 @@ public class TVPlayerManager {
      */
     private void autoRetry(String reason) {
         if (isRetrying) return; // 已经有重试任务在等待中，避免重复
-
         if (retryCount >= MAX_RETRY_COUNT) {
             Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT + "，判定为失效源");
             SettingsActivity.logOperation("【播放器】重试" + MAX_RETRY_COUNT
                     + "次均失败，判定为失效源");
-
             // ====================================================================
             // 重试次数用完，回调源失效
             // ====================================================================
@@ -961,12 +873,10 @@ public class TVPlayerManager {
             }
             return;
         }
-
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
         SettingsActivity.logOperation("【播放器】自动重试（第" + retryCount + "次），原因：" + reason);
-
         // 保存重试任务的引用，方便后续取消
         retryRunnable = new Runnable() {
             @Override
@@ -985,7 +895,6 @@ public class TVPlayerManager {
                 // 导致重试一次后如果又失败，就不能再重试了，
                 // 实际上只能重试 1 次，而不是 MAX_RETRY_COUNT 次。
                 isRetrying = false;
-
                 if (!TextUtils.isEmpty(currentUrl)) {
                     // 重新播放当前地址
                     playUrlInternal(currentUrl);
@@ -994,11 +903,9 @@ public class TVPlayerManager {
                 retryRunnable = null;
             }
         };
-
         // 延迟1秒后重新加载
         mHandler.postDelayed(retryRunnable, 1000);
     }
-
     // ====================================================================
     // ✅ 设置解码器模式（2026-06-25 新增）
     // ====================================================================
@@ -1026,12 +933,9 @@ public class TVPlayerManager {
     public void setDecoderMode(int mode) {
         // 如果模式没变，不做任何操作
         if (mDecoderMode == mode) return;
-
         mDecoderMode = mode;
-
         // 同步更新旧变量（保持向后兼容）
         useSoftwareDecoder = (mode == DECODER_MODE_SOFT);
-
         String decoderType;
         switch (mode) {
             case DECODER_MODE_HARD:
@@ -1045,10 +949,8 @@ public class TVPlayerManager {
                 decoderType = "自动模式（硬解优先）";
                 break;
         }
-
         Log.d(TAG, "切换解码器模式：" + decoderType);
         SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
-
         // 重新创建播放器
         if (player != null) {
             try {
@@ -1064,13 +966,10 @@ public class TVPlayerManager {
                 Log.e(TAG, "释放播放器异常", e);
             }
         }
-
         initPlayer();
-
         if (playerView != null) {
             playerView.setPlayer(player);
         }
-
         // 重新播放当前地址
         if (!TextUtils.isEmpty(currentUrl)) {
             retryCount = 0;
@@ -1081,7 +980,6 @@ public class TVPlayerManager {
             playUrlInternal(currentUrl);
         }
     }
-
     /**
      * 获取当前解码器模式
      *
@@ -1093,7 +991,6 @@ public class TVPlayerManager {
     public int getDecoderMode() {
         return mDecoderMode;
     }
-
     /**
      * 切换软解码/硬解码（保留，用于向后兼容）
      *
@@ -1119,7 +1016,6 @@ public class TVPlayerManager {
             setDecoderMode(DECODER_MODE_AUTO);
         }
     }
-
     // ====================================================================
     // 前后台切换
     // ====================================================================
@@ -1133,7 +1029,6 @@ public class TVPlayerManager {
             Log.e(TAG, "切前台异常", e);
         }
     }
-
     public void onBackground() {
         try {
             if (player != null) {
@@ -1143,7 +1038,6 @@ public class TVPlayerManager {
             Log.e(TAG, "切后台异常", e);
         }
     }
-
     // ====================================================================
     // PlayerView 绑定
     // ====================================================================
@@ -1152,7 +1046,6 @@ public class TVPlayerManager {
         playerView.setPlayer(player);
         playerView.setUseController(false);
     }
-
     // ====================================================================
     // 屏幕常亮控制
     // ====================================================================
@@ -1162,14 +1055,12 @@ public class TVPlayerManager {
             playerView.setKeepScreenOn(enable);
         }
     }
-
     // ====================================================================
     // 日志时间格式化
     // ====================================================================
     private String getLogTime() {
         return "[" + logSdf.format(new Date()) + "]";
     }
-
     // ====================================================================
     // 请求头获取
     // ====================================================================
@@ -1179,10 +1070,8 @@ public class TVPlayerManager {
         headers.put("Accept", "*/*");
         headers.put("Connection", "keep-alive");
         headers.put("Icy-MetaData", "1");
-
         boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
         boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
-
         if (isHuya) {
             headers.put("Referer", "https://www.huya.com/");
             Log.d(TAG, "虎牙直播，设置虎牙Referer");
@@ -1194,22 +1083,18 @@ public class TVPlayerManager {
         else {
             headers.put("Referer", "https://www.huya.com/");
         }
-
         String cookies = CookieManager.getInstance().getCookie(url);
         if (cookies != null) {
             headers.put("Cookie", cookies);
         }
-
         return headers;
     }
-
     // ====================================================================
     // 播放入口
     // ====================================================================
     public void play(String url) {
         playUrl(url);
     }
-
     /**
      * 播放指定URL（对外接口）
      * 切换频道时调用，重置重试计数和解码器状态
@@ -1231,29 +1116,22 @@ public class TVPlayerManager {
     public void playUrl(String url) {
         // 切换频道，先取消之前的重试任务
         cancelRetry();
-
         // 切换频道，重置重试计数
         retryCount = 0;
         isRetrying = false;
-
         // ====================================================================
         // 切换频道，重置解码器切换标记
         // ====================================================================
         // 每个频道只自动切换一次解码器
         hasSwitchedDecoder = false;
-
         // 切换频道，重置首次播放开始时间
         initialPlayStartTime = 0;
-
         // 切换频道，重置性能统计
         resetPerformanceStats();
-
         // 接入操作日志
         SettingsActivity.logOperation("【播放器】开始加载新频道");
-
         playUrlInternal(url);
     }
-
     // ====================================================================
     // 重置性能统计
     // ====================================================================
@@ -1269,7 +1147,6 @@ public class TVPlayerManager {
         // ⚠️ 注意：hasSwitchedDecoder 不在这重置
         // 因为它是按频道来的，已经在 playUrl() 里重置了
     }
-
     /**
      * ✅ 内部播放方法
      *
@@ -1285,10 +1162,8 @@ public class TVPlayerManager {
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
-
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
-
             // ====================================================================
             // ✅ 关键修改：去掉 player.stop() 和 player.clearMediaItems()
             // ====================================================================
@@ -1314,16 +1189,13 @@ public class TVPlayerManager {
              */
             // player.stop();          // 注释掉，保持最后一帧
             // player.clearMediaItems(); // 注释掉，保持最后一帧
-
             // ===== 创建数据源（带重定向日志版） =====
             // 每一重定向都会打印详细日志，方便调试直播源
             RedirectLoggingHttpDataSource.Factory httpFactory =
                     new RedirectLoggingHttpDataSource.Factory();
             httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
             httpFactory.setAllowCrossProtocolRedirects(true);
-
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
-
             // ====================================================================
             // MediaSource 类型改成 Media3 的
             // ====================================================================
@@ -1337,23 +1209,19 @@ public class TVPlayerManager {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
-
             // ====================================================================
             // ✅ 关键修改：直接设置新的媒体源，第二个参数 true = 重置到开头
             // ====================================================================
             player.setMediaSource(mediaSource, true);
             player.prepare();
             player.play();
-
             // 开始卡住检测
             startStuckDetection();
-
         } catch (Exception e) {
             Log.e(TAG, "播放异常", e);
             autoRetry("播放异常：" + e.getMessage());
         }
     }
-
     // ====================================================================
     // 缩放模式
     // ====================================================================
@@ -1362,11 +1230,9 @@ public class TVPlayerManager {
         FILL,   // 拉伸填满（变形）
         ZOOM    // 等比缩放，填满屏幕（裁剪）
     }
-
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
-
             // ====================================================================
             // AspectRatioFrameLayout 包名改成 Media3 的
             // ====================================================================
@@ -1387,7 +1253,6 @@ public class TVPlayerManager {
             Log.e(TAG, "设置缩放模式异常", e);
         }
     }
-
     // ====================================================================
     // 频道号显示
     // ====================================================================
@@ -1397,14 +1262,12 @@ public class TVPlayerManager {
     public void setCurrentChannelNumber(int num) {
         currentChannelNumber = num;
     }
-
     /**
      * 绑定频道号显示的 TextView
      */
     public void bindChannelText(TextView textView) {
         channelNumberTextView = textView;
     }
-
     /**
      * 显示频道号并自动隐藏
      */
@@ -1418,7 +1281,6 @@ public class TVPlayerManager {
             mHandler.postDelayed(hideChannelRunnable, CHANNEL_NUM_HIDE_DELAY);
         }
     }
-
     /**
      * 隐藏频道号
      */
@@ -1427,7 +1289,6 @@ public class TVPlayerManager {
             channelNumberTextView.setVisibility(View.GONE);
         }
     }
-
     // ====================================================================
     // 直播信息
     // ====================================================================
@@ -1440,11 +1301,10 @@ public class TVPlayerManager {
         public String audio = "未知";       // 音频信息
         public String format = "未知";      // 视频格式
     }
-
     /**
      * 获取当前直播信息
      */
-    public LiveInfo getLiveInfo() {
+        public LiveInfo getLiveInfo() {
         LiveInfo info = new LiveInfo();
         try {
             if (player != null) {
@@ -1456,14 +1316,13 @@ public class TVPlayerManager {
                         info.resolution = width + "×" + height;
                     }
                     info.format = videoFormat.sampleMimeType;
-
                     // 码率（转成 Mbps，保留1位小数）
                     if (videoFormat.bitrate > 0) {
                         float mbps = videoFormat.bitrate / 1000000f;
                         info.bitrate = String.format(Locale.getDefault(), "%.1f Mbps", mbps);
                     }
                 }
-                                Format audioFormat = player.getAudioFormat();
+                Format audioFormat = player.getAudioFormat();
                 if (audioFormat != null) {
                     info.audio = audioFormat.sampleMimeType;
                     if (audioFormat.sampleRate > 0) {
@@ -1476,7 +1335,6 @@ public class TVPlayerManager {
         }
         return info;
     }
-
     /**
      * 通知直播信息更新
      */
@@ -1485,7 +1343,6 @@ public class TVPlayerManager {
             liveInfoUpdateListener.onLiveInfoUpdate(getLiveInfo());
         }
     }
-
     // ====================================================================
     // 监听器接口
     // ====================================================================
@@ -1499,11 +1356,9 @@ public class TVPlayerManager {
         void onPlayEnd();
         void onPlayError(String msg);
     }
-
     public void setOnPlayStateListener(OnPlayStateListener l) {
         listener = l;
     }
-
     /**
      * 源失效监听器
      * 【作用】
@@ -1515,22 +1370,18 @@ public class TVPlayerManager {
     public interface OnSourceFailedListener {
         void onSourceFailed();
     }
-
     public void setOnSourceFailedListener(OnSourceFailedListener listener) {
         sourceFailedListener = listener;
     }
-
     /**
      * 直播信息更新监听器
      */
     public interface OnLiveInfoUpdateListener {
         void onLiveInfoUpdate(LiveInfo info);
     }
-
     public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) {
         liveInfoUpdateListener = listener;
     }
-
     // ====================================================================
     // 播放控制
     // ====================================================================
@@ -1539,13 +1390,11 @@ public class TVPlayerManager {
             Log.e(TAG, "暂停异常", e);
         }
     }
-
     public void resume() {
         try { if (player != null) player.play(); } catch (Exception e) {
             Log.e(TAG, "恢复异常", e);
         }
     }
-
     /**
      * 释放播放器
      */
@@ -1556,7 +1405,6 @@ public class TVPlayerManager {
             cancelRetry();
             mHandler.removeCallbacks(hideChannelRunnable);
             updateWakeLock(false);
-
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -1570,3 +1418,4 @@ public class TVPlayerManager {
         }
     }
 }
+   
