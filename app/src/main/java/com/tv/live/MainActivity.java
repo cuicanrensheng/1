@@ -1,4 +1,4 @@
-       package com.tv.live;
+package com.tv.live;
 
 import android.app.PictureInPictureParams;
 import android.content.BroadcastReceiver;
@@ -157,6 +157,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             pipManager = PictureInPictureManager.getInstance(this);
             pipManager.setPipEnabled(pipEnable);
+            pipManager.setDebugLogEnabled(true);
             pipManager.setListener(new PictureInPictureManager.OnPipListener() {
                 @Override
                 public void onPipModeChanged(boolean inPip) {
@@ -662,32 +663,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        SettingsActivity.logOperation("【画中画排查】========== 开始 ==========");
-        SettingsActivity.logOperation("【画中画排查】onUserLeaveHint 被调用");
         if (isOpeningSettings) {
-            SettingsActivity.logOperation("【画中画排查】打开设置页面，跳过");
-            SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
             return;
         }
-        if (pipManager == null) {
-            SettingsActivity.logOperation("【画中画排查】❌ pipManager 为 null");
-            SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
-            return;
+        if (pipManager != null) {
+            pipManager.enterPip(this, mPlayerManager, pipEnable);
         }
-        boolean shouldEnter = pipManager.shouldEnterPip();
-        SettingsActivity.logOperation("【画中画排查】MainActivity开关状态：" + pipEnable);
-        SettingsActivity.logOperation("【画中画排查】设备支持：" + pipManager.isPipSupported());
-        SettingsActivity.logOperation("【画中画排查】PIP管理器开关：" + pipManager.isPipEnabled());
-        SettingsActivity.logOperation("【画中画排查】已在画中画模式：" + pipManager.isInPipMode());
-        SettingsActivity.logOperation("【画中画排查】正在进入画中画：" + pipManager.isPipEntering());
-        if (shouldEnter) {
-            SettingsActivity.logOperation("【画中画排查】所有条件满足，尝试进入画中画...");
-            boolean result = pipManager.enterPip(this, mPlayerManager);
-            SettingsActivity.logOperation("【画中画排查】进入结果：" + (result ? "✅ 成功" : "❌ 失败"));
-        } else {
-            SettingsActivity.logOperation("【画中画排查】❌ 条件不满足，不进入画中画");
-        }
-        SettingsActivity.logOperation("【画中画排查】========== 结束 ==========");
     }
 
     @Override
@@ -873,4 +854,4 @@ public class MainActivity extends AppCompatActivity {
         mInstance = null;
         SettingsActivity.logOperation("【系统】APP退出");
     }
-}       
+}
