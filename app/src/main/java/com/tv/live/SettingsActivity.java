@@ -1,5 +1,4 @@
 package com.tv.live;
-
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -17,15 +16,11 @@ import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-
 import com.tv.live.manager.TvRemoteManager;
-
 import java.util.ArrayList;
 import java.util.List;
-
 /**
  * 设置页面 Activity
  *
@@ -104,10 +99,10 @@ import java.util.List;
  *
  * 【2026-06-25 新增：解码器选择功能】
  * 【功能说明】
- * 支持三种解码器模式：自动（推荐）、硬解、软解（FFmpeg）
- * - 自动：硬解优先，卡顿自动切换到 FFmpeg 软解
+ * 支持三种解码器模式：自动（推荐）、硬解、软解（兼容性好）
+ * - 自动：硬解优先，卡顿自动切换到系统软解
  * - 硬解：强制使用系统硬解码器
- * - 软解：强制使用 FFmpeg 软解码器
+ * - 软解：优先使用系统软件解码器
  * 【存储 Key】decoder_mode，默认 auto（自动模式）
  * 【联动说明】切换后发送广播，通知 MainActivity 立即应用新的解码器
  *
@@ -121,42 +116,43 @@ import java.util.List;
  * 5. ✅ 全面屏设置增加 try-catch 崩溃防护（用旧 API，兼容性最好）
  * 6. ✅ 统一清空日志的顺序（先清 LogManager 再清本地缓存）
  * 7. ✅ 所有优化点接入操作日志
+ *
+ * 【2026-06-26 修改：改用系统自带软解，替代 FFmpeg 方案】
+ * 【修改说明】
+ * 把所有"软解（FFmpeg）"的文字改成"软解（兼容性好）"，
+ * 把"FFmpeg 软解"改成"系统软解"。
+ * 因为现在改用系统自带的软件解码器（OMX.google.* / c2.android.*），
+ * 不再使用 FFmpeg 扩展了。
  */
 public class SettingsActivity extends AppCompatActivity {
-
     // ====================== 控件声明 ======================
     /**
      * 开关控件集合
      * 【说明】所有带 Switch 开关的设置项
      */
     private Switch sw_boot, sw_epg, sw_auto_update, sw_reverse, sw_num_channel;
-
     /**
      * ✅ 画中画开关控件（2026-06-22 新增）
      * 【作用】控制画中画功能的开启/关闭
      * 【对应布局ID】R.id.sw_pip
      */
     private Switch sw_pip;
-
     /**
      * 纯文本点击项
      * 【说明】没有开关，点击后弹出对话框的设置项
      */
     private TextView tv_screen_ratio, tv_custom_source, tv_custom_epg, tv_multi_source, tv_multi_epg, tv_qr_code;
-
     /**
      * ✅ 解码器选择 - 当前值显示（2026-06-25 新增）
      * 【作用】显示当前解码器模式（自动/硬解/软解）
      * 【对应布局ID】R.id.tv_decoder_mode
      */
     private TextView tv_decoder_mode;
-
     /**
      * 开机自启状态描述文本
      * 【作用】显示开机自启的当前状态（已开启/已关闭/不支持等）
      */
     private TextView tv_boot_status;
-
     // ====================== 配置相关 ======================
     /**
      * SharedPreferences 配置存储
@@ -164,7 +160,6 @@ public class SettingsActivity extends AppCompatActivity {
      * 【文件名】app_settings
      */
     private SharedPreferences sp;
-
     // ====================================================================
     // ✅ 新增：遥控器统一管理器
     // ====================================================================
@@ -181,7 +176,6 @@ public class SettingsActivity extends AppCompatActivity {
      * 4. 和 MainActivity、ChannelPanelController 用同一套体系
      */
     private TvRemoteManager remoteManager;
-
     /**
      * 可聚焦的设置项列表（按从上到下的顺序排列）
      *
@@ -194,13 +188,11 @@ public class SettingsActivity extends AppCompatActivity {
      * 不用修改任何按键处理逻辑，非常方便。
      */
     private List<View> settingsItemList = new ArrayList<>();
-
     /**
      * 滚动视图（用于滚动到可见区域）
      * 【作用】当焦点移动到屏幕外时，自动滚动让用户看到
      */
     private ScrollView scrollView;
-
     // ====================================================================
     // 管理器相关（全部拆分后）
     // ====================================================================
@@ -209,43 +201,36 @@ public class SettingsActivity extends AppCompatActivity {
      * 【作用】管理开机自启功能的开启/关闭、状态显示
      */
     private BootStartManager bootStartManager;
-
     /**
      * 自动更新管理器
      * 【作用】管理直播源的自动更新（每天凌晨4点）
      */
     private AutoUpdateManager autoUpdateManager;
-
     /**
      * 订阅源对话框管理器
      * 【作用】管理多订阅源/多节目单的历史记录
      */
     private SourceDialogManager sourceDialogManager;
-
     /**
      * 扫码管理器
      * 【作用】显示二维码，支持手机扫码添加直播源
      */
     private QRCodeManager qrCodeManager;
-
     /**
      * 网页后台管理器
      * 【作用】启动本地 HTTP 服务器，支持网页端管理
      */
     private WebServerManager webServerManager;
-
     /**
      * 网页后台端口号
      * 【默认值】10481
      */
     private static final int WEB_SERVER_PORT = 10481;
-
     /**
      * 当前网页后台访问地址
      * 【格式】http://IP:端口
      */
     private String currentWebUrl;
-
     // ====================================================================
     // 应用更新管理器
     // ====================================================================
@@ -254,18 +239,15 @@ public class SettingsActivity extends AppCompatActivity {
      * 【作用】检查更新、下载安装包、自动安装
      */
     private UpdateManager updateManager;
-
     // ====================== SP Key 常量 ======================
     /**
      * 自定义直播源地址的存储 Key
      */
     private static final String KEY_CUSTOM_LIVE = "custom_live_url";
-
     /**
      * 自定义 EPG 节目单地址的存储 Key
      */
     private static final String KEY_CUSTOM_EPG = "custom_epg_url";
-
     // ====================================================================
     // 全局日志系统（加回兼容层）
     // ====================================================================
@@ -282,7 +264,6 @@ public class SettingsActivity extends AppCompatActivity {
      * 避免了每次都全量复制的开销。
      */
     public static volatile StringBuilder PLAY_LOG = new StringBuilder();
-
     /**
      * 操作日志（静态，全局可访问）
      * 【作用】记录用户的所有操作行为，方便排查问题
@@ -294,7 +275,6 @@ public class SettingsActivity extends AppCompatActivity {
      * 同时也写到 LogManager，保持两套同步。
      */
     public static volatile StringBuilder OPERATION_LOG = new StringBuilder();
-
     /**
      * 记录播放日志（静态方法，全局可调用）
      * 
@@ -323,7 +303,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
         PLAY_LOG.append(msg).append("\n");
     }
-
     /**
      * 记录操作日志（静态方法，全局可调用）
      * 
@@ -343,7 +322,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
         OPERATION_LOG.append(msg).append("\n");
     }
-
     // ====================== onCreate 生命周期 ======================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -360,7 +338,6 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) {
             // 兜底：全面屏设置失败也不能让页面崩溃
         }
-
         // ====================================================================
         // 刘海屏/挖孔屏适配
         // ====================================================================
@@ -374,7 +351,6 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) {
             // 兜底：刘海屏适配失败也不能崩溃
         }
-
         // ====================================================================
         // 彻底清除背景变暗（三重保险）
         // ====================================================================
@@ -387,15 +363,12 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) {
             // 兜底：清除背景变暗失败也不能崩溃
         }
-
         // ===== 窗口设置 =====
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-
         super.onCreate(savedInstanceState);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         setContentView(R.layout.activity_settings);
-
         // ====================================================================
         // 点击左侧空白区域关闭设置
         // ====================================================================
@@ -406,27 +379,22 @@ public class SettingsActivity extends AppCompatActivity {
                 finish();
             }
         });
-
         // ===== 初始化 SharedPreferences =====
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
-
         // ===== 绑定控件 =====
         sw_boot = findViewById(R.id.sw_boot);
         sw_epg = findViewById(R.id.sw_epg);
         sw_auto_update = findViewById(R.id.sw_auto_update);
         sw_reverse = findViewById(R.id.sw_reverse);
         sw_num_channel = findViewById(R.id.sw_num_channel);
-
         // ====================================================================
         // ✅ 绑定画中画开关控件（2026-06-22 新增）
         // ====================================================================
         sw_pip = findViewById(R.id.sw_pip);
-
         // ====================================================================
         // ✅ 绑定解码器选择 - 当前值显示（2026-06-25 新增）
         // ====================================================================
         tv_decoder_mode = findViewById(R.id.tv_decoder_mode);
-
         tv_screen_ratio = findViewById(R.id.tv_screen_ratio);
         tv_custom_source = findViewById(R.id.tv_custom_source);
         tv_custom_epg = findViewById(R.id.tv_custom_epg);
@@ -434,10 +402,8 @@ public class SettingsActivity extends AppCompatActivity {
         tv_multi_epg = findViewById(R.id.tv_multi_epg);
         tv_qr_code = findViewById(R.id.tv_qr_code);
         tv_boot_status = findViewById(R.id.tv_boot_status);
-
         // 获取 ScrollView（用于滚动到可见区域）
         scrollView = findViewById(R.id.settings_content);
-
         // ====================================================================
         // 初始化所有管理器
         // ====================================================================
@@ -447,43 +413,35 @@ public class SettingsActivity extends AppCompatActivity {
         qrCodeManager = new QRCodeManager(this);
         webServerManager = new WebServerManager(this, WEB_SERVER_PORT);
         updateManager = new UpdateManager(this);
-
         // ====================================================================
         // ✅ 新增：初始化设置项列表（遥控器焦点顺序）
         // ====================================================================
         initSettingsItemList();
-
         // ====================================================================
         // ✅ 新增：初始化遥控器管理器
         // ====================================================================
         initRemoteManager();
-
         // ===== 日志查看按钮 =====
         findViewById(R.id.log_viewer).setOnClickListener(v -> {
             showLogDialog();
         });
-
         findViewById(R.id.log_operation).setOnClickListener(v -> {
             showOperationLogDialog();
         });
-
         // ====================================================================
         // 开机自启（委托给 BootStartManager）
         // ====================================================================
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
-
         findViewById(R.id.item_boot).setOnClickListener(v -> {
             boolean isChecked = !sw_boot.isChecked();
             sw_boot.setChecked(isChecked);
             bootStartManager.toggleBoot(isChecked, tv_boot_status);
         });
-
         findViewById(R.id.item_boot).setOnLongClickListener(v -> {
             bootStartManager.showBootStatusDialog();
             return true;
         });
-
         // ====================================================================
         // 2. 节目单开关
         // ====================================================================
@@ -495,7 +453,6 @@ public class SettingsActivity extends AppCompatActivity {
             logOperation("【设置】节目单" + (isChecked ? "已开启" : "已关闭"));
             Toast.makeText(this, "节目单" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
-
         // ====================================================================
         // 自动更新源（委托给 AutoUpdateManager）
         // ====================================================================
@@ -512,11 +469,9 @@ public class SettingsActivity extends AppCompatActivity {
             logOperation("【设置】自动更新源" + (isChecked ? "已开启" : "已关闭"));
             Toast.makeText(this, "自动更新源" + (isChecked ? "已开启（每天凌晨4点）" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
-
         if (sp.getBoolean("auto_update_source", true)) {
             autoUpdateManager.setAutoUpdateAlarm();
         }
-
         // ====================================================================
         // 4. 换台反转
         // ====================================================================
@@ -528,7 +483,6 @@ public class SettingsActivity extends AppCompatActivity {
             logOperation("【设置】换台反转" + (isChecked ? "已开启" : "已关闭"));
             Toast.makeText(this, "换台反转" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
-
         // ====================================================================
         // 5. 数字选台
         // ====================================================================
@@ -540,7 +494,6 @@ public class SettingsActivity extends AppCompatActivity {
             logOperation("【设置】数字选台" + (isChecked ? "已开启" : "已关闭"));
             Toast.makeText(this, "数字选台" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
-
         // ====================================================================
         // ✅ 画中画开关（2026-06-22 新增）
         // ====================================================================
@@ -562,7 +515,6 @@ public class SettingsActivity extends AppCompatActivity {
          */
         // 从本地读取画中画开关状态（默认关闭）
         sw_pip.setChecked(sp.getBoolean("pip_enable", false));
-
         // 画中画设置项点击事件
         findViewById(R.id.item_pip).setOnClickListener(v -> {
             // 切换开关状态（点击整个项也能切换，不只是点开关）
@@ -579,16 +531,15 @@ public class SettingsActivity extends AppCompatActivity {
                 Toast.makeText(this, "画中画已关闭", Toast.LENGTH_SHORT).show();
             }
         });
-
         // ====================================================================
-        // ✅ 解码器选择（2026-06-25 新增）
+        // ✅ 解码器选择（2026-06-25 新增，2026-06-26 修改：改用系统软解）
         // ====================================================================
         /**
          * 【功能说明】
          * 选择播放器使用的解码器模式：
-         * - 自动（推荐）：硬解优先，卡顿自动切换到 FFmpeg 软解
+         * - 自动（推荐）：硬解优先，卡顿自动切换到系统软解
          * - 硬解：强制使用系统硬解码器
-         * - 软解（FFmpeg）：强制使用 FFmpeg 软解码器
+         * - 软解（兼容性好）：优先使用系统软件解码器
          *
          * 【存储 Key】decoder_mode
          * 【默认值】auto（自动模式）
@@ -603,17 +554,19 @@ public class SettingsActivity extends AppCompatActivity {
          * 切换后发送广播 "com.tv.live.DECODER_MODE_CHANGED"，
          * MainActivity 收到广播后，立即应用新的解码器模式，
          * 并重新加载当前频道。
+         *
+         * 【2026-06-26 修改说明】
+         * 原来用的是 FFmpeg 软解，现在改用系统自带的软解。
+         * 系统软解虽然性能不如 FFmpeg，但胜在稳定、无需额外依赖、集成简单。
          */
         // 从本地读取解码器模式（默认自动）
         String decoderMode = sp.getString("decoder_mode", "auto");
         updateDecoderModeText(decoderMode);
-
         // 解码器设置项点击事件
         findViewById(R.id.item_decoder).setOnClickListener(v -> {
             showDecoderModeDialog();
             logOperation("【设置】打开解码器选择");
         });
-
         // ====================================================================
         // 检查更新（真正的版本检测 + 自动下载安装）
         // ====================================================================
@@ -621,17 +574,13 @@ public class SettingsActivity extends AppCompatActivity {
             updateManager.checkUpdate();
             logOperation("【设置】点击检查更新");
         });
-
         // ===== 其他点击事件 =====
         initListeners();
-
         // ===== 启动网页后台 =====
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
-
         logOperation("【设置】打开设置页面");
     }
-
     // ====================================================================
     // ✅ 2026-06-25 优化：全面屏设置（旧 API + try-catch 防护）
     // ====================================================================
@@ -663,7 +612,6 @@ public class SettingsActivity extends AppCompatActivity {
             logOperation("【设置】全面屏适配失败：" + e.getMessage());
         }
     }
-
     // ====================================================================
     // ✅ 新增：初始化设置项列表（遥控器焦点顺序）
     // ====================================================================
@@ -703,28 +651,24 @@ public class SettingsActivity extends AppCompatActivity {
      */
     private void initSettingsItemList() {
         settingsItemList.clear();
-
         // 按页面从上到下的顺序添加
         settingsItemList.add(findViewById(R.id.item_boot));           // 1. 开机自启
         settingsItemList.add(findViewById(R.id.item_epg));            // 2. 节目单开关
         settingsItemList.add(findViewById(R.id.item_auto_update));    // 3. 自动更新源
         settingsItemList.add(findViewById(R.id.item_reverse));        // 4. 换台反转
         settingsItemList.add(findViewById(R.id.item_num_channel));    // 5. 数字选台
-
         // ====================================================================
         // ✅ 画中画设置项（2026-06-22 新增，第6项）
         // ====================================================================
         // 【位置说明】放在数字选台之后，屏幕比例之前
         // 【原因】画中画属于播放相关设置，和数字选台、换台反转归为一类
         settingsItemList.add(findViewById(R.id.item_pip));            // 6. 画中画（后台小窗播放）
-
         // ====================================================================
         // ✅ 解码器选择设置项（2026-06-25 新增，第7项）
         // ====================================================================
         // 【位置说明】放在画中画之后，屏幕比例之前
         // 【原因】解码器属于播放相关设置，和画中画、数字选台归为一类
         settingsItemList.add(findViewById(R.id.item_decoder));        // 7. 解码器选择
-
         settingsItemList.add(findViewById(R.id.tv_screen_ratio));     // 8. 屏幕比例
         settingsItemList.add(findViewById(R.id.tv_custom_source));    // 9. 自定义订阅源
         settingsItemList.add(findViewById(R.id.tv_custom_epg));       // 10. 自定义节目单
@@ -734,14 +678,12 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.log_viewer));          // 14. 查看解析日志
         settingsItemList.add(findViewById(R.id.log_operation));       // 15. 操作日志
         settingsItemList.add(findViewById(R.id.item_check_update));   // 16. 检查更新
-
         // 移除 null 的项（防止有的 View 找不到）
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) {
                 settingsItemList.remove(i);
             }
         }
-
         // ====================================================================
         // ✅ 2026-06-20 新增：给每个设置项设置焦点变化监听器
         // ====================================================================
@@ -774,7 +716,6 @@ public class SettingsActivity extends AppCompatActivity {
                 // 只有遥控器/键盘操作时才会获得焦点。
                 // 设置这个属性后，手机点击也能触发焦点变化。
                 item.setFocusableInTouchMode(true);
-
                 // ✅ 设置焦点变化监听器
                 // 【作用】
                 // 当 View 获得焦点时，更新遥控器管理器的焦点位置，
@@ -805,7 +746,6 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
     }
-
     // ====================================================================
     // ✅ 新增：初始化遥控器管理器
     // ====================================================================
@@ -830,7 +770,6 @@ public class SettingsActivity extends AppCompatActivity {
         remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
         // 设置设置项总数
         remoteManager.setSettingsItemCount(settingsItemList.size());
-
         // 设置回调监听器
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
             // ================== 播放模式回调（设置页面用不到，空实现） ==================
@@ -839,7 +778,6 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPlayTogglePanel() {}
             @Override public void onPlayOpenSettings() {}
             @Override public boolean onPlayBack() { return false; }
-
             // ================== 频道面板模式回调（设置页面用不到，空实现） ==================
             @Override public void onPanelMoveUp() {}
             @Override public void onPanelMoveDown() {}
@@ -850,7 +788,6 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPanelMenu() {}
             @Override public void onPanelNumber(int number) {}
             @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
-
             // ================== 设置模式回调（核心，需要实现） ==================
             /**
              * 上移：焦点向上移动一项
@@ -865,7 +802,6 @@ public class SettingsActivity extends AppCompatActivity {
                 logOperation("【设置遥控】上键 → 移动到第 " + (newPos + 1) + " 项");
                 updateSettingsFocus();
             }
-
             /**
              * 下移：焦点向下移动一项
              * 
@@ -878,7 +814,6 @@ public class SettingsActivity extends AppCompatActivity {
                 logOperation("【设置遥控】下键 → 移动到第 " + (newPos + 1) + " 项");
                 updateSettingsFocus();
             }
-
             /**
              * OK键：选中当前项
              * 【作用】模拟点击事件，触发该设置项的 OnClickListener
@@ -888,7 +823,6 @@ public class SettingsActivity extends AppCompatActivity {
                 int position = remoteManager.getSettingsFocusPosition();
                 handleSettingsItemClick(position);
             }
-
             /**
              * 返回键：关闭设置页面
              * @return true=已处理，不再向下传递
@@ -899,7 +833,6 @@ public class SettingsActivity extends AppCompatActivity {
                 finish();
                 return true;
             }
-
             /**
              * 菜单键：关闭设置页面
              */
@@ -908,7 +841,6 @@ public class SettingsActivity extends AppCompatActivity {
                 logOperation("【设置遥控】菜单键 → 关闭设置页面");
                 finish();
             }
-
             /**
              * 焦点变化：更新高亮显示
              * 
@@ -932,11 +864,9 @@ public class SettingsActivity extends AppCompatActivity {
                 updateSettingsFocus();
             }
         });
-
         // 默认聚焦第一项
         updateSettingsFocus();
     }
-
     // ====================== 其他点击事件初始化 ======================
     /**
      * 初始化纯文本项的点击事件
@@ -948,38 +878,32 @@ public class SettingsActivity extends AppCompatActivity {
             showRatioDialog();
             logOperation("【设置】打开屏幕比例设置");
         });
-
         // 自定义订阅源
         tv_custom_source.setOnClickListener(v -> {
             showInputDialog("自定义订阅源", "请输入直播源地址", KEY_CUSTOM_LIVE);
             logOperation("【设置】打开自定义订阅源");
         });
-
         // 自定义节目单
         tv_custom_epg.setOnClickListener(v -> {
             showInputDialog("自定义节目单", "请输入EPG地址", KEY_CUSTOM_EPG);
             logOperation("【设置】打开自定义节目单");
         });
-
         // 多订阅源
         tv_multi_source.setOnClickListener(v -> {
             sourceDialogManager.showHistoryDialog("直播源历史", "live_history");
             logOperation("【设置】打开直播源历史");
         });
-
         // 多节目单
         tv_multi_epg.setOnClickListener(v -> {
             sourceDialogManager.showHistoryDialog("节目单历史", "epg_history");
             logOperation("【设置】打开节目单历史");
         });
-
         // 扫码添加
         tv_qr_code.setOnClickListener(v -> {
             qrCodeManager.showQRCodeDialog(currentWebUrl);
             logOperation("【设置】打开扫码管理");
         });
     }
-
     // ====================================================================
     // ✅ 新增：按键事件处理（直接调用 TvRemoteManager）
     // ====================================================================
@@ -1003,7 +927,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
         return super.onKeyDown(keyCode, event);
     }
-
     // ====================================================================
     // ✅ 2026-06-21 优化：统一三种状态样式，和列表完全一致
     // ====================================================================
@@ -1042,21 +965,17 @@ public class SettingsActivity extends AppCompatActivity {
      */
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
-
         // 获取当前选中位置（遥控器管理器记录的位置）
         int selectedPosition = remoteManager.getSettingsFocusPosition();
-
         // ✅ 2026-06-25 优化：只输出一条日志（精简日志量）
         // 原来每次移动焦点输出17+条，现在只输出1条
         logOperation("【设置遥控】焦点更新 → 第 " + (selectedPosition + 1) + " 项");
-
         // ====================================================================
         // 遍历所有设置项，分别设置对应的样式
         // ====================================================================
         for (int i = 0; i < settingsItemList.size(); i++) {
             View item = settingsItemList.get(i);
             if (item == null) continue;
-
             if (i == selectedPosition) {
                 // ================================================================
                 // ✅ 选中状态：蓝色文字 + 加粗 + 浅蓝色背景
@@ -1083,7 +1002,6 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
     }
-
     // ====================================================================
     // ✅ 2026-06-21 新增：辅助方法 - 设置单个设置项的样式
     // ====================================================================
@@ -1105,7 +1023,6 @@ public class SettingsActivity extends AppCompatActivity {
     private void setItemStyle(View item, String textColor, int typeface, int bgColor) {
         // 设置背景色
         item.setBackgroundColor(bgColor);
-
         // 设置文字颜色和字重
         if (item instanceof TextView) {
             // 情况 A：当前项就是 TextView（简单项，比如"屏幕比例"）
@@ -1122,8 +1039,7 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
     }
-
-    // ====================================================================
+        // ====================================================================
     // ✅ 2026-06-20 新增：辅助方法 - 在 ViewGroup 中找到第一个 TextView
     // ====================================================================
     /**
@@ -1142,7 +1058,6 @@ public class SettingsActivity extends AppCompatActivity {
      */
     private TextView findFirstTextView(ViewGroup viewGroup) {
         if (viewGroup == null) return null;
-
         // 遍历所有子 View
         for (int i = 0; i < viewGroup.getChildCount(); i++) {
             View child = viewGroup.getChildAt(i);
@@ -1160,7 +1075,6 @@ public class SettingsActivity extends AppCompatActivity {
         // 没找到
         return null;
     }
-
     // ====================================================================
     // 辅助方法：滚动到指定 View 可见
     // ====================================================================
@@ -1179,12 +1093,10 @@ public class SettingsActivity extends AppCompatActivity {
      */
     private void scrollToView(View view) {
         if (scrollView == null || view == null) return;
-
         // 计算 View 在 ScrollView 中的位置
         int viewTop = view.getTop();
         int viewBottom = view.getBottom();
         int scrollViewHeight = scrollView.getHeight();
-
         // 如果 View 在当前可见区域上方，滚动到顶部
         if (viewTop < scrollView.getScrollY()) {
             scrollView.smoothScrollTo(0, viewTop - 50);
@@ -1194,7 +1106,6 @@ public class SettingsActivity extends AppCompatActivity {
             scrollView.smoothScrollTo(0, viewBottom - scrollViewHeight + 50);
         }
     }
-
     // ====================================================================
     // ✅ 新增：辅助方法 - 处理设置项点击
     // ====================================================================
@@ -1211,12 +1122,10 @@ public class SettingsActivity extends AppCompatActivity {
         if (position < 0 || position >= settingsItemList.size()) return;
         View item = settingsItemList.get(position);
         if (item == null) return;
-
         // 模拟点击（触发 OnClickListener）
         item.performClick();
         logOperation("【设置遥控】选中第 " + (position + 1) + " 项");
     }
-
     // ====================== 屏幕比例对话框 ======================
     /**
      * 显示屏幕比例选择对话框
@@ -1232,18 +1141,17 @@ public class SettingsActivity extends AppCompatActivity {
                     Toast.makeText(this, "已设置", Toast.LENGTH_SHORT).show();
                 }).show();
     }
-
     // ====================================================================
-    // ✅ 解码器选择对话框（2026-06-25 新增）
+    // ✅ 解码器选择对话框（2026-06-25 新增，2026-06-26 修改：改用系统软解）
     // ====================================================================
     /**
      * 显示解码器选择对话框
-     * 【选项】自动（推荐）、硬解、软解（FFmpeg）
+     * 【选项】自动（推荐）、硬解、软解（兼容性好）
      * 
      * 【功能说明】
-     * - 自动（推荐）：硬解优先，卡顿自动切换到 FFmpeg 软解
+     * - 自动（推荐）：硬解优先，卡顿自动切换到系统软解
      * - 硬解：强制使用系统硬解码器，性能好但兼容性一般
-     * - 软解（FFmpeg）：强制使用 FFmpeg 软解码器，兼容性好但性能稍差
+     * - 软解（兼容性好）：优先使用系统软件解码器，兼容性好
      * 
      * 【联动说明】
      * 选择后：
@@ -1252,11 +1160,15 @@ public class SettingsActivity extends AppCompatActivity {
      * 3. 记录操作日志
      * 4. 发送广播，通知 MainActivity 立即应用新的解码器
      * 5. Toast 提示用户
+     * 
+     * 【2026-06-26 修改说明】
+     * 原来用的是 FFmpeg 软解，现在改用系统自带的软解。
+     * 把选项文字从"软解（FFmpeg）"改成"软解（兼容性好）"。
      */
     private void showDecoderModeDialog() {
-        final String[] modes = {"自动（推荐）", "硬解", "软解（FFmpeg）"};
+        // ✅ 2026-06-26 修改：把"软解（FFmpeg）"改成"软解（兼容性好）"
+        final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
         final String[] modeValues = {"auto", "hard", "soft"};
-
         // 找到当前选中的位置
         String currentMode = sp.getString("decoder_mode", "auto");
         int checkedItem = 0;
@@ -1266,20 +1178,16 @@ public class SettingsActivity extends AppCompatActivity {
                 break;
             }
         }
-
         new AlertDialog.Builder(this)
                 .setTitle("解码器选择")
                 .setSingleChoiceItems(modes, checkedItem, (d, which) -> {
                     // 保存选择
                     String selectedMode = modeValues[which];
                     sp.edit().putString("decoder_mode", selectedMode).apply();
-
                     // 更新显示文字
                     updateDecoderModeText(selectedMode);
-
                     // 记录操作日志
                     logOperation("【设置】解码器选择：" + modes[which]);
-
                     // 发送广播，通知 MainActivity 切换解码器
                     // 【为什么用广播？】
                     // SettingsActivity 和 MainActivity 是两个独立的 Activity，
@@ -1287,17 +1195,14 @@ public class SettingsActivity extends AppCompatActivity {
                     // MainActivity 收到广播后，立即应用新的解码器模式，
                     // 并重新加载当前频道。
                     sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
-
                     // 关闭对话框
                     d.dismiss();
-
                     // Toast 提示用户
                     Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…",
                             Toast.LENGTH_SHORT).show();
                 })
                 .show();
     }
-
     /**
      * 更新解码器模式显示文字
      * 
@@ -1305,7 +1210,6 @@ public class SettingsActivity extends AppCompatActivity {
      */
     private void updateDecoderModeText(String mode) {
         if (tv_decoder_mode == null) return;
-
         switch (mode) {
             case "hard":
                 tv_decoder_mode.setText("硬解");
@@ -1319,7 +1223,6 @@ public class SettingsActivity extends AppCompatActivity {
                 break;
         }
     }
-
     // ====================== 输入对话框（自定义源/节目单） ======================
     /**
      * 显示输入对话框
@@ -1333,7 +1236,6 @@ public class SettingsActivity extends AppCompatActivity {
         EditText ed = new EditText(this);
         ed.setHint(hint);
         ed.setText(sp.getString(key, ""));
-
         new AlertDialog.Builder(this)
                 .setTitle(title)
                 .setView(ed)
@@ -1352,7 +1254,6 @@ public class SettingsActivity extends AppCompatActivity {
                 .setNegativeButton("取消", null)
                 .show();
     }
-
     // ====================================================================
     // 日志对话框（加回兼容层）
     // ====================================================================
@@ -1369,14 +1270,12 @@ public class SettingsActivity extends AppCompatActivity {
     private void showOperationLogDialog() {
         ScrollView scrollView = new ScrollView(this);
         TextView tv = new TextView(this);
-
         if (OPERATION_LOG == null || OPERATION_LOG.length() == 0) {
             tv.setText("暂无操作日志。\n\n操作日志会记录您的切台、切换分组、打开设置等操作，\n以及网页后台的启动、请求、响应等详细信息。");
         } else {
             String originalLog = OPERATION_LOG.toString();
             String[] lines = originalLog.split("\n");
             StringBuilder reversedLog = new StringBuilder();
-
             // 倒序排列（最新的在最上面）
             for (int i = lines.length - 1; i >= 0; i--) {
                 if (!lines[i].trim().isEmpty()) {
@@ -1385,12 +1284,10 @@ public class SettingsActivity extends AppCompatActivity {
             }
             tv.setText(reversedLog.toString());
         }
-
         tv.setTextSize(12);
         tv.setPadding(40, 40, 40, 40);
         tv.setTextColor(Color.BLACK);
         scrollView.addView(tv);
-
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("📌 操作日志");
         builder.setView(scrollView);
@@ -1407,7 +1304,6 @@ public class SettingsActivity extends AppCompatActivity {
         });
         builder.show();
     }
-
     /**
      * 显示解析&播放日志对话框
      * 【内容】记录播放器的解析、缓冲、播放等详细日志
@@ -1419,14 +1315,12 @@ public class SettingsActivity extends AppCompatActivity {
     private void showLogDialog() {
         ScrollView scrollView = new ScrollView(this);
         TextView tv = new TextView(this);
-
         if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
             tv.setText("暂无日志内容，请先播放一个频道再查看。");
         } else {
             String originalLog = PLAY_LOG.toString();
             String[] lines = originalLog.split("\n");
             StringBuilder reversedLog = new StringBuilder();
-
             // 倒序排列（最新的在最上面）
             for (int i = lines.length - 1; i >= 0; i--) {
                 if (!lines[i].trim().isEmpty()) {
@@ -1435,12 +1329,10 @@ public class SettingsActivity extends AppCompatActivity {
             }
             tv.setText(reversedLog.toString());
         }
-
         tv.setTextSize(12);
         tv.setPadding(40, 40, 40, 40);
         tv.setTextColor(Color.BLACK);
         scrollView.addView(tv);
-
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("📄 解析 & 播放日志");
         builder.setView(scrollView);
@@ -1456,7 +1348,6 @@ public class SettingsActivity extends AppCompatActivity {
         });
         builder.show();
     }
-
     // ====================================================================
     // 窗口焦点变化时，重新隐藏状态栏
     // ====================================================================
@@ -1478,23 +1369,19 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
     }
-
     // ====================== onDestroy 生命周期 ======================
     @Override
     protected void onDestroy() {
         super.onDestroy();
         logOperation("【设置】关闭设置页面");
-
         // 停止网页后台
         if (webServerManager != null) {
             webServerManager.stop();
         }
-
         // 释放更新管理器
         if (updateManager != null) {
             updateManager.release();
         }
-
         // 释放遥控器管理器
         remoteManager = null;
         settingsItemList.clear();
