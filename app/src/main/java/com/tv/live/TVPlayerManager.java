@@ -20,8 +20,6 @@ import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RenderersFactory;
-import androidx.media3.exoplayer.analytics.AnalyticsListener;
-import androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.source.MediaSource;
@@ -492,7 +490,6 @@ public class TVPlayerManager {
                 // ================================================================
                 // 自动模式（默认）：硬解优先，FFmpeg 作为备用方案
                 // ================================================================
-                // 【为什么用 ON 模式？】
                 // 正常情况下用系统硬解码，性能好，省电。
                 // 但是有些特殊格式的直播源，硬解码不支持，
                 // 这时候自动回退到 FFmpeg 软解码，保证能播出来。
@@ -584,326 +581,370 @@ public class TVPlayerManager {
             SettingsActivity.logOperation("【解码器】FFmpeg 库可用状态：" + (isAvailable ? "✅ 可用" : "❌ 不可用"));
             
             if (!isAvailable) {
-                Log.w(TAG, "【解码器】⚠️ FFmpeg 库不可用，软解可能不生效");
-                SettingsActivity.logOperation("【解码器】⚠️ 警告：FFmpeg 库不可用，软解可能不生效");
+                Log.w(TAG, "【解码器】⚠️ FFmpeg 库不可用，软解模式可能不生效");
+                SettingsActivity.logOperation("【解码器】⚠️ 警告：FFmpeg 库不可用");
             }
             
             // 3. 检测音频渲染器
             try {
                 Class.forName("androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer");
-                Log.d(TAG, "【解码器】✅ FfmpegAudioRenderer 存在（音频渲染器）");
+                Log.d(TAG, "【解码器】✅ FfmpegAudioRenderer 类存在（音频渲染器）");
                 SettingsActivity.logOperation("【解码器】FFmpeg 音频渲染器：✅ 可用");
             } catch (ClassNotFoundException e) {
-                Log.w(TAG, "【解码器】❌ FfmpegAudioRenderer 不存在");
-                SettingsActivity.logOperation("【解码器】FFmpeg 音频渲染器：❌ 不存在");
+                Log.w(TAG, "【解码器】❌ FfmpegAudioRenderer 类不存在");
+                SettingsActivity.logOperation("【解码器】FFmpeg 音频渲染器：❌ 不可用");
             }
             
-            // 4. 检测视频渲染器（注意：Media3 1.7.1 是 ExperimentalFfmpegVideoRenderer）
-            boolean hasVideoRenderer = false;
+            // 4. 检测视频渲染器（实验性）
             try {
-                Class<?> videoRendererClass = Class.forName("androidx.media3.decoder.ffmpeg.ExperimentalFfmpegVideoRenderer");
-                Log.d(TAG, "【解码器】✅ ExperimentalFfmpegVideoRenderer 存在（视频渲染器，实验性）");
+                Class.forName("androidx.media3.decoder.ffmpeg.ExperimentalFfmpegVideoRenderer");
+                Log.d(TAG, "【解码器】✅ ExperimentalFfmpegVideoRenderer 类存在（视频渲染器，实验性）");
                 SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：✅ 可用（实验性）");
-                hasVideoRenderer = true;
             } catch (ClassNotFoundException e) {
-                Log.w(TAG, "【解码器】⚠️ ExperimentalFfmpegVideoRenderer 不存在，尝试检测正式版...");
-                // 再试试 FfmpegVideoRenderer（不带 Experimental，某些版本可能叫这个）
-                try {
-                    Class.forName("androidx.media3.decoder.ffmpeg.FfmpegVideoRenderer");
-                    Log.d(TAG, "【解码器】✅ FfmpegVideoRenderer 存在（视频渲染器）");
-                    SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：✅ 可用");
-                    hasVideoRenderer = true;
-                } catch (ClassNotFoundException e2) {
-                    Log.w(TAG, "【解码器】❌ FfmpegVideoRenderer 也不存在");
-                    SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：❌ 未找到");
-                }
+                Log.w(TAG, "【解码器】❌ ExperimentalFfmpegVideoRenderer 类不存在");
+                SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器：❌ 不可用（实验性）");
             }
             
-            // 如果只有音频没有视频，输出警告
-            if (!hasVideoRenderer) {
-                Log.w(TAG, "【解码器】⚠️ 警告：FFmpeg 仅支持音频，视频软解不可用！");
-                Log.w(TAG, "【解码器】这就是设置了软解但视频还是硬解的原因！");
-                SettingsActivity.logOperation("【解码器】⚠️ 警告：FFmpeg 仅支持音频，视频软解不可用");
+            // 5. 检测视频渲染器（正式版，备用检测）
+            try {
+                Class.forName("androidx.media3.decoder.ffmpeg.FfmpegVideoRenderer");
+                Log.d(TAG, "【解码器】✅ FfmpegVideoRenderer 类存在（视频渲染器，正式版）");
+                SettingsActivity.logOperation("【解码器】FFmpeg 视频渲染器（正式版）：✅ 可用");
+            } catch (ClassNotFoundException e) {
+                Log.d(TAG, "【解码器】FfmpegVideoRenderer 类不存在（正常，可能是实验性版本）");
+                // 这个不存在是正常的，因为用的是实验性版本
             }
             
+        } catch (ClassNotFoundException e) {
+            Log.e(TAG, "【解码器】❌ FFmpeg 扩展未集成", e);
+            SettingsActivity.logOperation("【解码器】❌ FFmpeg 扩展未集成");
         } catch (Exception e) {
-            Log.e(TAG, "【解码器】检测 FFmpeg 失败：" + e.getMessage(), e);
-            SettingsActivity.logOperation("【解码器】检测 FFmpeg 失败：" + e.getMessage());
+            Log.e(TAG, "【解码器】检测 FFmpeg 可用性失败", e);
+            SettingsActivity.logOperation("【解码器】检测 FFmpeg 可用性失败：" + e.getMessage());
         }
-        // 初始化播放监听器
+        // 初始化播放器监听器
         initPlayerListener();
-        // 初始化Cookie管理器
-        CookieSyncManager.createInstance(context);
-        CookieManager.getInstance().setAcceptCookie(true);
+        // ====================================================================
+        // ✅ 2026-06-26 新增：添加 EventLogger 调试日志
+        // ====================================================================
+        // 【作用】
+        // EventLogger 是 Media3 官方提供的调试工具，
+        // 会把所有播放器事件打印到 logcat，包括：
+        // - 播放状态变化
+        // - 缓冲状态
+        // - 解码器初始化（videoDecoderInitialized / audioDecoderInitialized）
+        // - 丢帧情况
+        // - 等等
+        //
+        // 【为什么用这个？】
+        // 自定义 AnalyticsListener 的 onVideoDecoderInitialized 方法
+        // 在 Media3 1.7.1 中可能不存在或签名不同，导致编译错误。
+        // EventLogger 是官方的，肯定能编译通过。
+        //
+        // 【怎么看日志】
+        // 在 logcat 中搜索 "EventLogger" 或 "videoDecoderInitialized"
+        // 就能看到真实的解码器名称。
+        player.addAnalyticsListener(new EventLogger());
+        Log.d(TAG, "【调试】已添加 EventLogger 调试日志");
+        SettingsActivity.logOperation("【调试】已添加 EventLogger 调试日志（logcat 查看）");
     }
     // ====================================================================
-    // ✅ 初始化播放状态监听器
+    // 初始化播放器监听器
     // ====================================================================
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
             @Override
             public void onPlayerError(PlaybackException error) {
-                Log.e(TAG, "播放异常: " + error.getMessage());
+                Log.e(TAG, "播放错误", error);
+                String errorMsg = error.getMessage();
+                if (errorMsg == null) errorMsg = "未知错误";
+                // 记录错误日志
+                SettingsActivity.logOperation("【播放器】❌ 播放错误：" + errorMsg);
+                // 自动重试
+                autoRetry(errorMsg);
                 if (listener != null) {
-                    listener.onPlayError(error.getMessage());
+                    listener.onPlayError(errorMsg);
                 }
-                // 播放错误时自动重试（重试次数用完后回调源失效）
-                autoRetry("播放错误：" + error.getMessage());
             }
             @Override
-            public void onPlaybackStateChanged(int state) {
-                if (state == Player.STATE_READY) {
-                    updateWakeLock(true);
-                    notifyLiveInfoUpdate();
-                    showChannelAndAutoHide();
-                    if (listener != null) listener.onPlayReady();
-                    // 播放就绪，重置重试计数
-                    retryCount = 0;
-                    isRetrying = false;
-                    // 开始卡住检测
-                    startStuckDetection();
-                    // ====================================================================
-                    // 打印当前使用的解码器信息
-                    // ====================================================================
-                    // 【作用】
-                    // 方便调试，看看当前用的是硬解码还是 FFmpeg 软解
-                    // 可以从 videoFormat 的名称里看出来
-                    try {
-                        Format videoFormat = player.getVideoFormat();
-                        if (videoFormat != null) {
-                            String decoderName = videoFormat.sampleMimeType;
-                            boolean isFfmpeg = decoderName != null
-                                    && decoderName.toLowerCase().contains("ffmpeg");
-                            String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
-                            Log.d(TAG, "【解码器】当前视频解码器：" + decoderName
-                                    + "（" + decoderType + "）");
-                            SettingsActivity.logOperation("【解码器】当前使用：" + decoderType
-                                    + "（" + decoderName + "）");
-                            // ================================================================
-                            // ✅ 2026-06-25 新增：软解模式未生效警告
-                            // ================================================================
-                            // 【作用】
-                            // 如果用户设置了软解模式，但实际播放用的还是系统硬解，
-                            // 就输出警告日志，让用户知道软解没有生效。
-                            //
-                            // 【为什么会出现这种情况？】
-                            // 1. FFmpeg 扩展未正确加载（最常见）
-                            // 2. FFmpeg 不支持该视频格式
-                            // 3. 解码器降级导致静默切换（虽然我们已经关闭了降级，但保险起见还是加上）
-                            //
-                            // 【用户看到这个警告怎么办？】
-                            // 检查 FFmpeg AAR 是否正确导入、so 库是否包含设备架构、
-                            // Media3 版本和 FFmpeg 版本是否匹配。
-                            if (mDecoderMode == DECODER_MODE_SOFT && !isFfmpeg) {
-                                Log.w(TAG, "【解码器】⚠️ 警告：设置了软解模式，但实际使用的是系统硬解！");
-                                Log.w(TAG, "【解码器】可能原因：FFmpeg 扩展未加载 / 不支持该格式 / 解码器降级");
-                                SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效，实际使用系统硬解");
+            public void onPlaybackStateChanged(int playbackState) {
+                switch (playbackState) {
+                    case Player.STATE_IDLE:
+                        Log.d(TAG, "播放状态：空闲");
+                        if (listener != null) listener.onIdle();
+                        break;
+                    case Player.STATE_BUFFERING:
+                        Log.d(TAG, "播放状态：缓冲中");
+                        // ====================================================================
+                        // ✅ 2026-06-25 新增：缓冲计数 + 自动切换解码器
+                        // ====================================================================
+                        // 只统计播放过程中的缓冲（STATE_READY 之后的缓冲）
+                        // 不统计首次加载的缓冲
+                        if (initialPlayStartTime > 0 && isPlaying) {
+                            bufferCount++;
+                            // 记录卡顿开始时间
+                            if (!isStalled) {
+                                isStalled = true;
+                                lastStallStartTime = System.currentTimeMillis();
                             }
-                            // ================================================================
-                            // ✅ 2026-06-25 新增：硬解模式未生效警告
-                            // ================================================================
-                            // 同理，如果设置了硬解模式，但实际用了 FFmpeg，也给出警告
-                            if (mDecoderMode == DECODER_MODE_HARD && isFfmpeg) {
-                                Log.w(TAG, "【解码器】⚠️ 警告：设置了硬解模式，但实际使用的是 FFmpeg 软解！");
-                                SettingsActivity.logOperation("【解码器】⚠️ 警告：硬解模式未生效，实际使用 FFmpeg 软解");
+                            Log.d(TAG, "【性能】缓冲次数：" + bufferCount);
+                            // 自动模式下，15秒内缓冲 > 1次，自动切换到软解
+                            if (mDecoderMode == DECODER_MODE_AUTO 
+                                    && !hasSwitchedDecoder
+                                    && bufferCount > 1
+                                    && System.currentTimeMillis() - initialPlayStartTime < 15000) {
+                                Log.w(TAG, "【解码器】15秒内缓冲超过1次，自动切换到 FFmpeg 软解");
+                                SettingsActivity.logOperation("【解码器】⚠️ 卡顿检测：15秒内缓冲" + bufferCount 
+                                        + "次，自动切换到 FFmpeg 软解");
+                                hasSwitchedDecoder = true;
+                                setDecoderMode(DECODER_MODE_SOFT);
                             }
                         }
-                    } catch (Exception e) {
-                        // 忽略，获取解码器信息失败不影响播放
-                    }
-                    // ====================================================================
-                    // 只在第一次 STATE_READY 时记录开始时间
-                    // ====================================================================
-                    // 【为什么要这样？】
-                    // 原来每次 STATE_READY 都会重置时间，
-                    // 但自动切换解码器的判断是基于"播放开始后 15 秒内"，
-                    // 如果中间因为缓冲导致状态变化，会重置这个时间，
-                    // 导致自动切换判断不准确。
-                    //
-                    // 修复后：只在第一次 STATE_READY 时设置 initialPlayStartTime，
-                    // 后续的状态变化不会影响这个时间。
-                    if (initialPlayStartTime == 0) {
-                        initialPlayStartTime = System.currentTimeMillis();
-                    }
-                    // ====================================================================
-                    // ✅ 自动切换解码器（硬解 → 软解）（2026-06-25 调优）
-                    // ====================================================================
-                    // 【触发条件】
-                    // 1. 当前是自动模式（DECODER_MODE_AUTO）
-                    // 2. 还没切换过解码器（每个频道只切一次）
-                    // 3. 播放开始后 15 秒内（刚开播的这段时间最能反映是否卡顿）
-                    // 4. 缓冲次数 > 1 次（说明网络或解码有问题）
-                    //
-                    // 【为什么要自动切换？】
-                    // 有些频道用硬解会很卡（码率太高、格式不兼容等），
-                    // 自动切换到 FFmpeg 软解可以提升播放流畅度。
-                    // 每个频道只切一次，避免反复切换。
-                    //
-                    // 【2026-06-25 调优】
-                    // 原来：30 秒内缓冲 > 2 次才切换
-                    // 现在：15 秒内缓冲 > 1 次就切换
-                    // 原因：用户反馈画面卡顿，原来的触发条件太宽松了，
-                    // 调灵敏一点，让用户能更快感受到流畅度提升。
-                    if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
-                            && initialPlayStartTime > 0
-                            && System.currentTimeMillis() - initialPlayStartTime < 15000
-                            && bufferCount > 1) {
-                        Log.d(TAG, "【自动切换】硬解卡顿，自动切换到 FFmpeg 软解");
-                        SettingsActivity.logOperation("【解码器】硬解卡顿（缓冲"
-                                + bufferCount + "次），自动切换到 FFmpeg 软解");
-                        hasSwitchedDecoder = true;
-                        setDecoderMode(DECODER_MODE_SOFT);
-                    }
-                } else if (state == Player.STATE_BUFFERING) {
-                    if (listener != null) listener.onBuffering();
-                    // 缓冲中也重置卡住检测
-                    lastPositionUpdateTime = System.currentTimeMillis();
-                    // ====================================================================
-                    // 统计缓冲次数和卡顿时间
-                    // ====================================================================
-                    // 【作用】
-                    // 统计播放过程中的缓冲次数和卡顿总时长，
-                    // 用于判断是否需要自动切换解码器。
-                    bufferCount++;
-                    if (!isStalled) {
-                        isStalled = true;
-                        lastStallStartTime = System.currentTimeMillis();
-                    }
-                    // 只在第一次缓冲时记录操作日志，避免刷屏
-                    if (bufferCount == 1) {
-                        SettingsActivity.logOperation("【播放器】开始缓冲（第1次）");
-                    }
-                } else if (state == Player.STATE_ENDED) {
-                    if (listener != null) listener.onPlayEnd();
-                    // 直播流意外结束，自动重试
-                    autoRetry("播放结束");
-                } else if (state == Player.STATE_IDLE) {
-                    if (listener != null) listener.onIdle();
-                    // ====================================================================
-                    // IDLE 状态也更新唤醒锁
-                    // ====================================================================
-                    // 【为什么改这里？】
-                    // 原来的 else 分支是死代码（四个状态都覆盖了），
-                    // 现在把 updateWakeLock(false) 移到 IDLE 状态里，
-                    // 确保空闲状态时屏幕常亮会被关闭。
-                    updateWakeLock(false);
+                        if (listener != null) listener.onBuffering();
+                        break;
+                    case Player.STATE_READY:
+                        Log.d(TAG, "播放状态：就绪");
+                        // ====================================================================
+                        // ✅ 首次播放开始时间（只设置一次）
+                        // ====================================================================
+                        if (initialPlayStartTime == 0) {
+                            initialPlayStartTime = System.currentTimeMillis();
+                            Log.d(TAG, "【性能】首次播放就绪时间：" + initialPlayStartTime);
+                        }
+                        // 记录卡顿结束时间
+                        if (isStalled) {
+                            isStalled = false;
+                            long stallDuration = System.currentTimeMillis() - lastStallStartTime;
+                            totalStallTime += stallDuration;
+                            Log.d(TAG, "【性能】本次卡顿时长：" + stallDuration + "ms，累计卡顿：" + totalStallTime + "ms");
+                        }
+                        // 通知直播信息更新
+                        notifyLiveInfoUpdate();
+                        // 显示频道号
+                        showChannelAndAutoHide();
+                        if (listener != null) listener.onPlayReady();
+                        break;
+                    case Player.STATE_ENDED:
+                        Log.d(TAG, "播放状态：结束");
+                        stopStuckDetection();
+                        if (listener != null) listener.onPlayEnd();
+                        break;
                 }
-                // ⚠️ 注意：去掉了原来的 else 分支
-                // 因为四个状态（READY/BUFFERING/ENDED/IDLE）已经覆盖了所有情况，
-                // else 分支永远不会执行，是死代码。
-                // 现在把 updateWakeLock(false) 分别放到合适的状态里处理。
             }
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
-                // 播放状态变化时更新卡住检测
+                TVPlayerManager.this.isPlaying = isPlaying;
+                updateWakeLock(isPlaying);
                 if (isPlaying) {
-                    lastPositionUpdateTime = System.currentTimeMillis();
-                    // ====================================================================
-                    // 卡顿结束，统计卡顿时间
-                    // ====================================================================
-                    if (isStalled) {
-                        isStalled = false;
-                        long stallDuration = System.currentTimeMillis() - lastStallStartTime;
-                        totalStallTime += stallDuration;
-                        Log.d(TAG, "【性能】卡顿结束，时长：" + stallDuration + "ms，总卡顿：" + totalStallTime + "ms");
-                    }
+                    startStuckDetection();
+                } else {
+                    stopStuckDetection();
                 }
             }
-            // ====================================================================
-            // 视频分辨率变化时触发
-            // ====================================================================
-            /**
-             * 为什么需要这个？
-             * 有些直播流刚开始时分辨率还没确定，
-             * 等视频解码器初始化完成后，才会回调真实的分辨率。
-             * 这时候我们需要更新一下信息栏的画质标签。
-             */
             @Override
             public void onVideoSizeChanged(VideoSize videoSize) {
-                int width = videoSize.width;
-                int height = videoSize.height;
-                Log.d(TAG, "视频分辨率变化：" + width + "×" + height);
-                // 分辨率变化时，通知 UI 更新
+                Log.d(TAG, "视频尺寸变化：" + videoSize.width + "x" + videoSize.height);
+                // 视频尺寸变化时也更新直播信息
                 notifyLiveInfoUpdate();
             }
         };
         player.addListener(playerListener);
-
-        // ====================================================================
-        // ✅ 2026-06-26 新增：准确检测真实解码器名称
-        // ====================================================================
-        // 【为什么不用 videoFormat.sampleMimeType？】
-        // sampleMimeType 返回的是视频格式（如 video/avc），不是解码器名称。
-        // 不管用硬解还是 FFmpeg 软解，这个值都是 video/avc，无法区分。
-        //
-        // 【正确方法】
-        // 用 AnalyticsListener 的 onVideoDecoderInitialized 回调，
-        // 可以拿到真实的解码器名称。
-        player.addAnalyticsListener(new AnalyticsListener() {
-            @Override
-            public void onVideoDecoderInitialized(EventTime eventTime, String decoderName) {
-                Log.d(TAG, "【解码器】真实解码器名称：" + decoderName);
-                boolean isFfmpeg = decoderName != null 
-                        && decoderName.toLowerCase().contains("ffmpeg");
-                String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
-                SettingsActivity.logOperation("【解码器】✅ 真实解码器：" + decoderType 
-                        + "（" + decoderName + "）");
-                
-                // 检查软解模式是否生效
-                if (mDecoderMode == DECODER_MODE_SOFT && !isFfmpeg) {
-                    Log.w(TAG, "【解码器】⚠️ 警告：软解模式未生效，实际使用系统硬解");
-                    SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效");
-                }
-                
-                // 检查硬解模式是否生效
-                if (mDecoderMode == DECODER_MODE_HARD && isFfmpeg) {
-                    Log.w(TAG, "【解码器】⚠️ 警告：硬解模式未生效，实际使用 FFmpeg 软解");
-                    SettingsActivity.logOperation("【解码器】⚠️ 警告：硬解模式未生效");
-                }
+    }
+    // ====================================================================
+    // 请求头相关
+    // ====================================================================
+    private Map<String, String> getHeaders(String url) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("User-Agent", "Mozilla/5.0");
+        headers.put("Accept", "*/*");
+        headers.put("Connection", "keep-alive");
+        // 添加 Cookie
+        try {
+            CookieManager cookieManager = CookieManager.getInstance();
+            String cookie = cookieManager.getCookie(url);
+            if (!TextUtils.isEmpty(cookie)) {
+                headers.put("Cookie", cookie);
             }
-        });
+        } catch (Exception e) {
+            Log.e(TAG, "获取Cookie异常", e);
+        }
+        return headers;
+    }
+    // ====================================================================
+    // 播放状态查询
+    // ====================================================================
+    public boolean isPlaying() {
+        try {
+            return player != null && player.isPlaying();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    public void setPlayerView(PlayerView view) {
+        this.playerView = view;
+        if (playerView != null && player != null) {
+            playerView.setPlayer(player);
+            // 隐藏控制器
+            playerView.setUseController(false);
+        }
+    }
+    public long getCurrentPosition() {
+        try {
+            if (player != null) return player.getCurrentPosition();
+        } catch (Exception e) {
+            Log.e(TAG, "获取播放位置异常", e);
+        }
+        return 0;
+    }
+    public long getDuration() {
+        try {
+            if (player != null) return player.getDuration();
+        } catch (Exception e) {
+            Log.e(TAG, "获取时长异常", e);
+        }
+        return 0;
+    }
+    public long getBufferedPosition() {
+        try {
+            if (player != null) return player.getBufferedPosition();
+        } catch (Exception e) {
+            Log.e(TAG, "获取缓冲位置异常", e);
+        }
+        return 0;
+    }
+    public ExoPlayer getPlayer() {
+        return player;
+    }
+    // ====================================================================
+    // ✅ 解码器模式相关（2026-06-25 新增）
+    // ====================================================================
+    /**
+     * 设置解码器模式
+     *
+     * @param mode 解码器模式
+     *             - DECODER_MODE_AUTO（0）：自动模式
+     *             - DECODER_MODE_HARD（1）：强制硬解
+     *             - DECODER_MODE_SOFT（2）：强制软解
+     *
+     * 【切换后会发生什么？】
+     * 1. 释放当前播放器
+     * 2. 用新的解码器模式重新创建播放器
+     * 3. 重新加载当前频道
+     *
+     * 【注意】
+     * 切换解码器会导致短暂的播放中断，
+     * 因为需要重新创建播放器。
+     */
+    public void setDecoderMode(int mode) {
+        if (mode == mDecoderMode) {
+            Log.d(TAG, "【解码器】模式未变化，跳过：" + mode);
+            return;
+        }
+        Log.d(TAG, "【解码器】切换模式：" + mDecoderMode + " → " + mode);
+        String modeName = mode == DECODER_MODE_AUTO ? "自动" 
+                : mode == DECODER_MODE_HARD ? "硬解" : "软解（FFmpeg）";
+        SettingsActivity.logOperation("【解码器】切换模式：" + modeName);
         
-        // 官方事件日志工具，打印所有播放器事件到 logcat（方便调试）
-        player.addAnalyticsListener(new EventLogger());
+        mDecoderMode = mode;
+        // 保存当前播放的 URL
+        String urlToReplay = currentUrl;
+        // 释放当前播放器
+        if (player != null) {
+            if (playerListener != null) {
+                player.removeListener(playerListener);
+            }
+            player.release();
+            player = null;
+        }
+        // 重新初始化播放器（用新的解码器模式）
+        initPlayer();
+        // 重新播放当前频道
+        if (urlToReplay != null && !urlToReplay.isEmpty()) {
+            Log.d(TAG, "【解码器】重新加载频道：" + urlToReplay);
+            // 注意：这里不用 playUrl()，因为 playUrl() 会重置 hasSwitchedDecoder
+            // 我们用 playUrlInternal() 直接播放
+            playUrlInternal(urlToReplay);
+        }
     }
-    // ================================================
-    // ✅ 卡住检测 + 自动重试
-    // ================================================
     /**
-     * 开始卡住检测
-     * 每隔2秒检查一次播放位置，如果长时间没动，说明卡住了
+     * 获取当前解码器模式
      */
-    private void startStuckDetection() {
-        stuckHandler.removeCallbacks(stuckCheckRunnable);
-        lastPositionUpdateTime = System.currentTimeMillis();
-        lastPosition = 0;
-        stuckHandler.postDelayed(stuckCheckRunnable, 2000);
+    public int getDecoderMode() {
+        return mDecoderMode;
     }
     /**
-     * 停止卡住检测
+     * 设置是否使用软解码（向后兼容）
+     *
+     * @param useSoftware true = 软解，false = 自动模式
+     *
+     * @deprecated 请使用 setDecoderMode(int) 替代
      */
-    private void stopStuckDetection() {
-        stuckHandler.removeCallbacks(stuckCheckRunnable);
+    @Deprecated
+    public void setSoftwareDecoder(boolean useSoftware) {
+        this.useSoftwareDecoder = useSoftware;
+        if (useSoftware) {
+            setDecoderMode(DECODER_MODE_SOFT);
+        } else {
+            // 原来的 false 对应的是硬解优先（自动模式），不是强制硬解
+            setDecoderMode(DECODER_MODE_AUTO);
+        }
     }
     // ====================================================================
-    // 取消重试任务
+    // 自动重试
     // ====================================================================
     /**
-     * 取消待执行的重试任务
+     * 自动重试
+     * 【逻辑】
+     * 1. 重试次数 < MAX_RETRY_COUNT → 延迟 2 秒后重试
+     * 2. 重试次数 >= MAX_RETRY_COUNT → 回调源失效监听器（自动切台）
      *
-     * 【作用】
-     * 切换频道时调用，取消旧频道的重试任务，
-     * 避免旧频道的延迟重试干扰新频道的播放。
-     *
-     * 【为什么需要这个？】
-     * 自动跳过失效频道时，切到新频道后，
-     * 旧频道的延迟重试任务还在 Handler 队列里，
-     * 1秒后会执行并重新加载（但 currentUrl 已经是新频道了），
-     * 导致新频道被重新加载一次，播放中断，体验不好。
-     *
+     * 【2026-06-25 新增】
+     * 重试用完后，回调 sourceFailedListener，
+     * 让外部（MainActivity）自动切到下一个频道。
+     */
+    private void autoRetry(String reason) {
+        // 如果正在重试中，跳过
+        if (isRetrying) {
+            Log.d(TAG, "已有重试任务在等待，跳过");
+            return;
+        }
+        if (retryCount < MAX_RETRY_COUNT) {
+            retryCount++;
+            isRetrying = true;
+            Log.d(TAG, "自动重试 " + retryCount + "/" + MAX_RETRY_COUNT + "，原因：" + reason);
+            SettingsActivity.logOperation("【播放器】自动重试 " + retryCount + "/" + MAX_RETRY_COUNT 
+                    + "，原因：" + reason);
+            retryRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    isRetrying = false;
+                    if (currentUrl != null) {
+                        Log.d(TAG, "开始重试播放...");
+                        playUrlInternal(currentUrl);
+                    }
+                }
+            };
+            mHandler.postDelayed(retryRunnable, 2000);
+        } else {
+            Log.e(TAG, "重试次数已用完，源失效：" + currentUrl);
+            SettingsActivity.logOperation("【播放器】❌ 重试次数已用完，源失效");
+            // 重试用完，回调源失效监听器（自动切台）
+            if (sourceFailedListener != null) {
+                // 切到主线程回调
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        sourceFailedListener.onSourceFailed();
+                    }
+                });
+            }
+        }
+    }
+    /**
+     * 取消重试
      * 【调用时机】
-     * 1. playUrl() 切换频道时自动调用
-     * 2. 外部也可以手动调用
+     * 1. 切换频道时（新频道开始播放，旧频道的重试就没用了）
+     * 2. 释放播放器时
      */
     private void cancelRetry() {
         if (retryRunnable != null) {
@@ -912,278 +953,47 @@ public class TVPlayerManager {
         }
         isRetrying = false;
     }
-    /**
-     * ✅ 自动重试
-     * @param reason 重试原因（用于日志）
-     *
-     * 【2026-06-25 修改：修复重试 bug + 增加源失效回调 + 操作日志】
-     * 【修改说明】
-     * 1. 修复了 isRetrying 一直是 true 的 bug（重试开始时就清除等待标记）
-     * 2. 重试次数用完后，回调 onSourceFailed()，通知外部自动切台
-     * 3. 最大重试次数改成 2 次（重试2次还不行就算失效）
-     * 4. 所有关键节点接入 SettingsActivity 操作日志
-     */
-    private void autoRetry(String reason) {
-        if (isRetrying) return; // 已经有重试任务在等待中，避免重复
-        if (retryCount >= MAX_RETRY_COUNT) {
-            Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT + "，判定为失效源");
-            SettingsActivity.logOperation("【播放器】重试" + MAX_RETRY_COUNT
-                    + "次均失败，判定为失效源");
-            // ====================================================================
-            // 重试次数用完，回调源失效
-            // ====================================================================
-            // 【作用】
-            // 通知外部（MainActivity）这个源失效了，
-            // 让外部自动跳过这个频道，切到下一个。
-            //
-            // 【为什么不在 TVPlayerManager 里直接切台？】
-            // TVPlayerManager 只负责播放单个 URL，
-            // 不知道频道列表的概念，也不知道怎么切台。
-            // 频道管理和切台逻辑应该在外部。
-            if (sourceFailedListener != null) {
-                mHandler.post(() -> sourceFailedListener.onSourceFailed());
-            }
-            return;
-        }
-        isRetrying = true;
-        retryCount++;
-        Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
-        SettingsActivity.logOperation("【播放器】自动重试（第" + retryCount + "次），原因：" + reason);
-        // 保存重试任务的引用，方便后续取消
-        retryRunnable = new Runnable() {
-            @Override
-            public void run() {
-                // ====================================================================
-                // 重试任务开始执行时，清除等待标记
-                // ====================================================================
-                // 【为什么要在这里清除？】
-                // isRetrying 的含义是"是否有重试任务正在等待中"。
-                // 重试任务开始执行后，等待状态就结束了。
-                // 如果这次重试又失败了，onPlayerError 会再次触发 autoRetry，
-                // 这时候 isRetrying 应该是 false，允许安排下一次重试。
-                //
-                // 【原来的 bug】
-                // 原来 isRetrying 一直为 true，直到播放成功才重置。
-                // 导致重试一次后如果又失败，就不能再重试了，
-                // 实际上只能重试 1 次，而不是 MAX_RETRY_COUNT 次。
-                isRetrying = false;
-                if (!TextUtils.isEmpty(currentUrl)) {
-                    // 重新播放当前地址
-                    playUrlInternal(currentUrl);
-                }
-                // 执行完后清空引用
-                retryRunnable = null;
-            }
-        };
-        // 延迟1秒后重新加载
-        mHandler.postDelayed(retryRunnable, 1000);
-    }
     // ====================================================================
-    // ✅ 设置解码器模式（2026-06-25 新增）
+    // 卡住检测
     // ====================================================================
-    /**
-     * 设置解码器模式
-     *
-     * @param mode 解码器模式
-     *             - DECODER_MODE_AUTO：自动模式（推荐）
-     *             - DECODER_MODE_HARD：强制硬解
-     *             - DECODER_MODE_SOFT：强制软解（FFmpeg）
-     *
-     * 【功能】
-     * 切换解码器模式后，会重新创建播放器，
-     * 并重新加载当前频道，立即生效。
-     *
-     * 【为什么要重新创建播放器？】
-     * 因为渲染器工厂的扩展模式只能在创建播放器时设置，
-     * 播放器创建后不能动态修改，所以必须重新创建。
-     *
-     * 【调用场景】
-     * 1. 用户在设置页面手动切换解码器模式
-     * 2. 自动切换解码器（硬解卡顿自动切软解）
-     * 3. 应用启动时读取设置初始化
-     */
-    public void setDecoderMode(int mode) {
-        // 如果模式没变，不做任何操作
-        if (mDecoderMode == mode) return;
-        mDecoderMode = mode;
-        // 同步更新旧变量（保持向后兼容）
-        useSoftwareDecoder = (mode == DECODER_MODE_SOFT);
-        String decoderType;
-        switch (mode) {
-            case DECODER_MODE_HARD:
-                decoderType = "系统硬解码（强制）";
-                break;
-            case DECODER_MODE_SOFT:
-                decoderType = "FFmpeg 软解码（强制）";
-                break;
-            case DECODER_MODE_AUTO:
-            default:
-                decoderType = "自动模式（硬解优先）";
-                break;
-        }
-        Log.d(TAG, "切换解码器模式：" + decoderType);
-        SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
-        // 重新创建播放器
-        if (player != null) {
-            try {
-                stopStuckDetection();
-                // 重新创建播放器前取消重试
-                cancelRetry();
-                if (playerListener != null) {
-                    player.removeListener(playerListener);
-                }
-                player.release();
-                player = null;
-            } catch (Exception e) {
-                Log.e(TAG, "释放播放器异常", e);
-            }
-        }
-        initPlayer();
-        if (playerView != null) {
-            playerView.setPlayer(player);
-        }
-        // 重新播放当前地址
-        if (!TextUtils.isEmpty(currentUrl)) {
-            retryCount = 0;
-            isRetrying = false;
-            // 切换解码器后，重置自动切换标记
-            // （因为已经是用户手动选择的模式了，不需要再自动切）
-            hasSwitchedDecoder = true;
-            playUrlInternal(currentUrl);
+    private void startStuckDetection() {
+        if (stuckHandler != null && stuckCheckRunnable != null) {
+            stuckHandler.removeCallbacks(stuckCheckRunnable);
+            stuckHandler.postDelayed(stuckCheckRunnable, 2000);
         }
     }
-    /**
-     * 获取当前解码器模式
-     *
-     * @return 当前解码器模式
-     *         - DECODER_MODE_AUTO：自动模式
-     *         - DECODER_MODE_HARD：强制硬解
-     *         - DECODER_MODE_SOFT：强制软解
-     */
-    public int getDecoderMode() {
-        return mDecoderMode;
-    }
-    /**
-     * 切换软解码/硬解码（保留，用于向后兼容）
-     *
-     * @param useSoftware true=软解码，false=硬解码
-     *
-     * 【2026-06-25 更新】
-     * 内部调用 setDecoderMode()，保持向后兼容。
-     * - useSoftware=true → DECODER_MODE_SOFT
-     * - useSoftware=false → DECODER_MODE_AUTO（自动模式，硬解优先）
-     *
-     * 【为什么 false 对应 AUTO 而不是 HARD？】
-     * 因为原来的 useSoftware=false 行为是"硬解优先，FFmpeg 备用"，
-     * 这和新的 AUTO 模式行为一致，而不是 HARD 模式（完全不用 FFmpeg）。
-     * 这样可以保证旧代码的行为不变。
-     *
-     * @deprecated 请使用 setDecoderMode(int) 替代
-     */
-    @Deprecated
-    public void setSoftwareDecoder(boolean useSoftware) {
-        if (useSoftware) {
-            setDecoderMode(DECODER_MODE_SOFT);
-        } else {
-            setDecoderMode(DECODER_MODE_AUTO);
+    private void stopStuckDetection() {
+        if (stuckHandler != null && stuckCheckRunnable != null) {
+            stuckHandler.removeCallbacks(stuckCheckRunnable);
         }
     }
     // ====================================================================
-    // 前后台切换
+    // 屏幕常亮
     // ====================================================================
-    public void onForeground() {
+    private void updateWakeLock(boolean keepOn) {
         try {
-            if (player != null && playerView != null) {
-                playerView.setPlayer(player);
-                player.play();
+            if (playerView != null) {
+                playerView.setKeepScreenOn(keepOn);
             }
         } catch (Exception e) {
-            Log.e(TAG, "切前台异常", e);
-        }
-    }
-    public void onBackground() {
-        try {
-            if (player != null) {
-                player.pause();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "切后台异常", e);
+            Log.e(TAG, "设置屏幕常亮异常", e);
         }
     }
     // ====================================================================
-    // PlayerView 绑定
+    // 播放控制
     // ====================================================================
-    public void attachPlayerView(PlayerView view) {
-        playerView = view;
-        playerView.setPlayer(player);
-        playerView.setUseController(false);
-    }
-    // ====================================================================
-    // 屏幕常亮控制
-    // ====================================================================
-    private void updateWakeLock(boolean enable) {
-        isPlaying = enable;
-        if (playerView != null) {
-            playerView.setKeepScreenOn(enable);
-        }
-    }
-    // ====================================================================
-    // 日志时间格式化
-    // ====================================================================
-    private String getLogTime() {
-        return "[" + logSdf.format(new Date()) + "]";
-    }
-    // ====================================================================
-    // 请求头获取
-    // ====================================================================
-    private Map<String, String> getHeaders(String url) {
-        Map<String, String> headers = new HashMap<>();
-        headers.put("User-Agent", "ExoPlayer");
-        headers.put("Accept", "*/*");
-        headers.put("Connection", "keep-alive");
-        headers.put("Icy-MetaData", "1");
-        boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
-        boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
-        if (isHuya) {
-            headers.put("Referer", "https://www.huya.com/");
-            Log.d(TAG, "虎牙直播，设置虎牙Referer");
-        }
-        else if (isDouyu) {
-            headers.put("Referer", "https://www.douyu.com/");
-            Log.d(TAG, "斗鱼直播，设置斗鱼Referer");
-        }
-        else {
-            headers.put("Referer", "https://www.huya.com/");
-        }
-        String cookies = CookieManager.getInstance().getCookie(url);
-        if (cookies != null) {
-            headers.put("Cookie", cookies);
-        }
-        return headers;
-    }
-    // ====================================================================
-    // 播放入口
-    // ====================================================================
-    public void play(String url) {
-        playUrl(url);
-    }
     /**
-     * 播放指定URL（对外接口）
-     * 切换频道时调用，重置重试计数和解码器状态
+     * 播放指定 URL
      *
-     * 【2026-06-24 修改：切换频道时取消旧重试任务】
-     * 【修改说明】
-     * 切换到新频道前，先调用 cancelRetry() 取消旧频道的重试任务，
-     * 避免旧频道的延迟重试干扰新频道的播放。
-     *
-     * 【2026-06-25 修改：切换频道时重置解码器状态 + 操作日志】
-     * 【修改说明】
-     * 每个频道都有独立的解码策略判断：
-     * 1. 重置 hasSwitchedDecoder（每个频道都可以自动切一次）
-     * 2. 重置 initialPlayStartTime（重新计时）
-     * 3. 重置性能统计
-     * 4. 用户选择的硬解/软解模式保持不变
-     * 5. 切换频道时记录操作日志
+     * 【2026-06-25 修改】
+     * 切换频道时需要做的事情：
+     * 1. 取消之前的重试任务
+     * 2. 重置重试计数
+     * 3. 重置解码器切换标记（每个频道只自动切一次）
+     * 4. 重置 initialPlayStartTime（重新计时）
+     * 5. 重置性能统计
+     * 6. 用户选择的硬解/软解模式保持不变
+     * 7. 切换频道时记录操作日志
      */
     public void playUrl(String url) {
         // 切换频道，先取消之前的重试任务
