@@ -1,7 +1,5 @@
 package com.tv.live.manager;
-
 import com.tv.live.TVPlayerManager;
-
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -9,7 +7,6 @@ import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.SettingsActivity;
@@ -17,10 +14,8 @@ import com.tv.live.UrlConfig;
 import com.tv.live.config.AppConfig;
 import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
-
 import java.util.ArrayList;
 import java.util.List;
-
 /**
  * 应用核心管理器
  *
@@ -29,22 +24,33 @@ import java.util.List;
  * 1. 数据加载（直播源加载、EPG 加载、M3U 解析、缓存管理）
  * 2. 广播管理（注册/注销广播接收器、处理广播事件）
  * 3. 生命周期管理（前后台切换、播放器暂停/恢复、进入设置不暂停）
+ * 4. ✅ 源失效自动切台（2026-06-26 新增）
  *
  * 【2026-06-21 优化：日志分类】
  * 【优化内容】
  * 1. 生命周期/焦点/广播相关的日志 → 操作日志（logOperation）
  * 2. 数据加载/解析相关的日志 → 播放日志（log）
  * 3. 两种日志分开，互不混淆
+ *
+ * 【2026-06-26 新增：源失效自动切台】
+ * 【功能说明】
+ * 当频道源失效时，自动切换到下一个频道，
+ * 连续跳过 MAX_CONSECUTIVE_SKIP 个失效频道后停止，提示用户检查直播源。
+ *
+ * 【为什么合并到这里？】
+ * 源失效自动切台是纯业务逻辑，不涉及 UI 操作，
+ * 统一放到 AppCoreManager 中管理，MainActivity 只负责回调处理。
  */
 public class AppCoreManager {
-
     // ====================== 常量 ======================
-
     /** 加载超时时间（15 秒） */
     private static final long LOAD_TIMEOUT = 15000;
-
+    /**
+     * ✅ 2026-06-26 新增：源失效自动切台 - 最大连续跳过数
+     * 【说明】连续跳过多少个失效频道后停止，防止无限切台
+     */
+    private static final int MAX_CONSECUTIVE_SKIP = 10;
     // ====================== 上下文与管理器 ======================
-
     private Context context;
     /** 播放器管理器 */
     private TVPlayerManager playerManager;
@@ -52,9 +58,7 @@ public class AppCoreManager {
     private AppConfig appConfig;
     /** 缓存管理器 */
     private CacheManager cacheManager;
-
     // ====================== 数据相关 ======================
-
     /** 全部频道列表 */
     private List<Channel> channelSourceList = new ArrayList<>();
     /** 是否已用缓存播放过（防止重复播放） */
@@ -63,32 +67,38 @@ public class AppCoreManager {
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
     /** 是否正在加载 */
     private boolean isLoading = false;
-
     // ====================== 广播相关 ======================
-
     /** 切换控制器的广播接收器 */
     private BroadcastReceiver toggleControllerReceiver;
     /** 刷新直播源/EPG 的广播接收器 */
     private BroadcastReceiver refreshReceiver;
     /** 广播是否已注册 */
     private boolean receiversRegistered = false;
-
     // ====================== 生命周期相关 ======================
-
     /** 是否正在打开设置页面（用于区分 onPause 场景） */
     private boolean isOpeningSettings = false;
     /** 播放器控制器是否可见 */
     private boolean isControllerVisible = false;
-
+    // ====================================================================
+    // ✅ 2026-06-26 新增：源失效自动切台相关变量
+    // ====================================================================
+    /**
+     * 连续失效频道计数
+     * 【说明】每失效一个频道 +1，成功播放一个频道重置为 0
+     */
+    private int consecutiveFailedCount = 0;
+    /**
+     * 源失效监听器（回调给外部处理 UI 操作）
+     * 【说明】AppCoreManager 只管理计数和判断，
+     * 具体的切台、Toast 等 UI 操作由外部实现
+     */
+    private OnSourceSkipListener sourceSkipListener;
     // ====================== 回调监听器 ======================
-
     /** 数据加载监听器 */
     private OnDataLoadListener dataLoadListener;
     /** 配置刷新监听器 */
     private OnRefreshListener refreshListener;
-
     // ====================== 接口定义 ======================
-
     /**
      * 数据加载监听器
      */
@@ -100,19 +110,16 @@ public class AppCoreManager {
          * @param fromCache 是否来自缓存
          */
         void onLiveSourceLoaded(List<Channel> channels, boolean fromCache);
-
         /**
          * 直播源加载失败
          *
          * @param errorMsg 错误信息
          */
         void onLiveSourceFailed(String errorMsg);
-
         /**
          * EPG 加载完成
          */
         void onEpgLoaded();
-
         /**
          * 加载超时
          *
@@ -120,7 +127,6 @@ public class AppCoreManager {
          */
         void onLoadTimeout(boolean hasData);
     }
-
     /**
      * 配置刷新监听器
      */
@@ -131,9 +137,36 @@ public class AppCoreManager {
          */
         void onRefreshNeeded();
     }
-
+    // ====================================================================
+    // ✅ 2026-06-26 新增：源失效自动切台回调接口
+    // ====================================================================
+    /**
+     * 源失效自动切台监听器
+     *
+     * 【说明】
+     * AppCoreManager 只管理计数和判断逻辑，
+     * 具体的切台、Toast 等 UI 操作由外部实现。
+     */
+    public interface OnSourceSkipListener {
+        /**
+         * 需要切换到下一个频道
+         * 【触发时机】源失效且未达到最大跳过数时
+         */
+        void onNeedSkipChannel();
+        /**
+         * 达到最大跳过数，停止自动切台
+         * 【触发时机】连续失效频道数达到 MAX_CONSECUTIVE_SKIP 时
+         * @param maxSkip 最大跳过数
+         */
+        void onSkipLimitReached(int maxSkip);
+        /**
+         * 源失效（用于日志）
+         * @param channelName 失效频道名称
+         * @param failedCount 当前连续失效数
+         */
+        void onSourceFailed(String channelName, int failedCount);
+    }
     // ====================== 构造函数 ======================
-
     /**
      * 构造函数
      *
@@ -147,11 +180,9 @@ public class AppCoreManager {
         this.appConfig = appConfig;
         this.cacheManager = CacheManager.getInstance(context);
     }
-
     // ====================================================================
     // 1. 直播源 & EPG 加载相关
     // ====================================================================
-
     /**
      * 加载直播源和 EPG 节目单
      *
@@ -168,7 +199,6 @@ public class AppCoreManager {
         // ✅ 保留：数据加载相关 → 播放日志
         log("【直播源】开始加载直播源...");
         isLoading = true;
-
         // ================================================
         // 加载超时保护（15 秒）
         // 防止网络异常时一直卡在加载界面
@@ -187,7 +217,6 @@ public class AppCoreManager {
                 }
             }
         }, LOAD_TIMEOUT);
-
         // ===== 第一步：先读缓存，快速显示 =====
         String cacheContent = cacheManager.getFileCache("live_source");
         if (cacheContent != null && !cacheContent.isEmpty()) {
@@ -208,7 +237,6 @@ public class AppCoreManager {
                 log("【缓存】直播源缓存加载完成，频道数：" + cacheChannels.size());
             }
         }
-
         // ===== 第二步：后台网络加载最新数据 =====
         // ✅ 保留：数据加载相关 → 播放日志
         log("【网络】后台加载最新直播源...");
@@ -232,7 +260,6 @@ public class AppCoreManager {
                 // 加载最新 EPG
                 loadEpg();
             }
-
             @Override
             public void onError(String errorMsg) {
                 // ✅ 保留：数据加载相关 → 播放日志
@@ -249,7 +276,6 @@ public class AppCoreManager {
             }
         });
     }
-
     /**
      * 从缓存加载 EPG 节目单
      */
@@ -262,7 +288,6 @@ public class AppCoreManager {
         // ✅ 保留：数据加载相关 → 播放日志
         log("【EPG】尝试从缓存加载...");
     }
-
     /**
      * 从网络加载 EPG 节目单
      */
@@ -287,7 +312,6 @@ public class AppCoreManager {
             }
         });
     }
-
     /**
      * 解析直播源内容（M3U 格式）
      *
@@ -345,7 +369,6 @@ public class AppCoreManager {
         log("【缓存】解析完成，共 " + channels.size() + " 个频道");
         return channels;
     }
-
     /**
      * 是否已用缓存播放过
      *
@@ -354,7 +377,6 @@ public class AppCoreManager {
     public boolean hasPlayedWithCache() {
         return hasPlayedWithCache;
     }
-
     /**
      * 设置已用缓存播放
      *
@@ -363,7 +385,6 @@ public class AppCoreManager {
     public void setHasPlayedWithCache(boolean played) {
         this.hasPlayedWithCache = played;
     }
-
     /**
      * 获取频道列表
      *
@@ -372,17 +393,14 @@ public class AppCoreManager {
     public List<Channel> getChannelList() {
         return channelSourceList;
     }
-
     // ====================================================================
     // 2. 广播管理相关
     // ====================================================================
-
     /**
      * 注册所有广播接收器
      */
     public void registerReceivers() {
         if (receiversRegistered) return;
-
         // ===== 切换控制器的广播 =====
         toggleControllerReceiver = new BroadcastReceiver() {
             @Override
@@ -394,7 +412,6 @@ public class AppCoreManager {
                 }
             }
         };
-
         // ===== 刷新直播源/EPG 的广播 =====
         refreshReceiver = new BroadcastReceiver() {
             @Override
@@ -418,7 +435,6 @@ public class AppCoreManager {
                 }
             }
         };
-
         // 注册广播
         try {
             context.registerReceiver(toggleControllerReceiver,
@@ -426,7 +442,6 @@ public class AppCoreManager {
             context.registerReceiver(refreshReceiver,
                     new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG"));
             receiversRegistered = true;
-
             // ✅ 修改：广播注册 → 操作日志
             SettingsActivity.logOperation("【广播】广播接收器已注册");
         } catch (Exception e) {
@@ -435,7 +450,6 @@ public class AppCoreManager {
             SettingsActivity.logOperation("【广播】广播注册失败：" + e.getMessage());
         }
     }
-
     /**
      * 注销所有广播接收器
      */
@@ -449,7 +463,6 @@ public class AppCoreManager {
                 context.unregisterReceiver(refreshReceiver);
             }
             receiversRegistered = false;
-
             // ✅ 修改：广播注销 → 操作日志
             SettingsActivity.logOperation("【广播】广播接收器已注销");
         } catch (Exception e) {
@@ -458,7 +471,6 @@ public class AppCoreManager {
             SettingsActivity.logOperation("【广播】广播注销失败：" + e.getMessage());
         }
     }
-
     /**
      * 播放器控制器是否可见
      *
@@ -467,11 +479,9 @@ public class AppCoreManager {
     public boolean isControllerVisible() {
         return isControllerVisible;
     }
-
     // ====================================================================
     // 3. 生命周期管理相关
     // ====================================================================
-
     /**
      * 页面暂停（onPause）
      *
@@ -495,7 +505,6 @@ public class AppCoreManager {
         }
         return true;
     }
-
     /**
      * 页面恢复（onResume）
      *
@@ -520,7 +529,6 @@ public class AppCoreManager {
         }
         return true;
     }
-
     /**
      * 窗口焦点变化
      *
@@ -529,7 +537,6 @@ public class AppCoreManager {
     public void onWindowFocusChanged(boolean hasFocus) {
         // 窗口焦点变化的逻辑主要是全面屏重应用
         // 这个由 DisplayManager 处理，这里只记录日志
-
         // ✅ 修改：窗口焦点 → 操作日志（用户最关心的这个！）
         if (hasFocus) {
             SettingsActivity.logOperation("【主页】窗口获得焦点");
@@ -537,7 +544,6 @@ public class AppCoreManager {
             SettingsActivity.logOperation("【主页】窗口失去焦点");
         }
     }
-
     /**
      * 页面销毁（onDestroy）
      */
@@ -556,7 +562,6 @@ public class AppCoreManager {
         // 清空引用
         channelSourceList = null;
     }
-
     /**
      * 打开设置页面
      * 设置 isOpeningSettings 标志，让 onPause 时不暂停播放器
@@ -565,7 +570,6 @@ public class AppCoreManager {
         isOpeningSettings = true;
         SettingsActivity.logOperation("【系统】打开设置页面");
     }
-
     /**
      * 是否正在打开设置页面
      *
@@ -574,11 +578,93 @@ public class AppCoreManager {
     public boolean isOpeningSettings() {
         return isOpeningSettings;
     }
-
+    // ====================================================================
+    // ✅ 2026-06-26 新增：源失效自动切台
+    // ====================================================================
+    /**
+     * 设置源失效自动切台监听器
+     *
+     * 【说明】
+     * AppCoreManager 只管理计数和判断逻辑，
+     * 具体的切台、Toast 等 UI 操作由外部实现。
+     *
+     * @param listener 监听器
+     */
+    public void setOnSourceSkipListener(OnSourceSkipListener listener) {
+        this.sourceSkipListener = listener;
+    }
+    /**
+     * 处理源失效（自动切台核心逻辑）
+     *
+     * 【业务逻辑】
+     * 1. 连续失效计数 +1
+     * 2. 回调通知外部源失效（用于日志）
+     * 3. 判断是否达到最大跳过数
+     *    - 达到：回调通知停止跳过
+     *    - 未达到：回调通知切到下一个频道
+     *
+     * 【为什么放到这里？】
+     * 这是纯业务逻辑，不涉及 UI 操作，
+     * 统一放到 AppCoreManager 中管理，MainActivity 更清爽。
+     *
+     * @param currentChannelName 当前失效频道名称
+     * @return true=继续切台，false=已达到上限停止
+     */
+    public boolean handleSourceFailed(String currentChannelName) {
+        // 计数 +1
+        consecutiveFailedCount++;
+        int count = consecutiveFailedCount;
+        // 回调通知外部源失效（用于日志）
+        if (sourceSkipListener != null) {
+            sourceSkipListener.onSourceFailed(currentChannelName, count);
+        }
+        SettingsActivity.logOperation("【自动切台】频道「" + currentChannelName
+                + "」源失效，连续失效第 " + count + " 个");
+        // 判断是否达到最大跳过数
+        if (count >= MAX_CONSECUTIVE_SKIP) {
+            SettingsActivity.logOperation("【自动切台】已连续跳过 "
+                    + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过");
+            // 回调通知外部达到上限
+            if (sourceSkipListener != null) {
+                sourceSkipListener.onSkipLimitReached(MAX_CONSECUTIVE_SKIP);
+            }
+            return false;
+        }
+        // 回调通知外部需要切台
+        SettingsActivity.logOperation("【自动切台】自动切换到下一个频道");
+        if (sourceSkipListener != null) {
+            sourceSkipListener.onNeedSkipChannel();
+        }
+        return true;
+    }
+    /**
+     * 重置连续失效计数
+     *
+     * 【触发时机】成功播放一个频道时调用
+     * 【为什么需要？】成功播放说明当前频道是好的，重置计数
+     */
+    public void resetSourceFailedCount() {
+        consecutiveFailedCount = 0;
+    }
+    /**
+     * 获取当前连续失效计数
+     *
+     * @return 连续失效数
+     */
+    public int getConsecutiveFailedCount() {
+        return consecutiveFailedCount;
+    }
+    /**
+     * 获取最大连续跳过数
+     *
+     * @return 最大跳过数
+     */
+    public int getMaxConsecutiveSkip() {
+        return MAX_CONSECUTIVE_SKIP;
+    }
     // ====================================================================
     // 4. 远程配置接收
     // ====================================================================
-
     /**
      * 接收远程配置（网页后台下发）
      *
@@ -589,22 +675,18 @@ public class AppCoreManager {
         appConfig.setCustomUrls(liveUrl, epgUrl);
         if (liveUrl != null) UrlConfig.LIVE_URL = liveUrl;
         if (epgUrl != null) UrlConfig.EPG_URL = epgUrl;
-
         // ✅ 保留：配置更新/数据相关 → 播放日志
         log("【远程配置】更新直播源：" + liveUrl);
         log("【远程配置】更新EPG：" + epgUrl);
-
         SettingsActivity.logOperation("【远程配置】更新直播源/EPG地址");
         // 重置缓存播放标志
         hasPlayedWithCache = false;
         // 重新加载
         loadLiveAndEpg();
     }
-
     // ====================================================================
     // 5. 监听器设置
     // ====================================================================
-
     /**
      * 设置数据加载监听器
      *
@@ -613,7 +695,6 @@ public class AppCoreManager {
     public void setOnDataLoadListener(OnDataLoadListener listener) {
         this.dataLoadListener = listener;
     }
-
     /**
      * 设置配置刷新监听器
      *
@@ -622,11 +703,9 @@ public class AppCoreManager {
     public void setOnRefreshListener(OnRefreshListener listener) {
         this.refreshListener = listener;
     }
-
     // ====================================================================
     // 6. 日志工具
     // ====================================================================
-
     /**
      * 记录播放日志（仅数据加载/播放相关的日志才调用这个）
      *
@@ -651,11 +730,9 @@ public class AppCoreManager {
         // 同步到 SettingsActivity 的播放日志
         SettingsActivity.log(msg);
     }
-
     // ====================================================================
     // 7. 资源释放
     // ====================================================================
-
     /**
      * 释放资源
      * Activity onDestroy 时调用
@@ -668,5 +745,6 @@ public class AppCoreManager {
         cacheManager = null;
         dataLoadListener = null;
         refreshListener = null;
+        sourceSkipListener = null;
     }
 }
