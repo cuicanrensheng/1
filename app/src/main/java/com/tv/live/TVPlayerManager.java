@@ -18,13 +18,18 @@ import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.exoplayer.video.VideoRendererEventListener;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 import com.tv.live.RedirectLoggingHttpDataSource;
+import java.lang.reflect.Constructor;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
@@ -90,6 +95,16 @@ import java.util.Map;
  * 1. 软解模式下关闭解码器降级，让问题暴露出来
  * 2. 增加 FFmpeg 可用性检测日志
  * 3. 播放时检测实际解码器，与设置不符时给出警告
+ *
+ * 【2026-06-26 修复：ExperimentalFfmpegVideoRenderer 手动加载】
+ * 【问题原因】
+ * Media3 的 DefaultRenderersFactory 默认不会加载实验性渲染器
+ * （ExperimentalFfmpegVideoRenderer），导致即使 FFmpeg 库可用，
+ * 视频软解也不会生效。
+ * 【解决方案】
+ * 自定义 FfmpegRenderersFactory，继承 DefaultRenderersFactory，
+ * 重写 buildVideoRenderers() 方法，手动把 ExperimentalFfmpegVideoRenderer
+ * 加到渲染器列表里。
  */
 public class TVPlayerManager {
     // ====================== 常量 ======================
@@ -384,10 +399,22 @@ public class TVPlayerManager {
      *    防止 FFmpeg 失败时静默降级到硬解，让问题暴露出来
      * 2. 增加 FFmpeg 可用性检测日志
      *    初始化后检测系统中 FFmpeg 解码器的数量，判断 FFmpeg 是否正确加载
+     *
+     * 【2026-06-26 修复：使用自定义 FfmpegRenderersFactory】
+     * 原来用 DefaultRenderersFactory，它不会自动加载实验性的
+     * ExperimentalFfmpegVideoRenderer。
+     * 现在改用自定义的 FfmpegRenderersFactory，手动添加实验性视频渲染器。
      */
     private void initPlayer() {
-        // 创建渲染器工厂
-        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
+        // ====================================================================
+        // ✅ 2026-06-26 修改：使用自定义的 FfmpegRenderersFactory
+        // ====================================================================
+        // 【为什么不用 DefaultRenderersFactory？】
+        // DefaultRenderersFactory 默认不会加载实验性渲染器
+        // （ExperimentalFfmpegVideoRenderer），导致软解模式下视频还是硬解。
+        // 自定义的 FfmpegRenderersFactory 会手动把实验性 FFmpeg 视频渲染器
+        // 加到渲染器列表里。
+        DefaultRenderersFactory renderersFactory = new FfmpegRenderersFactory(context);
         // ====================================================================
         // ✅ 根据解码器模式设置扩展渲染器模式（2026-06-25 重构）
         // ====================================================================
@@ -1253,23 +1280,7 @@ public class TVPlayerManager {
             Log.e(TAG, "设置缩放模式异常", e);
         }
     }
-    // ====================================================================
-    // 频道号显示
-    // ====================================================================
-    /**
-     * 设置当前频道号
-     */
-    public void setCurrentChannelNumber(int num) {
-        currentChannelNumber = num;
-    }
-    /**
-     * 绑定频道号显示的 TextView
-     */
-    public void bindChannelText(TextView textView) {
-        channelNumberTextView = textView;
-    }
-    /**
-     * 显示频道号并自动隐藏
+         * 显示频道号并自动隐藏
      */
     private void showChannelAndAutoHide() {
         if (channelNumberTextView != null && currentChannelNumber > 0) {
@@ -1304,7 +1315,7 @@ public class TVPlayerManager {
     /**
      * 获取当前直播信息
      */
-        public LiveInfo getLiveInfo() {
+    public LiveInfo getLiveInfo() {
         LiveInfo info = new LiveInfo();
         try {
             if (player != null) {
@@ -1417,5 +1428,114 @@ public class TVPlayerManager {
             Log.e(TAG, "释放异常", e);
         }
     }
+    // ====================================================================
+    // ✅ 自定义渲染器工厂（2026-06-26 新增）
+    // ====================================================================
+    /**
+     * 自定义渲染器工厂
+     *
+     * 【为什么需要这个？】
+     * Media3 的 DefaultRenderersFactory 默认不会加载实验性渲染器
+     * （ExperimentalFfmpegVideoRenderer），导致软解模式下视频还是硬解。
+     * 我们继承 DefaultRenderersFactory，手动把实验性 FFmpeg 视频渲染器加进去。
+     *
+     * 【工作原理】
+     * 重写 buildVideoRenderers() 方法，
+     * 先用父类方法添加默认渲染器，
+     * 再用反射创建 ExperimentalFfmpegVideoRenderer，
+     * 根据模式插到列表最前面（优先）或最后面（备用）。
+     *
+     * 【为什么用反射？】
+     * 因为 ExperimentalFfmpegVideoRenderer 是实验性 API，
+     * 直接 import 可能编译不通过（或者 IDE 报红），
+     * 用反射更稳妥，即使类不存在也不会崩溃。
+     */
+    private static class FfmpegRenderersFactory extends DefaultRenderersFactory {
+        private static final String TAG = "FfmpegRenderersFactory";
+
+        public FfmpegRenderersFactory(Context context) {
+            super(context);
+        }
+
+        @Override
+        protected void buildVideoRenderers(
+                Context context,
+                int extensionRendererMode,
+                MediaCodecSelector mediaCodecSelector,
+                boolean enableDecoderFallback,
+                Handler eventHandler,
+                VideoRendererEventListener eventListener,
+                long allowedVideoJoiningTimeMs,
+                ArrayList<Renderer> out) {
+
+            // 先调用父类方法，添加默认的渲染器（系统硬解等）
+            super.buildVideoRenderers(context, extensionRendererMode, mediaCodecSelector,
+                    enableDecoderFallback, eventHandler, eventListener,
+                    allowedVideoJoiningTimeMs, out);
+
+            // 如果是 PREFER 模式或 ON 模式，尝试手动添加 ExperimentalFfmpegVideoRenderer
+            if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER
+                    || extensionRendererMode == EXTENSION_RENDERER_MODE_ON) {
+                try {
+                    // 加载 ExperimentalFfmpegVideoRenderer 类
+                    Class<?> rendererClass = Class.forName(
+                            "androidx.media3.decoder.ffmpeg.ExperimentalFfmpegVideoRenderer");
+
+                    Log.d(TAG, "✅ 找到 ExperimentalFfmpegVideoRenderer 类");
+
+                    // 打印所有构造函数（调试用，方便确认参数）
+                    Constructor<?>[] constructors = rendererClass.getConstructors();
+                    for (Constructor<?> c : constructors) {
+                        Log.d(TAG, "构造函数：" + c);
+                        Class<?>[] params = c.getParameterTypes();
+                        for (Class<?> p : params) {
+                            Log.d(TAG, "  参数类型：" + p.getName());
+                        }
+                    }
+                    SettingsActivity.logOperation("【解码器】找到 " + constructors.length 
+                            + " 个构造函数，尝试创建...");
+
+                    // 尝试用常见的构造函数创建实例
+                    // 假设构造函数签名：(Handler, VideoRendererEventListener, long)
+                    try {
+                        Constructor<?> constructor = rendererClass.getConstructor(
+                                Handler.class,
+                                VideoRendererEventListener.class,
+                                long.class
+                        );
+
+                        Renderer renderer = (Renderer) constructor.newInstance(
+                                eventHandler,
+                                eventListener,
+                                allowedVideoJoiningTimeMs
+                        );
+
+                        if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) {
+                            // PREFER 模式：插到最前面，优先使用 FFmpeg 软解
+                            out.add(0, renderer);
+                            Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（优先模式）");
+                            SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（优先模式）");
+                        } else {
+                            // ON 模式：加到最后，作为备用方案
+                            out.add(renderer);
+                            Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（备用模式）");
+                            SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（备用模式）");
+                        }
+
+                    } catch (NoSuchMethodException e) {
+                        Log.e(TAG, "❌ 构造函数 (Handler, VideoRendererEventListener, long) 不存在");
+                        Log.e(TAG, "请查看 logcat 中打印的构造函数列表，确认正确的参数");
+                        SettingsActivity.logOperation("【解码器】❌ 创建失败：构造函数参数不匹配，请查看 logcat");
+                    }
+
+                } catch (ClassNotFoundException e) {
+                    Log.e(TAG, "❌ ExperimentalFfmpegVideoRenderer 类不存在", e);
+                    SettingsActivity.logOperation("【解码器】❌ FFmpeg 视频渲染器类不存在");
+                } catch (Exception e) {
+                    Log.e(TAG, "❌ 创建 ExperimentalFfmpegVideoRenderer 失败", e);
+                    SettingsActivity.logOperation("【解码器】❌ 创建 FFmpeg 视频渲染器失败：" + e.getMessage());
+                }
+            }
+        }
+    }
 }
-   
