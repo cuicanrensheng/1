@@ -1,503 +1,337 @@
 package com.tv.live;
-
 import android.content.Context;
+import android.os.Build;
 import android.util.Log;
-
-import androidx.media3.common.VideoSize;
-
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 /**
- * 分辨率自适应优化器
+ * 性能优化管理器
  *
  * 【功能】
- * 1. 根据设备性能等级，推荐合适的目标分辨率
- * 2. 检测当前播放视频的实际分辨率
- * 3. 如果分辨率过高，自动建议切换到更低码率
- * 4. 低端机自动降低分辨率，减少解码压力
+ * 1. 检测设备性能等级（高端/中端/低端）
+ * 2. 根据性能等级自动调整播放器参数
+ * 3. 提供统一的性能判断接口，供其他模块调用
  *
- * 【分辨率等级】
- * - ULTRA_HD (4K)：3840×2160 及以上
- * - FULL_HD (1080P)：1920×1080
- * - HD (720P)：1280×720
- * - SD (480P)：720×480
- * - LD (360P)：640×360 及以下
+ * 【性能等级划分】
+ * - HIGH（高端机）：8核以上 + Android 8+ + 2GB 内存以上
+ * - MEDIUM（中端机）：4核以上 + Android 6+ + 1GB 内存以上
+ * - LOW（低端机）：其他
  *
  * 【使用场景】
- * 1. 设备性能差 → 自动选择低分辨率源，减少解码压力
- * 2. 网络差 → 自动选择低码率源，减少卡顿
- * 3. 用户手动选择 → 记住用户偏好
+ * 1. ResolutionOptimizer 根据性能等级推荐分辨率
+ * 2. TVPlayerManager 根据性能等级调整缓冲策略
+ * 3. 设置页面根据性能等级显示不同的默认选项
  *
- * 【集成方式】
- * 1. 在 TVPlayerManager 的 onVideoSizeChanged 中调用
- * 2. 在频道切换时检查是否有更低码率的源
- * 3. 配合 ChannelPlayManager 实现自动切换
+ * 【为什么需要单独的性能检测类？】
+ * 因为性能检测涉及多个维度（CPU、内存、系统版本），
+ * 如果每个模块都自己检测，代码会重复，而且判断标准不一致。
+ * 统一由 PerformanceOptimizer 管理，保证判断标准一致。
  */
-public class ResolutionOptimizer {
-    private static final String TAG = "ResolutionOptimizer";
-
+public class PerformanceOptimizer {
+    private static final String TAG = "PerformanceOptimizer";
     // ====================================================================
-    // 分辨率等级枚举
+    // 性能等级枚举
     // ====================================================================
     /**
-     * 分辨率等级
+     * 设备性能等级
      */
-    public enum ResolutionLevel {
+    public enum PerformanceLevel {
         /**
-         * 超高清（4K）
-         * 3840×2160 及以上
+         * 高端机
+         * 8核以上 + Android 8+ + 大内存
          */
-        ULTRA_HD(3840, 2160, "4K"),
+        HIGH,
         /**
-         * 全高清（1080P）
-         * 1920×1080
+         * 中端机
+         * 4核以上 + Android 6+ + 中等内存
          */
-        FULL_HD(1920, 1080, "1080P"),
+        MEDIUM,
         /**
-         * 高清（720P）
-         * 1280×720
+         * 低端机
+         * 4核以下 或 Android 5 及以下 或 小内存
          */
-        HD(1280, 720, "720P"),
-        /**
-         * 标清（480P）
-         * 720×480
-         */
-        SD(720, 480, "480P"),
-        /**
-         * 流畅（360P）
-         * 640×360 及以下
-         */
-        LD(640, 360, "360P");
-
-        public final int width;
-        public final int height;
-        public final String displayName;
-
-        ResolutionLevel(int width, int height, String displayName) {
-            this.width = width;
-            this.height = height;
-            this.displayName = displayName;
-        }
+        LOW
     }
-
     // ====================================================================
     // 成员变量
     // ====================================================================
     /**
-     * 当前视频分辨率
+     * 缓存的性能等级（只检测一次）
      */
-    private static VideoSize sCurrentVideoSize = null;
-
+    private static PerformanceLevel sCachedLevel = null;
     /**
-     * 目标分辨率等级（用户或系统推荐的）
+     * 是否已经初始化过
      */
-    private static ResolutionLevel sTargetResolution = ResolutionLevel.HD;
-
-    /**
-     * 是否启用自动分辨率调整
-     */
-    private static boolean sAutoResolutionEnabled = true;
-
-    /**
-     * 分辨率过高的回调
-     */
-    public interface OnResolutionTooHighListener {
-        /**
-         * 当检测到视频分辨率过高时回调
-         *
-         * @param currentLevel 当前视频分辨率等级
-         * @param recommendedLevel 推荐的分辨率等级
-         * @param currentWidth 当前宽度
-         * @param currentHeight 当前高度
-         */
-        void onResolutionTooHigh(ResolutionLevel currentLevel, 
-                                  ResolutionLevel recommendedLevel,
-                                  int currentWidth, 
-                                  int currentHeight);
-    }
-
-    /**
-     * 分辨率过高监听器
-     */
-    private static OnResolutionTooHighListener sListener;
-
+    private static boolean sInitialized = false;
     // ====================================================================
     // 初始化
     // ====================================================================
     /**
-     * 初始化分辨率优化器
-     * 根据设备性能等级设置推荐的目标分辨率
+     * 初始化性能优化器
+     * 检测设备性能等级并缓存结果
      *
      * @param context 上下文
      */
     public static void init(Context context) {
-        // 根据性能等级设置推荐分辨率
-        PerformanceOptimizer.PerformanceLevel perfLevel = PerformanceOptimizer.getCurrentLevel();
-        sTargetResolution = getRecommendedResolution(perfLevel);
-
-        Log.d(TAG, "【分辨率优化】初始化完成，推荐分辨率：" + sTargetResolution.displayName);
-        SettingsActivity.logOperation("【分辨率优化】初始化，推荐分辨率：" + sTargetResolution.displayName);
+        if (sInitialized) return;
+        sInitialized = true;
+        // 检测性能等级
+        sCachedLevel = detectPerformanceLevel(context);
+        Log.d(TAG, "【性能优化】初始化完成，设备性能等级：" + sCachedLevel);
+        SettingsActivity.logOperation("【性能优化】设备性能等级：" + sCachedLevel);
     }
-
     // ====================================================================
-    // 推荐分辨率计算
+    // 性能等级检测
     // ====================================================================
     /**
-     * 根据设备性能等级获取推荐的分辨率
+     * 获取当前设备的性能等级
      *
-     * @param perfLevel 性能等级
-     * @return 推荐的分辨率等级
+     * @return 性能等级
+     *
+     * 【注意】
+     * 如果还没初始化，会自动检测一次。
+     * 建议在 Application 或 MainActivity 的 onCreate 中先调用 init()。
      */
-    public static ResolutionLevel getRecommendedResolution(
-            PerformanceOptimizer.PerformanceLevel perfLevel) {
-        switch (perfLevel) {
-            case LOW:
-                // 低端机：推荐 480P，解码压力小
-                // 很多低端电视硬解 720P 都卡
-                return ResolutionLevel.SD;
-            case MEDIUM:
-                // 中端机：推荐 720P，平衡清晰度和性能
-                return ResolutionLevel.HD;
-            case HIGH:
-            default:
-                // 高端机：推荐 1080P，享受最佳画质
-                return ResolutionLevel.FULL_HD;
+    public static PerformanceLevel getCurrentLevel() {
+        if (sCachedLevel == null) {
+            // 还没初始化，自动检测一次
+            sCachedLevel = detectPerformanceLevel(null);
         }
+        return sCachedLevel;
     }
-
     /**
-     * 根据网络状态获取推荐的分辨率
+     * 检测设备性能等级
      *
-     * @param networkSpeedKbps 网络速度（kbps）
-     * @return 推荐的分辨率等级
+     * @param context 上下文（可为 null）
+     * @return 性能等级
+     *
+     * 【检测维度】
+     * 1. CPU 核心数
+     * 2. 系统版本
+     * 3. 总内存大小
+     *
+     * 【判断逻辑】
+     * - 高端机：8核以上 + Android 8+ + 2GB 内存以上
+     * - 中端机：4核以上 + Android 6+ + 1GB 内存以上
+     * - 低端机：其他
+     *
+     * 【为什么用这三个维度？】
+     * 1. CPU 核心数：直接影响解码能力
+     * 2. 系统版本：影响系统解码器的支持程度和优化程度
+     * 3. 内存大小：影响缓冲能力和后台保活
      */
-    public static ResolutionLevel getRecommendedResolutionByNetwork(int networkSpeedKbps) {
-        if (networkSpeedKbps >= 8000) {
-            // 8Mbps 以上：1080P
-            return ResolutionLevel.FULL_HD;
-        } else if (networkSpeedKbps >= 4000) {
-            // 4-8Mbps：720P
-            return ResolutionLevel.HD;
-        } else if (networkSpeedKbps >= 2000) {
-            // 2-4Mbps：480P
-            return ResolutionLevel.SD;
-        } else {
-            // 2Mbps 以下：360P
-            return ResolutionLevel.LD;
+    private static PerformanceLevel detectPerformanceLevel(Context context) {
+        // 1. 获取 CPU 核心数
+        int cpuCores = getCpuCoreCount();
+        // 2. 获取系统版本
+        int sdkVersion = Build.VERSION.SDK_INT;
+        // 3. 获取总内存
+        long totalMemory = getTotalMemory(context);
+        Log.d(TAG, "【性能检测】CPU核心数：" + cpuCores 
+                + "，系统版本：" + sdkVersion 
+                + "，总内存：" + (totalMemory / 1024 / 1024) + "MB");
+        // 判断高端机
+        if (cpuCores >= 8 
+                && sdkVersion >= Build.VERSION_CODES.O 
+                && totalMemory >= 2L * 1024 * 1024 * 1024) {
+            return PerformanceLevel.HIGH;
         }
+        // 判断中端机
+        if (cpuCores >= 4 
+                && sdkVersion >= Build.VERSION_CODES.M 
+                && totalMemory >= 1L * 1024 * 1024 * 1024) {
+            return PerformanceLevel.MEDIUM;
+        }
+        // 低端机
+        return PerformanceLevel.LOW;
     }
-
     // ====================================================================
-    // 分辨率检测与判断
+    // CPU 核心数检测
     // ====================================================================
     /**
-     * 更新当前视频分辨率
-     * 在 Player.Listener 的 onVideoSizeChanged 中调用
+     * 获取 CPU 核心数
      *
-     * @param videoSize 视频尺寸
+     * @return CPU 核心数
+     *
+     * 【检测方法】
+     * 优先使用 Runtime.getRuntime().availableProcessors()，
+     * 这是 Java 标准 API，最可靠。
+     *
+     * 【备选方案】
+     * 如果 availableProcessors() 返回的结果不准确（某些设备上
+     * 可能只返回在线核心数），可以读取 /sys/devices/system/cpu/
+     * 目录下的 cpu* 文件夹来统计。
      */
-    public static void updateCurrentResolution(VideoSize videoSize) {
-        if (videoSize == null) return;
-        sCurrentVideoSize = videoSize;
-
-        int width = videoSize.width;
-        int height = videoSize.height;
-
-        Log.d(TAG, "【分辨率优化】当前视频分辨率：" + width + "×" + height);
-
-        // 如果启用了自动调整，检查分辨率是否过高
-        if (sAutoResolutionEnabled && sListener != null) {
-            ResolutionLevel currentLevel = getResolutionLevel(width, height);
-            if (isResolutionTooHigh(currentLevel, sTargetResolution)) {
-                Log.w(TAG, "【分辨率优化】当前分辨率过高！当前：" 
-                        + currentLevel.displayName 
-                        + "，推荐：" + sTargetResolution.displayName);
-                SettingsActivity.logOperation("【分辨率优化】检测到分辨率过高（"
-                        + currentLevel.displayName + "），推荐：" 
-                        + sTargetResolution.displayName);
-
-                // 回调通知外部
-                sListener.onResolutionTooHigh(currentLevel, sTargetResolution,
-                        width, height);
+    private static int getCpuCoreCount() {
+        // 方法1：使用标准 API
+        int cores = Runtime.getRuntime().availableProcessors();
+        if (cores > 0) {
+            return cores;
+        }
+        // 方法2：读取系统文件（备选）
+        try {
+            File cpuDir = new File("/sys/devices/system/cpu/");
+            File[] cpuFiles = cpuDir.listFiles();
+            if (cpuFiles != null) {
+                int count = 0;
+                for (File file : cpuFiles) {
+                    if (file.getName().matches("cpu\\d+")) {
+                        count++;
+                    }
+                }
+                if (count > 0) {
+                    return count;
+                }
             }
+        } catch (Exception e) {
+            Log.e(TAG, "读取CPU核心数失败：" + e.getMessage());
         }
+        // 默认返回 4（保守估计）
+        return 4;
     }
-
-    /**
-     * 判断当前分辨率是否过高（超过推荐值）
-     *
-     * @param current 当前分辨率等级
-     * @param target 目标分辨率等级
-     * @return true = 过高
-     */
-    public static boolean isResolutionTooHigh(ResolutionLevel current, ResolutionLevel target) {
-        // 等级值越小，分辨率越高
-        // ULTRA_HD = 0, FULL_HD = 1, HD = 2, SD = 3, LD = 4
-        return current.ordinal() < target.ordinal();
-    }
-
-    /**
-     * 根据宽高获取分辨率等级
-     *
-     * @param width 宽度
-     * @param height 高度
-     * @return 分辨率等级
-     */
-    public static ResolutionLevel getResolutionLevel(int width, int height) {
-        // 取较小的边作为判断依据（兼容横屏竖屏）
-        int minSide = Math.min(width, height);
-
-        if (minSide >= 2160) {
-            return ResolutionLevel.ULTRA_HD;
-        } else if (minSide >= 1080) {
-            return ResolutionLevel.FULL_HD;
-        } else if (minSide >= 720) {
-            return ResolutionLevel.HD;
-        } else if (minSide >= 480) {
-            return ResolutionLevel.SD;
-        } else {
-            return ResolutionLevel.LD;
-        }
-    }
-
     // ====================================================================
-    // 码率估算
+    // 内存大小检测
     // ====================================================================
     /**
-     * 根据分辨率估算所需的码率
+     * 获取设备总内存
      *
-     * @param level 分辨率等级
-     * @return 估算码率（kbps）
+     * @param context 上下文（可为 null）
+     * @return 总内存大小（字节）
+     *
+     * 【检测方法】
+     * 读取 /proc/meminfo 文件中的 MemTotal 字段。
+     * 这是 Linux 系统标准方法，所有 Android 设备都支持。
+     *
+     * 【为什么不用 ActivityManager.getMemoryInfo()？】
+     * 因为那个方法需要 Context，而且某些定制 ROM 上不准确。
+     * 读取 /proc/meminfo 更直接、更可靠。
      */
-    public static int estimateBitrate(ResolutionLevel level) {
+    private static long getTotalMemory(Context context) {
+        try {
+            BufferedReader reader = new BufferedReader(
+                    new FileReader("/proc/meminfo"));
+            String line = reader.readLine();
+            while (line != null) {
+                if (line.startsWith("MemTotal:")) {
+                    // 格式：MemTotal:        2048000 kB
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 2) {
+                        long kb = Long.parseLong(parts[1]);
+                        reader.close();
+                        return kb * 1024; // 转成字节
+                    }
+                }
+                line = reader.readLine();
+            }
+            reader.close();
+        } catch (Exception e) {
+            Log.e(TAG, "读取内存信息失败：" + e.getMessage());
+        }
+        // 默认返回 1GB（保守估计）
+        return 1L * 1024 * 1024 * 1024;
+    }
+    // ====================================================================
+    // 优化建议
+    // ====================================================================
+    /**
+     * 获取针对当前设备的优化建议
+     *
+     * @return 优化建议文字
+     *
+     * 【用途】
+     * 可以在设置页面显示，告诉用户当前设备适合什么配置。
+     */
+    public static String getOptimizationSuggestion() {
+        PerformanceLevel level = getCurrentLevel();
         switch (level) {
-            case ULTRA_HD:
-                return 16000; // 16Mbps
-            case FULL_HD:
-                return 8000;  // 8Mbps
-            case HD:
-                return 4000;  // 4Mbps
-            case SD:
-                return 2000;  // 2Mbps
-            case LD:
+            case HIGH:
+                return "高端设备，推荐使用硬解 + 1080P 画质，体验最佳";
+            case MEDIUM:
+                return "中端设备，推荐使用硬解 + 720P 画质，平衡流畅与清晰";
+            case LOW:
             default:
-                return 1000;  // 1Mbps
+                return "低端设备，推荐使用软解 + 480P 画质，保证流畅播放";
         }
     }
-
     /**
-     * 根据实际码率估算分辨率等级
+     * 判断是否为低端机
      *
-     * @param bitrateKbps 码率（kbps）
-     * @return 估算的分辨率等级
+     * @return true = 低端机
      */
-    public static ResolutionLevel estimateResolutionFromBitrate(int bitrateKbps) {
-        if (bitrateKbps >= 12000) {
-            return ResolutionLevel.ULTRA_HD;
-        } else if (bitrateKbps >= 6000) {
-            return ResolutionLevel.FULL_HD;
-        } else if (bitrateKbps >= 3000) {
-            return ResolutionLevel.HD;
-        } else if (bitrateKbps >= 1500) {
-            return ResolutionLevel.SD;
-        } else {
-            return ResolutionLevel.LD;
-        }
+    public static boolean isLowEndDevice() {
+        return getCurrentLevel() == PerformanceLevel.LOW;
     }
-
+    /**
+     * 判断是否为高端机
+     *
+     * @return true = 高端机
+     */
+    public static boolean isHighEndDevice() {
+        return getCurrentLevel() == PerformanceLevel.HIGH;
+    }
     // ====================================================================
-    // 多码率源选择
+    // 播放器参数优化
     // ====================================================================
     /**
-     * 从多个源中选择最适合当前设备性能的源
+     * 获取推荐的缓冲时长（毫秒）
      *
-     * 【使用场景】
-     * 如果同一个频道有多个清晰度的源（比如高清、标清），
-     * 可以调用这个方法自动选择最合适的。
+     * @return 推荐的最大缓冲时长
      *
-     * @param sources 源列表，每个元素是 [url, width, height] 或 [url, bitrate]
-     * @param perfLevel 设备性能等级
-     * @return 选中的源索引，-1 表示没有合适的
+     * 【优化逻辑】
+     * - 高端机：大缓冲（50秒），抗网络波动
+     * - 中端机：中等缓冲（30秒），平衡内存和抗波动
+     * - 低端机：小缓冲（15秒），节省内存
      */
-    public static int selectBestSource(Object[] sources, 
-                                        PerformanceOptimizer.PerformanceLevel perfLevel) {
-        if (sources == null || sources.length == 0) return -1;
-
-        ResolutionLevel targetLevel = getRecommendedResolution(perfLevel);
-        int targetOrdinal = targetLevel.ordinal();
-
-        int bestIndex = -1;
-        int bestDiff = Integer.MAX_VALUE;
-
-        for (int i = 0; i < sources.length; i++) {
-            Object source = sources[i];
-            ResolutionLevel sourceLevel = null;
-
-            // 支持两种格式：int[]（宽高）或 Integer（码率）
-            if (source instanceof int[]) {
-                int[] wh = (int[]) source;
-                if (wh.length >= 2) {
-                    sourceLevel = getResolutionLevel(wh[0], wh[1]);
-                }
-            } else if (source instanceof Integer) {
-                int bitrate = (Integer) source;
-                sourceLevel = estimateResolutionFromBitrate(bitrate);
-            }
-
-            if (sourceLevel != null) {
-                int diff = Math.abs(sourceLevel.ordinal() - targetOrdinal);
-                // 优先选择等于或低于目标分辨率的（不超过设备能力）
-                if (sourceLevel.ordinal() >= targetOrdinal && diff < bestDiff) {
-                    bestDiff = diff;
-                    bestIndex = i;
-                }
-            }
+    public static int getRecommendedBufferMs() {
+        PerformanceLevel level = getCurrentLevel();
+        switch (level) {
+            case HIGH:
+                return 50000;   // 50秒
+            case MEDIUM:
+                return 30000;   // 30秒
+            case LOW:
+            default:
+                return 15000;   // 15秒
         }
-
-        // 如果没有找到等于或低于目标的，就选最接近的
-        if (bestIndex == -1) {
-            for (int i = 0; i < sources.length; i++) {
-                Object source = sources[i];
-                ResolutionLevel sourceLevel = null;
-
-                if (source instanceof int[]) {
-                    int[] wh = (int[]) source;
-                    if (wh.length >= 2) {
-                        sourceLevel = getResolutionLevel(wh[0], wh[1]);
-                    }
-                } else if (source instanceof Integer) {
-                    int bitrate = (Integer) source;
-                    sourceLevel = estimateResolutionFromBitrate(bitrate);
-                }
-
-                if (sourceLevel != null) {
-                    int diff = Math.abs(sourceLevel.ordinal() - targetOrdinal);
-                    if (diff < bestDiff) {
-                        bestDiff = diff;
-                        bestIndex = i;
-                    }
-                }
-            }
-        }
-
-        return bestIndex;
     }
-
-    // ====================================================================
-    // 解码压力评估
-    // ====================================================================
     /**
-     * 评估当前分辨率对设备的解码压力
+     * 获取推荐的最小缓冲时长（毫秒）
      *
-     * @param context 上下文
-     * @param width 视频宽度
-     * @param height 视频高度
-     * @return 压力等级（0-100，越高压力越大）
+     * @return 推荐的最小缓冲时长
      */
-    public static int evaluateDecodePressure(Context context, int width, int height) {
-        PerformanceOptimizer.PerformanceLevel perfLevel = PerformanceOptimizer.getCurrentLevel();
-        ResolutionLevel videoLevel = getResolutionLevel(width, height);
-        ResolutionLevel recommendedLevel = getRecommendedResolution(perfLevel);
-
-        // 计算压力值
-        int pressure = 0;
-
-        // 分辨率差距越大，压力越高
-        int levelDiff = recommendedLevel.ordinal() - videoLevel.ordinal();
-        pressure += Math.abs(levelDiff) * 25; // 每差一级 +25 分
-
-        // 低端机额外加压力
-        if (perfLevel == PerformanceOptimizer.PerformanceLevel.LOW) {
-            pressure += 20;
+    public static int getRecommendedMinBufferMs() {
+        PerformanceLevel level = getCurrentLevel();
+        switch (level) {
+            case HIGH:
+                return 2000;    // 2秒
+            case MEDIUM:
+                return 1500;    // 1.5秒
+            case LOW:
+            default:
+                return 1000;    // 1秒
         }
-
-        // 超过 1080P 额外加压力（很多设备硬解 4K 有问题）
-        if (videoLevel == ResolutionLevel.ULTRA_HD) {
-            pressure += 20;
-        }
-
-        // 限制在 0-100
-        return Math.min(100, Math.max(0, pressure));
     }
-
     /**
-     * 获取解码压力的文字描述
+     * 获取推荐的开始播放缓冲时长（毫秒）
      *
-     * @param pressure 压力值（0-100）
-     * @return 描述文字
-     */
-    public static String getPressureDescription(int pressure) {
-        if (pressure <= 20) {
-            return "轻松";
-        } else if (pressure <= 40) {
-            return "正常";
-        } else if (pressure <= 60) {
-            return "略有压力";
-        } else if (pressure <= 80) {
-            return "压力较大";
-        } else {
-            return "压力很大";
-        }
-    }
-
-    // ====================================================================
-    // Getter / Setter
-    // ====================================================================
-    /**
-     * 获取当前视频分辨率
-     */
-    public static VideoSize getCurrentVideoSize() {
-        return sCurrentVideoSize;
-    }
-
-    /**
-     * 获取目标分辨率等级
-     */
-    public static ResolutionLevel getTargetResolution() {
-        return sTargetResolution;
-    }
-
-    /**
-     * 设置目标分辨率等级
+     * @return 推荐的开始播放缓冲时长
      *
-     * @param resolution 目标分辨率
+     * 【优化逻辑】
+     * - 高端机：快速出画（300ms）
+     * - 中端机：平衡（500ms）
+     * - 低端机：稳一点（1000ms）
      */
-    public static void setTargetResolution(ResolutionLevel resolution) {
-        sTargetResolution = resolution;
-        Log.d(TAG, "【分辨率优化】目标分辨率设置为：" + resolution.displayName);
-        SettingsActivity.logOperation("【分辨率优化】目标分辨率设置为：" + resolution.displayName);
-    }
-
-    /**
-     * 是否启用自动分辨率调整
-     */
-    public static boolean isAutoResolutionEnabled() {
-        return sAutoResolutionEnabled;
-    }
-
-    /**
-     * 设置是否启用自动分辨率调整
-     */
-    public static void setAutoResolutionEnabled(boolean enabled) {
-        sAutoResolutionEnabled = enabled;
-    }
-
-    /**
-     * 设置分辨率过高监听器
-     */
-    public static void setOnResolutionTooHighListener(OnResolutionTooHighListener listener) {
-        sListener = listener;
-    }
-
-    /**
-     * 获取当前分辨率等级的显示名称
-     */
-    public static String getCurrentResolutionDisplayName() {
-        if (sCurrentVideoSize == null) {
-            return "未知";
+    public static int getRecommendedBufferForPlaybackMs() {
+        PerformanceLevel level = getCurrentLevel();
+        switch (level) {
+            case HIGH:
+                return 300;     // 300ms
+            case MEDIUM:
+                return 500;     // 500ms
+            case LOW:
+            default:
+                return 1000;    // 1秒
         }
-        ResolutionLevel level = getResolutionLevel(
-                sCurrentVideoSize.width, 
-                sCurrentVideoSize.height);
-        return level.displayName + " (" + sCurrentVideoSize.width 
-                + "×" + sCurrentVideoSize.height + ")";
     }
 }
