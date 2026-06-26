@@ -1445,8 +1445,8 @@ public class TVPlayerManager {
             Log.e(TAG, "释放异常", e);
         }
     }
-    // ====================================================================
-    // ✅ 自定义渲染器工厂（2026-06-26 新增）
+        // ====================================================================
+    // ✅ 自定义渲染器工厂（2026-06-26 新增，v2 版本）
     // ====================================================================
     /**
      * 自定义渲染器工厂
@@ -1456,16 +1456,9 @@ public class TVPlayerManager {
      * （ExperimentalFfmpegVideoRenderer），导致软解模式下视频还是硬解。
      * 我们继承 DefaultRenderersFactory，手动把实验性 FFmpeg 视频渲染器加进去。
      *
-     * 【工作原理】
-     * 重写 buildVideoRenderers() 方法，
-     * 先用父类方法添加默认渲染器，
-     * 再用反射创建 ExperimentalFfmpegVideoRenderer，
-     * 根据模式插到列表最前面（优先）或最后面（备用）。
-     *
-     * 【为什么用反射？】
-     * 因为 ExperimentalFfmpegVideoRenderer 是实验性 API，
-     * 直接 import 可能编译不通过（或者 IDE 报红），
-     * 用反射更稳妥，即使类不存在也不会崩溃。
+     * 【v2 改进】
+     * 1. 自动匹配构造函数参数类型，不用硬编码参数顺序
+     * 2. 把构造函数详细信息打印到操作日志，方便调试
      */
     private static class FfmpegRenderersFactory extends DefaultRenderersFactory {
         private static final String TAG = "FfmpegRenderersFactory";
@@ -1500,49 +1493,86 @@ public class TVPlayerManager {
 
                     Log.d(TAG, "✅ 找到 ExperimentalFfmpegVideoRenderer 类");
 
-                    // 打印所有构造函数（调试用，方便确认参数）
+                    // 获取所有构造函数
                     Constructor<?>[] constructors = rendererClass.getConstructors();
-                    for (Constructor<?> c : constructors) {
-                        Log.d(TAG, "构造函数：" + c);
-                        Class<?>[] params = c.getParameterTypes();
-                        for (Class<?> p : params) {
-                            Log.d(TAG, "  参数类型：" + p.getName());
+                    Log.d(TAG, "构造函数数量：" + constructors.length);
+                    SettingsActivity.logOperation("【解码器】找到 " + constructors.length 
+                            + " 个构造函数");
+
+                    if (constructors.length == 0) {
+                        Log.e(TAG, "❌ 没有找到公开的构造函数");
+                        SettingsActivity.logOperation("【解码器】❌ 没有找到公开构造函数");
+                        return;
+                    }
+
+                    // 打印第一个构造函数的详细参数到操作日志
+                    Constructor<?> firstConstructor = constructors[0];
+                    Class<?>[] paramTypes = firstConstructor.getParameterTypes();
+                    StringBuilder paramLog = new StringBuilder();
+                    paramLog.append("【解码器】构造函数参数：");
+                    for (int i = 0; i < paramTypes.length; i++) {
+                        if (i > 0) paramLog.append(", ");
+                        paramLog.append(paramTypes[i].getSimpleName());
+                    }
+                    Log.d(TAG, paramLog.toString());
+                    SettingsActivity.logOperation(paramLog.toString());
+
+                    // ================================================================
+                    // ✅ 智能匹配构造函数参数
+                    // ================================================================
+                    // 【原理】
+                    // 遍历构造函数的每个参数，根据参数类型自动匹配对应的值。
+                    // 这样不用硬编码参数顺序，不管构造函数是什么样的，
+                    // 只要参数类型是我们认识的，就能自动传对值。
+                    //
+                    // 【支持的参数类型】
+                    // - Handler → 传 eventHandler
+                    // - VideoRendererEventListener → 传 eventListener
+                    // - long → 传 allowedVideoJoiningTimeMs
+                    // - int → 传 0（默认值）
+                    // - boolean → 传 false
+                    // - Context → 传 context
+                    // - 其他引用类型 → 传 null
+                    Object[] args = new Object[paramTypes.length];
+                    for (int i = 0; i < paramTypes.length; i++) {
+                        String typeName = paramTypes[i].getName();
+                        
+                        if (typeName.equals("android.os.Handler") 
+                                || typeName.equals("Handler")) {
+                            args[i] = eventHandler;
+                        } else if (typeName.contains("VideoRendererEventListener")) {
+                            args[i] = eventListener;
+                        } else if (typeName.equals("long")) {
+                            args[i] = allowedVideoJoiningTimeMs;
+                        } else if (typeName.equals("int")) {
+                            args[i] = 0; // int 类型默认传 0
+                        } else if (typeName.equals("boolean")) {
+                            args[i] = false; // boolean 类型默认传 false
+                        } else if (typeName.equals("android.content.Context")
+                                || typeName.equals("Context")) {
+                            args[i] = context;
+                        } else if (typeName.equals("float")) {
+                            args[i] = 0f;
+                        } else {
+                            // 其他引用类型，传 null
+                            args[i] = null;
+                            Log.d(TAG, "  ⚠️ 未知参数类型：" + typeName + "，传 null");
                         }
                     }
-                    SettingsActivity.logOperation("【解码器】找到 " + constructors.length 
-                            + " 个构造函数，尝试创建...");
 
-                    // 尝试用常见的构造函数创建实例
-                    // 假设构造函数签名：(Handler, VideoRendererEventListener, long)
-                    try {
-                        Constructor<?> constructor = rendererClass.getConstructor(
-                                Handler.class,
-                                VideoRendererEventListener.class,
-                                long.class
-                        );
+                    // 尝试创建实例
+                    Renderer renderer = (Renderer) firstConstructor.newInstance(args);
 
-                        Renderer renderer = (Renderer) constructor.newInstance(
-                                eventHandler,
-                                eventListener,
-                                allowedVideoJoiningTimeMs
-                        );
-
-                        if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) {
-                            // PREFER 模式：插到最前面，优先使用 FFmpeg 软解
-                            out.add(0, renderer);
-                            Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（优先模式）");
-                            SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（优先模式）");
-                        } else {
-                            // ON 模式：加到最后，作为备用方案
-                            out.add(renderer);
-                            Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（备用模式）");
-                            SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（备用模式）");
-                        }
-
-                    } catch (NoSuchMethodException e) {
-                        Log.e(TAG, "❌ 构造函数 (Handler, VideoRendererEventListener, long) 不存在");
-                        Log.e(TAG, "请查看 logcat 中打印的构造函数列表，确认正确的参数");
-                        SettingsActivity.logOperation("【解码器】❌ 创建失败：构造函数参数不匹配，请查看 logcat");
+                    if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) {
+                        // PREFER 模式：插到最前面，优先使用 FFmpeg 软解
+                        out.add(0, renderer);
+                        Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（优先模式）");
+                        SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（优先模式）");
+                    } else {
+                        // ON 模式：加到最后，作为备用方案
+                        out.add(renderer);
+                        Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（备用模式）");
+                        SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（备用模式）");
                     }
 
                 } catch (ClassNotFoundException e) {
@@ -1550,9 +1580,12 @@ public class TVPlayerManager {
                     SettingsActivity.logOperation("【解码器】❌ FFmpeg 视频渲染器类不存在");
                 } catch (Exception e) {
                     Log.e(TAG, "❌ 创建 ExperimentalFfmpegVideoRenderer 失败", e);
-                    SettingsActivity.logOperation("【解码器】❌ 创建 FFmpeg 视频渲染器失败：" + e.getMessage());
+                    SettingsActivity.logOperation("【解码器】❌ 创建失败：" + e.getMessage());
+                    // 打印详细异常信息
+                    if (e.getCause() != null) {
+                        SettingsActivity.logOperation("【解码器】原因：" + e.getCause().getMessage());
+                    }
                 }
             }
         }
     }
-}
