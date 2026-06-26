@@ -13,7 +13,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.util.Rational;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -67,6 +66,18 @@ import java.util.List;
  * 【2026-06-26 修改：返回键全量合并至 TvRemoteManager】
  * 【修改说明】
  * 移除 MainActivity 本地所有返回判断，onBackPressed 全权委托 remoteManager.handleBackPressed()
+ *
+ * 【2026-06-26 修改：画中画辅助方法全部合并到 PictureInPictureManager】
+ * 【修改说明】
+ * 移除 MainActivity 本地的画中画辅助方法：
+ * - hideAllUiForPip() → 改用 pipManager.hideAllUi()
+ * - keepPlayingInPip() → 改用 pipManager.keepPlaying()
+ * - resumeCurrentChannel() → 改用 pipManager.resumePlayback()
+ * - logPipViewSize() → 改用 pipManager.logViewSize()
+ * - logPipWindowSize() → 改用 pipManager.logWindowSize()
+ * - 画中画参数构建 → 改用 pipManager.buildDefaultPipParams()
+ * - 进入画中画流程 → 改用 pipManager.enterPip()
+ * MainActivity 只保留生命周期回调，画中画逻辑全部集中在 PictureInPictureManager。
  */
 public class MainActivity extends AppCompatActivity {
     // ====================== 单例 ======================
@@ -228,56 +239,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             log("【画中画】初始化失败：" + e.getMessage());
             pipManager = null;
-        }
-    }
-    // 画中画模式下隐藏所有UI
-    private void hideAllUiForPip() {
-        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-            channelPanelController.hidePanel();
-        }
-        if (infoDisplayManager != null) {
-            infoDisplayManager.hideInfoBar();
-            infoDisplayManager.hideChannelNum();
-        }
-    }
-    // 画中画模式下保持播放
-    private void keepPlayingInPip() {
-        try {
-            if (mPlayerManager != null) {
-                mPlayerManager.resume();
-                log("【画中画】✅ 调用 resume() 恢复播放");
-
-                if (playerView != null) {
-                    mPlayerManager.attachPlayerView(playerView);
-                    mPlayerManager.resume();
-                    log("【画中画】✅ 重新绑定后再次恢复");
-                }
-            }
-        } catch (Exception e) {
-            log("【画中画】恢复播放失败：" + e.getMessage());
-
-            try {
-                if (channelSourceList != null
-                        && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-                    Channel channel = channelSourceList.get(currentPlayIndex);
-                    if (channel != null && channel.getPlayUrl() != null) {
-                        mPlayerManager.playUrl(channel.getPlayUrl());
-                        log("【画中画】兜底：重新加载当前频道");
-                    }
-                }
-            } catch (Exception e2) {
-                log("【画中画】兜底播放也失败：" + e2.getMessage());
-            }
-        }
-    }
-    // 恢复当前频道播放
-    private void resumeCurrentChannel() {
-        try {
-            if (mPlayerManager != null) {
-                mPlayerManager.resume();
-            }
-        } catch (Exception e) {
-            log("【画中画】恢复播放失败：" + e.getMessage());
         }
     }
     // ====================================================================
@@ -773,22 +734,9 @@ public class MainActivity extends AppCompatActivity {
         SettingsActivity.logOperation("【画中画排查】正在进入画中画：" + pipManager.isPipEntering());
         if (shouldEnter) {
             SettingsActivity.logOperation("【画中画排查】所有条件满足，尝试进入画中画...");
-            try {
-                PictureInPictureParams pipParams = null;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    PictureInPictureParams.Builder pipBuilder = new PictureInPictureParams.Builder();
-                    pipBuilder.setAspectRatio(new Rational(16, 9));
-                    pipParams = pipBuilder.build();
-                }
-                if (mPlayerManager != null) {
-                    pipManager.updatePlayState(true);
-                }
-                boolean result = pipManager.enterPictureInPicture(this, pipParams);
-                SettingsActivity.logOperation("【画中画排查】进入结果：" + (result ? "✅ 成功" : "❌ 失败"));
-            } catch (Exception e) {
-                SettingsActivity.logOperation("【画中画排查】❌ 异常：" + e.getMessage());
-                e.printStackTrace();
-            }
+            // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的便捷方法 enterPip
+            boolean result = pipManager.enterPip(this, mPlayerManager);
+            SettingsActivity.logOperation("【画中画排查】进入结果：" + (result ? "✅ 成功" : "❌ 失败"));
         } else {
             SettingsActivity.logOperation("【画中画排查】❌ 条件不满足，不进入画中画");
         }
@@ -814,17 +762,13 @@ public class MainActivity extends AppCompatActivity {
         }
         if (isInPictureInPictureMode) {
             SettingsActivity.logOperation("【画中画】========== 进入画中画 ==========");
-            hideAllUiForPip();
+            // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的 hideAllUi
+            pipManager.hideAllUi(channelPanelController, infoDisplayManager);
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            if (mPlayerManager != null) {
-                try {
-                    mPlayerManager.resume();
-                    SettingsActivity.logOperation("【画中画】✅ 恢复播放");
-                } catch (Exception e) {
-                    SettingsActivity.logOperation("【画中画】恢复播放失败：" + e.getMessage());
-                }
-            }
-            logPipViewSize("进入画中画时", playerView);
+            // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的 resumePlayback
+            pipManager.resumePlayback(mPlayerManager);
+            // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的 logViewSize
+            pipManager.logViewSize("进入画中画时", playerView);
             SettingsActivity.logOperation("【画中画】================================");
         } else {
             SettingsActivity.logOperation("【画中画】========== 退出画中画 ==========");
@@ -838,11 +782,13 @@ public class MainActivity extends AppCompatActivity {
             }
             // 日志点1：刚退出画中画时的初始尺寸
             SettingsActivity.logOperation("【画中画尺寸】===== 1. 刚退出画中画（初始状态） =====");
-            logPipViewSize("PlayerView", playerView);
+            // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的 logViewSize
+            pipManager.logViewSize("PlayerView", playerView);
             if (playerView != null && playerView.getParent() instanceof View) {
-                logPipViewSize("父布局", (View) playerView.getParent());
+                pipManager.logViewSize("父布局", (View) playerView.getParent());
             }
-            logPipWindowSize();
+            // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的 logWindowSize
+            pipManager.logWindowSize(this);
             // 1. 重新应用全屏设置
             if (displayManager != null) {
                 SettingsActivity.logOperation("【画中画尺寸】执行 displayManager.reapplyFullScreen()");
@@ -850,7 +796,7 @@ public class MainActivity extends AppCompatActivity {
             }
             // 日志点2：reapplyFullScreen 后的尺寸
             SettingsActivity.logOperation("【画中画尺寸】===== 2. reapplyFullScreen 后 =====");
-            logPipViewSize("PlayerView", playerView);
+            pipManager.logViewSize("PlayerView", playerView);
             // 2. 强制刷新 PlayerView 布局
             if (playerView != null) {
                 playerView.post(new Runnable() {
@@ -862,7 +808,7 @@ public class MainActivity extends AppCompatActivity {
                             SettingsActivity.logOperation("【画中画】✅ 立即刷新 PlayerView 布局");
                             // 日志点3：立即刷新后的尺寸
                             SettingsActivity.logOperation("【画中画尺寸】===== 3. 立即 requestLayout 后 =====");
-                            logPipViewSize("PlayerView", playerView);
+                            pipManager.logViewSize("PlayerView", playerView);
                         } catch (Exception e) {
                             SettingsActivity.logOperation("【画中画】刷新 PlayerView 失败：" + e.getMessage());
                         }
@@ -874,16 +820,14 @@ public class MainActivity extends AppCompatActivity {
                         try {
                             playerView.requestLayout();
                             playerView.invalidate();
-                            if (mPlayerManager != null) {
-                                mPlayerManager.attachPlayerView(playerView);
-                                mPlayerManager.resume();
-                            }
+                            // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的 keepPlaying
+                            pipManager.keepPlaying(mPlayerManager, playerView, channelSourceList, currentPlayIndex);
                             SettingsActivity.logOperation("【画中画】✅ 延迟刷新 PlayerView + 重新绑定");
                             // 日志点4：延迟刷新 + 重新绑定后的尺寸
                             SettingsActivity.logOperation("【画中画尺寸】===== 4. 延迟200ms刷新 + 重新绑定后 =====");
-                            logPipViewSize("PlayerView", playerView);
+                            pipManager.logViewSize("PlayerView", playerView);
                             if (playerView.getParent() instanceof View) {
-                                logPipViewSize("父布局", (View) playerView.getParent());
+                                pipManager.logViewSize("父布局", (View) playerView.getParent());
                             }
                             SettingsActivity.logOperation("【画中画尺寸】========================================");
                         } catch (Exception e) {
@@ -902,58 +846,10 @@ public class MainActivity extends AppCompatActivity {
                 infoDisplayManager.showChannelNum(currentPlayIndex + 1);
             }
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            resumeCurrentChannel();
+            // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的 resumePlayback
+            pipManager.resumePlayback(mPlayerManager);
             SettingsActivity.logOperation("【画中画】退出画中画完成");
             SettingsActivity.logOperation("【画中画】================================");
-        }
-    }
-    // 辅助方法：打印 View 的详细尺寸信息
-    private void logPipViewSize(String tag, View view) {
-        if (view == null) {
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "：View 为 null");
-            return;
-        }
-        try {
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "位置：left=" + view.getLeft()
-                    + "，top=" + view.getTop()
-                    + "，right=" + view.getRight()
-                    + "，bottom=" + view.getBottom());
-
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "尺寸：宽=" + view.getWidth()
-                    + "，高=" + view.getHeight());
-            ViewGroup.LayoutParams lp = view.getLayoutParams();
-            if (lp != null) {
-                String widthStr = lp.width == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
-                        lp.width == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
-                                String.valueOf(lp.width);
-                String heightStr = lp.height == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
-                        lp.height == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
-                                String.valueOf(lp.height);
-
-                SettingsActivity.logOperation("【画中画尺寸】" + tag + "布局参数：width=" + widthStr
-                        + "，height=" + heightStr);
-            }
-            int visibility = view.getVisibility();
-            String visStr = visibility == View.VISIBLE ? "VISIBLE" :
-                    visibility == View.INVISIBLE ? "INVISIBLE" : "GONE";
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "可见性：" + visStr);
-        } catch (Exception e) {
-            SettingsActivity.logOperation("【画中画尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
-        }
-    }
-    // 辅助方法：打印窗口和屏幕尺寸
-    private void logPipWindowSize() {
-        try {
-            Rect rect = new Rect();
-            getWindow().getDecorView().getWindowVisibleDisplayFrame(rect);
-            SettingsActivity.logOperation("【画中画尺寸】窗口可见区域：宽=" + rect.width() + "，高=" + rect.height());
-            DisplayMetrics metrics = new DisplayMetrics();
-            getWindowManager().getDefaultDisplay().getMetrics(metrics);
-            SettingsActivity.logOperation("【画中画尺寸】屏幕尺寸：宽=" + metrics.widthPixels + "，高=" + metrics.heightPixels);
-            View decorView = getWindow().getDecorView();
-            SettingsActivity.logOperation("【画中画尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
-        } catch (Exception e) {
-            SettingsActivity.logOperation("【画中画尺寸】获取窗口尺寸失败：" + e.getMessage());
         }
     }
     // 日志方法
@@ -966,15 +862,17 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         appCoreManager.onPause();
-        if (pipManager != null && (pipManager.isInPipMode() || pipManager.isPipEntering())) {
-            try {
-                if (mPlayerManager != null) {
-                    mPlayerManager.resume();
-                    SettingsActivity.logOperation("【画中画】✅ onPause后立即恢复播放（防止暂停）");
+        // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的 handleOnPause
+        if (pipManager != null) {
+            pipManager.handleOnPause(new Runnable() {
+                @Override
+                public void run() {
+                    if (mPlayerManager != null) {
+                        mPlayerManager.resume();
+                        SettingsActivity.logOperation("【画中画】✅ onPause后立即恢复播放（防止暂停）");
+                    }
                 }
-            } catch (Exception e) {
-                SettingsActivity.logOperation("【画中画】onPause恢复播放失败：" + e.getMessage());
-            }
+            });
         }
     }
     @Override
@@ -997,7 +895,15 @@ public class MainActivity extends AppCompatActivity {
         screenRatioManager.apply();
         displayManager.reapplyFullScreen();
         if (pipManager == null || !pipManager.isInPipMode()) {
-            new Handler(Looper.getMainLooper()).postDelayed(this::resumeCurrentChannel, 200);
+            // ✅ 2026-06-26 修改：改用 PictureInPictureManager 的 resumePlayback
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (pipManager != null) {
+                        pipManager.resumePlayback(mPlayerManager);
+                    }
+                }
+            }, 200);
         }
         syncRemoteMode();
     }
