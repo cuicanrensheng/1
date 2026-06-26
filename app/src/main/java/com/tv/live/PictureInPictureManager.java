@@ -16,7 +16,7 @@ import androidx.media3.ui.PlayerView;
 import com.tv.live.manager.ChannelPanelController;
 import com.tv.live.manager.DisplayManager;
 import com.tv.live.manager.InfoDisplayManager;
-import com.tv.live.manager.TVPlayerManager;
+import com.tv.live.TVPlayerManager;
 
 import java.util.List;
 
