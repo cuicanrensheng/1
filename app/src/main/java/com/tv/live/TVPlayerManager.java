@@ -20,13 +20,10 @@ import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RenderersFactory;
-import androidx.media3.exoplayer.analytics.AnalyticsListener;
-import androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
-import androidx.media3.exoplayer.util.EventLogger;
 import androidx.media3.exoplayer.video.VideoRendererEventListener;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
@@ -80,8 +77,8 @@ import java.util.Map;
  *    - 性能稍差，耗电多一些
  *
  * 【自动切换灵敏度调优】
- * 旧版：30 秒内缓冲 > 2 次才切换
- * 新版：15 秒内缓冲 > 1 次就切换
+ * 原来：30 秒内缓冲 > 2 次才切换
+ * 现在：15 秒内缓冲 > 1 次就切换
  * 【原因】用户反馈画面卡顿，原来的触发条件太宽松了，
  * 调灵敏一点，让用户能更快感受到流畅度提升。
  *
@@ -93,7 +90,7 @@ import java.util.Map;
  * 【问题描述】
  * 用户选择软解模式后，实际播放时还是用的系统硬解。
  * 【原因分析】
- * 1. setEnableDecoderFallback(true) 导致 FFmpeg 初始化失败时静默降级到硬解
+ * 1. setEnableDecoderFallback(true) 导致 FFmpeg 失败时静默降级到硬解
  * 2. FFmpeg 扩展可能未正确加载（so 库缺失、版本不匹配等）
  * 【修复方案】
  * 1. 软解模式下关闭解码器降级，让问题暴露出来
@@ -109,14 +106,6 @@ import java.util.Map;
  * 自定义 FfmpegRenderersFactory，实现 RenderersFactory 接口，
  * 内部包装 DefaultRenderersFactory，在 createRenderers 方法中
  * 手动把 ExperimentalFfmpegVideoRenderer 加到渲染器数组里。
- *
- * 【2026-06-26 新增：准确的解码器检测】
- * 【问题】
- * 原来用 videoFormat.sampleMimeType 判断解码器，这是错的！
- * sampleMimeType 是视频格式（如 video/avc），不是解码器名称。
- * 【解决方案】
- * 用 AnalyticsListener.onVideoDecoderInitialized 回调获取真实解码器名称。
- * 同时添加 EventLogger 方便在 logcat 中查看完整的播放器事件。
  */
 public class TVPlayerManager {
     // ====================== 常量 ======================
@@ -194,8 +183,9 @@ public class TVPlayerManager {
     /**
      * 是否使用软解码（保留，用于向后兼容）
      * 【2026-06-25 说明】
-     * 这个变量保留是为了向后兼容，实际逻辑已经迁移到 mDecoderMode。
-     * setSoftwareDecoder() 方法内部会调用 setDecoderMode()。
+     * 这个变量保留是为了向后兼容，
+     * 实际逻辑已经迁移到 mDecoderMode。
+     * setSoftwareDecoder() 方法内部会同步更新 mDecoderMode。
      *
      * @deprecated 请使用 mDecoderMode 替代
      */
@@ -207,7 +197,8 @@ public class TVPlayerManager {
     /**
      * 是否已切换过解码器（每个频道只切一次）
      * 【作用】
-     * 防止在同一个频道上反复切换解码器，导致播放不稳定。
+     * 防止在同一个频道上反复切换解码器，
+     * 导致播放不稳定。
      *
      * 【重置时机】
      * 切换频道时（playUrl() 方法中）重置为 false
@@ -218,7 +209,7 @@ public class TVPlayerManager {
      * 【作用】
      * 用于判断自动切换解码器的时间窗口（15 秒内）。
      * 只在第一次 STATE_READY 时设置，
-     * 后续的状态变化（如缓冲）不会影响这个时间。
+     * 后续的状态变化不会影响这个时间。
      *
      * 【重置时机】
      * 切换频道时（playUrl() 方法中）重置为 0
@@ -247,8 +238,8 @@ public class TVPlayerManager {
     private boolean isStalled = false;
     /**
      * 上次卡顿开始时间
-     * 【作用】记录上次卡顿开始的时间点，
-     * 卡顿结束时用当前时间减去这个值，得到单次卡顿时长。
+     * 【作用】记录卡顿开始的时间点，
+     * 卡顿结束时用当前时间减去这个值，得到卡顿时长。
      */
     private long lastStallStartTime = 0;
     // ====================================================================
@@ -294,7 +285,7 @@ public class TVPlayerManager {
      * 主线程 Handler
      * 【作用】
      * 1. 延迟隐藏频道号
-     * 2. 切到主线程回调源失效监听器
+     * 2. 回调源失效监听器（切到主线程）
      * 3. 其他需要在主线程执行的任务
      */
     private Handler mHandler;
@@ -313,7 +304,8 @@ public class TVPlayerManager {
      * 源失效监听器
      * 【作用】
      * 重试次数用完后，回调这个监听器，
-     * 通知外部（MainActivity）这个源失效了，让外部自动切下一个频道。
+     * 通知外部（MainActivity）这个源失效了，
+     * 让外部自动跳过这个频道，切到下一个。
      *
      * 【2026-06-25 新增】
      */
@@ -354,7 +346,7 @@ public class TVPlayerManager {
         hideChannelRunnable = new Runnable() {
             @Override
             public void run() {
-                hideChannelNumber();
+                hideChannelNum();
             }
         };
         // 初始化卡住检测 Runnable
@@ -400,8 +392,8 @@ public class TVPlayerManager {
      *
      * 【三种模式对应的扩展渲染器模式】
      * - AUTO → EXTENSION_RENDERER_MODE_ON（硬解优先，FFmpeg 备用）
-     * - HARD → EXTENSION_RENDERER_MODE_OFF（只用硬解）
-     * - SOFT → EXTENSION_RENDERER_MODE_PREFER（优先 FFmpeg）
+     * - HARD → EXTENSION_RENDERER_MODE_OFF（只用硬解，不用 FFmpeg）
+     * - SOFT → EXTENSION_RENDERER_MODE_PREFER（优先 FFmpeg 软解）
      *
      * 【2026-06-25 修复：软解模式不生效问题】
      * 1. 软解模式下关闭解码器降级（setEnableDecoderFallback(false)）
@@ -413,10 +405,6 @@ public class TVPlayerManager {
      * 原来用 DefaultRenderersFactory，它不会自动加载实验性的
      * ExperimentalFfmpegVideoRenderer。
      * 现在改用自定义的 FfmpegRenderersFactory，手动添加实验性视频渲染器。
-     *
-     * 【2026-06-26 新增：准确的解码器检测】
-     * 添加 EventLogger（打印所有事件到 logcat）和自定义 AnalyticsListener
-     * （把真实解码器名称写到操作日志）。
      */
     private void initPlayer() {
         // ====================================================================
@@ -427,6 +415,10 @@ public class TVPlayerManager {
         // （ExperimentalFfmpegVideoRenderer），导致软解模式下视频还是硬解。
         // 自定义的 FfmpegRenderersFactory 会手动把实验性 FFmpeg 视频渲染器
         // 加到渲染器列表里。
+        //
+        // 【为什么变量类型是 FfmpegRenderersFactory 而不是 RenderersFactory？】
+        // 因为后面还要调用 setExtensionRendererMode() 和 setEnableDecoderFallback()，
+        // 这两个方法是 FfmpegRenderersFactory 自己的，不是 RenderersFactory 接口的。
         FfmpegRenderersFactory renderersFactory = new FfmpegRenderersFactory(context);
         // ====================================================================
         // ✅ 根据解码器模式设置扩展渲染器模式（2026-06-25 重构）
@@ -521,7 +513,7 @@ public class TVPlayerManager {
                 break;
         }
         // ================================================
-        // ✅ 缓冲配置（快速出画 + 大缓冲防卡顿）
+        // ✅ 缓冲配置（快速出画 + 大缓冲防卡）
         // ================================================
         /**
          * 【参数说明】
@@ -563,7 +555,7 @@ public class TVPlayerManager {
         // ✅ 2026-06-26 更新：FFmpeg 可用性检测（反射方式，修正版）
         // ====================================================================
         // 【为什么改用反射？】
-        // 原来用 MediaCodecList API 检测 FFmpeg 解码器，那是错的！
+        // 原来用 MediaCodecList API 检测 FFmpeg 解码器，但那是错的！
         // MediaCodecList 只能检测系统内置的 MediaCodec 解码器，
         // FFmpeg 扩展是 Media3 自己实现的，不走系统 MediaCodec 框架。
         // 所以检测结果"未发现 FFmpeg 解码器"是假阴性。
@@ -612,7 +604,7 @@ public class TVPlayerManager {
                 hasVideoRenderer = true;
             } catch (ClassNotFoundException e) {
                 Log.w(TAG, "【解码器】⚠️ ExperimentalFfmpegVideoRenderer 不存在，尝试检测正式版...");
-                // 再试试 FfmpegVideoRenderer（不带 Experimental，有些版本可能叫这个）
+                // 再试试 FfmpegVideoRenderer（不带 Experimental，某些版本可能叫这个）
                 try {
                     Class.forName("androidx.media3.decoder.ffmpeg.FfmpegVideoRenderer");
                     Log.d(TAG, "【解码器】✅ FfmpegVideoRenderer 存在（视频渲染器）");
@@ -635,45 +627,6 @@ public class TVPlayerManager {
             Log.e(TAG, "【解码器】检测 FFmpeg 失败：" + e.getMessage(), e);
             SettingsActivity.logOperation("【解码器】检测 FFmpeg 失败：" + e.getMessage());
         }
-        // ====================================================================
-        // ✅ 方案一：添加 EventLogger（自动打印所有事件到 logcat）
-        // ====================================================================
-        // 官方提供的调试工具，会自动打印所有播放器事件，
-        // 包括解码器初始化、缓冲状态、播放状态等。
-        // 在 logcat 中搜索 "EventLogger" 或 "videoDecoderInitialized" 即可查看。
-        player.addAnalyticsListener(new EventLogger());
-        // ====================================================================
-        // ✅ 方案二：自定义 AnalyticsListener（把真实解码器名称写到操作日志）
-        // ====================================================================
-        // 【为什么不用 videoFormat.sampleMimeType？】
-        // 因为 sampleMimeType 是视频格式（如 video/avc），不是解码器名称。
-        // 用 AnalyticsListener.onVideoDecoderInitialized 才能拿到真实解码器名。
-        // 【效果】
-        // 操作日志里会显示：【解码器】真实解码器：FFmpeg 软解（ffmpeg-video）
-        // 或者：【解码器】真实解码器：系统硬解（OMX.qcom.video.decoder.avc）
-        player.addAnalyticsListener(new AnalyticsListener() {
-            @Override
-            public void onVideoDecoderInitialized(EventTime eventTime, String decoderName) {
-                Log.d(TAG, "【解码器】真实解码器名称：" + decoderName);
-                boolean isFfmpeg = decoderName != null 
-                        && decoderName.toLowerCase().contains("ffmpeg");
-                String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
-                SettingsActivity.logOperation("【解码器】真实解码器：" + decoderType 
-                        + "（" + decoderName + "）");
-                
-                // 软解模式下检查是否真的用了 FFmpeg
-                if (mDecoderMode == DECODER_MODE_SOFT && !isFfmpeg) {
-                    Log.w(TAG, "【解码器】⚠️ 警告：软解模式未生效");
-                    SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效");
-                }
-                
-                // 硬解模式下检查是否真的用了硬解
-                if (mDecoderMode == DECODER_MODE_HARD && isFfmpeg) {
-                    Log.w(TAG, "【解码器】⚠️ 警告：硬解模式未生效");
-                    SettingsActivity.logOperation("【解码器】⚠️ 警告：硬解模式未生效");
-                }
-            }
-        });
         // 初始化播放监听器
         initPlayerListener();
         // 初始化Cookie管理器
@@ -707,6 +660,55 @@ public class TVPlayerManager {
                     // 开始卡住检测
                     startStuckDetection();
                     // ====================================================================
+                    // 打印当前使用的解码器信息
+                    // ====================================================================
+                    // 【作用】
+                    // 方便调试，看看当前用的是硬解码还是 FFmpeg 软解
+                    // 可以从 videoFormat 的名称里看出来
+                    try {
+                        Format videoFormat = player.getVideoFormat();
+                        if (videoFormat != null) {
+                            String decoderName = videoFormat.sampleMimeType;
+                            boolean isFfmpeg = decoderName != null
+                                    && decoderName.toLowerCase().contains("ffmpeg");
+                            String decoderType = isFfmpeg ? "FFmpeg 软解" : "系统硬解";
+                            Log.d(TAG, "【解码器】当前视频解码器：" + decoderName
+                                    + "（" + decoderType + "）");
+                            SettingsActivity.logOperation("【解码器】当前使用：" + decoderType
+                                    + "（" + decoderName + "）");
+                            // ================================================================
+                            // ✅ 2026-06-25 新增：软解模式未生效警告
+                            // ================================================================
+                            // 【作用】
+                            // 如果用户设置了软解模式，但实际播放用的还是系统硬解，
+                            // 就输出警告日志，让用户知道软解没有生效。
+                            //
+                            // 【为什么会出现这种情况？】
+                            // 1. FFmpeg 扩展未正确加载（最常见）
+                            // 2. FFmpeg 不支持该视频格式
+                            // 3. 解码器降级导致静默切换（虽然我们已经关闭了降级，但保险起见还是加上）
+                            //
+                            // 【用户看到这个警告怎么办？】
+                            // 检查 FFmpeg AAR 是否正确导入、so 库是否包含设备架构、
+                            // Media3 版本和 FFmpeg 版本是否匹配。
+                            if (mDecoderMode == DECODER_MODE_SOFT && !isFfmpeg) {
+                                Log.w(TAG, "【解码器】⚠️ 警告：设置了软解模式，但实际使用的是系统硬解！");
+                                Log.w(TAG, "【解码器】可能原因：FFmpeg 扩展未加载 / 不支持该格式 / 解码器降级");
+                                SettingsActivity.logOperation("【解码器】⚠️ 警告：软解模式未生效，实际使用系统硬解");
+                            }
+                            // ================================================================
+                            // ✅ 2026-06-25 新增：硬解模式未生效警告
+                            // ================================================================
+                            // 同理，如果设置了硬解模式，但实际用了 FFmpeg，也给出警告
+                            if (mDecoderMode == DECODER_MODE_HARD && isFfmpeg) {
+                                Log.w(TAG, "【解码器】⚠️ 警告：设置了硬解模式，但实际使用的是 FFmpeg 软解！");
+                                SettingsActivity.logOperation("【解码器】⚠️ 警告：硬解模式未生效，实际使用 FFmpeg 软解");
+                            }
+                        }
+                    } catch (Exception e) {
+                        // 忽略，获取解码器信息失败不影响播放
+                    }
+                    // ====================================================================
                     // 只在第一次 STATE_READY 时记录开始时间
                     // ====================================================================
                     // 【为什么要这样？】
@@ -716,7 +718,7 @@ public class TVPlayerManager {
                     // 导致自动切换判断不准确。
                     //
                     // 修复后：只在第一次 STATE_READY 时设置 initialPlayStartTime，
-                    // 后续的状态变化（如缓冲）不会影响这个时间。
+                    // 后续的状态变化不会影响这个时间。
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
@@ -735,8 +737,8 @@ public class TVPlayerManager {
                     // 每个频道只切一次，避免反复切换。
                     //
                     // 【2026-06-25 调优】
-                    // 旧版：30 秒内缓冲 > 2 次才切换
-                    // 新版：15 秒内缓冲 > 1 次就切换
+                    // 原来：30 秒内缓冲 > 2 次才切换
+                    // 现在：15 秒内缓冲 > 1 次就切换
                     // 原因：用户反馈画面卡顿，原来的触发条件太宽松了，
                     // 调灵敏一点，让用户能更快感受到流畅度提升。
                     if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
@@ -876,7 +878,7 @@ public class TVPlayerManager {
      *
      * 【2026-06-25 修改：修复重试 bug + 增加源失效回调 + 操作日志】
      * 【修改说明】
-     * 1. 修复了 isRetrying 一直为 true 的 bug（重试开始时就清除等待标记）
+     * 1. 修复了 isRetrying 一直是 true 的 bug（重试开始时就清除等待标记）
      * 2. 重试次数用完后，回调 onSourceFailed()，通知外部自动切台
      * 3. 最大重试次数改成 2 次（重试2次还不行就算失效）
      * 4. 所有关键节点接入 SettingsActivity 操作日志
@@ -891,7 +893,8 @@ public class TVPlayerManager {
             // 重试次数用完，回调源失效
             // ====================================================================
             // 【作用】
-            // 通知外部（MainActivity）这个源失效了，让外部自动切下一个频道。
+            // 通知外部（MainActivity）这个源失效了，
+            // 让外部自动跳过这个频道，切到下一个。
             //
             // 【为什么不在 TVPlayerManager 里直接切台？】
             // TVPlayerManager 只负责播放单个 URL，
@@ -1031,7 +1034,7 @@ public class TVPlayerManager {
      * - useSoftware=false → DECODER_MODE_AUTO（自动模式，硬解优先）
      *
      * 【为什么 false 对应 AUTO 而不是 HARD？】
-     * 因为原来的 useSoftware=false 行为就是"硬解优先，FFmpeg 备用"，
+     * 因为原来的 useSoftware=false 行为是"硬解优先，FFmpeg 备用"，
      * 这和新的 AUTO 模式行为一致，而不是 HARD 模式（完全不用 FFmpeg）。
      * 这样可以保证旧代码的行为不变。
      *
@@ -1262,11 +1265,11 @@ public class TVPlayerManager {
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
-                        // ====================================================================
+            // ====================================================================
             // AspectRatioFrameLayout 包名改成 Media3 的
             // ====================================================================
-            // 从 com.google.android.exoplayer2.ui.AspectRatioFrameLayout
-            // 改成 androidx.media3.ui.AspectRatioFrameLayout
+            // 从 com.google.android.exoplayer2.ui.AspectRatioFrame
+                    // 改成 androidx.media3.ui.AspectRatioFrameLayout
             switch (mode) {
                 case FIT:
                     playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
@@ -1294,7 +1297,7 @@ public class TVPlayerManager {
     /**
      * 绑定频道号显示的 TextView
      */
-    public void bindChannelNumberTextView(TextView textView) {
+    public void bindChannelText(TextView textView) {
         channelNumberTextView = textView;
     }
     /**
@@ -1313,7 +1316,7 @@ public class TVPlayerManager {
     /**
      * 隐藏频道号
      */
-    private void hideChannelNumber() {
+    private void hideChannelNum() {
         if (channelNumberTextView != null) {
             channelNumberTextView.setVisibility(View.GONE);
         }
@@ -1392,7 +1395,7 @@ public class TVPlayerManager {
      * 源失效监听器
      * 【作用】
      * 重试次数用完后，回调这个监听器，
-     * 通知外部这个源失效了，让外部自动切下一个。
+     * 通知外部这个源失效了，让外部自动切台。
      *
      * 【2026-06-25 新增】
      */
