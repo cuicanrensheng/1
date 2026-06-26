@@ -1449,8 +1449,8 @@ public class TVPlayerManager {
             Log.e(TAG, "释放异常", e);
         }
     }
-    // ====================================================================
-    // ✅ 自定义渲染器工厂（2026-06-26 新增，v2 版本）
+        // ====================================================================
+    // ✅ 自定义渲染器工厂（2026-06-26 新增，v3 版本：重写 createRenderers）
     // ====================================================================
     /**
      * 自定义渲染器工厂
@@ -1458,34 +1458,45 @@ public class TVPlayerManager {
      * 【为什么需要这个？】
      * Media3 的 DefaultRenderersFactory 默认不会加载实验性渲染器
      * （ExperimentalFfmpegVideoRenderer），导致软解模式下视频还是硬解。
-     * 我们继承 DefaultRenderersFactory，手动把实验性 FFmpeg 视频渲染器加进去。
+     * 我们继承 DefaultRenderersFactory，重写 createRenderers 方法，
+     * 手动把实验性 FFmpeg 视频渲染器加到渲染器数组里。
      *
-     * 【v2 改进】
-     * 1. 自动匹配构造函数参数类型，不用硬编码参数顺序
-     * 2. 把构造函数详细信息打印到操作日志，方便调试
+     * 【v3 改进】
+     * 不重写 buildVideoRenderers（方法签名容易随版本变化），
+     * 改为重写 createRenderers（接口标准方法，签名固定），更稳定。
      */
     private static class FfmpegRenderersFactory extends DefaultRenderersFactory {
         private static final String TAG = "FfmpegRenderersFactory";
 
+        private final Context context;
+        private int extensionRendererMode = EXTENSION_RENDERER_MODE_OFF;
+
         public FfmpegRenderersFactory(Context context) {
             super(context);
+            this.context = context;
         }
 
         @Override
-        protected void buildVideoRenderers(
-                Context context,
-                int extensionRendererMode,
-                MediaCodecSelector mediaCodecSelector,
-                boolean enableDecoderFallback,
-                Handler eventHandler,
-                VideoRendererEventListener eventListener,
-                long allowedVideoJoiningTimeMs,
-                ArrayList<Renderer> out) {
+        public void setExtensionRendererMode(int mode) {
+            this.extensionRendererMode = mode;
+            super.setExtensionRendererMode(mode);
+        }
 
-            // 先调用父类方法，添加默认的渲染器（系统硬解等）
-            super.buildVideoRenderers(context, extensionRendererMode, mediaCodecSelector,
-                    enableDecoderFallback, eventHandler, eventListener,
-                    allowedVideoJoiningTimeMs, out);
+        @Override
+        public Renderer[] createRenderers(
+                Handler eventHandler,
+                VideoRendererEventListener videoRendererEventListener,
+                androidx.media3.exoplayer.audio.AudioRendererEventListener audioRendererEventListener,
+                androidx.media3.exoplayer.text.TextOutput textRendererOutput,
+                androidx.media3.exoplayer.metadata.MetadataOutput metadataRendererOutput) {
+
+            // 先调用父类方法，得到默认的渲染器数组（系统硬解等）
+            Renderer[] renderers = super.createRenderers(
+                    eventHandler,
+                    videoRendererEventListener,
+                    audioRendererEventListener,
+                    textRendererOutput,
+                    metadataRendererOutput);
 
             // 如果是 PREFER 模式或 ON 模式，尝试手动添加 ExperimentalFfmpegVideoRenderer
             if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER
@@ -1506,7 +1517,7 @@ public class TVPlayerManager {
                     if (constructors.length == 0) {
                         Log.e(TAG, "❌ 没有找到公开的构造函数");
                         SettingsActivity.logOperation("【解码器】❌ 没有找到公开构造函数");
-                        return;
+                        return renderers;
                     }
 
                     // 打印第一个构造函数的详细参数到操作日志
@@ -1524,19 +1535,6 @@ public class TVPlayerManager {
                     // ================================================================
                     // ✅ 智能匹配构造函数参数
                     // ================================================================
-                    // 【原理】
-                    // 遍历构造函数的每个参数，根据参数类型自动匹配对应的值。
-                    // 这样不用硬编码参数顺序，不管构造函数是什么样的，
-                    // 只要参数类型是我们认识的，就能自动传对值。
-                    //
-                    // 【支持的参数类型】
-                    // - Handler → 传 eventHandler
-                    // - VideoRendererEventListener → 传 eventListener
-                    // - long → 传 allowedVideoJoiningTimeMs
-                    // - int → 传 0（默认值）
-                    // - boolean → 传 false
-                    // - Context → 传 context
-                    // - 其他引用类型 → 传 null
                     Object[] args = new Object[paramTypes.length];
                     for (int i = 0; i < paramTypes.length; i++) {
                         String typeName = paramTypes[i].getName();
@@ -1545,20 +1543,19 @@ public class TVPlayerManager {
                                 || typeName.equals("Handler")) {
                             args[i] = eventHandler;
                         } else if (typeName.contains("VideoRendererEventListener")) {
-                            args[i] = eventListener;
+                            args[i] = videoRendererEventListener;
                         } else if (typeName.equals("long")) {
-                            args[i] = allowedVideoJoiningTimeMs;
+                            args[i] = 5000L; // allowedVideoJoiningTimeMs 默认值
                         } else if (typeName.equals("int")) {
-                            args[i] = 0; // int 类型默认传 0
+                            args[i] = 0;
                         } else if (typeName.equals("boolean")) {
-                            args[i] = false; // boolean 类型默认传 false
+                            args[i] = false;
                         } else if (typeName.equals("android.content.Context")
                                 || typeName.equals("Context")) {
                             args[i] = context;
                         } else if (typeName.equals("float")) {
                             args[i] = 0f;
                         } else {
-                            // 其他引用类型，传 null
                             args[i] = null;
                             Log.d(TAG, "  ⚠️ 未知参数类型：" + typeName + "，传 null");
                         }
@@ -1567,17 +1564,24 @@ public class TVPlayerManager {
                     // 尝试创建实例
                     Renderer renderer = (Renderer) firstConstructor.newInstance(args);
 
+                    // 创建新的数组，把 FFmpeg 渲染器加进去
+                    Renderer[] newRenderers = new Renderer[renderers.length + 1];
+
                     if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) {
                         // PREFER 模式：插到最前面，优先使用 FFmpeg 软解
-                        out.add(0, renderer);
+                        newRenderers[0] = renderer;
+                        System.arraycopy(renderers, 0, newRenderers, 1, renderers.length);
                         Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（优先模式）");
                         SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（优先模式）");
                     } else {
                         // ON 模式：加到最后，作为备用方案
-                        out.add(renderer);
+                        System.arraycopy(renderers, 0, newRenderers, 0, renderers.length);
+                        newRenderers[renderers.length] = renderer;
                         Log.d(TAG, "✅ 已添加 ExperimentalFfmpegVideoRenderer（备用模式）");
                         SettingsActivity.logOperation("【解码器】✅ 手动添加 FFmpeg 视频渲染器（备用模式）");
                     }
+
+                    return newRenderers;
 
                 } catch (ClassNotFoundException e) {
                     Log.e(TAG, "❌ ExperimentalFfmpegVideoRenderer 类不存在", e);
@@ -1585,13 +1589,12 @@ public class TVPlayerManager {
                 } catch (Exception e) {
                     Log.e(TAG, "❌ 创建 ExperimentalFfmpegVideoRenderer 失败", e);
                     SettingsActivity.logOperation("【解码器】❌ 创建失败：" + e.getMessage());
-                    // 打印详细异常信息
                     if (e.getCause() != null) {
                         SettingsActivity.logOperation("【解码器】原因：" + e.getCause().getMessage());
                     }
                 }
             }
+
+            return renderers;
         }
     }
-}
-       
