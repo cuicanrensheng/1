@@ -45,25 +45,19 @@ public class MainActivity extends AppCompatActivity {
     public int currentPlayIndex = 0;
 
     private PlayerView playerView;
-
     public TVPlayerManager mPlayerManager;
     private AppConfig appConfig;
     private ScreenRatioManager screenRatioManager;
     private GestureManager gestureManager;
-    private KeyEventManager keyEventManager;
     private PlayerStateListenerImpl playerStateListener;
-
-    private ChannelNumberManager channelNumberManager;
     private DisplayManager displayManager;
     private InfoDisplayManager infoDisplayManager;
     private ChannelPanelController channelPanelController;
     private AppCoreManager appCoreManager;
-
     private TvRemoteManager remoteManager;
-
     private PictureInPictureManager pipManager;
-    private boolean pipEnable = false;
 
+    private boolean pipEnable = false;
     private boolean channel_reverse;
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
@@ -75,10 +69,9 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         SettingsActivity.logOperation("【主页】onCreate -> 页面创建");
         SettingsActivity.logOperation("【系统】APP启动");
-
         mInstance = this;
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
 
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         displayManager = new DisplayManager(this);
         setContentView(R.layout.activity_main);
         displayManager.applyFullScreen();
@@ -87,7 +80,6 @@ public class MainActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         initInfoDisplayManager();
-
         appConfig = AppConfig.getInstance(this);
         loadSettings();
 
@@ -95,7 +87,6 @@ public class MainActivity extends AppCompatActivity {
         String customEpg = appConfig.getCustomEpgUrl();
         if (customLive != null) UrlConfig.LIVE_URL = customLive;
         if (customEpg != null) UrlConfig.EPG_URL = customEpg;
-
         log("【配置】直播源地址：" + UrlConfig.LIVE_URL);
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
 
@@ -106,7 +97,6 @@ public class MainActivity extends AppCompatActivity {
         initChannelPanelController();
         initRemoteManager();
         initPictureInPicture();
-
         channelPanelController.handleFirstLaunch();
 
         initPlayer();
@@ -125,20 +115,11 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        keyEventManager = new KeyEventManager(this);
-        keyEventManager.setChannelPanelController(channelPanelController);
-
         currentPlayIndex = appConfig.getLastPlayIndex();
         channelPanelController.setCurrentPlayIndex(currentPlayIndex);
         SettingsActivity.logOperation("【播放】记录上次播放索引：" + currentPlayIndex);
 
-        initChannelNumberManager();
-        if (channelNumberManager != null) {
-            channelNumberManager.setEnable(number_channel_enable);
-        }
-
-        remoteManager.setChannelNumberManager(channelNumberManager);
-        remoteManager.setKeyEventManager(keyEventManager);
+        remoteManager.setNumberChannelEnable(number_channel_enable);
 
         initAppCoreManager();
 
@@ -240,8 +221,6 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPanelNumber(int number) {
-                int keyCode = KeyEvent.KEYCODE_0 + number;
-                channelNumberManager.handleNumberKey(keyCode);
             }
 
             @Override
@@ -265,6 +244,24 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onRequestPlayFocus() {
                 playerView.requestFocus();
+            }
+
+            @Override
+            public void onChannelNumberSelected(int channelIndex) {
+                channelPanelController.playChannel(channelIndex);
+            }
+
+            @Override
+            public void onShowChannelNumber(String number) {
+                try {
+                    infoDisplayManager.showChannelNum(Integer.parseInt(number));
+                } catch (Exception e) {
+                }
+            }
+
+            @Override
+            public void onHideChannelNumber() {
+                infoDisplayManager.hideChannelNum();
             }
         });
     }
@@ -313,7 +310,6 @@ public class MainActivity extends AppCompatActivity {
         TextView btn_back_group = findViewById(R.id.btn_back_group);
 
         EpgManager.getInstance(this);
-
         ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
         ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
         GroupListManager groupListManager = new GroupListManager(this, lvGroup);
@@ -391,35 +387,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void initChannelNumberManager() {
-        channelNumberManager = new ChannelNumberManager(
-                new ChannelNumberManager.OnChannelNumberListener() {
-                    @Override
-                    public void onChannelSelected(int channelIndex) {
-                        channelPanelController.playChannel(channelIndex);
-                    }
-
-                    @Override
-                    public void showChannelNumber(String number) {
-                        try {
-                            infoDisplayManager.showChannelNum(Integer.parseInt(number));
-                        } catch (Exception e) {
-                        }
-                    }
-
-                    @Override
-                    public void hideChannelNumber() {
-                        infoDisplayManager.hideChannelNum();
-                    }
-                },
-                number_channel_enable
-        );
-
-        if (keyEventManager != null) {
-            keyEventManager.setChannelNumberManager(channelNumberManager);
-        }
-    }
-
     private void initAppCoreManager() {
         appCoreManager = new AppCoreManager(this, mPlayerManager, appConfig);
 
@@ -433,6 +400,10 @@ public class MainActivity extends AppCompatActivity {
                         channelSourceList.addAll(channels);
                         channelPanelController.setChannels(channels);
 
+                        if (remoteManager != null) {
+                            remoteManager.setTotalChannelCount(channels.size());
+                        }
+
                         if (!appCoreManager.hasPlayedWithCache()) {
                             if (currentPlayIndex >= 0 && currentPlayIndex < channels.size()) {
                                 Channel ch = channels.get(currentPlayIndex);
@@ -440,7 +411,6 @@ public class MainActivity extends AppCompatActivity {
                                 appCoreManager.setHasPlayedWithCache(true);
                             }
                         }
-
                         displayManager.hideLoading();
                         log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channels.size());
                     }
@@ -453,7 +423,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         if (channelSourceList.isEmpty()) {
-                                                        displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
+                            displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
                             SettingsActivity.logOperation("【加载】直播源加载失败：" + errorMsg);
                         } else {
                             log("【缓存】使用缓存数据继续播放");
@@ -514,7 +484,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadSettings() {
         SharedPreferences sp = getSharedPreferences("app_settings", MODE_PRIVATE);
-
         boolean epg_enable = sp.getBoolean("epg_enable", true);
         channel_reverse = sp.getBoolean("channel_reverse", false);
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
@@ -547,16 +516,19 @@ public class MainActivity extends AppCompatActivity {
         }
         SettingsActivity.logOperation("【设置】解码器模式：" + modeName);
 
-        if (channelNumberManager != null) {
-            channelNumberManager.setEnable(number_channel_enable);
+        if (remoteManager != null) {
+            remoteManager.setNumberChannelEnable(number_channel_enable);
         }
+
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epg_enable);
             channelPanelController.setReverse(channel_reverse);
         }
+
         if (pipManager != null) {
             pipManager.setPipEnabled(pipEnable);
         }
+
         SettingsActivity.logOperation("【设置】EPG开关：" + epg_enable);
         SettingsActivity.logOperation("【设置】切台反转：" + channel_reverse);
         SettingsActivity.logOperation("【设置】数字选台：" + number_channel_enable);
@@ -578,22 +550,28 @@ public class MainActivity extends AppCompatActivity {
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
+
         log("========================================");
         log("【播放】频道名称：" + channel.getName());
         log("【播放】播放地址：" + channel.getPlayUrl());
         log("【播放】当前索引：" + index);
         log("========================================");
+
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
         mPlayerManager.playUrl(channel.getPlayUrl());
+
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         infoDisplayManager.showInfoBar(channel, live);
         infoDisplayManager.showChannelNum(index + 1);
+
         try {
             appConfig.addRecentChannel(channel.getName());
         } catch (Exception e) {
         }
+
         appCoreManager.resetSourceFailedCount();
+
         if (pipManager != null && pipManager.isInPipMode() && channel != null) {
             try {
                 pipManager.updateChannelInfo(index + 1,
@@ -660,12 +638,10 @@ public class MainActivity extends AppCompatActivity {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode);
         SettingsActivity.logOperation("【画中画】模式变化 → " + (isInPictureInPictureMode ? "进入" : "退出"));
 
-        // 1. 同步遥控器模式
         if (remoteManager != null) {
             remoteManager.setInPipMode(isInPictureInPictureMode);
         }
 
-        // 2. 更新画中画管理器状态
         if (pipManager != null) {
             try {
                 pipManager.onPipModeChanged(this, isInPictureInPictureMode);
@@ -674,22 +650,17 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 3. UI 处理（交给 PictureInPictureManager）
         if (pipManager != null) {
             if (isInPictureInPictureMode) {
-                // ✅ 2026-06-26 修改：进入画中画 UI 处理交给 PictureInPictureManager
                 pipManager.handleEnterPip(this, channelPanelController, infoDisplayManager, mPlayerManager, playerView);
             } else {
-                // ✅ 2026-06-26 修改：退出画中画的释放判断
                 pipManager.handleExitPip(new Runnable() {
                     @Override
                     public void run() {
                         SettingsActivity.logOperation("【画中画】应用已关闭，释放播放器");
                     }
                 });
-                // ✅ 2026-06-26 修改：退出画中画 UI 恢复交给 PictureInPictureManager
                 pipManager.handleExitPipRestore(this, displayManager, playerView, mPlayerManager, channelSourceList, currentPlayIndex, infoDisplayManager);
-                // 同步遥控器模式（遥控器的事还是 MainActivity 协调）
                 remoteManager.syncMode();
             }
         }
@@ -737,6 +708,7 @@ public class MainActivity extends AppCompatActivity {
         loadSettings();
         screenRatioManager.apply();
         displayManager.reapplyFullScreen();
+
         if (pipManager == null || !pipManager.isInPipMode()) {
             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                 @Override
@@ -762,11 +734,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
         if (infoDisplayManager != null) {
             infoDisplayManager.release();
         }
-        if (channelNumberManager != null) {
-            channelNumberManager.release();
+        if (remoteManager != null) {
+            remoteManager.release();
         }
         if (displayManager != null) {
             displayManager.release();
@@ -783,6 +756,7 @@ public class MainActivity extends AppCompatActivity {
         if (mPlayerManager != null) {
             mPlayerManager.release();
         }
+
         mInstance = null;
         SettingsActivity.logOperation("【系统】APP退出");
     }
