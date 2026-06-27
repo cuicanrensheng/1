@@ -87,36 +87,41 @@ public class InfoDisplayManager {
     };
 
     // ====================== 构造函数 ======================
-    public InfoDisplayManager(
-            Context context,
-            TextView tvChannelNum,
-            View infoBar,
-            TextView tvChannelName,
-            TextView tvTagFhd,
-            TextView tvTagAudio,
-            TextView tvBitrate,
-            TextView tvCurrentProgramName,
-            TextView tvCurrentTimeRange,
-            ProgressBar progressProgram,
-            TextView tvRemainingTime,
-            TextView tvNextProgramName,
-            TextView tvNextTimeRange
-    ) {
-        this.context = context.getApplicationContext();
-        this.tvChannelNum = tvChannelNum;
-        this.infoBar = infoBar;
-        this.tvChannelName = tvChannelName;
-        this.tvTagFhd = tvTagFhd;
-        this.tvTagAudio = tvTagAudio;
-        this.tvBitrate = tvBitrate;
-        this.tvCurrentProgramName = tvCurrentProgramName;
-        this.tvCurrentTimeRange = tvCurrentTimeRange;
-        this.progressProgram = progressProgram;
-        this.tvRemainingTime = tvRemainingTime;
-        this.tvNextProgramName = tvNextProgramName;
-        this.tvNextTimeRange = tvNextTimeRange;
-    }
+public InfoDisplayManager(
+        Context context,
+        TextView tvChannelNum,
+        View infoBar,
+        TextView tvChannelName,
+        TextView tvTagFhd,
+        TextView tvTagAudio,
+        TextView tvBitrate,
+        TextView tvCurrentProgramName,
+        TextView tvCurrentTimeRange,
+        ProgressBar progressProgram,
+        TextView tvRemainingTime,
+        TextView tvNextProgramName,
+        TextView tvNextTimeRange
+) {
+    this.context = context.getApplicationContext();
+    this.tvChannelNum = tvChannelNum;
+    this.infoBar = infoBar;
+    this.tvChannelName = tvChannelName;
+    this.tvTagFhd = tvTagFhd;
+    this.tvTagAudio = tvTagAudio;
+    this.tvBitrate = tvBitrate;
+    this.tvCurrentProgramName = tvCurrentProgramName;
+    this.tvCurrentTimeRange = tvCurrentTimeRange;
+    this.progressProgram = progressProgram;
+    this.tvRemainingTime = tvRemainingTime;
+    this.tvNextProgramName = tvNextProgramName;
+    this.tvNextTimeRange = tvNextTimeRange;
 
+    // 立体声标签固定展示，无需直播流返回音频字段
+    if (tvTagAudio != null) {
+        tvTagAudio.setText("立体声");
+    }
+}
+  
     // ====================================================================
     // 1. 频道号相关
     // ====================================================================
@@ -159,16 +164,15 @@ public class InfoDisplayManager {
         handler.removeCallbacks(hideInfoBarRunnable);
         infoBar.setVisibility(View.GONE);
     }
-
-    public void updateLiveInfo(TVPlayerManager.LiveInfo info) {
-        if (info == null) return;
-
-        if (tvTagFhd != null) {
-            tvTagFhd.setText(calculateQualityTag(info.resolution));
-        }
-        if (tvTagAudio != null) tvTagAudio.setText(info.audio);
-        if (tvBitrate != null) tvBitrate.setText(info.bitrate);
+public void updateLiveInfo(TVPlayerManager.LiveInfo info) {
+    if (info == null) return;
+    // 画质标签：自动解析直播流分辨率
+    if (tvTagFhd != null) {
+        tvTagFhd.setText(calculateQualityTag(info.resolution));
     }
+    // 实时码率：自动从直播流 LiveInfo.bitrate 获取
+    if (tvBitrate != null) tvBitrate.setText(info.bitrate);
+}
 
     // ====================================================================
     // 根据分辨率计算画质标签
@@ -365,71 +369,67 @@ public class InfoDisplayManager {
     }
 
     // 更新当前节目信息
-    private void updateCurrentProgramInfo(Channel.EpgItem currentProgram, int currentIndex,
-                                          List<Channel.EpgItem> todayEpg, String now) {
-        if (currentProgram != null) {
-            tvCurrentProgramName.setText(currentProgram.title);
+private void updateCurrentProgramInfo(Channel.EpgItem currentProgram, int currentIndex,
+                                      List<Channel.EpgItem> todayEpg, String now) {
+    if (currentProgram != null) {
+        // 当前节目名（EPG接口自动获取）
+        tvCurrentProgramName.setText(currentProgram.title);
 
-            String endTime;
-            if (currentIndex + 1 < todayEpg.size()) {
-                endTime = todayEpg.get(currentIndex + 1).time;
-            } else {
-                endTime = "23:59";
-            }
+        // 自动从EPG读取节目起止时间
+        String startTime = currentProgram.time;
+        String endTime = (currentIndex + 1 < todayEpg.size()) ? todayEpg.get(currentIndex + 1).time : "23:59";
+        if (tvCurrentTimeRange != null) {
+            tvCurrentTimeRange.setText(startTime + " - " + endTime);
+        }
 
-            if (tvCurrentTimeRange != null) {
-                tvCurrentTimeRange.setText(currentProgram.time + " - " + endTime);
-            }
+        long nowMillis = timeToMillis(now);
+        long startMillis = timeToMillis(startTime);
+        long endMillis = timeToMillis(endTime);
 
-            long nowMillis = timeToMillis(now);
-            long startMillis = timeToMillis(currentProgram.time);
-            long endMillis = timeToMillis(endTime);
+        if (endMillis > startMillis && progressProgram != null) {
+            // 自动计算播放进度百分比 (当前-开播)/(结束-开播)*100
+            int progress = (int) ((nowMillis - startMillis) * 100 / (endMillis - startMillis));
+            progress = Math.max(0, Math.min(100, progress));
+            progressProgram.setProgress(progress);
 
-            if (endMillis > startMillis && progressProgram != null) {
-                int progress = (int) ((nowMillis - startMillis) * 100 / (endMillis - startMillis));
-                progressProgram.setProgress(progress);
-
-                long remainingMillis = endMillis - nowMillis;
-                int remainingMinutes = (int) (remainingMillis / 1000 / 60);
-                if (tvRemainingTime != null) {
-                    if (remainingMinutes >= 60) {
-                        int hours = remainingMinutes / 60;
-                        int mins = remainingMinutes % 60;
-                        tvRemainingTime.setText("剩余 " + hours + "时" + mins + "分");
-                    } else {
-                        tvRemainingTime.setText("剩余 " + remainingMinutes + "分钟");
-                    }
+            // 毫秒自动格式化已播放时长
+            long playedMs = nowMillis - startMillis;
+            int playedMin = (int) (playedMs / 1000 / 60);
+            if (tvRemainingTime != null) {
+                if (playedMin >= 60) {
+                    int h = playedMin / 60;
+                    int m = playedMin % 60;
+                    tvRemainingTime.setText("已播放" + h + "时" + m + "分");
+                } else {
+                    tvRemainingTime.setText("已播放" + playedMin + "分钟");
                 }
             }
-        } else {
-            tvCurrentProgramName.setText("暂无节目信息");
-            if (tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
-            if (progressProgram != null) progressProgram.setProgress(0);
-            if (tvRemainingTime != null) tvRemainingTime.setText("");
         }
+    } else {
+        tvCurrentProgramName.setText("暂无节目信息");
+        if (tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
+        if (progressProgram != null) progressProgram.setProgress(0);
+        if (tvRemainingTime != null) tvRemainingTime.setText("");
     }
+}
 
     // 更新下一个节目信息
-    private void updateNextProgramInfo(Channel.EpgItem nextProgram, int currentIndex,
-                                       List<Channel.EpgItem> todayEpg) {
-        if (nextProgram != null && tvNextProgramName != null) {
-            tvNextProgramName.setText(nextProgram.title);
-
-            String nextEndTime;
-            if (currentIndex + 2 < todayEpg.size()) {
-                nextEndTime = todayEpg.get(currentIndex + 2).time;
-            } else {
-                nextEndTime = "23:59";
-            }
-
-            if (tvNextTimeRange != null) {
-                tvNextTimeRange.setText(nextProgram.time + " - " + nextEndTime);
-            }
-        } else {
-            if (tvNextProgramName != null) tvNextProgramName.setText("");
-            if (tvNextTimeRange != null) tvNextTimeRange.setText("");
-        }
+private void updateNextProgramInfo(Channel.EpgItem nextProgram, int currentIndex,
+                                   List<Channel.EpgItem> todayEpg) {
+    if (nextProgram != null && tvNextProgramName != null) {
+        // 自动读取下一档EPG时间
+        String nextStart = nextProgram.time;
+        String nextEnd = (currentIndex + 2 < todayEpg.size()) ? todayEpg.get(currentIndex + 2).time : "23:59";
+        // 拼接格式：时段 + 节目名称，全部自动从EPG获取
+        String nextFullText = nextStart + " - " + nextEnd + "  " + nextProgram.title;
+        tvNextProgramName.setText(nextFullText);
+        // 单独时间控件清空，合并展示无需分开
+        if (tvNextTimeRange != null) tvNextTimeRange.setText("");
+    } else {
+        if (tvNextProgramName != null) tvNextProgramName.setText("暂无下一档节目");
+        if (tvNextTimeRange != null) tvNextTimeRange.setText("");
     }
+}
 
     // 设置 EPG 为空的兜底显示
     private void setEpgEmpty() {
