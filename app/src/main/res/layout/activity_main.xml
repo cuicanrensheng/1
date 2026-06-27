@@ -311,71 +311,70 @@
                 android:paddingEnd="16dp" />
         </LinearLayout>
     </FrameLayout>
+  <!-- ==================================================================== -->
+<!-- 底部信息栏（切台时显示，5 秒后自动隐藏）背景改为完全透明 -->
+<!-- ==================================================================== -->
+<LinearLayout
+    android:id="@+id/info_bar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:layout_gravity="bottom"
+    android:background="#00000000"
+    android:visibility="gone">
 
-    <!-- ==================================================================== -->
-    <!-- 底部信息栏（切台时显示，5 秒后自动隐藏）                            -->
-    <!-- ==================================================================== -->
+  <!-- 第一行：频道名称 + 画质标签 + 音频标签 + 码率 -->
     <LinearLayout
-        android:id="@+id/info_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="8dp"
-        android:layout_gravity="bottom"
-        android:background="#CC000000"
-        android:visibility="gone">
+        android:gravity="center_vertical">
 
-      <!-- 第一行：频道名称 + 画质标签 + 音频标签 + 码率 -->
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/tv_channel_name"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical">
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:ellipsize="end"
+            android:maxLines="1" />
 
-            <TextView
-                android:id="@+id/tv_channel_name"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:ellipsize="end"
-                android:maxLines="1" />
+        <!-- 画质标签 -->
+        <TextView
+            android:id="@+id/tv_tag_fhd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:background="#33FFFFFF"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            android:textSize="12sp"
+            android:textColor="#FFFFFF" />
 
-            <!-- 画质标签 -->
-            <TextView
-                android:id="@+id/tv_tag_fhd"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:background="#33FFFFFF"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:textSize="12sp"
-                android:textColor="#FFFFFF" />
+        <!-- 音频标签 -->
+        <TextView
+            android:id="@+id/tv_tag_audio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:background="#33FFFFFF"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            android:textSize="12sp"
+            android:textColor="#FFFFFF" />
 
-            <!-- 音频标签 -->
-            <TextView
-                android:id="@+id/tv_tag_audio"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="#33FFFFFF"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:textSize="12sp"
-                android:textColor="#FFFFFF" />
-
-            <!-- 码率 -->
-            <TextView
-                android:id="@+id/tv_bitrate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:textColor="#99FFFFFF"
-                android:textSize="13sp" />
-        </LinearLayout>
-      <!-- 第二行：自适应时间+弹性进度条，右侧控件完全不变 -->
+        <!-- 码率 -->
+        <TextView
+            android:id="@+id/tv_bitrate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:textColor="#99FFFFFF"
+            android:textSize="13sp" />
+    </LinearLayout>
+  <!-- 第二行：自适应时间+弹性进度条，右侧控件完全不变 -->
 <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -458,6 +457,6 @@
                 android:ellipsize="end"
                 android:maxLines="1" />
         </LinearLayout>
-    </LinearLayout>
+</LinearLayout>
 
 </FrameLayout>
