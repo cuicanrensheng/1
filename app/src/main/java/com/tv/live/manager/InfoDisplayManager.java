@@ -66,7 +66,7 @@ public class InfoDisplayManager {
         @Override
         public void run() {
             if(currentPlayChannel != null){
-                updateEpgInfoInternal(currentPlayChannel);
+                updateEpgInternal(currentPlayChannel);
             }
             mainHandler.postDelayed(this, PROGRAM_PROGRESS_INTERVAL);
         }
@@ -115,7 +115,7 @@ public class InfoDisplayManager {
         this.progressProgram = progressProgram;
         this.tvRemainingTime = tvRemainingTime;
         this.tvNextProgramName = tvNextProgramName;
-        this.tvNextTimeRange = tvNextTime;
+        this.tvNextTimeRange = tvNextTimeRange;
 
         // 固定音频文字：立体声
         if(tvTagAudio != null){
@@ -160,7 +160,7 @@ public class InfoDisplayManager {
         // 更新码率、画质
         updateLiveInfo(liveInfo);
         // 更新EPG节目信息
-        updateEpgInfoInternal(channel);
+        updateEpgInternal(channel);
         // 启动每分钟进度刷新
         startProgressLoop();
     }
@@ -252,7 +252,7 @@ public class InfoDisplayManager {
             for(int i=0; i<todayEpg.size(); i++){
                 Channel.EpgItem item = todayEpg.get(i);
                 String start = item.time;
-                String end = (i+1 < todayEpg.size()) ? todayEpg.get(i).time : "23:59";
+                String end = (i+1 < todayEpg.size()) ? todayEpg.get(i+1).time : "23:59";
                 if(timeBetween(nowTime, start, end)){
                     currItem = item;
                     currIndex = i;
@@ -334,7 +334,7 @@ public class InfoDisplayManager {
                     if(playedMin >=60){
                         int h = (int) (playedMin /60);
                         int m = (int) (playedMin %60);
-                        tvRemaining.setText("已播放"+h+"时"+m+"分");
+                        tvRemainingTime.setText("已播放"+h+"时"+m+"分");
                     }else {
                         tvRemainingTime.setText("已播放"+playedMin+"分钟");
                     }
@@ -353,7 +353,7 @@ public class InfoDisplayManager {
         if(nextItem != null && tvNextProgramName != null){
             String s = nextItem.time;
             String e = (currIdx +2 < todayList.size()) ? todayList.get(currIdx+2).time : "23:59";
-            tvNextProgram.setText(s + " - " + e + "  " + nextItem.title);
+            tvNextProgramName.setText(s + " - " + e + "  " + nextItem.title);
             if(tvNextTimeRange != null) tvNextTimeRange.setText("");
         }else {
             if(tvNextProgramName != null) tvNextProgramName.setText("暂无下一档节目");
@@ -396,17 +396,17 @@ public class InfoDisplayManager {
     private boolean timeBetween(String now, String start, String end){
         try {
             if(now == null || start == null || end == null) return false;
-            if(!now.contains(":") || !start.contains(":") || !end.contains("")) return false;
+            if(!now.contains(":") || !start.contains(":") || !end.contains(":")) return false;
             return now.compareTo(start) >=0 && now.compareTo(end) <0;
         }catch (Exception e){
             return false;
         }
     }
 
-    /** HH:mm 转为当天毫秒时间戳 */
+    /** HH:mm 时间字符串转为当天毫秒时间戳 */
     private long timeToMs(String timeStr){
         try {
-            String[] split = time.split(":");
+            String[] split = timeStr.split(":");
             int h = Integer.parseInt(split[0].trim());
             int m = Integer.parseInt(split[1].trim());
             Calendar cal = Calendar.getInstance();
@@ -421,7 +421,7 @@ public class InfoDisplayManager {
     }
 
     // ===================== 资源释放（页面销毁调用，防内存泄漏） =====================
-    /** 释放所有Handler任务、清空控件引用，彻底GC回收 */
+    /** 释放所有Handler任务、清空控件引用 */
     public void release(){
         // 移除全部延时任务
         mainHandler.removeCallbacks(hideInfoBarTask);
