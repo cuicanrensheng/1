@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
@@ -24,6 +25,9 @@ import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
@@ -32,14 +36,20 @@ import androidx.media3.ui.PlayerView;
 import com.tv.live.RedirectLoggingHttpDataSource;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class TVPlayerManager {
 
     private static final String TAG = "TVPlayerManager";
+
+    public static final int DECODER_MODE_AUTO = 0;
+    public static final int DECODER_MODE_HARD = 1;
+    public static final int DECODER_MODE_SOFT = 2;
 
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 10000;
@@ -55,8 +65,10 @@ public class TVPlayerManager {
     private int currentChannelNumber = 0;
     private TextView channelNumberTextView;
 
-    // 依赖外部的 DecoderManager 管理解码器模式
-    private DecoderManager decoderManager;
+    private int mDecoderMode = DECODER_MODE_AUTO;
+
+    @Deprecated
+    private boolean useSoftwareDecoder = false;
 
     private boolean hasSwitchedDecoder = false;
     private long initialPlayStartTime = 0;
@@ -101,8 +113,6 @@ public class TVPlayerManager {
 
     private TVPlayerManager(Context context) {
         this.context = context;
-        // 初始化解码器管理类
-        this.decoderManager = DecoderManager.getInstance(context);
         mHandler = new Handler(Looper.getMainLooper());
         stuckHandler = new Handler(Looper.getMainLooper());
 
@@ -146,14 +156,26 @@ public class TVPlayerManager {
 
     private void initPlayer() {
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
-        // 从 DecoderManager 获取解码器选择器
-        renderersFactory.setMediaCodecSelector(decoderManager.createMediaCodecSelector());
 
-        // 打印当前解码器模式日志
-        int currentMode = decoderManager.getCurrentDecoderMode();
-        String modeDesc = decoderManager.getDecoderModeName(currentMode);
-        Log.d(TAG, "【解码器】初始化：" + modeDesc);
-        SettingsActivity.logOperation("【解码器】初始化：" + modeDesc);
+        SoftwareFirstMediaCodecSelector codecSelector =
+                new SoftwareFirstMediaCodecSelector(mDecoderMode);
+        renderersFactory.setMediaCodecSelector(codecSelector);
+
+        switch (mDecoderMode) {
+            case DECODER_MODE_SOFT:
+                Log.d(TAG, "【解码器】软解模式：优先使用系统软件解码器");
+                SettingsActivity.logOperation("【解码器】初始化：系统软解模式（优先）");
+                break;
+            case DECODER_MODE_HARD:
+                Log.d(TAG, "【解码器】硬解模式：只用系统硬解码器");
+                SettingsActivity.logOperation("【解码器】初始化：系统硬解模式（强制）");
+                break;
+            case DECODER_MODE_AUTO:
+            default:
+                Log.d(TAG, "【解码器】自动模式：系统硬解优先");
+                SettingsActivity.logOperation("【解码器】初始化：自动模式（系统硬解优先）");
+                break;
+        }
 
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
@@ -170,13 +192,54 @@ public class TVPlayerManager {
                 .setLoadControl(loadControl)
                 .build();
 
-        // 调用 DecoderManager 检测系统解码器
-        decoderManager.detectSystemH264Decoders();
+        try {
+            List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos(
+                    "video/avc", false, false);
+            int softCount = 0;
+            int hardCount = 0;
+            StringBuilder softNames = new StringBuilder();
+            StringBuilder hardNames = new StringBuilder();
+            for (MediaCodecInfo codec : h264Codecs) {
+                String name = codec.name;
+                if (isSoftwareDecoder(name)) {
+                    softCount++;
+                    if (softCount <= 3) {
+                        if (softCount > 1) softNames.append(", ");
+                        softNames.append(name);
+                    }
+                } else {
+                    hardCount++;
+                    if (hardCount <= 3) {
+                        if (hardCount > 1) hardNames.append(", ");
+                        hardNames.append(name);
+                    }
+                }
+            }
+            Log.d(TAG, "【解码器】H.264 解码器统计：软解 " + softCount
+                    + " 个，硬解 " + hardCount + " 个");
+            Log.d(TAG, "【解码器】软解解码器：" + softNames.toString());
+            Log.d(TAG, "【解码器】硬解解码器：" + hardNames.toString());
+            SettingsActivity.logOperation("【解码器】系统解码器：软解 " + softCount
+                    + " 个，硬解 " + hardCount + " 个");
+            if (softCount == 0) {
+                Log.w(TAG, "【解码器】⚠️ 系统未找到软件解码器，软解模式可能不生效");
+                SettingsActivity.logOperation("【解码器】⚠️ 警告：未找到系统软件解码器");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "【解码器】检测系统解码器失败：" + e.getMessage());
+        }
 
         initPlayerListener();
 
         CookieSyncManager.createInstance(context);
         CookieManager.getInstance().setAcceptCookie(true);
+    }
+
+    private static boolean isSoftwareDecoder(String codecName) {
+        if (codecName == null) return false;
+        String lowerName = codecName.toLowerCase();
+        return lowerName.startsWith("omx.google.")
+                || lowerName.startsWith("c2.android.");
     }
 
     private void initPlayerListener() {
@@ -205,8 +268,7 @@ public class TVPlayerManager {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
 
-                    int currentMode = decoderManager.getCurrentDecoderMode();
-                    if (currentMode == DecoderManager.DECODER_MODE_AUTO && !hasSwitchedDecoder
+                    if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
                             && initialPlayStartTime > 0
                             && System.currentTimeMillis() - initialPlayStartTime < 15000
                             && bufferCount > 1) {
@@ -214,7 +276,7 @@ public class TVPlayerManager {
                         SettingsActivity.logOperation("【解码器】硬解卡顿（缓冲"
                                 + bufferCount + "次），自动切换到系统软解");
                         hasSwitchedDecoder = true;
-                        setDecoderMode(DecoderManager.DECODER_MODE_SOFT);
+                        setDecoderMode(DECODER_MODE_SOFT);
                     }
                 } else if (state == Player.STATE_BUFFERING) {
                     if (listener != null) listener.onBuffering();
@@ -310,13 +372,25 @@ public class TVPlayerManager {
     }
 
     public void setDecoderMode(int mode) {
-        int oldMode = decoderManager.getCurrentDecoderMode();
-        if (oldMode == mode) return;
-        
-        // 通过 DecoderManager 设置解码器模式
-        decoderManager.setDecoderMode(mode);
-        String modeDesc = decoderManager.getDecoderModeName(mode);
-        Log.d(TAG, "切换解码器模式：" + modeDesc);
+        if (mDecoderMode == mode) return;
+        mDecoderMode = mode;
+        useSoftwareDecoder = (mode == DECODER_MODE_SOFT);
+
+        String decoderType;
+        switch (mode) {
+            case DECODER_MODE_HARD:
+                decoderType = "系统硬解码（强制）";
+                break;
+            case DECODER_MODE_SOFT:
+                decoderType = "系统软解码（优先）";
+                break;
+            case DECODER_MODE_AUTO:
+            default:
+                decoderType = "自动模式（硬解优先）";
+                break;
+        }
+        Log.d(TAG, "切换解码器模式：" + decoderType);
+        SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
 
         if (player != null) {
             try {
@@ -344,16 +418,15 @@ public class TVPlayerManager {
     }
 
     public int getDecoderMode() {
-        // 从 DecoderManager 获取当前解码器模式
-        return decoderManager.getCurrentDecoderMode();
+        return mDecoderMode;
     }
 
     @Deprecated
     public void setSoftwareDecoder(boolean useSoftware) {
         if (useSoftware) {
-            setDecoderMode(DecoderManager.DECODER_MODE_SOFT);
+            setDecoderMode(DECODER_MODE_SOFT);
         } else {
-            setDecoderMode(DecoderManager.DECODER_MODE_AUTO);
+            setDecoderMode(DECODER_MODE_AUTO);
         }
     }
 
@@ -363,16 +436,36 @@ public class TVPlayerManager {
             decoderModeReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
-                    if (DecoderManager.ACTION_DECODER_MODE_CHANGED.equals(intent.getAction())) {
-                        // 重新从 DecoderManager 获取最新模式
-                        int newMode = decoderManager.getCurrentDecoderMode();
-                        setDecoderMode(newMode);
-                        String modeName = decoderManager.getDecoderModeName(newMode);
+                    if ("com.tv.live.DECODER_MODE_CHANGED".equals(intent.getAction())) {
+                        SharedPreferences sp = context.getSharedPreferences(
+                                "app_settings", Context.MODE_PRIVATE);
+                        String modeStr = sp.getString("decoder_mode", "auto");
+                        int mode = DECODER_MODE_AUTO;
+                        if ("hard".equals(modeStr)) {
+                            mode = DECODER_MODE_HARD;
+                        } else if ("soft".equals(modeStr)) {
+                            mode = DECODER_MODE_SOFT;
+                        }
+                        setDecoderMode(mode);
+
+                        String modeName;
+                        switch (mode) {
+                            case DECODER_MODE_HARD:
+                                modeName = "硬解";
+                                break;
+                            case DECODER_MODE_SOFT:
+                                modeName = "软解（兼容性好）";
+                                break;
+                            case DECODER_MODE_AUTO:
+                            default:
+                                modeName = "自动（推荐）";
+                                break;
+                        }
                         SettingsActivity.logOperation("【解码器】收到广播，切换到：" + modeName);
                     }
                 }
             };
-            IntentFilter filter = new IntentFilter(DecoderManager.ACTION_DECODER_MODE_CHANGED);
+            IntentFilter filter = new IntentFilter("com.tv.live.DECODER_MODE_CHANGED");
             context.registerReceiver(decoderModeReceiver, filter);
             decoderReceiverRegistered = true;
             SettingsActivity.logOperation("【解码器】广播接收器已注册");
@@ -666,6 +759,59 @@ public class TVPlayerManager {
             instance = null;
         } catch (Exception e) {
             Log.e(TAG, "释放异常", e);
+        }
+    }
+
+    private static class SoftwareFirstMediaCodecSelector implements MediaCodecSelector {
+        private final int decoderMode;
+
+        public SoftwareFirstMediaCodecSelector(int mode) {
+            this.decoderMode = mode;
+        }
+
+        @Override
+        public List<MediaCodecInfo> getDecoderInfos(
+                String mimeType,
+                boolean requiresSecureDecoder,
+                boolean requiresTunnelingDecoder)
+                throws MediaCodecUtil.DecoderQueryException {
+
+            List<MediaCodecInfo> allCodecs = MediaCodecUtil.getDecoderInfos(
+                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
+
+            if (allCodecs == null || allCodecs.isEmpty()) {
+                return allCodecs;
+            }
+
+            switch (decoderMode) {
+                case DECODER_MODE_HARD:
+                    List<MediaCodecInfo> hardCodecs = new ArrayList<>();
+                    for (MediaCodecInfo codec : allCodecs) {
+                        if (!isSoftwareDecoder(codec.name)) {
+                            hardCodecs.add(codec);
+                        }
+                    }
+                    return hardCodecs;
+
+                case DECODER_MODE_SOFT:
+                    List<MediaCodecInfo> softCodecs = new ArrayList<>();
+                    List<MediaCodecInfo> hardCodecs2 = new ArrayList<>();
+                    for (MediaCodecInfo codec : allCodecs) {
+                        if (isSoftwareDecoder(codec.name)) {
+                            softCodecs.add(codec);
+                        } else {
+                            hardCodecs2.add(codec);
+                        }
+                    }
+                    List<MediaCodecInfo> result = new ArrayList<>();
+                    result.addAll(softCodecs);
+                    result.addAll(hardCodecs2);
+                    return result;
+
+                case DECODER_MODE_AUTO:
+                default:
+                    return allCodecs;
+            }
         }
     }
 }
