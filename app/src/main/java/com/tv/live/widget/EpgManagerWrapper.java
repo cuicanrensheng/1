@@ -286,7 +286,8 @@ public class EpgManagerWrapper {
                 holder.tv_time = convertView.findViewById(R.id.tv_time);
                 holder.tv_title = convertView.findViewById(R.id.tv_title);
                 holder.tv_action = convertView.findViewById(R.id.tv_action);
-                convert.setTag(holder);
+                // 修复变量名错误 convertView
+                convertView.setTag(holder);
             } else {
                 holder = (ViewHolder) convertView.getTag();
             }
@@ -302,7 +303,7 @@ public class EpgManagerWrapper {
             holder.tv_time.setText(item.time + "-" + endTime);
             holder.tv_title.setText(item.title);
 
-            // 1、先重置所有样式
+            // 1、先重置所有样式（彻底清空缓存）
             holder.tv_dayName.setTextColor(Color.WHITE);
             holder.tv_time.setTextColor(Color.LTGRAY);
             holder.tv_title.setTextColor(Color.WHITE);
@@ -310,11 +311,12 @@ public class EpgManagerWrapper {
             convertView.setBackgroundColor(Color.TRANSPARENT);
             convertView.setSelected(false);
 
-            // 2、判断状态
+            // 2、判断当前item是否是焦点选中
             boolean isFocused = (position == selectedPosition) && lvEpg.hasFocus();
+            // 3、判断当前item是否是播放中
             boolean isPlaying = item.isPlaying && dayIndex == 0;
 
-            // 规则1：焦点选中 蓝色字体+加粗+浅蓝背景
+            // 规则1：焦点选中条目（浅蓝色背景 + 蓝色文字 + 加粗）
             if (isFocused) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
@@ -322,7 +324,7 @@ public class EpgManagerWrapper {
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(0x3340A9FF);
             }
-            // 规则2：播放中（无焦点）蓝色字、不加粗、透明背景
+            // 规则2：无焦点播放中：蓝色文字、不加粗、透明背景
             else if (isPlaying) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
@@ -331,7 +333,7 @@ public class EpgManagerWrapper {
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             }
 
-            // 按钮逻辑
+            // ========== 按钮逻辑 ==========
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
             try { isPast = item.time.compareTo(getNow()) < 0; } catch (Exception ignored) {}
@@ -405,11 +407,12 @@ public class EpgManagerWrapper {
                     notifyDataSetChanged();
                 });
             }
+
             return convertView;
         }
 
-        // 修复：完整包含tv_action，不再缺失
-        private static class ViewHolder {
+        // 修复1：去掉 static 关键字，内部适配器不允许静态ViewHolder
+        private class ViewHolder {
             TextView tv_dayName;
             TextView tv_time;
             TextView tv_title;
