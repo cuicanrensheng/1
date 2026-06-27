@@ -80,8 +80,9 @@ public class EpgManagerWrapper {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 selectedPosition = pos;
-                if (parent.getAdapter() != null) {
-                    ((ArrayAdapter<?>) parent).notifyDataSetChanged();
+                // 使用全局adapter，不要强转parent的adapter
+                if (adapter != null) {
+                    adapter.notifyDataSetChanged();
                 }
             }
             @Override
