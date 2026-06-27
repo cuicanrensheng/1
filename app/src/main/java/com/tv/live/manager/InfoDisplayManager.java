@@ -314,39 +314,55 @@ public class InfoDisplayManager {
         });
     }
 
-    /** 刷新当前节目UI（名称、时段、进度、已播放时长） */
-    private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Channel.EpgItem> todayList, String now){
-        if(currItem != null){
-            tvCurrentProgramName.setText(currItem.title);
-            String start = currItem.time;
-            String end = (currIdx+1 < todayList.size()) ? todayList.get(currIdx).time : "23:59";
-            if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText(start + " - ");
+/** 刷新当前节目UI（名称、时段、进度、已播放时长） */
+private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Channel.EpgItem> todayList, String now){
+    if(currItem != null){
+        tvCurrentProgramName.setText(currItem.title);
+        String start = currItem.time;
+        String end = (currIdx+1 < todayList.size()) ? todayList.get(currIdx+1).time : "23:59";
+        if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText(start + " - ");
 
-            long nowMs = timeToMs(now);
-            long sMs = timeToMs(start);
-            long eMs = timeToMs(end);
-            if(eMs > sMs && progressProgram != null){
-                int progress = (int) ((nowMs - sMs) * 100 / (eMs - sMs));
-                progress = Math.max(0, Math.min(100, progress));
-                progressProgram.setProgress(progress);
-                long playedMin = (nowMs - sMs) / 1000 / 60;
-                if(tvRemainingTime != null){
-                    if(playedMin >=60){
-                        int h = (int) (playedMin /60);
-                        int m = (int) (playedMin %60);
-                        tvRemainingTime.setText("已播放"+h+"时"+m+"分");
-                    }else {
-                        tvRemainingTime.setText("已播放"+playedMin+"分钟");
-                    }
+        long nowMs = timeToMs(now);
+        long sMs = timeToMs(start);
+        long eMs = timeToMs(end);
+        // 增加防御：节目总时长为0时不计算进度
+        if(eMs > sMs && progressProgram != null){
+            long totalDuration = eMs - sMs;
+            long played = nowMs - sMs;
+            // 限制0~100区间，防止负数/超过100
+            int progress = (int) (played * 100 / totalDuration);
+            progress = Math.max(0, Math.min(100, progress));
+            progressProgram.setProgress(progress);
+            // 强制重绘进度条，部分机型不自动刷新
+            progressProgram.invalidate();
+
+            long playedMin = played / 1000 / 60;
+            if(tvRemainingTime != null){
+                if(playedMin >=60){
+                    int h = (int) (playedMin /60);
+                    int m = (int) (playedMin %60);
+                    tvRemaining.setText("已播放"+h+"时"+m+"分");
+                }else {
+                    tvRemainingTime.setText("已播放"+playedMin+"分钟");
                 }
             }
-        }else {
-            tvCurrentProgramName.setText("暂无节目信息");
-            if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
-            if(progressProgram != null) progressProgram.setProgress(0);
-            if(tvRemainingTime != null) tvRemainingTime.setText("");
+        }else{
+            // 总时长无效，清空进度
+            if(progressProgram != null){
+                progressProgram.setProgress(0);
+                progressProgram.invalidate();
+            }
         }
+    }else {
+        tvCurrentProgramName.setText("暂无节目信息");
+        if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
+        if(progressProgram != null) {
+            progressProgram.setProgress(0);
+            progressProgram.invalidate();
+        }
+        if(tvRemainingTime != null) tvRemainingTime.setText("");
     }
+}
 
     /** 刷新下一档节目UI */
     private void refreshNextProgramUi(Channel.EpgItem nextItem, int currIdx, List<Channel.EpgItem> todayList){
