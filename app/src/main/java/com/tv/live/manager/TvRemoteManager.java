@@ -1,13 +1,12 @@
 package com.tv.live.manager;
-
+import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
-
 import com.tv.live.SettingsActivity;
+import java.lang.ref.WeakReference;
 
 public class TvRemoteManager {
-
     public enum Mode {
         PLAY_MODE,
         CHANNEL_PANEL_MODE,
@@ -30,7 +29,6 @@ public class TvRemoteManager {
         void onPlayTogglePanel();
         void onPlayOpenSettings();
         boolean onPlayBack();
-
         void onPanelMoveUp();
         void onPanelMoveDown();
         void onPanelMoveLeft();
@@ -40,49 +38,74 @@ public class TvRemoteManager {
         void onPanelMenu();
         void onPanelNumber(int number);
         void onPanelFocusChanged(PanelFocus newFocus);
-
         void onSettingsMoveUp();
         void onSettingsMoveDown();
         void onSettingsConfirm();
         boolean onSettingsBack();
         void onSettingsMenu();
         void onSettingsFocusChanged(int position);
-
         boolean onPipBack();
         void onRequestPlayFocus();
-
         void onChannelNumberSelected(int channelIndex);
         void onShowChannelNumber(String number);
         void onHideChannelNumber();
     }
 
     private static final long CHANNEL_NUM_TIMEOUT = 2000;
-
+    // 修复：弱引用上下文
+    private WeakReference<Context> contextRef;
     private Mode currentMode = Mode.PLAY_MODE;
     private OnRemoteActionListener listener;
-
     private PanelFocus currentPanelFocus = PanelFocus.LEFT_CHANNEL;
     private boolean isRightPanelOpen = false;
-
     private int settingsItemCount = 0;
     private int settingsFocusPosition = 0;
-
     private boolean isInPipMode = false;
     private ChannelPanelController channelPanelController;
-
     private final StringBuilder channelNumInput = new StringBuilder();
     private final Handler channelNumHandler = new Handler(Looper.getMainLooper());
     private boolean numberChannelEnable = true;
     private int totalChannelCount = 0;
 
-    private final Runnable channelNumConfirmRunnable = new Runnable() {
+    // ========== 静态弱引用Runnable 消除匿名内部类泄漏 ==========
+    // 数字输入超时确认
+    private static class ChannelNumConfirmRunnable implements Runnable {
+        private final WeakReference<TvRemoteManager> mgrRef;
+        public ChannelNumConfirmRunnable(TvRemoteManager mgr) {
+            this.mgrRef = new WeakReference<>(mgr);
+        }
         @Override
         public void run() {
-            confirmChannelNum();
+            TvRemoteManager manager = mgr.get();
+            if (manager != null) manager.confirmChannelNum();
         }
-    };
+    }
+    private final Runnable channelNumConfirmRunnable = new ChannelNumConfirmRunnable(this);
 
-    public TvRemoteManager() {
+    // 隐藏数字提示延迟任务
+    private static class HideNumRunnable implements Runnable {
+        private final WeakReference<TvRemoteManager> mgrRef;
+        public HideNumRunnable(TvRemoteManager mgr) {
+            this.mgrRef = new WeakReference<>(mgr);
+        }
+        @Override
+        public void run() {
+            TvRemoteManager manager = mgr.get();
+            if (manager != null && manager.listener != null) {
+                manager.listener.onHideChannelNumber();
+            }
+        }
+    }
+
+    // ========== 构造方法（兼容无参 + 带Context弱引用构造） ==========
+    public TvRemoteManager() {}
+    public TvRemoteManager(Context context) {
+        this.contextRef = new WeakReference<>(context.getApplicationContext());
+    }
+
+    // 获取上下文工具
+    private Context getContext() {
+        return contextRef != null ? contextRef.get() : null;
     }
 
     public void setMode(Mode mode) {
@@ -137,18 +160,14 @@ public class TvRemoteManager {
         if (isInPipMode) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
                 SettingsActivity.logOperation("【遥控-画中画】返回键 → 退到后台");
-                if (listener != null) {
-                    return listener.onPipBack();
-                }
+                if (listener != null) return listener.onPipBack();
                 return false;
             }
             return false;
         }
-
         if (channelPanelController != null) {
             channelPanelController.resetAutoHide();
         }
-
         boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
@@ -162,90 +181,61 @@ public class TvRemoteManager {
                 handled = dispatchPlayKey(keyCode);
                 break;
         }
-        if (handled) {
+        if (handled) return true;
+        if (handleNumberKey(keyCode)) return true;
+        if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
             return true;
         }
-
-        if (handleNumberKey(keyCode)) {
-            return true;
-        }
-
-        if (channelPanelController != null) {
-            if (channelPanelController.dispatchKeyEvent(keyCode)) {
-                return true;
-            }
-        }
-
         return false;
     }
 
     public boolean handleBackPressed() {
         if (isInPipMode) {
             SettingsActivity.logOperation("【遥控-返回】画中画模式 → 退到后台");
-            if (listener != null) {
-                return listener.onPipBack();
-            }
+            if (listener != null) return listener.onPipBack();
             return false;
         }
-
         if (isNumberInputting()) {
             SettingsActivity.logOperation("【遥控-返回】数字选台输入中 → 取消输入");
             cancelNumberInput();
             return true;
         }
-
         boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
                 SettingsActivity.logOperation("【遥控-返回】面板模式 → 调用 onPanelBack()");
-                if (listener != null) {
-                    handled = listener.onPanelBack();
-                }
+                if (listener != null) handled = listener.onPanelBack();
                 break;
             case SETTINGS_MODE:
                 SettingsActivity.logOperation("【遥控-返回】设置模式 → 调用 onSettingsBack()");
-                if (listener != null) {
-                    handled = listener.onSettingsBack();
-                }
+                if (listener != null) handled = listener.onSettingsBack();
                 break;
             case PLAY_MODE:
             default:
                 SettingsActivity.logOperation("【遥控-返回】播放模式 → 调用 onPlayBack()");
-                if (listener != null) {
-                    handled = listener.onPlayBack();
-                }
+                if (listener != null) handled = listener.onPlayBack();
                 break;
         }
         if (handled) {
             syncMode();
             return true;
         }
-
-        if (channelPanelController != null) {
-            if (channelPanelController.handleBackPressed()) {
-                SettingsActivity.logOperation("【遥控-返回】面板返回兜底 → handleBackPressed()");
-                syncMode();
-                if (listener != null) {
-                    listener.onRequestPlayFocus();
-                }
-                return true;
-            }
+        if (channelPanelController != null && channelPanelController.handleBackPressed()) {
+            SettingsActivity.logOperation("【遥控-返回】面板返回兜底 → handleBackPressed()");
+            syncMode();
+            if (listener != null) listener.onRequestPlayFocus();
+            return true;
         }
-
         return false;
     }
 
     public void syncMode() {
         if (channelPanelController == null) return;
         if (channelPanelController.isPanelOpen()) {
-            if (currentMode != Mode.CHANNEL_PANEL_MODE) {
-                setMode(Mode.CHANNEL_PANEL_MODE);
-            }
+            if (currentMode != Mode.CHANNEL_PANEL_MODE) setMode(Mode.CHANNEL_PANEL_MODE);
             setRightPanelOpen(channelPanelController.isRightPanelOpen());
         } else {
-            if (currentMode != Mode.PLAY_MODE) {
-                setMode(Mode.PLAY_MODE);
-            }
+            if (currentMode != Mode.PLAY_MODE) setMode(Mode.PLAY_MODE);
         }
     }
 
@@ -253,15 +243,11 @@ public class TvRemoteManager {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 SettingsActivity.logOperation("【遥控-播放】上键 → 上一台");
-                if (listener != null) {
-                    listener.onPlayChannelUp();
-                }
+                if (listener != null) listener.onPlayChannelUp();
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 SettingsActivity.logOperation("【遥控-播放】下键 → 下一台");
-                if (listener != null) {
-                    listener.onPlayChannelDown();
-                }
+                if (listener != null) listener.onPlayChannelDown();
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -271,29 +257,20 @@ public class TvRemoteManager {
                     return true;
                 }
                 SettingsActivity.logOperation("【遥控-播放】OK键 → 切换面板");
-                if (listener != null) {
-                    listener.onPlayTogglePanel();
-                }
+                if (listener != null) listener.onPlayTogglePanel();
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 SettingsActivity.logOperation("【遥控-播放】左右键 → 切换面板");
-                if (listener != null) {
-                    listener.onPlayTogglePanel();
-                }
+                if (listener != null) listener.onPlayTogglePanel();
                 return true;
             case KeyEvent.KEYCODE_MENU:
                 SettingsActivity.logOperation("【遥控-播放】菜单键 → 打开设置");
-                if (listener != null) {
-                    listener.onPlayOpenSettings();
-                }
+                if (listener != null) listener.onPlayOpenSettings();
                 return true;
             case KeyEvent.KEYCODE_BACK:
                 SettingsActivity.logOperation("【遥控-播放】返回键");
-                if (listener != null) {
-                    return listener.onPlayBack();
-                }
-                return false;
+                return listener != null && listener.onPlayBack();
             case KeyEvent.KEYCODE_0:
             case KeyEvent.KEYCODE_1:
             case KeyEvent.KEYCODE_2:
@@ -306,9 +283,7 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_9:
                 int number = keyCode - KeyEvent.KEYCODE_0;
                 SettingsActivity.logOperation("【遥控-播放】数字键 → " + number);
-                if (listener != null) {
-                    listener.onPanelNumber(number);
-                }
+                if (listener != null) listener.onPanelNumber(number);
                 return true;
             default:
                 return false;
@@ -319,15 +294,11 @@ public class TvRemoteManager {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 SettingsActivity.logOperation("【遥控-面板】上键 → 当前焦点：" + currentPanelFocus);
-                if (listener != null) {
-                    listener.onPanelMoveUp();
-                }
+                if (listener != null) listener.onPanelMoveUp();
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 SettingsActivity.logOperation("【遥控-面板】下键 → 当前焦点：" + currentPanelFocus);
-                if (listener != null) {
-                    listener.onPanelMoveDown();
-                }
+                if (listener != null) listener.onPanelMoveDown();
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
                 return handlePanelLeftKey();
@@ -336,21 +307,14 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
                 SettingsActivity.logOperation("【遥控-面板】OK键 → 当前焦点：" + currentPanelFocus);
-                if (listener != null) {
-                    listener.onPanelConfirm();
-                }
+                if (listener != null) listener.onPanelConfirm();
                 return true;
             case KeyEvent.KEYCODE_BACK:
                 SettingsActivity.logOperation("【遥控-面板】返回键");
-                if (listener != null) {
-                    return listener.onPanelBack();
-                }
-                return false;
+                return listener != null && listener.onPanelBack();
             case KeyEvent.KEYCODE_MENU:
                 SettingsActivity.logOperation("【遥控-面板】菜单键 → 关闭面板");
-                if (listener != null) {
-                    listener.onPanelMenu();
-                }
+                if (listener != null) listener.onPanelMenu();
                 return true;
             case KeyEvent.KEYCODE_0:
             case KeyEvent.KEYCODE_1:
@@ -364,9 +328,7 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_9:
                 int number = keyCode - KeyEvent.KEYCODE_0;
                 SettingsActivity.logOperation("【遥控-面板】数字键 → " + number);
-                if (listener != null) {
-                    listener.onPanelNumber(number);
-                }
+                if (listener != null) listener.onPanelNumber(number);
                 return true;
             default:
                 return false;
@@ -442,21 +404,14 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
                 SettingsActivity.logOperation("【遥控-设置】OK键 → 第 " + settingsFocusPosition + " 项");
-                if (listener != null) {
-                    listener.onSettingsConfirm();
-                }
+                if (listener != null) listener.onSettingsConfirm();
                 return true;
             case KeyEvent.KEYCODE_BACK:
                 SettingsActivity.logOperation("【遥控-设置】返回键 → 关闭设置");
-                if (listener != null) {
-                    return listener.onSettingsBack();
-                }
-                return false;
+                return listener != null && listener.onSettingsBack();
             case KeyEvent.KEYCODE_MENU:
                 SettingsActivity.logOperation("【遥控-设置】菜单键 → 关闭设置");
-                if (listener != null) {
-                    listener.onSettingsMenu();
-                }
+                if (listener != null) listener.onSettingsMenu();
                 return true;
             default:
                 return false;
@@ -498,9 +453,7 @@ public class TvRemoteManager {
         int num = keyCodeToNumber(keyCode);
         if (num == -1) return false;
         channelNumInput.append(num);
-        if (listener != null) {
-            listener.onShowChannelNumber(channelNumInput.toString());
-        }
+        if (listener != null) listener.onShowChannelNumber(channelNumInput.toString());
         channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
         channelNumHandler.postDelayed(channelNumConfirmRunnable, CHANNEL_NUM_TIMEOUT);
         SettingsActivity.logOperation("【数字选台】输入：" + channelNumInput);
@@ -514,9 +467,7 @@ public class TvRemoteManager {
             if (channelNum >= 1 && channelNum <= totalChannelCount) {
                 int index = channelNum - 1;
                 SettingsActivity.logOperation("【数字选台】切换到第 " + channelNum + " 频道");
-                if (listener != null) {
-                    listener.onChannelNumberSelected(index);
-                }
+                if (listener != null) listener.onChannelNumberSelected(index);
             } else {
                 SettingsActivity.logOperation("【数字选台】频道号不存在：" + channelNum);
             }
@@ -524,23 +475,15 @@ public class TvRemoteManager {
             SettingsActivity.logOperation("【数字选台】数字解析失败：" + channelNumInput);
         }
         channelNumInput.setLength(0);
-        new Handler().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if (listener != null) {
-                    listener.onHideChannelNumber();
-                }
-            }
-        }, 1000);
+        // 替换原匿名Runnable
+        channelNumHandler.postDelayed(new HideNumRunnable(this), 1000);
     }
 
     public void cancelNumberInput() {
         if (channelNumInput.length() > 0) {
             channelNumInput.setLength(0);
             channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
-            if (listener != null) {
-                listener.onHideChannelNumber();
-            }
+            if (listener != null) listener.onHideChannelNumber();
             SettingsActivity.logOperation("【数字选台】取消输入");
         }
     }
@@ -586,12 +529,8 @@ public class TvRemoteManager {
 
     public void setSettingsItemCount(int count) {
         this.settingsItemCount = count;
-        if (settingsFocusPosition >= count) {
-            settingsFocusPosition = count - 1;
-        }
-        if (settingsFocusPosition < 0) {
-            settingsFocusPosition = 0;
-        }
+        if (settingsFocusPosition >= count) settingsFocusPosition = count - 1;
+        if (settingsFocusPosition < 0) settingsFocusPosition = 0;
     }
 
     public int getSettingsItemCount() {
@@ -614,8 +553,29 @@ public class TvRemoteManager {
         SettingsActivity.logOperation("【遥控-设置】重置焦点到第一项");
     }
 
+    // ========== 完整规范release() ==========
     public void release() {
-        channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
+        // 1. 清空全部监听器
+        listener = null;
+        // 2. 清空Handler所有延迟任务
+        channelNumHandler.removeCallbacksAndMessages(null);
+        // 3. 清空数字输入缓存
         channelNumInput.setLength(0);
+        // 4. 置空面板控制器引用
+        channelPanelController = null;
+        // 5. 清空上下文弱引用
+        if (contextRef != null) {
+            contextRef.clear();
+            contextRef = null;
+        }
+        // 6. 重置所有状态标记
+        currentMode = Mode.PLAY_MODE;
+        currentPanelFocus = PanelFocus.LEFT_CHANNEL;
+        isRightPanelOpen = false;
+        isInPipMode = false;
+        numberChannelEnable = true;
+        totalChannelCount = 0;
+        settingsItemCount = 0;
+        settingsFocusPosition = 0;
     }
 }
