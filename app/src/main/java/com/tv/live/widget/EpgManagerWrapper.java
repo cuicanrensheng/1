@@ -32,33 +32,11 @@ import java.util.Map;
 import java.util.Set;
 /**
  * EPG 节目单包装管理器
- *
- * 【职责】
- * 1. 包装 EpgManager，提供 UI 层可用的数据
- * 2. 按日期筛选节目单
- * 3. 计算节目结束时间
- * 4. 标记当前播放中的节目
- * 5. 管理 EPG 列表的显示和更新
- *
- * 【2026-06-21 优化：日志分类】
- * 【优化内容】
- * 1. 数据加载/处理相关的日志 → 播放日志（SettingsActivity.log）
- * 2. UI 更新相关的日志 → 操作日志（SettingsActivity.logOperation）
- * 3. 两种日志分开，互不混淆
- *
- * 【日志分类说明】
- * - ✅ 播放日志（log）：EPG 数据获取、筛选、解析等数据处理相关
- * - ✅ 操作日志（logOperation）：主线程更新 UI、刷新列表等界面操作相关
- * 
- * 【2026-06-24 修复：多余焦点 + 固定在首位】
- * 【修复的问题】
- * 1. 多余焦点：播放中的节目和选中的节目同时高亮，看起来有两个焦点
- * 2. 固定在首位：每次刷新数据都自动跳回播放中的节目（第一位）
- * 
- * 【修复方案】
- * 1. 区分三种状态：选中（有背景）、播放中（只有文字颜色）、普通（白色）
- * 2. 只有第一次加载时自动选中播放中的节目，后续刷新保留用户选中位置
- * 【2026-06-27 修复：非今日仅显示预约，屏蔽播放中/回看】
+ * 样式更新规则：
+ * 1、播放中（仅今日首位）：蓝色字体+加粗+透明无背景
+ * 2、焦点选中条目：蓝色字体+加粗+浅蓝色半透明背景
+ * 3、普通条目：白色常规文字、透明背景
+ * 4、非今日完全不渲染播放中蓝色样式
  */
 public class EpgManagerWrapper {
     private final ListView lvEpg;
@@ -70,17 +48,16 @@ public class EpgManagerWrapper {
     private int selectedPosition = 0;
     private int playingIndex = -1;
     private int selectDayIndex = 0;
+
     public EpgManagerWrapper(Context context, ListView lvEpg) {
         this.context = context;
         this.lvEpg = lvEpg;
-        // ✅ 改成 false，item 不需要获取焦点
         lvEpg.setItemsCanFocus(false);
         lvEpg.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         lvEpg.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 selectedPosition = pos;
-                // 使用全局adapter，不要强转parent的adapter
                 if (adapter != null) {
                     adapter.notifyDataSetChanged();
                 }
@@ -90,179 +67,128 @@ public class EpgManagerWrapper {
         });
         registerReminderReceiver();
     }
+
     /**
-     * 刷新指定日期的节目单
-     *
-     * 【说明】
-     * 异步获取 EPG 数据，筛选指定日期的节目，计算结束时间，
-     * 最后在主线程更新 UI。
-     *
-     * @param currentChannel 当前频道
-     * @param channelSourceList 频道列表
-     * @param dateIndex 日期索引（0=今天，1=明天...）
+     * 刷新指定日期节目单
      */
-    // 刷新指定日期的节目单方法中，修改数据处理逻辑
-public void refresh(Channel currentChannel, List<Channel> channelSourceList, int dateIndex) {
-    if (currentChannel == null) {
-        SettingsActivity.log("【EPG包装】❌ refresh被调用，但currentChannel为空");
-        return;
-    }
-    SettingsActivity.log("【EPG包装】🔄 开始刷新，频道：" + currentChannel.getName() + "，日期索引：" + dateIndex);
-    playingIndex = -1;
-    selectDayIndex = dateIndex;
-    epgEndTimeMap.clear();
-    new Thread(() -> {
-        List<Channel.EpgItem> epgList;
-        try {
-            epgList = new ArrayList<>(EpgManager.getInstance().getEpg(currentChannel.getName()));
-        } catch (Exception e) {
-            SettingsActivity.log("【EPG包装】获取EPG异常：" + e.getMessage());
-            epgList = new ArrayList<>();
+    public void refresh(Channel currentChannel, List<Channel> channelSourceList, int dateIndex) {
+        if (currentChannel == null) {
+            SettingsActivity.log("【EPG包装】❌ refresh被调用，但currentChannel为空");
+            return;
         }
-        SettingsActivity.log("【EPG包装】📋 原始节目数：" + epgList.size());
-        if (epgList.size() > 0) {
-            Set<String> dayNames = new HashSet<>();
-            for (Channel.EpgItem item : epgList) {
-                dayNames.add(item.dayName);
+        SettingsActivity.log("【EPG包装】🔄 开始刷新，频道：" + currentChannel.getName() + "，日期索引：" + dateIndex);
+        playingIndex = -1;
+        selectDayIndex = dateIndex;
+        epgEndTimeMap.clear();
+        new Thread(() -> {
+            List<Channel.EpgItem> originEpgList;
+            try {
+                List<Channel.EpgItem> temp = EpgManager.getInstance().getEpg(currentChannel.getName());
+                originEpgList = temp == null ? new ArrayList<>() : new ArrayList<>(temp);
+            } catch (Exception e) {
+                SettingsActivity.log("【EPG包装】获取EPG异常：" + e.getMessage());
+                originEpgList = new ArrayList<>();
             }
-            SettingsActivity.log("【EPG包装】📅 EPG包含日期：" + dayNames);
-        }
-        List<Channel.EpgItem> data = new ArrayList<>();
-        if (epgList != null && !epgList.isEmpty()) {
-            // 计算目标日期 + 对应的周几
-            String targetDay;
-            String targetWeekDay = null;
-            Calendar cal = Calendar.getInstance();
-            cal.add(Calendar.DAY_OF_YEAR, dateIndex);
-            int w = cal.get(Calendar.DAY_OF_WEEK);
-            String[] weekMap = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
-            String weekDay = weekMap[w - 1];
-            if (dateIndex == 0) {
-                targetDay = "今天";
-                targetWeekDay = weekDay;
-            } else if (dateIndex == 1) {
-                targetDay = "明天";
-                targetWeekDay = weekDay;
-            } else if (dateIndex == 2) {
-                targetDay = "后天";
-                targetWeekDay = weekDay;
-            } else {
-                targetDay = weekDay;
-            }
-            SettingsActivity.log("【EPG包装】🎯 目标日期：" + targetDay
-                    + "，对应周几：" + weekDay
-                    + (targetWeekDay != null ? "，兼容匹配：" + targetDay + " 或 " + targetWeekDay : ""));
-            // 筛选目标日期节目
-            int matchCount = 0;
-            for (Channel.EpgItem item : epgList) {
-                if (item.dayName == null) continue;
-                String dayName = item.dayName.trim();
-                boolean match = targetDay.equals(dayName);
-                if (!match && targetWeekDay != null) {
-                    match = targetWeekDay.equals(dayName);
+            SettingsActivity.log("【EPG包装】📋 原始节目数：" + originEpgList.size());
+            List<Channel.EpgItem> data = new ArrayList<>();
+            if (!originEpgList.isEmpty()) {
+                String targetDay;
+                String targetWeekDay = null;
+                Calendar cal = Calendar.getInstance();
+                cal.add(Calendar.DAY_OF_YEAR, dateIndex);
+                int w = cal.get(Calendar.DAY_OF_WEEK);
+                String[] weekMap = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
+                String weekDay = weekMap[w - 1];
+                if (dateIndex == 0) {
+                    targetDay = "今天";
+                    targetWeekDay = weekDay;
+                } else if (dateIndex == 1) {
+                    targetDay = "明天";
+                    targetWeekDay = weekDay;
+                } else if (dateIndex == 2) {
+                    targetDay = "后天";
+                    targetWeekDay = weekDay;
+                } else {
+                    targetDay = weekDay;
                 }
-                if (match) {
-                    data.add(item);
-                    matchCount++;
-                }
-            }
-            SettingsActivity.log("【EPG包装】✅ 筛选后节目数：" + matchCount);
-            // 按时间排序（所有日期都执行基础排序）
-            Collections.sort(data, Comparator.comparing(o -> o.time));
-
-            // ========== 核心修改：区分今日/非今日逻辑 ==========
-            if (dateIndex == 0) {
-                // 今日：计算结束时间 + 标记播放中 + 播放中节目移首位
-                String now = getNow();
-                Channel.EpgItem playing = null;
-                for (int i = 0; i < data.size(); i++) {
-                    Channel.EpgItem curr = data.get(i);
-                    if (!TextUtils.isEmpty(curr.time) && curr.time.contains("-")) {
-                        curr.time = curr.time.split("-")[0].trim();
+                SettingsActivity.log("【EPG包装】🎯 目标日期：" + targetDay + "，对应周几：" + weekDay);
+                int matchCount = 0;
+                for (Channel.EpgItem item : originEpgList) {
+                    if (item.dayName == null) continue;
+                    String dayName = item.dayName.trim();
+                    boolean match = targetDay.equals(dayName);
+                    if (!match && targetWeekDay != null) match = targetWeekDay.equals(dayName);
+                    if (match) {
+                        data.add(item);
+                        matchCount++;
                     }
-                    // 计算结束时间
-                    if (TextUtils.isEmpty(epgEndTimeMap.get(curr))) {
-                        if (i + 1 < data.size()) {
-                            Channel.EpgItem next = data.get(i + 1);
-                            epgEndTimeMap.put(curr, next.time.contains("-") ? next.time.split("-")[0].trim() : next.time);
-                        } else {
-                            epgEndTimeMap.put(curr, addOneHour(curr.time));
+                }
+                SettingsActivity.log("【EPG包装】✅ 筛选后节目数：" + matchCount);
+                Collections.sort(data, Comparator.comparing(o -> o.time));
+                // 区分今日/非今日
+                if (dateIndex == 0) {
+                    String now = getNow();
+                    Channel.EpgItem playing = null;
+                    for (int i = 0; i < data.size(); i++) {
+                        Channel.EpgItem curr = data.get(i);
+                        if (!TextUtils.isEmpty(curr.time) && curr.time.contains("-"))
+                            curr.time = curr.time.split("-")[0].trim();
+                        if (TextUtils.isEmpty(epgEndTimeMap.get(curr))) {
+                            if (i + 1 < data.size())
+                                epgEndTimeMap.put(curr, data.get(i + 1).time.split("-")[0].trim());
+                            else
+                                epgEndTimeMap.put(curr, addOneHour(curr.time));
+                        }
+                        curr.isPlaying = false;
+                        String currEnd = epgEndTimeMap.get(curr);
+                        if (isTimeBetween(now, curr.time, currEnd)) {
+                            curr.isPlaying = true;
+                            playing = curr;
+                            playingIndex = i;
                         }
                     }
-                    // 标记播放中
-                    curr.isPlaying = false;
-                    String currEnd = epgEndTimeMap.get(curr);
-                    if (isTimeBetween(now, curr.time, currEnd)) {
-                        curr.isPlaying = true;
-                        playing = curr;
-                        playingIndex = i;
+                    // 播放节目置顶
+                    if (playing != null && playingIndex > 0) {
+                        data.remove(playing);
+                        data.add(0, playing);
+                        playingIndex = 0;
                     }
-                }
-                // 播放中节目移首位（仅今日执行）
-                if (playing != null && playingIndex > 0) {
-                    data.remove(playing);
-                    data.add(0, playing);
-                    playingIndex = 0;
-                }
-            } else {
-                // 非今日：仅计算结束时间，不标记播放中、不移位
-                playingIndex = -1; // 强制清空播放中标记
-                for (int i = 0; i < data.size(); i++) {
-                    Channel.EpgItem curr = data.get(i);
-                    if (!TextUtils.isEmpty(curr.time) && curr.time.contains("-")) {
-                        curr.time = curr.time.split("-")[0].trim();
-                    }
-                    // 仅计算结束时间，不判断播放中
-                    if (TextUtils.isEmpty(epgEndTimeMap.get(curr))) {
-                        if (i + 1 < data.size()) {
-                            Channel.EpgItem next = data.get(i + 1);
-                            epgEndTimeMap.put(curr, next.time.contains("-") ? next.time.split("-")[0].trim() : next.time);
-                        } else {
-                            epgEndTimeMap.put(curr, addOneHour(curr.time));
+                } else {
+                    playingIndex = -1;
+                    for (int i = 0; i < data.size(); i++) {
+                        Channel.EpgItem curr = data.get(i);
+                        if (!TextUtils.isEmpty(curr.time) && curr.time.contains("-"))
+                            curr.time = curr.time.split("-")[0].trim();
+                        if (TextUtils.isEmpty(epgEndTimeMap.get(curr))) {
+                            if (i + 1 < data.size())
+                                epgEndTimeMap.put(curr, data.get(i + 1).time.split("-")[0].trim());
+                            else
+                                epgEndTimeMap.put(curr, addOneHour(curr.time));
                         }
+                        curr.isPlaying = false;
                     }
-                    curr.isPlaying = false; // 强制置为非播放中
                 }
-                // 非今日：保留原始时间排序，不做任何移位操作
             }
-        }
-
-        // 主线程更新UI（原有逻辑不变）
-        final List<Channel.EpgItem> finalData = data;
-        final Channel finalChannel = currentChannel;
-        ((MainActivity) context).runOnUiThread(() -> {
-            SettingsActivity.logOperation("【EPG包装】📱 主线程更新UI，节目数：" + finalData.size());
-            if (adapter == null) {
-                adapter = new EpgAdapter(context, finalChannel, finalData, selectDayIndex);
-                lvEpg.setAdapter(adapter);
-            } else {
-                adapter.setData(finalChannel, finalData, selectDayIndex);
-            }
-            // 选中位置逻辑：非今日不强制跳播放中（因playingIndex=-1）
-            if (adapter == null) {
-                // 第一次加载：今日选播放中，非今日选第0位
-                selectedPosition = (playingIndex >= 0) ? playingIndex : 0;
-            } else {
-                // 后续刷新：确保选中位置不越界
+            final List<Channel.EpgItem> finalData = data;
+            final Channel finalChannel = currentChannel;
+            ((MainActivity) context).runOnUiThread(() -> {
+                SettingsActivity.logOperation("【EPG包装】📱 主线程更新UI，节目数：" + finalData.size());
+                if (adapter == null) {
+                    adapter = new EpgAdapter(context, finalChannel, finalData, selectDayIndex);
+                    lvEpg.setAdapter(adapter);
+                } else {
+                    adapter.setData(finalChannel, finalData, selectDayIndex);
+                }
                 if (selectedPosition >= finalData.size()) {
                     selectedPosition = Math.max(0, finalData.size() - 1);
                 }
-            }
-            lvEpg.setSelection(selectedPosition);
-            adapter.notifyDataSetChanged();
-            SettingsActivity.logOperation("【EPG包装】✅ UI更新完成");
-        });
-    }).start();
-}
+                lvEpg.setSelection(selectedPosition);
+                adapter.notifyDataSetChanged();
+                SettingsActivity.logOperation("【EPG包装】✅ UI更新完成");
+            });
+        }).start();
+    }
 
-    /**
-     * 判断时间是否在区间内
-     *
-     * @param now 当前时间
-     * @param start 开始时间
-     * @param end 结束时间
-     * @return 是否在区间内
-     */
     private boolean isTimeBetween(String now, String start, String end) {
         try {
             if (now == null || start == null || end == null) return false;
@@ -272,12 +198,7 @@ public void refresh(Channel currentChannel, List<Channel> channelSourceList, int
             return false;
         }
     }
-    /**
-     * 时间加一小时
-     *
-     * @param hm 时间字符串（HH:mm）
-     * @return 加一小时后的时间
-     */
+
     private String addOneHour(String hm) {
         try {
             if (hm == null || !hm.contains(":")) return "23:59";
@@ -295,19 +216,13 @@ public void refresh(Channel currentChannel, List<Channel> channelSourceList, int
             return "23:59";
         }
     }
-    /**
-     * 获取当前时间（HH:mm）
-     *
-     * @return 当前时间字符串
-     */
+
     private String getNow() {
         return String.format("%02d:%02d",
                 Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
                 Calendar.getInstance().get(Calendar.MINUTE));
     }
-    /**
-     * 注册节目提醒广播接收器
-     */
+
     private void registerReminderReceiver() {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
@@ -320,16 +235,16 @@ public void refresh(Channel currentChannel, List<Channel> channelSourceList, int
         };
         context.registerReceiver(receiver, new IntentFilter(ACTION_REMINDER));
     }
-    // ====================================================================
-    // EPG 列表适配器【已修复：非今日只显示预约】
-    // ====================================================================
+
+    // EPG适配器（样式逻辑已按需求重写）
     private class EpgAdapter extends ArrayAdapter<Channel.EpgItem> {
         private final Context ctx;
         private Channel currentChannel;
         private List<Channel.EpgItem> list;
         private final LayoutInflater inflater;
-        private int dayIndex; // 0=今天，>0其他日期
+        private int dayIndex;
         private final SimpleDateFormat sdfFull = new SimpleDateFormat("yyyyMMddHHmmss", Locale.CHINA);
+
         public EpgAdapter(Context ctx, Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
             super(ctx, R.layout.item_epg, list);
             this.ctx = ctx;
@@ -338,6 +253,7 @@ public void refresh(Channel currentChannel, List<Channel> channelSourceList, int
             this.inflater = LayoutInflater.from(ctx);
             this.dayIndex = dayIndex;
         }
+
         public void setData(Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
             this.currentChannel = currentChannel;
             this.list.clear();
@@ -345,6 +261,7 @@ public void refresh(Channel currentChannel, List<Channel> channelSourceList, int
             this.dayIndex = dayIndex;
             notifyDataSetChanged();
         }
+
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder holder;
@@ -365,38 +282,42 @@ public void refresh(Channel currentChannel, List<Channel> channelSourceList, int
             holder.tv_time.setText(item.time + "-" + endTime);
             holder.tv_title.setText(item.title);
 
-            // 文字高亮样式逻辑不变
+            // 第一步：统一重置为普通默认样式（防止缓存残留）
+            holder.tv_dayName.setTextColor(Color.WHITE);
+            holder.tv_time.setTextColor(Color.LTGRAY);
+            holder.tv_title.setTextColor(Color.WHITE);
+            holder.tv_title.setTypeface(null, Typeface.NORMAL);
+            convertView.setBackgroundColor(Color.TRANSPARENT);
+
+            // 1、焦点选中条目（最高优先级：蓝色文字+加粗+浅蓝背景）
             if (position == selectedPosition) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(0x3340A9FF);
-            } else if (item.isPlaying) {
+            }
+            // 2、播放中条目（仅今日生效：蓝色文字+加粗，透明无背景）
+            else if (item.isPlaying && dayIndex == 0) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
-            } else {
-                holder.tv_dayName.setTextColor(Color.WHITE);
-                holder.tv_time.setTextColor(Color.LTGRAY);
-                holder.tv_title.setTextColor(Color.WHITE);
-                holder.tv_title.setTypeface(null, Typeface.NORMAL);
-                convertView.setBackgroundColor(Color.TRANSPARENT);
             }
+            // 其余普通条目保持上面重置的白色文字透明背景
 
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
             try { isPast = item.time.compareTo(getNow()) < 0; } catch (Exception ignored) {}
 
-            // ===================== 核心修复区块 =====================
+            // 按钮逻辑不变
             if (dayIndex == 0) {
-                // 今日：正常展示播放中 / 回看 / 预约
                 if (item.isPlaying) {
                     holder.tv_action.setText("播放中");
                     holder.tv_action.setBackgroundColor(0xFFFF9800);
                     holder.tv_action.setEnabled(false);
+                    holder.tv_action.setOnClickListener(null);
                 } else if (isPast) {
                     holder.tv_action.setText("回看");
                     holder.tv_action.setBackgroundColor(0xFF607D8B);
@@ -446,7 +367,7 @@ public void refresh(Channel currentChannel, List<Channel> channelSourceList, int
                     });
                 }
             } else {
-                // 非今日（明天/后天/周日期）：强制只显示预约，屏蔽播放中、回看
+                // 非今日统一预约
                 holder.tv_action.setText("预约");
                 holder.tv_action.setBackgroundColor(0xFF4CAF50);
                 holder.tv_action.setEnabled(true);
@@ -463,6 +384,7 @@ public void refresh(Channel currentChannel, List<Channel> channelSourceList, int
             }
             return convertView;
         }
+
         private class ViewHolder {
             TextView tv_dayName;
             TextView tv_time;
