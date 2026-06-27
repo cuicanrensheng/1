@@ -72,7 +72,20 @@ public class PanelManager {
     }
 
     /**
-     * 开关面板：显示 / 隐藏
+     * 简化版面板开关（无参数版）
+     * 仅切换显隐，不处理频道/日期同步（适合仅需纯显隐场景）
+     */
+    public void togglePanel() {
+        isPanelOpen = !isPanelOpen;
+        panelLayout.setVisibility(isPanelOpen ? View.VISIBLE : View.GONE);
+        // 回调通知面板状态变更
+        if (visibilityListener != null) {
+            visibilityListener.onPanelVisible(isPanelOpen);
+        }
+    }
+
+    /**
+     * 完整版面板开关（带频道/日期同步）
      * @param channelList 频道列表
      * @param currentIndex 当前播放的频道下标
      * @param dateListManager 日期列表管理器，用于同步选中高亮
@@ -82,10 +95,6 @@ public class PanelManager {
             // 面板当前显示 → 隐藏
             panelLayout.setVisibility(View.GONE);
             isPanelOpen = false;
-            // 回调通知关闭面板
-            if (visibilityListener != null) {
-                visibilityListener.onPanelVisible(false);
-            }
         } else {
             // 面板当前隐藏 → 打开
             panelLayout.setVisibility(View.VISIBLE);
@@ -95,33 +104,12 @@ public class PanelManager {
             // 刷新对应日期EPG节目单
             if (channelList != null && currentIndex >= 0 && currentIndex < channelList.size()) {
                 Channel currentChannel = channelList.get(currentIndex);
-                epgManager.refresh(currentChannel, channelList, currentDateIndex);
+                epgManagerWrapper.refresh(currentChannel, channelList, currentDateIndex);
             }
-            // 回调通知打开面板
-            if (visibilityListener != null) {
-                visibilityListener.onPanelVisible(true);
-            }
+        }
+        // 回调通知面板状态变更
+        if (visibilityListener != null) {
+            visibilityListener.onPanelVisible(isPanelOpen);
         }
     }
 }
-
-## 修改说明
-1. 新增 `OnPanelVisibilityListener` 回调接口 + 设置方法 `setOnPanelVisibilityListener`
-2. `toggle()` 切换显隐后触发回调，MainActivity 可监听面板开关启停时间刷新任务
-3. 增加 `isPanelOpen()` 对外提供面板状态判断（MainActivity 多处用到）
-4. 增加 `getCurrentDateIndex()` 获取选中日期
-5. 修复你原代码语法缩进、大括号缺失问题
-6. 新增 `isPanelOpen` 变量缓存面板状态，避免频繁getVisibility
-7. 完全保留原有「打开面板不重置为今天、记忆上次日期」逻辑
-
-## MainActivity 配套调用代码（之前已写，这里再核对）
-```java
-PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
-// 绑定面板开关监听，联动信息栏定时器
-panelManager.setOnPanelVisibilityListener(visible -> {
-    if (visible) {
-        startTimeTask(); // 打开面板：启动时间刷新、刷新面板信息
-    } else {
-        stopTimeTask();  // 关闭面板：停止定时任务节省性能
-    }
-});
