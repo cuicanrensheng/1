@@ -315,143 +315,135 @@
     <!-- ==================================================================== -->
     <!-- 底部信息栏（切台时显示，5 秒后自动隐藏）                            -->
     <!-- ==================================================================== -->
+<LinearLayout
+    android:id="@+id/info_bar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:layout_gravity="bottom"
+    android:background="#CC000000"
+    android:visibility="gone">
+  <!-- 第一行：频道名称 + 画质标签 + 音频标签 + 码率 -->
     <LinearLayout
-        android:id="@+id/info_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="8dp"
-        android:layout_gravity="bottom"
-        android:background="#CC000000"
-        android:visibility="gone">
-
-      <!-- 第一行：频道名称 + 画质标签 + 音频标签 + 码率 -->
-        <LinearLayout
-            android:layout_width="match_parent"
+        android:gravity="center_vertical">
+        <TextView
+            android:id="@+id/tv_channel_name"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/tv_channel_name"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:ellipsize="end"
-                android:maxLines="1" />
-
-            <!-- 画质标签 -->
-            <TextView
-                android:id="@+id/tv_tag_fhd"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:background="#33FFFFFF"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:textSize="12sp"
-                android:textColor="#FFFFFF" />
-
-            <!-- 音频标签 -->
-            <TextView
-                android:id="@+id/tv_tag_audio"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="#33FFFFFF"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:textSize="12sp"
-                android:textColor="#FFFFFF" />
-
-            <!-- 码率 -->
-            <TextView
-                android:id="@+id/tv_bitrate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:textColor="#99FFFFFF"
-                android:textSize="13sp" />
-        </LinearLayout>
-
-        <!-- 第二行：当前节目时间 + 进度条 + 剩余时间 + 节目名 -->
-        <LinearLayout
-            android:layout_width="match_parent"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:ellipsize="end"
+            android:maxLines="1" />
+        <!-- 画质标签 -->
+        <TextView
+            android:id="@+id/tv_tag_fhd"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:layout_marginTop="8dp">
-
-            <TextView
-                android:id="@+id/tv_current_time_range"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#99FFFFFF"
-                android:textSize="13sp" />
-
-            <!-- 节目进度条 -->
-            <ProgressBar
-                android:id="@+id/progress_program"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="3dp"
-                android:layout_marginHorizontal="10dp"
-                android:max="100"
-                android:progress="0"
-                android:progressTint="#4CAF50"
-                android:progressBackgroundTint="#33FFFFFF" />
-
-            <TextView
-                android:id="@+id/tv_remaining_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#66FFFFFF"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tv_current_program_name"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:ellipsize="end"
-                android:maxLines="1" />
-        </LinearLayout>
-
-        <!-- 第三行：下一个节目 -->
-        <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_marginStart="10dp"
+            android:background="#33FFFFFF"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            android:textSize="12sp"
+            android:textColor="#FFFFFF" />
+        <!-- 音频标签 -->
+        <TextView
+            android:id="@+id/tv_tag_audio"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:layout_marginTop="6dp">
+            android:layout_marginStart="6dp"
+            android:background="#33FFFFFF"
+            android:paddingHorizontal="8dp"
+            android:textSize="12sp"
+            android:textColor="#FFFFFF" />
+        <!-- 码率 -->
+        <TextView
+            android:id="@+id/tv_bitrate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:textColor="#99FFFFFF"
+            android:textSize="13sp" />
+    </LinearLayout>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="接下来："
-                android:textColor="#666666"
-                android:textSize="12sp" />
+    <!-- 第二行【修复后】：分配权重，进度条优先占剩余宽度，文字不再挤压 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:layout_marginTop="8dp">
+        <!-- 当前时段：固定宽度不挤压进度条 -->
+        <TextView
+            android:id="@+id/tv_current_time_range"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#99FFFFFF"
+            android:textSize="13sp" />
+        <!-- 进度条：权重2，优先占用中间剩余空间，加高至4dp更清晰 -->
+        <ProgressBar
+            android:id="@+id/progress_program"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_weight="2"
+            android:layout_height="4dp"
+            android:layout_marginHorizontal="10dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#4CAF50"
+            android:progressBackgroundTint="#33FFFFFF"
+            android:indeterminate="false"/>
+        <!-- 已播放时长：最小固定宽度 -->
+        <TextView
+            android:id="@+id/tv_remaining_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#66FFFFFF"
+            android:textSize="12sp"
+            android:layout_marginEnd="8dp"/>
+        <!-- 当前节目名称：剩余权重1，超长自动省略 -->
+        <TextView
+            android:id="@+id/tv_current_program_name"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:ellipsize="end"
+            android:maxLines="1" />
+    </LinearLayout>
 
-            <TextView
-                android:id="@+id/tv_next_time_range"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#666666"
-                android:textSize="12sp"
-                android:layout_marginStart="4dp" />
-
-            <TextView
-                android:id="@+id/tv_next_program_name"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#999999"
-                android:textSize="12sp"
-                android:layout_marginStart="6dp"
-                android:ellipsize="end"
-                android:maxLines="1" />
+    <!-- 第三行：下一个节目 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:layout_marginTop="6dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="接下来："
+            android:textColor="#666666"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/tv_next_time_range"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#666666"
+            android:textSize="12sp"
+            android:layout_marginStart="4dp" />
+        <TextView
+            android:id="@+id/tv_next_program_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#999999"
+            android:textSize="12sp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:layout_marginStart="6dp" />
         </LinearLayout>
     </LinearLayout>
 
