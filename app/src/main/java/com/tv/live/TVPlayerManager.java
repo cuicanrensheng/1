@@ -21,7 +21,6 @@ import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
-import androidx.media3.ui.Player;
 import androidx.media3.ui.PlayerView;
 import com.tv.live.RedirectLoggingHttpDataSource;
 import java.text.SimpleDateFormat;
@@ -30,7 +29,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-public class TVPlayer {
+// 注意：类名统一为 TVPlayerManager（原代码类名写的是 TVPlayer，与单例、构造方法名冲突）
+public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 10000;
@@ -76,6 +76,7 @@ public class TVPlayer {
         return instance;
     }
 
+    // 修复：构造方法名与类名一致（原错误：类名是 TVPlayer，构造方法是 TVPlayerManager）
     private TVPlayerManager(Context context) {
         this.context = context;
         decoderManager = DecoderManager.getInstance(context);
@@ -213,7 +214,8 @@ public class TVPlayer {
                 notifyLiveInfoUpdate();
             }
         };
-        player.addListener(player);
+        // 修复：添加监听器时传 playerListener（原错误：传了 player）
+        player.addListener(playerListener);
     }
 
     private void startStuckDetection() {
@@ -422,7 +424,7 @@ public class TVPlayer {
                     playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
                     break;
                 case ZOOM:
-                    playerView.setResizeMode(AspectRatioFrameLayout.ZOOM);
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
                     break;
             }
         } catch (Exception e) {
@@ -464,7 +466,8 @@ public class TVPlayer {
             if (player != null) {
                 Format videoFormat = player.getVideoFormat();
                 if (videoFormat != null) {
-                    int width = video.width;
+                    // 修复：变量名错误（原错误：video.width 应为 videoFormat.width）
+                    int width = videoFormat.width;
                     int height = videoFormat.height;
                     if (width > 0 && height > 0) info.resolution = width + "×" + height;
                     info.format = videoFormat.sampleMimeType;
@@ -476,7 +479,8 @@ public class TVPlayer {
                 Format audioFormat = player.getAudioFormat();
                 if (audioFormat != null) {
                     info.audio = audioFormat.sampleMimeType;
-                    if (audioFormat.sampleRate > 0) info.audio += " " + (audioFormat / 1000) + "kHz";
+                    // 修复：类型错误（原错误：audioFormat / 1000 应为 audioFormat.sampleRate / 1000）
+                    if (audioFormat.sampleRate > 0) info.audio += " " + (audioFormat.sampleRate / 1000) + "kHz";
                 }
             }
         } catch (Exception e) {
