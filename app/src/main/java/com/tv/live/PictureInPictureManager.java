@@ -1,5 +1,4 @@
 package com.tv.live;
-
 import android.app.Activity;
 import android.app.PictureInPictureParams;
 import android.content.Context;
@@ -10,53 +9,158 @@ import android.util.Rational;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-
 import androidx.media3.ui.PlayerView;
-
 import com.tv.live.manager.ChannelPanelController;
 import com.tv.live.manager.DisplayManager;
-import com.tv.live.manager.InfoDisplayManager;
-
+import com.tv.live.manager.InfoManager;
+import java.lang.ref.WeakReference;
 import java.util.List;
 
 /**
- * 画中画(PIP)核心管理器
- *
- * 【2026-06-26 增强：合并 onPictureInPictureModeChanged 逻辑】
- * 【修改说明】
- * 把 MainActivity.onPictureInPictureModeChanged() 中的进入/退出画中画 UI 处理逻辑合并到这里，
- * 新增 handleEnterPip() 和 handleExitPipRestore() 两个方法。
- * MainActivity 只需调用状态更新 + UI 处理，画中画逻辑全部集中在此。
+ * 画中画(PIP)核心管理器 修复内存泄漏版
  */
 public class PictureInPictureManager {
-
     private static final String LOG_PREFIX = "【画中画】";
     private static final String DEBUG_PREFIX = "【画中画排查】";
-
     private static PictureInPictureManager instance;
 
-    private final Context appContext;
+    // 修复：使用WeakReference弱引用ApplicationContext，取消强持有
+    private WeakReference<Context> appContextRef;
+
     private boolean pipEnabled = false;
     private boolean isInPipMode = false;
     private boolean isPipEntering = false;
     private boolean onStopCalled = false;
     private boolean debugLogEnabled = true;
-
     private OnPipListener listener;
 
-    public static PictureInPictureManager getInstance(Context context) {
-        if (instance == null) {
-            instance = new PictureInPictureManager(context.getApplicationContext());
+    // ====================== 静态弱引用Runnable 消除匿名内部类泄漏 ======================
+    // 立即刷新布局Runnable
+    private static class RefreshViewRunnable implements Runnable {
+        private final WeakReference<PictureInPictureManager> mgrRef;
+        private final WeakReference<PlayerView> viewRef;
+
+        public RefreshViewRunnable(PictureInPictureManager mgr, PlayerView view) {
+            this.mgrRef = new WeakReference<>(mgr);
+            this.viewRef = new WeakReference<>(view);
         }
-        return instance;
+
+        @Override
+        public void run() {
+            PictureInPictureManager mgr = mgrRef.get();
+            PlayerView pv = viewRef.get();
+            if (mgr == null || pv == null) return;
+            try {
+                pv.requestLayout();
+                pv.invalidate();
+                mgr.log("✅ 立即刷新 PlayerView 布局");
+                mgr.logViewSize("PlayerView", pv);
+            } catch (Exception e) {
+                mgr.log("❌ 立即刷新 PlayerView 失败：" + e.getMessage());
+            }
+        }
     }
 
-    private PictureInPictureManager(Context context) {
-        this.appContext = context;
+    // 延迟200ms刷新+恢复播放Runnable
+    private static class DelayedRestoreRunnable implements Runnable {
+        private final WeakReference<PictureInPictureManager> mgrRef;
+        private final WeakReference<PlayerView> viewRef;
+        private final WeakReference<TVPlayerManager> playerRef;
+        private final List<Channel> channelList;
+        private final int playIndex;
+
+        public DelayedRestoreRunnable(PictureInPictureManager mgr, PlayerView view, TVPlayerManager player, List<Channel> channels, int index) {
+            this.mgrRef = new WeakReference<>(mgr);
+            this.viewRef = new WeakReference<>(view);
+            this.playerRef = new WeakReference<>(player);
+            this.channelList = channels;
+            this.playIndex = index;
+        }
+
+        @Override
+        public void run() {
+            PictureInPictureManager mgr = mgrRef.get();
+            PlayerView pv = viewRef.get();
+            TVPlayerManager player = playerRef.get();
+            if (mgr == null || pv == null) return;
+            try {
+                pv.requestLayout();
+                pv.invalidate();
+                mgr.keepPlaying(player, pv, channelList, playIndex);
+                mgr.log("✅ 延迟刷新 PlayerView + 重新绑定");
+                mgr.logViewSize("PlayerView", pv);
+                if (pv.getParent() instanceof View parent) {
+                    mgr.logViewSize("父布局", parent);
+                }
+                mgr.log("【尺寸】================================");
+            } catch (Exception e) {
+                mgr.log("❌ 延迟刷新失败：" + e.getMessage());
+            }
+        }
+    }
+
+    // 退出Pip释放回调静态弱引用包装
+    private static class ExitReleaseRunnable implements Runnable {
+        private final WeakReference<PictureInPictureManager> mgrRef;
+        private final WeakReference<Runnable> realRef;
+
+        public ExitReleaseRunnable(PictureInPictureManager mgr, Runnable real) {
+            this.mgrRef = new WeakReference<>(mgr);
+            this.realRef = new WeakReference<>(real);
+        }
+
+        @Override
+        public void run() {
+            Runnable target = realRef.get();
+            if (target != null) target.run();
+        }
+    }
+
+    // Pip暂停回调静态弱引用包装
+    private static class PipPauseRunnable implements Runnable {
+        private final WeakReference<PictureInPictureManager> mgrRef;
+        private final WeakReference<Runnable> actionRef;
+
+        public PipPauseRunnable(PictureInPictureManager mgr, Runnable action) {
+            this.mgrRef = new WeakReference<>(mgr);
+            this.actionRef = new WeakReference<>(action);
+        }
+
+        @Override
+        public void run() {
+            Runnable act = actionRef.get();
+            if (act != null) act.run();
+        }
     }
 
     public interface OnPipListener {
         void onPipModeChanged(boolean inPip);
+    }
+
+    // 获取上下文统一封装判空
+    private Context getAppContext() {
+        return appContextRef != null ? appContextRef.get() : null;
+    }
+
+    public static PictureInPictureManager getInstance(Context context) {
+        if (instance == null) {
+            synchronized (PictureInPictureManager.class) {
+                if (instance == null) {
+                    Context appCtx = context.getApplicationContext();
+                    instance = new PictureInPictureManager(appCtx);
+                }
+            }
+        }
+        // 上下文失效则刷新弱引用
+        if (instance.appContextRef.get() == null && context != null) {
+            instance.appContextRef = new WeakReference<>(context.getApplicationContext());
+        }
+        return instance;
+    }
+
+    // 修复构造：不再强持有Context，使用WeakReference
+    private PictureInPictureManager(Context context) {
+        this.appContextRef = new WeakReference<>(context);
     }
 
     // ====================================================================
@@ -71,8 +175,7 @@ public class PictureInPictureManager {
         if (!debugLogEnabled) return;
         try {
             SettingsActivity.logOperation(DEBUG_PREFIX + msg);
-        } catch (Exception e) {
-        }
+        } catch (Exception ignored) {}
     }
 
     // ====================================================================
@@ -166,16 +269,12 @@ public class PictureInPictureManager {
     // 构建默认画中画参数（16:9）
     // ====================================================================
     public PictureInPictureParams buildDefaultPipParams() {
-        if (!isPipSupported()) {
-            return null;
-        }
+        if (!isPipSupported()) return null;
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
-                builder.setAspectRatio(new Rational(16, 9));
-                log("✅ 构建画中画参数成功（比例 16:9）");
-                return builder.build();
-            }
+            PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
+            builder.setAspectRatio(new Rational(16, 9));
+            log("✅ 构建画中画参数成功（比例 16:9）");
+            return builder.build();
         } catch (Exception e) {
             log("❌ 构建画中画参数失败：" + e.getMessage());
         }
@@ -183,7 +282,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 便捷进入画中画方法（含详细排查日志）
+    // 便捷进入画中画方法
     // ====================================================================
     public boolean enterPip(Activity activity, TVPlayerManager playerManager, boolean mainSwitch) {
         logDebug("========== 开始 ==========");
@@ -223,9 +322,7 @@ public class PictureInPictureManager {
             return false;
         }
         try {
-            if (playerManager != null) {
-                updatePlayState(true);
-            }
+            if (playerManager != null) updatePlayState(true);
             PictureInPictureParams params = buildDefaultPipParams();
             boolean result = enterPictureInPicture(activity, params);
             log("进入结果：" + (result ? "✅ 成功" : "❌ 失败"));
@@ -237,7 +334,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 进入画中画（底层方法）
+    // 底层进入画中画API调用
     // ====================================================================
     public boolean enterPictureInPicture(Activity activity, PictureInPictureParams params) {
         log("========== 尝试进入画中画 ==========");
@@ -260,14 +357,11 @@ public class PictureInPictureManager {
         try {
             isPipEntering = true;
             log("设置正在进入标记 = true");
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                activity.enterPictureInPictureMode(params);
-                log("✅ 调用系统API进入画中画成功");
-                return true;
-            }
+            activity.enterPictureInPictureMode(params);
+            log("✅ 调用系统API进入画中画成功");
+            return true;
         } catch (Exception e) {
             log("❌ 进入画中画异常：" + e.getMessage());
-            e.printStackTrace();
             isPipEntering = false;
         }
         return false;
@@ -281,31 +375,15 @@ public class PictureInPictureManager {
         log("当前状态：isInPipMode=" + isInPipMode + "，isPipEntering=" + isPipEntering);
         if (!isPipSupported()) {
             log("设备不支持画中画，直接暂停");
-            if (pauseAction != null) {
-                pauseAction.run();
-            }
+            if (pauseAction != null) new PipPauseRunnable(this, pauseAction).run();
             return;
         }
         if (isInPipMode || isPipEntering) {
             log("✅ 画中画模式，继续播放");
-            if (resumeAction != null) {
-                try {
-                    resumeAction.run();
-                    log("✅ 恢复播放执行成功");
-                } catch (Exception e) {
-                    log("❌ 恢复播放失败：" + e.getMessage());
-                }
-            }
+            if (resumeAction != null) new PipPauseRunnable(this, resumeAction).run();
         } else {
             log("普通模式，暂停播放");
-            if (pauseAction != null) {
-                try {
-                    pauseAction.run();
-                    log("✅ 暂停播放执行成功");
-                } catch (Exception e) {
-                    log("❌ 暂停播放失败：" + e.getMessage());
-                }
-            }
+            if (pauseAction != null) new PipPauseRunnable(this, pauseAction).run();
         }
         log("================================");
     }
@@ -322,7 +400,6 @@ public class PictureInPictureManager {
         log("新模式：" + (isInPip ? "✅ 进入画中画" : "❌ 退出画中画"));
         this.isInPipMode = isInPip;
         this.isPipEntering = false;
-        log("更新状态：isInPipMode=" + isInPip + "，isPipEntering=false");
         if (listener != null) {
             try {
                 listener.onPipModeChanged(isInPip);
@@ -335,7 +412,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 退出画中画处理（释放判断）
+    // 退出画中画释放逻辑
     // ====================================================================
     public void handleExitPip(Runnable releaseAction) {
         log("========== 退出画中画处理 ==========");
@@ -346,14 +423,7 @@ public class PictureInPictureManager {
         }
         if (onStopCalled) {
             log("用户关闭了应用，释放播放器");
-            if (releaseAction != null) {
-                try {
-                    releaseAction.run();
-                    log("✅ 释放播放器执行成功");
-                } catch (Exception e) {
-                    log("❌ 释放播放器失败：" + e.getMessage());
-                }
-            }
+            if (releaseAction != null) new ExitReleaseRunnable(this, releaseAction).run();
         } else {
             log("用户返回应用，继续播放（不释放）");
         }
@@ -363,7 +433,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // ✅ 2026-06-26 新增：处理进入画中画的 UI 变化
+    // 进入画中画UI处理
     // ====================================================================
     public void handleEnterPip(Activity activity,
                                ChannelPanelController channelPanelController,
@@ -372,21 +442,13 @@ public class PictureInPictureManager {
                                PlayerView playerView) {
         log("========== 进入画中画 - UI 处理 ==========");
         try {
-            // 1. 隐藏所有 UI
             hideAllUi(channelPanelController, infoDisplayManager);
-
-            // 2. 保持屏幕常亮
             if (activity != null) {
                 activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 log("✅ 已保持屏幕常亮");
             }
-
-            // 3. 恢复播放
             resumePlayback(playerManager);
-
-            // 4. 打印尺寸日志
             logViewSize("进入画中画时", playerView);
-
         } catch (Exception e) {
             log("❌ 进入画中画 UI 处理失败：" + e.getMessage());
         }
@@ -394,7 +456,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // ✅ 2026-06-26 新增：处理退出画中画的 UI 恢复
+    // 退出画中画UI恢复（全部匿名Runnable替换静态弱引用）
     // ====================================================================
     public void handleExitPipRestore(Activity activity,
                                      DisplayManager displayManager,
@@ -405,7 +467,6 @@ public class PictureInPictureManager {
                                      InfoDisplayManager infoDisplayManager) {
         log("========== 退出画中画 - UI 恢复 ==========");
         try {
-            // ===== 第 1 步：打印初始状态 =====
             log("【尺寸】===== 1. 刚退出画中画（初始状态） =====");
             logViewSize("PlayerView", playerView);
             if (playerView != null && playerView.getParent() instanceof View) {
@@ -413,7 +474,6 @@ public class PictureInPictureManager {
             }
             logWindowSize(activity);
 
-            // ===== 第 2 步：重新应用全面屏 =====
             if (displayManager != null) {
                 log("【尺寸】执行 displayManager.reapplyFullScreen()");
                 displayManager.reapplyFullScreen();
@@ -421,71 +481,31 @@ public class PictureInPictureManager {
                 logViewSize("PlayerView", playerView);
             }
 
-            // ===== 第 3 步：立即刷新 PlayerView =====
             if (playerView != null) {
-                playerView.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            playerView.requestLayout();
-                            playerView.invalidate();
-                            log("✅ 立即刷新 PlayerView 布局");
-                            log("【尺寸】===== 3. 立即 requestLayout 后 =====");
-                            logViewSize("PlayerView", playerView);
-                        } catch (Exception e) {
-                            log("❌ 立即刷新 PlayerView 失败：" + e.getMessage());
-                        }
-                    }
-                });
-
-                // ===== 第 4 步：延迟刷新 + 重新绑定播放器 =====
-                playerView.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            playerView.requestLayout();
-                            playerView.invalidate();
-                            keepPlaying(playerManager, playerView, channelSourceList, currentPlayIndex);
-                            log("✅ 延迟刷新 PlayerView + 重新绑定");
-                            log("【尺寸】===== 4. 延迟200ms刷新 + 重新绑定后 =====");
-                            logViewSize("PlayerView", playerView);
-                            if (playerView.getParent() instanceof View) {
-                                logViewSize("父布局", (View) playerView.getParent());
-                            }
-                            log("【尺寸】================================");
-                        } catch (Exception e) {
-                            log("❌ 延迟刷新失败：" + e.getMessage());
-                        }
-                    }
-                }, 200);
+                // 替换原匿名Runnable为静态弱引用类
+                playerView.post(new RefreshViewRunnable(this, playerView));
+                // 延迟刷新同样替换
+                playerView.postDelayed(
+                        new DelayedRestoreRunnable(this, playerView, playerManager, channelSourceList, currentPlayIndex),
+                        200
+                );
             }
 
-            // ===== 第 5 步：显示信息栏 =====
-            if (infoDisplayManager != null
-                    && channelSourceList != null
-                    && currentPlayIndex >= 0
-                    && currentPlayIndex < channelSourceList.size()) {
+            if (infoDisplayManager != null && channelSourceList != null
+                    && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                 Channel currChannel = channelSourceList.get(currentPlayIndex);
-                TVPlayerManager.LiveInfo liveInfo = null;
-                if (playerManager != null) {
-                    liveInfo = playerManager.getLiveInfo();
-                }
+                TVPlayerManager.LiveInfo liveInfo = playerManager != null ? playerManager.getLiveInfo() : null;
                 infoDisplayManager.showInfoBar(currChannel, liveInfo);
                 infoDisplayManager.showChannelNum(currentPlayIndex + 1);
                 log("✅ 已显示信息栏");
             }
 
-            // ===== 第 6 步：保持屏幕常亮 =====
             if (activity != null) {
                 activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 log("✅ 已保持屏幕常亮");
             }
-
-            // ===== 第 7 步：恢复播放 =====
             resumePlayback(playerManager);
-
             log("✅ 退出画中画 UI 恢复完成");
-
         } catch (Exception e) {
             log("❌ 退出画中画 UI 恢复失败：" + e.getMessage());
         }
@@ -493,7 +513,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 播放状态和频道信息更新
+    // 播放状态、频道信息更新
     // ====================================================================
     public void updatePlayState(boolean isPlaying) {
         log("更新播放状态：" + (isPlaying ? "▶ 播放中" : "⏸ 已暂停"));
@@ -504,10 +524,9 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 隐藏画中画模式下的所有 UI
+    // 隐藏画中画全部UI
     // ====================================================================
-    public void hideAllUi(ChannelPanelController channelPanelController,
-                          InfoDisplayManager infoDisplayManager) {
+    public void hideAllUi(ChannelPanelController channelPanelController, InfoDisplayManager infoDisplayManager) {
         log("========== 隐藏所有 UI（画中画模式） ==========");
         try {
             if (channelPanelController != null && channelPanelController.isPanelOpen()) {
@@ -526,7 +545,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 画中画模式下保持播放（三重保险）
+    // 画中画兜底恢复播放
     // ====================================================================
     public void keepPlaying(TVPlayerManager playerManager,
                             PlayerView playerView,
@@ -563,12 +582,12 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 恢复播放（简单版）
+    // 简易恢复播放
     // ====================================================================
     public void resumePlayback(TVPlayerManager playerManager) {
         try {
             if (playerManager != null) {
-                playerManager.resume();
+                player.resume();
                 log("✅ 恢复播放成功");
             }
         } catch (Exception e) {
@@ -577,7 +596,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 打印 View 的详细尺寸信息（调试用）
+    // 打印View尺寸日志
     // ====================================================================
     public void logViewSize(String tag, View view) {
         if (view == null) {
@@ -589,22 +608,15 @@ public class PictureInPictureManager {
                     + "，top=" + view.getTop()
                     + "，right=" + view.getRight()
                     + "，bottom=" + view.getBottom());
-            log("尺寸】" + tag + "尺寸：宽=" + view.getWidth()
-                    + "，高=" + view.getHeight());
+            log("尺寸】" + tag + "尺寸：宽=" + view.getWidth() + "，高=" + view.getHeight());
             ViewGroup.LayoutParams lp = view.getLayoutParams();
-            if (lp != null) {
-                String widthStr = lp.width == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
-                                  lp.width == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
-                                  String.valueOf(lp.width);
-                String heightStr = lp.height == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT(-1)" :
-                                   lp.height == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT(-2)" :
-                                   String.valueOf(lp.height);
-                log("尺寸】" + tag + "布局参数：width=" + widthStr
-                        + "，height=" + heightStr);
-            }
-            int visibility = view.getVisibility();
-            String visStr = visibility == View.VISIBLE ? "VISIBLE" :
-                            visibility == View.INVISIBLE ? "INVISIBLE" : "GONE";
+            String widthStr = lp.width == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT" :
+                    lp.width == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT" : String.valueOf(lp.width);
+            String heightStr = lp.height == ViewGroup.LayoutParams.MATCH_PARENT ? "MATCH_PARENT" :
+                    lp.height == ViewGroup.LayoutParams.WRAP_CONTENT ? "WRAP_CONTENT" : String.valueOf(lp.height);
+            log("尺寸】" + tag + "布局参数：width=" + widthStr + "，height=" + heightStr);
+            int vis = view.getVisibility();
+            String visStr = vis == View.VISIBLE ? "VISIBLE" : vis == View.INVISIBLE ? "INVISIBLE" : "GONE";
             log("尺寸】" + tag + "可见性：" + visStr);
         } catch (Exception e) {
             log("尺寸】" + tag + "获取尺寸失败：" + e.getMessage());
@@ -612,7 +624,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 打印窗口和屏幕尺寸（调试用）
+    // 打印窗口尺寸日志
     // ====================================================================
     public void logWindowSize(Activity activity) {
         if (activity == null) {
@@ -626,32 +638,42 @@ public class PictureInPictureManager {
             DisplayMetrics metrics = new DisplayMetrics();
             activity.getWindowManager().getDefaultDisplay().getMetrics(metrics);
             log("尺寸】屏幕尺寸：宽=" + metrics.widthPixels + "，高=" + metrics.heightPixels);
-            View decorView = activity.getWindow().getDecorView();
-            log("尺寸】DecorView：宽=" + decorView.getWidth() + "，高=" + decorView.getHeight());
+            View decor = activity.getWindow().getDecorView();
+            log("尺寸】DecorView：宽=" + decor.getWidth() + "，高=" + decor.getHeight());
         } catch (Exception e) {
             log("尺寸】获取窗口尺寸失败：" + e.getMessage());
         }
     }
 
     // ====================================================================
-    // 释放资源
+    // 完整release 资源释放（满足全部清理要求）
     // ====================================================================
     public void release() {
         log("========== 释放资源 ==========");
+        // 1. 清空监听器
         listener = null;
+        // 2. 重置全部状态标记
+        pipEnabled = false;
         isInPipMode = false;
         isPipEntering = false;
         onStopCalled = false;
+        debugLogEnabled = false;
+        // 3. 清空上下文弱引用
+        if (appContextRef != null) {
+            appContextRef.clear();
+            appContextRef = null;
+        }
+        // 4. 单例置空，彻底释放
+        instance = null;
         log("✅ 资源释放完成");
     }
 
     // ====================================================================
-    // 日志输出
+    // 日志工具
     // ====================================================================
     private void log(String msg) {
         try {
             SettingsActivity.logOperation(LOG_PREFIX + msg);
-        } catch (Exception e) {
-        }
+        } catch (Exception ignored) {}
     }
 }
