@@ -1,8 +1,8 @@
 package com.tv.live.manager;
-import com.tv.live.widget.DateListManager;
 import android.view.View;
 import com.tv.live.Channel;
 import com.tv.live.widget.ChannelListManager;
+import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
 import java.util.List;
 
@@ -10,9 +10,9 @@ import java.util.List;
  * 面板管理类
  * 控制左侧频道面板、节目单的显示与隐藏
  * 优化点：打开面板保留上次选中的日期，不强制重置为今天
+ * 新增：面板打开/关闭状态回调，联动右上角/右下角信息栏刷新
  */
 public class PanelManager {
-
     // 面板根布局
     private final View panelLayout;
     // 频道列表管理器
@@ -21,6 +21,18 @@ public class PanelManager {
     private final EpgManagerWrapper epgManagerWrapper;
     // 当前选中的日期索引，默认今天=0
     private int currentDateIndex = 0;
+    // 面板是否打开标记
+    private boolean isPanelOpen = false;
+
+    // ===================== 新增：面板显隐回调接口 =====================
+    public interface OnPanelVisibilityListener {
+        void onPanelVisible(boolean visible);
+    }
+    private OnPanelVisibilityListener visibilityListener;
+
+    public void setOnPanelVisibilityListener(OnPanelVisibilityListener listener) {
+        this.visibilityListener = listener;
+    }
 
     /**
      * 构造方法
@@ -32,6 +44,8 @@ public class PanelManager {
         this.panelLayout = panelLayout;
         this.channelListManager = channelListManager;
         this.epgManagerWrapper = epgManagerWrapper;
+        // 初始化面板状态
+        isPanelOpen = panelLayout.getVisibility() == View.VISIBLE;
     }
 
     /**
@@ -42,29 +56,72 @@ public class PanelManager {
     public void setCurrentDateIndex(int dateIndex) {
         this.currentDateIndex = dateIndex;
     }
-    
-     /**
- * 开关面板：显示 / 隐藏
- * @param channelList 频道列表
- * @param currentIndex 当前播放的频道下标
- * @param dateListManager 日期列表管理器，用于同步选中高亮
- */
-public void toggle(List<Channel> channelList, int currentIndex, DateListManager dateListManager) {
-    if (panelLayout.getVisibility() == View.VISIBLE) {
-        // 已经显示则隐藏
-        panelLayout.setVisibility(View.GONE);
-    } else {
-        // 隐藏则显示，先同步日期列表UI高亮，再刷新节目单
-        panelLayout.setVisibility(View.VISIBLE);
-        // 补全：打开面板时同步日期列表的选中高亮，解决视觉与数据不一致
-        dateListManager.setSelectedPosition(currentDateIndex);
 
-        // 自动刷新当前频道的节目单，保留上次选中的日期
-        if (channelList != null && currentIndex >= 0 && currentIndex < channelList.size()) {
-            Channel currentChannel = channelList.get(currentIndex);
-            epgManagerWrapper.refresh(currentChannel, channelList, currentDateIndex);
+    /**
+     * 获取当前选中日期下标
+     */
+    public int getCurrentDateIndex() {
+        return currentDateIndex;
+    }
 
+    /**
+     * 判断面板是否处于打开状态
+     */
+    public boolean isPanelOpen() {
+        return isPanelOpen;
+    }
+
+    /**
+     * 开关面板：显示 / 隐藏
+     * @param channelList 频道列表
+     * @param currentIndex 当前播放的频道下标
+     * @param dateListManager 日期列表管理器，用于同步选中高亮
+     */
+    public void toggle(List<Channel> channelList, int currentIndex, DateListManager dateListManager) {
+        if (panelLayout.getVisibility() == View.VISIBLE) {
+            // 面板当前显示 → 隐藏
+            panelLayout.setVisibility(View.GONE);
+            isPanelOpen = false;
+            // 回调通知关闭面板
+            if (visibilityListener != null) {
+                visibilityListener.onPanelVisible(false);
+            }
+        } else {
+            // 面板当前隐藏 → 打开
+            panelLayout.setVisibility(View.VISIBLE);
+            isPanelOpen = true;
+            // 同步日期列表选中高亮（保留上次选择的日期，不重置今天）
+            dateListManager.setSelectedPosition(currentDateIndex);
+            // 刷新对应日期EPG节目单
+            if (channelList != null && currentIndex >= 0 && currentIndex < channelList.size()) {
+                Channel currentChannel = channelList.get(currentIndex);
+                epgManager.refresh(currentChannel, channelList, currentDateIndex);
+            }
+            // 回调通知打开面板
+            if (visibilityListener != null) {
+                visibilityListener.onPanelVisible(true);
             }
         }
     }
 }
+
+## 修改说明
+1. 新增 `OnPanelVisibilityListener` 回调接口 + 设置方法 `setOnPanelVisibilityListener`
+2. `toggle()` 切换显隐后触发回调，MainActivity 可监听面板开关启停时间刷新任务
+3. 增加 `isPanelOpen()` 对外提供面板状态判断（MainActivity 多处用到）
+4. 增加 `getCurrentDateIndex()` 获取选中日期
+5. 修复你原代码语法缩进、大括号缺失问题
+6. 新增 `isPanelOpen` 变量缓存面板状态，避免频繁getVisibility
+7. 完全保留原有「打开面板不重置为今天、记忆上次日期」逻辑
+
+## MainActivity 配套调用代码（之前已写，这里再核对）
+```java
+PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
+// 绑定面板开关监听，联动信息栏定时器
+panelManager.setOnPanelVisibilityListener(visible -> {
+    if (visible) {
+        startTimeTask(); // 打开面板：启动时间刷新、刷新面板信息
+    } else {
+        stopTimeTask();  // 关闭面板：停止定时任务节省性能
+    }
+});
