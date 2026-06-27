@@ -788,122 +788,82 @@ public class SettingsActivity extends AppCompatActivity {
      * 设置页面用不到请求播放焦点，空实现即可。
      */
     private void initRemoteManager() {
-        // 创建遥控器管理器
-        remoteManager = new TvRemoteManager();
-        // 设置为设置模式
-        remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
-        // 设置设置项总数
-        remoteManager.setSettingsItemCount(settingsItemList.size());
-        // 设置回调监听器
-        remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
-            // ================== 播放模式回调（设置页面用不到，空实现） ==================
-            @Override public void onPlayChannelUp() {}
-            @Override public void onPlayChannelDown() {}
-            @Override public void onPlayTogglePanel() {}
-            @Override public void onPlayOpenSettings() {}
-            @Override public boolean onPlayBack() { return false; }
-            // ================== 频道面板模式回调（设置页面用不到，空实现） ==================
-            @Override public void onPanelMoveUp() {}
-            @Override public void onPanelMoveDown() {}
-            @Override public void onPanelMoveLeft() {}
-            @Override public void onPanelMoveRight() {}
-            @Override public void onPanelConfirm() {}
-            @Override public boolean onPanelBack() { return false; }
-            @Override public void onPanelMenu() {}
-            @Override public void onPanelNumber(int number) {}
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
-            // ================== 设置模式回调（核心，需要实现） ==================
-            /**
-             * 上移：焦点向上移动一项
-             * 
-             * 【2026-06-25 新增】记录操作日志
-             * 原来移动焦点时没有日志，不利于排查问题。
-             * 现在每次移动都记录一条，方便追踪焦点轨迹。
-             */
-            @Override
-            public void onSettingsMoveUp() {
-                int newPos = remoteManager.getSettingsFocusPosition();
-                logOperation("【设置遥控】上键 → 移动到第 " + (newPos + 1) + " 项");
-                updateSettingsFocus();
-            }
-            /**
-             * 下移：焦点向下移动一项
-             * 
-             * 【2026-06-25 新增】记录操作日志
-             * 同上，每次移动都记录一条。
-             */
-            @Override
-            public void onSettingsMoveDown() {
-                int newPos = remoteManager.getSettingsFocusPosition();
-                logOperation("【设置遥控】下键 → 移动到第 " + (newPos + 1) + " 项");
-                updateSettingsFocus();
-            }
-            /**
-             * OK键：选中当前项
-             * 【作用】模拟点击事件，触发该设置项的 OnClickListener
-             */
-            @Override
-            public void onSettingsConfirm() {
-                int position = remoteManager.getSettingsFocusPosition();
-                handleSettingsItemClick(position);
-            }
-            /**
-             * 返回键：关闭设置页面
-             * @return true=已处理，不再向下传递
-             */
-            @Override
-            public boolean onSettingsBack() {
-                logOperation("【设置遥控】返回键 → 关闭设置页面");
-                finish();
-                return true;
-            }
-            /**
-             * 菜单键：关闭设置页面
-             */
-            @Override
-            public void onSettingsMenu() {
-                logOperation("【设置遥控】菜单键 → 关闭设置页面");
-                finish();
-            }
-            /**
-             * 焦点变化：更新高亮显示
-             * 
-             * @param position 新的焦点位置
-             * 
-             * 【2026-06-25 优化】
-             * 原来 onSettingsMoveUp/onSettingsMoveDown 和 onSettingsFocusChanged
-             * 都会调用 updateSettingsFocus()，导致重复调用。
-             * 
-             * 现在改成：只在 onSettingsMoveUp/onSettingsMoveDown 里调用，
-             * onSettingsFocusChanged 只作为备用（比如外部直接 setSettingsFocusPosition 时）。
-             * 
-             * 但是为了保持兼容，还是保留这个回调，
-             * 只是加个判断，避免重复调用。
-             */
-            @Override
-            public void onSettingsFocusChanged(int position) {
-                // 备用：只有当焦点位置和实际显示不一致时才更新
-                // （正常情况下 onSettingsMoveUp/Down 已经更新过了）
-                // 这里主要是为了兼容外部直接调用 setSettingsFocusPosition 的情况
-                updateSettingsFocus();
-            }
-            // ✅ 2026-06-26 新增：画中画模式返回键回调
-            // 【说明】设置页面不处理画中画返回键，返回 false 交给系统处理
-            @Override
-            public boolean onPipBack() {
-                return false;
-            }
-            
-            // ✅ 2026-06-26 新增：请求播放焦点回调
-            // 【说明】设置页面用不到请求播放焦点，空实现即可
-            @Override
-            public void onRequestPlayFocus() {
-                // 设置页面不需要处理请求播放焦点
-            }
-        });
-        // 默认聚焦第一项
-        updateSettingsFocus();
-    }
+    remoteManager = new TvRemoteManager();
+    remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
+    remoteManager.setSettingsItemCount(settingsItemList.size());
+    remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
+        @Override public void onPlayChannelUp() {}
+        @Override public void onPlayChannelDown() {}
+        @Override public void onPlayTogglePanel() {}
+        @Override public void onPlayOpenSettings() {}
+        @Override public boolean onPlayBack() { return false; }
+
+        @Override public void onPanelMoveUp() {}
+        @Override public void onPanelMoveDown() {}
+        @Override public void onPanelMoveLeft() {}
+        @Override public void onPanelMoveRight() {}
+        @Override public void onPanelConfirm() {}
+        @Override public boolean onPanelBack() { return false; }
+        @Override public void onPanelMenu() {}
+        @Override public void onPanelNumber(int number) {}
+        @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
+
+        @Override
+        public void onSettingsMoveUp() {
+            int newPos = remoteManager.getSettingsFocusPosition();
+            logOperation("【设置遥控】上键 → 移动到第 " + (newPos + 1) + " 项");
+            updateSettingsFocus();
+        }
+
+        @Override
+        public void onSettingsMoveDown() {
+            int newPos = remoteManager.getSettingsFocusPosition();
+            logOperation("【设置遥控】下键 → 移动到第 " + (newPos + 1) + " 项");
+            updateSettingsFocus();
+        }
+
+        @Override
+        public void onSettingsConfirm() {
+            int position = remoteManager.getSettingsFocusPosition();
+            handleSettingsItemClick(position);
+        }
+
+        @Override
+        public boolean onSettingsBack() {
+            logOperation("【设置遥控】返回键 → 关闭设置页面");
+            finish();
+            return true;
+        }
+
+        @Override
+        public void onSettingsMenu() {
+            logOperation("【设置遥控】菜单键 → 关闭设置页面");
+            finish();
+        }
+
+        @Override
+        public void onSettingsFocusChanged(int position) {
+            updateSettingsFocus();
+        }
+
+        @Override
+        public boolean onPipBack() {
+            return false;
+        }
+
+        @Override
+        public void onRequestPlayFocus() {}
+
+        // 补齐数字选台抽象方法，解决编译报错
+        @Override
+        public void onChannelNumberSelected(int channelIndex) {}
+        @Override
+        public void onShowChannelNumber(String number) {}
+        @Override
+        public void onHideChannelNumber() {}
+    });
+    updateSettingsFocus();
+}
     // ====================== 其他点击事件初始化 ======================
     /**
      * 初始化纯文本项的点击事件
