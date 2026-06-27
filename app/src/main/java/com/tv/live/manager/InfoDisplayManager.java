@@ -18,6 +18,7 @@ import java.util.List;
  * 信息展示管理器【Java完整版】
  * 适配改造后的MainActivity，所有底部信息栏、频道数字、EPG、进度逻辑完全内聚，页面仅调用对外API
  * 2026-06-25 优化：EPG精确+模糊匹配、全流程日志、分辨率自动分级、定时进度刷新
+ * 2026-06-27 修复：跨天时段时间计算错误导致进度条消失问题、修复播放时长计算bug
  * 统一管控所有UI控件、定时任务、时间计算，消除Activity耦合
  */
 public class InfoDisplayManager {
@@ -28,7 +29,6 @@ public class InfoDisplayManager {
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
     /** EPG节目进度刷新间隔 60000ms(1分钟)，减少性能消耗 */
     private static final long PROGRAM_PROGRESS_INTERVAL = 60000;
-
     // ===================== UI控件引用 =====================
     private Context context;
     private TextView tvChannelNum;          // 右上角频道号
@@ -43,11 +43,9 @@ public class InfoDisplayManager {
     private TextView tvRemainingTime;       // 已播放时长
     private TextView tvNextProgramName;     // 下一档节目
     private TextView tvNextTimeRange;       // 下一档时段（预留）
-
     // ===================== 调度、缓存变量 =====================
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Channel currentPlayChannel; // 当前播放频道缓存（用于定时刷新EPG）
-
     // 自动隐藏任务Runnable
     private final Runnable hideInfoBarTask = new Runnable() {
         @Override
@@ -71,7 +69,6 @@ public class InfoDisplayManager {
             mainHandler.postDelayed(this, PROGRAM_PROGRESS_INTERVAL);
         }
     };
-
     // ===================== 构造方法 =====================
     /**
      * 构造器：一次性注入所有信息栏控件，ApplicationContext防内存泄漏
@@ -116,13 +113,11 @@ public class InfoDisplayManager {
         this.tvRemainingTime = tvRemainingTime;
         this.tvNextProgramName = tvNextProgramName;
         this.tvNextTimeRange = tvNextTimeRange;
-
         // 固定音频文字：立体声
         if(tvTagAudio != null){
             tvTagAudio.setText("立体声");
         }
     }
-
     // ===================== 1. 频道数字弹窗 API =====================
     /** 显示频道号，自动3秒消失 */
     public void showChannelNum(int num){
@@ -133,14 +128,12 @@ public class InfoDisplayManager {
         mainHandler.removeCallbacks(hideChannelNumTask);
         mainHandler.postDelayed(hideChannelNumTask, CHANNEL_NUM_HIDE_DELAY);
     }
-
     /** 立刻隐藏频道数字弹窗 */
     public void hideChannelNum(){
         if(tvChannelNum == null) return;
         mainHandler.removeCallbacks(hideChannelNumTask);
         tvChannelNum.setVisibility(View.GONE);
     }
-
     // ===================== 2. 底部信息栏对外API =====================
     /**
      * 展示完整信息栏：填充频道、直播流、EPG，自动3秒后隐藏，启动进度定时刷新
@@ -154,7 +147,6 @@ public class InfoDisplayManager {
         infoBar.setVisibility(View.VISIBLE);
         mainHandler.removeCallbacks(hideInfoBarTask);
         mainHandler.postDelayed(hideInfoBarTask, INFO_BAR_HIDE_DELAY);
-
         // 频道名称
         if(tvChannelName != null) tvChannelName.setText(channel.getName());
         // 更新码率、画质
@@ -164,14 +156,12 @@ public class InfoDisplayManager {
         // 启动每分钟进度刷新
         startProgressLoop();
     }
-
     /** 立刻隐藏底部信息栏 */
     public void hideInfoBar(){
         if(infoBar == null) return;
         mainHandler.removeCallbacks(hideInfoBarTask);
         infoBar.setVisibility(View.GONE);
     }
-
     /** 更新直播流画质、码率标签 */
     public void updateLiveInfo(TVPlayerManager.LiveInfo info){
         if(info == null) return;
@@ -184,7 +174,6 @@ public class InfoDisplayManager {
             tvBitrate.setText(info.bitrate);
         }
     }
-
     /**
      * 解析分辨率，返回画质文字
      * @param resolution 如 1920×1080
@@ -205,7 +194,6 @@ public class InfoDisplayManager {
         }
         return resolution;
     }
-
     // ===================== 3. EPG对外接口 =====================
     /** 外部主动刷新EPG（切换日期、刷新源时调用） */
     public void updateEpgInfo(Channel channel){
@@ -213,7 +201,6 @@ public class InfoDisplayManager {
         currentPlayChannel = channel;
         updateEpgInternal(channel);
     }
-
     /** EPG核心处理逻辑（精确匹配→模糊匹配→筛选今日→排序→匹配当前节目） */
     private void updateEpgInternal(Channel channel){
         if(channel == null || tvCurrentProgramName == null) return;
@@ -274,7 +261,6 @@ public class InfoDisplayManager {
             setEpgEmptyUi();
         }
     }
-
     /** 模糊匹配占位方法（待EpgManager开放全频道接口后完善） */
     private List<Channel.EpgItem> fuzzyMatchEpg(String rawName){
         if(rawName == null || rawName.isEmpty()) return null;
@@ -286,7 +272,6 @@ public class InfoDisplayManager {
         }
         return null;
     }
-
     /** 过滤今日节目（匹配“今天”/星期文字） */
     private List<Channel.EpgItem> filterTodayEpg(List<Channel.EpgItem> source){
         List<Channel.EpgItem> res = new ArrayList<>();
@@ -303,7 +288,6 @@ public class InfoDisplayManager {
         }
         return res;
     }
-
     /** EPG节目按时间升序 */
     private void sortEpgByTime(List<Channel.EpgItem> list){
         Collections.sort(list, new Comparator<Channel.EpgItem>() {
@@ -313,57 +297,56 @@ public class InfoDisplayManager {
             }
         });
     }
+    /** 刷新当前节目UI（名称、时段、进度、已播放时长） */
+    private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Channel.EpgItem> todayList, String now){
+        if(currItem != null){
+            tvCurrentProgramName.setText(currItem.title);
+            String start = currItem.time;
+            String end = (currIdx+1 < todayList.size()) ? todayList.get(currIdx+1).time : "23:59";
+            if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText(start + " - " + end);
 
-/** 刷新当前节目UI（名称、时段、进度、已播放时长） */
-private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Channel.EpgItem> todayList, String now){
-    if(currItem != null){
-        tvCurrentProgramName.setText(currItem.title);
-        String start = currItem.time;
-        String end = (currIdx+1 < todayList.size()) ? todayList.get(currIdx+1).time : "23:59";
-        if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText(start + " - ");
+            // 调用支持跨天的时间转换
+            long nowMs = timeToMs(now, false, 0);
+            long sMs = timeToMs(start, false, 0);
+            long eMs = timeToMs(end, true, sMs);
 
-        long nowMs = timeToMs(now);
-        long sMs = timeToMs(start);
-        long eMs = timeToMs(end);
-        // 增加防御：节目总时长为0时不计算进度
-        if(eMs > sMs && progressProgram != null){
-            long totalDuration = eMs - sMs;
-            long played = nowMs - sMs;
-            // 限制0~100区间，防止负数/超过100
-            int progress = (int) (played * 100 / totalDuration);
-            progress = Math.max(0, Math.min(100, progress));
-            progressProgram.setProgress(progress);
-            // 强制重绘进度条，部分机型不自动刷新
-            progressProgram.invalidate();
+            if(progressProgram != null){
+                long totalDuration = eMs - sMs;
+                long played = nowMs - sMs;
+                int progress = 0;
+                if(totalDuration > 0){
+                    progress = (int) (played * 100 / totalDuration);
+                    progress = Math.max(0, Math.min(100, progress));
+                }else {
+                    // 打印异常日志方便排查
+                    SettingsActivity.logOperation("【进度异常】时长非法 start="+start+" end="+end+" total="+totalDuration);
+                }
+                progressProgram.setProgress(progress);
+                progressProgram.invalidate();
+            }
 
-            long playedMin = played / 1000 / 60;
+            // 修复原代码小时计算重复m的bug
             if(tvRemainingTime != null){
+                long playedSec = played / 1000;
+                long playedMin = playedSec / 60;
                 if(playedMin >=60){
-                    int h = (int) (playedMin /60);
-                    int m = (int) (playedMin /60);
-                    // 修复：tvRemaining → tvRemainingTime
+                    int h = (int) (playedMin / 60);
+                    int m = (int) (playedMin % 60);
                     tvRemainingTime.setText("已播放"+h+"时"+m+"分");
                 }else {
                     tvRemainingTime.setText("已播放"+playedMin+"分钟");
                 }
             }
-        }else{
-            // 总时长无效，清空进度
-            if(progressProgram != null){
+        }else {
+            tvCurrentProgramName.setText("暂无节目信息");
+            if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
+            if(progressProgram != null) {
                 progressProgram.setProgress(0);
                 progressProgram.invalidate();
             }
+            if(tvRemainingTime != null) tvRemainingTime.setText("");
         }
-    }else {
-        tvCurrentProgramName.setText("暂无节目信息");
-        if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
-        if(progressProgram != null) {
-            progressProgram.setProgress(0);
-            progressProgram.invalidate();
-        }
-        if(tvRemainingTime != null) tvRemainingTime.setText("");
     }
-}
     /** 刷新下一档节目UI */
     private void refreshNextProgramUi(Channel.EpgItem nextItem, int currIdx, List<Channel.EpgItem> todayList){
         if(nextItem != null && tvNextProgramName != null){
@@ -376,7 +359,6 @@ private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Ch
             if(tvNextTimeRange != null) tvNextTimeRange.setText("");
         }
     }
-
     /** EPG无数据时清空所有节目UI */
     private void setEpgEmptyUi(){
         if(tvCurrentProgramName != null) tvCurrentProgramName.setText("暂无节目信息");
@@ -386,20 +368,17 @@ private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Ch
         if(progressProgram != null) progressProgram.setProgress(0);
         if(tvRemainingTime != null) tvRemainingTime.setText("");
     }
-
     // ===================== 定时进度启停 =====================
     /** 启动每分钟EPG进度循环刷新 */
     public void startProgressLoop(){
         mainHandler.removeCallbacks(refreshProgressTask);
         mainHandler.postDelayed(refreshProgressTask, PROGRAM_PROGRESS_INTERVAL);
     }
-
     /** 停止进度定时刷新（切台、退出播放调用） */
     public void stopProgressLoop(){
         mainHandler.removeCallbacks(refreshProgressTask);
     }
-
-    // ===================== 时间工具私有方法 =====================
+    // ===================== 时间工具私有方法（已修复跨天bug） =====================
     /** 获取HH:mm格式当前时间 */
     private String getCurrentTimeStr(){
         Calendar cal = Calendar.getInstance();
@@ -407,20 +386,29 @@ private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Ch
         int m = cal.get(Calendar.MINUTE);
         return String.format("%02d:%02d", h, m);
     }
-
-    /** 判断now是否在[start, end)时段内 */
+    /**
+     * 判断当前时间是否在 [start, end) 区间（支持跨天时段如23:00-00:00）
+     */
     private boolean timeBetween(String now, String start, String end){
         try {
-            if(now == null || start == null || end == null) return false;
-            if(!now.contains(":") || !start.contains(":") || !end.contains(":")) return false;
-            return now.compareTo(start) >=0 && now.compareTo(end) <0;
+            if (now == null || start == null || end == null) return false;
+            long nowMs = timeToMs(now, false, 0);
+            long startMs = timeToMs(start, false, 0);
+            long endMs = timeToMs(end, true, startMs);
+            return nowMs >= startMs && nowMs < endMs;
         }catch (Exception e){
+            SettingsActivity.logOperation("【时段匹配异常】"+e.getMessage());
             return false;
         }
     }
-
-    /** HH:mm 时间字符串转为当天毫秒时间戳 */
-    private long timeToMs(String timeStr){
+    /**
+     * HH:mm 时间字符串转毫秒时间戳
+     * @param timeStr 时分字符串
+     * @param isEndTime 是否为结束时间
+     * @param startMs 对应节目的开始时间戳，用于判断是否跨天+1天
+     * @return 毫秒时间戳
+     */
+    private long timeToMs(String timeStr, boolean isEndTime, long startMs){
         try {
             String[] split = timeStr.split(":");
             int h = Integer.parseInt(split[0].trim());
@@ -430,12 +418,18 @@ private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Ch
             cal.set(Calendar.MINUTE, m);
             cal.set(Calendar.SECOND, 0);
             cal.set(Calendar.MILLISECOND, 0);
-            return cal.getTimeInMillis();
+            long ms = cal.getTimeInMillis();
+            // 结束时间且小于等于开始时间 → 代表跨天，日期+1天
+            if(isEndTime && ms <= startMs){
+                cal.add(Calendar.DAY_OF_MONTH, 1);
+                ms = cal.getTimeInMillis();
+            }
+            return ms;
         }catch (Exception e){
+            SettingsActivity.logOperation("【时间转换失败】"+timeStr+" err:"+e.getMessage());
             return 0;
         }
     }
-
     // ===================== 资源释放（页面销毁调用，防内存泄漏） =====================
     /** 释放所有Handler任务、清空控件引用 */
     public void release(){
