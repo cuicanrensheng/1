@@ -493,7 +493,7 @@ public class TvRemoteManager {
         }
     }
 
-    private boolean handleNumberKey(int keyCode) {
+    public boolean handleNumberKey(int keyCode) {
         if (!numberChannelEnable) return false;
         int num = keyCodeToNumber(keyCode);
         if (num == -1) return false;
@@ -507,7 +507,7 @@ public class TvRemoteManager {
         return true;
     }
 
-    private void confirmChannelNum() {
+    public void confirmChannelNum() {
         if (channelNumInput.length() == 0) return;
         try {
             int channelNum = Integer.parseInt(channelNumInput.toString());
@@ -534,7 +534,7 @@ public class TvRemoteManager {
         }, 1000);
     }
 
-    private void cancelNumberInput() {
+    public void cancelNumberInput() {
         if (channelNumInput.length() > 0) {
             channelNumInput.setLength(0);
             channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
