@@ -400,7 +400,7 @@ public void updateLiveInfo(TVPlayerManager.LiveInfo info) {
                 if (playedMin >= 60) {
                     int h = playedMin / 60;
                     int m = playedMin % 60;
-                    tvRemainingText.setText("已播放" + h + "时" + m + "分");
+                    tvRemainingTime.setText("已播放" + h + "时" + m + "分");
                 } else {
                     tvRemainingTime.setText("已播放" + playedMin + "分钟");
                 }
