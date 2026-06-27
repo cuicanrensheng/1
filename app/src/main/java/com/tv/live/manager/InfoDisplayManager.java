@@ -231,24 +231,24 @@ public void updateLiveInfo(TVPlayerManager.LiveInfo info) {
             // 从 EpgManager 获取该频道的所有节目
             List<Channel.EpgItem> epgList = EpgManager.getInstance().getEpg(channelName);
 
-            // ✅ 2026-06-25 新增：精确匹配失败后，尝试模糊匹配
+            // ? 2026-06-25 新增：精确匹配失败后，尝试模糊匹配
             if ((epgList == null || epgList.isEmpty()) && channelName != null) {
                 SettingsActivity.logOperation("【EPG匹配】精确匹配失败，尝试模糊匹配...");
                 epgList = tryFuzzyMatch(channelName);
             }
 
             if (epgList == null || epgList.isEmpty()) {
-                SettingsActivity.logOperation("【EPG匹配】❌ 未找到任何节目数据");
+                SettingsActivity.logOperation("【EPG匹配】? 未找到任何节目数据");
                 setEpgEmpty();
                 return;
             }
 
-            SettingsActivity.logOperation("【EPG匹配】✅ 找到 " + epgList.size() + " 条节目数据");
+            SettingsActivity.logOperation("【EPG匹配】? 找到 " + epgList.size() + " 条节目数据");
 
             // 筛选今天的节目
             List<Channel.EpgItem> todayEpg = filterTodayPrograms(epgList);
             if (todayEpg.isEmpty()) {
-                SettingsActivity.logOperation("【EPG匹配】❌ 筛选后今天的节目为空");
+                SettingsActivity.logOperation("【EPG匹配】? 筛选后今天的节目为空");
                 setEpgEmpty();
                 return;
             }
@@ -286,9 +286,9 @@ public void updateLiveInfo(TVPlayerManager.LiveInfo info) {
             }
 
             if (currentProgram != null) {
-                SettingsActivity.logOperation("【EPG匹配】✅ 当前节目：" + currentProgram.title);
+                SettingsActivity.logOperation("【EPG匹配】? 当前节目：" + currentProgram.title);
             } else {
-                SettingsActivity.logOperation("【EPG匹配】❌ 未找到当前播放的节目");
+                SettingsActivity.logOperation("【EPG匹配】? 未找到当前播放的节目");
             }
 
             updateCurrentProgramInfo(currentProgram, currentIndex, todayEpg, now);
@@ -302,7 +302,7 @@ public void updateLiveInfo(TVPlayerManager.LiveInfo info) {
     }
 
     // ====================================================================
-    // ✅ 2026-06-25 新增：模糊匹配
+    // ? 2026-06-25 新增：模糊匹配
     // ====================================================================
     /**
      * 尝试模糊匹配 EPG 节目
