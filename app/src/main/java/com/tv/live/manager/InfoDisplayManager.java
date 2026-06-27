@@ -340,8 +340,9 @@ private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Ch
             if(tvRemainingTime != null){
                 if(playedMin >=60){
                     int h = (int) (playedMin /60);
-                    int m = (int) (playedMin %60);
-                    tvRemaining.setText("已播放"+h+"时"+m+"分");
+                    int m = (int) (playedMin /60);
+                    // 修复：tvRemaining → tvRemainingTime
+                    tvRemainingTime.setText("已播放"+h+"时"+m+"分");
                 }else {
                     tvRemainingTime.setText("已播放"+playedMin+"分钟");
                 }
@@ -363,7 +364,6 @@ private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Ch
         if(tvRemainingTime != null) tvRemainingTime.setText("");
     }
 }
-
     /** 刷新下一档节目UI */
     private void refreshNextProgramUi(Channel.EpgItem nextItem, int currIdx, List<Channel.EpgItem> todayList){
         if(nextItem != null && tvNextProgramName != null){
