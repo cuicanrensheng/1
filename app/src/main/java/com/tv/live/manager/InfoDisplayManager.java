@@ -369,37 +369,38 @@ public void updateLiveInfo(TVPlayerManager.LiveInfo info) {
     }
 
     // 更新当前节目信息
-private void updateCurrentProgramInfo(Channel.EpgItem currentProgram, int currentIndex,
+    private void updateCurrentProgramInfo(Channel.EpgItem currentProgram, int currentIndex,
                                       List<Channel.EpgItem> todayEpg, String now) {
     if (currentProgram != null) {
-        // 当前节目名（EPG接口自动获取）
         tvCurrentProgramName.setText(currentProgram.title);
-
-        // 自动从EPG读取节目起止时间
-        String startTime = currentProgram.time;
-        String endTime = (currentIndex + 1 < todayEpg.size()) ? todayEpg.get(currentIndex + 1).time : "23:59";
+        // 模拟 getStartTimeStr / getEndTime 逻辑
+        String startStr = currentProgram.time;
+        String endStr = (currentIndex + 1 < todayEpg.size()) ? todayEpg.get(currentIndex + 1).time : "23:59";
+        // Epg读取节目起止时间
         if (tvCurrentTimeRange != null) {
-            tvCurrentTimeRange.setText(startTime + " - " + endTime);
+            tvCurrentTimeRange.setText(startStr + " - " + endStr);
         }
 
         long nowMillis = timeToMillis(now);
-        long startMillis = timeToMillis(startTime);
-        long endMillis = timeToMillis(endTime);
+        long startMillis = timeToMillis(startStr);
+        long endMillis = timeToMillis(endStr);
 
-        if (endMillis > startMillis && progressProgram != null) {
-            // 自动计算播放进度百分比 (当前-开播)/(结束-开播)*100
+        if (endMillis > startMillis) {
+            // 自动计算播放进度百分比
             int progress = (int) ((nowMillis - startMillis) * 100 / (endMillis - startMillis));
             progress = Math.max(0, Math.min(100, progress));
-            progressProgram.setProgress(progress);
+            if (progressProgram != null) {
+                progressProgram.setProgress(progress);
+            }
 
-            // 毫秒自动格式化已播放时长
+            // 格式化已播放时长
             long playedMs = nowMillis - startMillis;
             int playedMin = (int) (playedMs / 1000 / 60);
             if (tvRemainingTime != null) {
                 if (playedMin >= 60) {
                     int h = playedMin / 60;
                     int m = playedMin % 60;
-                    tvRemainingTime.setText("已播放" + h + "时" + m + "分");
+                    tvRemainingText.setText("已播放" + h + "时" + m + "分");
                 } else {
                     tvRemainingTime.setText("已播放" + playedMin + "分钟");
                 }
@@ -413,24 +414,22 @@ private void updateCurrentProgramInfo(Channel.EpgItem currentProgram, int curren
     }
 }
 
-    // 更新下一个节目信息
 private void updateNextProgramInfo(Channel.EpgItem nextProgram, int currentIndex,
                                    List<Channel.EpgItem> todayEpg) {
     if (nextProgram != null && tvNextProgramName != null) {
-        // 自动读取下一档EPG时间
+        // nextEpg 读取时段拼接名称
         String nextStart = nextProgram.time;
         String nextEnd = (currentIndex + 2 < todayEpg.size()) ? todayEpg.get(currentIndex + 2).time : "23:59";
-        // 拼接格式：时段 + 节目名称，全部自动从EPG获取
-        String nextFullText = nextStart + " - " + nextEnd + "  " + nextProgram.title;
-        tvNextProgramName.setText(nextFullText);
-        // 单独时间控件清空，合并展示无需分开
-        if (tvNextTimeRange != null) tvNextTimeRange.setText("");
+        String nextFull = nextStart + " - " + nextEnd + "  " + nextProgram.title;
+        tvNextProgramName.setText(nextFull);
+        if (tvNextTimeRange != null) {
+            tvNextTimeRange.setText("");
+        }
     } else {
         if (tvNextProgramName != null) tvNextProgramName.setText("暂无下一档节目");
         if (tvNextTimeRange != null) tvNextTimeRange.setText("");
     }
 }
-
     // 设置 EPG 为空的兜底显示
     private void setEpgEmpty() {
         if (tvCurrentProgramName != null) tvCurrentProgramName.setText("暂无节目信息");
