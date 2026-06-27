@@ -19,6 +19,7 @@ import java.util.List;
  * 适配改造后的MainActivity，所有底部信息栏、频道数字、EPG、进度逻辑完全内聚，页面仅调用对外API
  * 2026-06-25 优化：EPG精确+模糊匹配、全流程日志、分辨率自动分级、定时进度刷新
  * 2026-06-27 修复：跨天时段时间计算错误导致进度条消失问题、修复播放时长计算bug
+ * 2026-06-27 补充：补全tvNextTimeRange下一档时段完整展示逻辑
  * 统一管控所有UI控件、定时任务、时间计算，消除Activity耦合
  */
 public class InfoDisplayManager {
@@ -41,8 +42,8 @@ public class InfoDisplayManager {
     private TextView tvCurrentTimeRange;    // 当前节目时段
     private ProgressBar progressProgram;    // 节目进度条
     private TextView tvRemainingTime;       // 已播放时长
-    private TextView tvNextProgramName;     // 下一档节目
-    private TextView tvNextTimeRange;       // 下一档时段（预留）
+    private TextView tvNextProgramName;     // 下一档节目名称
+    private TextView tvNextTimeRange;       // 下一档节目时段（已补全逻辑）
     // ===================== 调度、缓存变量 =====================
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Channel currentPlayChannel; // 当前播放频道缓存（用于定时刷新EPG）
@@ -325,8 +326,9 @@ public class InfoDisplayManager {
                 progressProgram.invalidate();
             }
 
-            // 修复原代码小时计算重复m的bug
+            // 修复原代码小时计算重复m的bug，修正变量名编译错误
             if(tvRemainingTime != null){
+                long played = nowMs - sMs;
                 long playedSec = played / 1000;
                 long playedMin = playedSec / 60;
                 if(playedMin >=60){
@@ -347,19 +349,20 @@ public class InfoDisplayManager {
             if(tvRemainingTime != null) tvRemainingTime.setText("");
         }
     }
-    /** 刷新下一档节目UI */
+    /** 刷新下一档节目UI【已补全tvNextTimeRange赋值逻辑】 */
     private void refreshNextProgramUi(Channel.EpgItem nextItem, int currIdx, List<Channel.EpgItem> todayList){
-        if(nextItem != null && tvNextProgramName != null){
+        if(nextItem != null && tvNextProgramName != null && tvNextTimeRange != null){
             String s = nextItem.time;
             String e = (currIdx +2 < todayList.size()) ? todayList.get(currIdx+2).time : "23:59";
-            tvNextProgramName.setText(s + " - " + e + "  " + nextItem.title);
-            if(tvNextTimeRange != null) tvNextTimeRange.setText("");
+            // 分开赋值：时段单独给tvNextTimeRange，名称单独给tvNextProgramName
+            tvNextTimeRange.setText(s + " - " + e);
+            tvNextProgramName.setText(nextItem.title);
         }else {
             if(tvNextProgramName != null) tvNextProgramName.setText("暂无下一档节目");
             if(tvNextTimeRange != null) tvNextTimeRange.setText("");
         }
     }
-    /** EPG无数据时清空所有节目UI */
+    /** EPG无数据时清空所有节目UI（补齐tvNextTimeRange清空） */
     private void setEpgEmptyUi(){
         if(tvCurrentProgramName != null) tvCurrentProgramName.setText("暂无节目信息");
         if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
@@ -431,7 +434,7 @@ public class InfoDisplayManager {
         }
     }
     // ===================== 资源释放（页面销毁调用，防内存泄漏） =====================
-    /** 释放所有Handler任务、清空控件引用 */
+    /** 释放所有Handler任务、清空控件引用（补齐tvNextTimeRange置空） */
     public void release(){
         // 移除全部延时任务
         mainHandler.removeCallbacks(hideInfoBarTask);
