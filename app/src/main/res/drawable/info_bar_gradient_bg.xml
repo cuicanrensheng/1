@@ -4,6 +4,6 @@
     <!-- 垂直渐变：上透明 → 下半透明黑 -->
     <gradient
         android:startColor="#00000000"
-        android:endColor="#E0000000"
+        android:endColor="#F0000000"
         android:angle="270"/>
 </shape>
