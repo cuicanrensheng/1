@@ -39,12 +39,83 @@ import java.util.Locale;
 
 public class TVPlayerManager {
 
-    private static final String TAG = "TVPlayerManager";
-
+    // ===================== 基础常量 =====================
+    /** 日志TAG前缀 */
+    private static final String TAG_PREFIX = "TVPlayer_";
+    /** 播放器核心日志TAG */
+    private static final String TAG = TAG_PREFIX + "Manager";
+    /** 时间格式化模板（日志专用） */
+    private static final String LOG_TIME_FORMAT = "HH:mm:ss";
+    
+    // ===================== 播放重试常量 =====================
+    /** 最大自动重试次数 */
     private static final int MAX_RETRY_COUNT = 2;
-    private static final long STUCK_TIMEOUT = 10000;
-    private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
+    /** 重试延迟时间（ms） */
+    private static final long RETRY_DELAY_MS = 1000;
+    /** 播放卡住检测超时时间（ms） */
+    private static final long STUCK_TIMEOUT_MS = 10000;
+    /** 卡住检测轮询间隔（ms） */
+    private static final long STUCK_CHECK_INTERVAL_MS = 2000;
 
+    // ===================== 频道显示常量 =====================
+    /** 频道号自动隐藏延迟（ms） */
+    private static final long CHANNEL_NUM_HIDE_DELAY_MS = 3000;
+    /** 频道号默认颜色（可根据UI调整） */
+    private static final int CHANNEL_NUM_DEFAULT_COLOR = Color.WHITE;
+    /** 频道号默认字体大小（sp，可根据UI调整） */
+    private static final float CHANNEL_NUM_DEFAULT_SIZE_SP = 18f;
+
+    // ===================== 缓冲控制常量 =====================
+    /** 最小缓冲时间（ms） */
+    private static final int MIN_BUFFER_MS = 2000;
+    /** 最大缓冲时间（ms） */
+    private static final int MAX_BUFFER_MS = 50000;
+    /** 缓冲播放触发阈值（ms） */
+    private static final int BUFFER_FOR_PLAYBACK_MS = 300;
+    /** 缓冲重新加载阈值（ms） */
+    private static final int BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 500;
+
+    // ===================== 解码器相关常量 =====================
+    /** 自动切换解码器判定时间窗口（ms） */
+    private static final long DECODER_SWITCH_TIME_WINDOW_MS = 15000;
+    /** 自动切换解码器最小缓冲次数阈值 */
+    private static final int DECODER_SWITCH_MIN_BUFFER_COUNT = 1;
+    /** 解码器模式-自动（硬解优先） */
+    public static final int DECODER_MODE_AUTO = 0;
+    /** 解码器模式-强制软解 */
+    public static final int DECODER_MODE_SOFT = 1;
+    /** 解码器模式-强制硬解 */
+    public static final int DECODER_MODE_HARD = 2;
+    /** 解码器模式变更广播Action */
+    public static final String ACTION_DECODER_MODE_CHANGED = "com.tv.live.action.DECODER_MODE_CHANGED";
+
+    // ===================== HTTP请求常量 =====================
+    /** User-Agent默认值 */
+    private static final String DEFAULT_USER_AGENT = "ExoPlayer";
+    /** 默认Referer（虎牙） */
+    private static final String DEFAULT_REFERER = "https://www.huya.com/";
+    /** 虎牙域名标识 */
+    private static final String HUYA_DOMAIN_KEY = "huya";
+    /** 斗鱼域名标识 */
+    private static final String DOUYU_DOMAIN_KEY = "douyu";
+    /** 斗鱼Referer */
+    private static final String DOUYU_REFERER = "https://www.douyu.com/";
+    /** HLS流标识（m3u8） */
+    private static final String HLS_STREAM_FLAG = "m3u8";
+    /** Icy-MetaData请求头值 */
+    private static final String ICY_META_DATA_VALUE = "1";
+
+    // ===================== 播放状态常量 =====================
+    /** 播放状态-空闲 */
+    public static final int PLAY_STATE_IDLE = Player.STATE_IDLE;
+    /** 播放状态-缓冲中 */
+    public static final int PLAY_STATE_BUFFERING = Player.STATE_BUFFERING;
+    /** 播放状态-就绪 */
+    public static final int PLAY_STATE_READY = Player.STATE_READY;
+    /** 播放状态-结束 */
+    public static final int PLAY_STATE_ENDED = Player.STATE_ENDED;
+
+    // ===================== 成员变量 =====================
     private static TVPlayerManager instance;
     private Context context;
 
@@ -83,11 +154,12 @@ public class TVPlayerManager {
     private OnLiveInfoUpdateListener liveInfoUpdateListener;
 
     private boolean isPlaying = false;
-    private SimpleDateFormat logSdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+    private SimpleDateFormat logSdf = new SimpleDateFormat(LOG_TIME_FORMAT, Locale.getDefault());
 
     private BroadcastReceiver decoderModeReceiver;
     private boolean decoderReceiverRegistered = false;
 
+    // ===================== 单例方法 =====================
     public static TVPlayerManager getInstance(Context context) {
         if (instance == null) {
             synchronized (TVPlayerManager.class) {
@@ -99,6 +171,7 @@ public class TVPlayerManager {
         return instance;
     }
 
+    // ===================== 构造方法 =====================
     private TVPlayerManager(Context context) {
         this.context = context;
         // 初始化解码器管理类
@@ -117,7 +190,7 @@ public class TVPlayerManager {
             @Override
             public void run() {
                 if (player == null || !player.isPlaying()) {
-                    stuckHandler.postDelayed(this, 2000);
+                    stuckHandler.postDelayed(this, STUCK_CHECK_INTERVAL_MS);
                     return;
                 }
                 try {
@@ -127,7 +200,7 @@ public class TVPlayerManager {
                         lastPosition = currentPosition;
                         lastPositionUpdateTime = now;
                     } else {
-                        if (now - lastPositionUpdateTime > STUCK_TIMEOUT) {
+                        if (now - lastPositionUpdateTime > STUCK_TIMEOUT_MS) {
                             Log.w(TAG, "检测到播放卡住，自动重试...");
                             SettingsActivity.logOperation("【播放器】检测到播放卡住，准备自动重试");
                             autoRetry("播放卡住");
@@ -137,13 +210,14 @@ public class TVPlayerManager {
                 } catch (Exception e) {
                     Log.e(TAG, "卡住检测异常", e);
                 }
-                stuckHandler.postDelayed(this, 2000);
+                stuckHandler.postDelayed(this, STUCK_CHECK_INTERVAL_MS);
             }
         };
 
         initPlayer();
     }
 
+    // ===================== 播放器初始化 =====================
     private void initPlayer() {
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
         // 从 DecoderManager 获取解码器选择器
@@ -157,10 +231,10 @@ public class TVPlayerManager {
 
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                        2000,
-                        50000,
-                        300,
-                        500
+                        MIN_BUFFER_MS,
+                        MAX_BUFFER_MS,
+                        BUFFER_FOR_PLAYBACK_MS,
+                        BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
                 )
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
@@ -179,6 +253,7 @@ public class TVPlayerManager {
         CookieManager.getInstance().setAcceptCookie(true);
     }
 
+    // ===================== 原有核心逻辑（未改动） =====================
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
             @Override
@@ -192,7 +267,7 @@ public class TVPlayerManager {
 
             @Override
             public void onPlaybackStateChanged(int state) {
-                if (state == Player.STATE_READY) {
+                if (state == PLAY_STATE_READY) {
                     updateWakeLock(true);
                     notifyLiveInfoUpdate();
                     showChannelAndAutoHide();
@@ -206,17 +281,17 @@ public class TVPlayerManager {
                     }
 
                     int currentMode = decoderManager.getCurrentDecoderMode();
-                    if (currentMode == DecoderManager.DECODER_MODE_AUTO && !hasSwitchedDecoder
+                    if (currentMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
                             && initialPlayStartTime > 0
-                            && System.currentTimeMillis() - initialPlayStartTime < 15000
-                            && bufferCount > 1) {
+                            && System.currentTimeMillis() - initialPlayStartTime < DECODER_SWITCH_TIME_WINDOW_MS
+                            && bufferCount > DECODER_SWITCH_MIN_BUFFER_COUNT) {
                         Log.d(TAG, "【自动切换】硬解卡顿，自动切换到系统软解");
                         SettingsActivity.logOperation("【解码器】硬解卡顿（缓冲"
                                 + bufferCount + "次），自动切换到系统软解");
                         hasSwitchedDecoder = true;
-                        setDecoderMode(DecoderManager.DECODER_MODE_SOFT);
+                        setDecoderMode(DECODER_MODE_SOFT);
                     }
-                } else if (state == Player.STATE_BUFFERING) {
+                } else if (state == PLAY_STATE_BUFFERING) {
                     if (listener != null) listener.onBuffering();
                     lastPositionUpdateTime = System.currentTimeMillis();
                     bufferCount++;
@@ -224,13 +299,13 @@ public class TVPlayerManager {
                         isStalled = true;
                         lastStallStartTime = System.currentTimeMillis();
                     }
-                    if (bufferCount == 1) {
+                    if (bufferCount == DECODER_SWITCH_MIN_BUFFER_COUNT) {
                         SettingsActivity.logOperation("【播放器】开始缓冲（第1次）");
                     }
-                } else if (state == Player.STATE_ENDED) {
+                } else if (state == PLAY_STATE_ENDED) {
                     if (listener != null) listener.onPlayEnd();
                     autoRetry("播放结束");
-                } else if (state == Player.STATE_IDLE) {
+                } else if (state == PLAY_STATE_IDLE) {
                     if (listener != null) listener.onIdle();
                     updateWakeLock(false);
                 }
@@ -264,7 +339,7 @@ public class TVPlayerManager {
         stuckHandler.removeCallbacks(stuckCheckRunnable);
         lastPositionUpdateTime = System.currentTimeMillis();
         lastPosition = 0;
-        stuckHandler.postDelayed(stuckCheckRunnable, 2000);
+        stuckHandler.postDelayed(stuckCheckRunnable, STUCK_CHECK_INTERVAL_MS);
     }
 
     private void stopStuckDetection() {
@@ -306,7 +381,7 @@ public class TVPlayerManager {
                 retryRunnable = null;
             }
         };
-        mHandler.postDelayed(retryRunnable, 1000);
+        mHandler.postDelayed(retryRunnable, RETRY_DELAY_MS);
     }
 
     public void setDecoderMode(int mode) {
@@ -351,9 +426,9 @@ public class TVPlayerManager {
     @Deprecated
     public void setSoftwareDecoder(boolean useSoftware) {
         if (useSoftware) {
-            setDecoderMode(DecoderManager.DECODER_MODE_SOFT);
+            setDecoderMode(DECODER_MODE_SOFT);
         } else {
-            setDecoderMode(DecoderManager.DECODER_MODE_AUTO);
+            setDecoderMode(DECODER_MODE_AUTO);
         }
     }
 
@@ -363,7 +438,7 @@ public class TVPlayerManager {
             decoderModeReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
-                    if (DecoderManager.ACTION_DECODER_MODE_CHANGED.equals(intent.getAction())) {
+                    if (ACTION_DECODER_MODE_CHANGED.equals(intent.getAction())) {
                         // 重新从 DecoderManager 获取最新模式
                         int newMode = decoderManager.getCurrentDecoderMode();
                         setDecoderMode(newMode);
@@ -372,7 +447,7 @@ public class TVPlayerManager {
                     }
                 }
             };
-            IntentFilter filter = new IntentFilter(DecoderManager.ACTION_DECODER_MODE_CHANGED);
+            IntentFilter filter = new IntentFilter(ACTION_DECODER_MODE_CHANGED);
             context.registerReceiver(decoderModeReceiver, filter);
             decoderReceiverRegistered = true;
             SettingsActivity.logOperation("【解码器】广播接收器已注册");
@@ -436,22 +511,22 @@ public class TVPlayerManager {
 
     private Map<String, String> getHeaders(String url) {
         Map<String, String> headers = new HashMap<>();
-        headers.put("User-Agent", "ExoPlayer");
+        headers.put("User-Agent", DEFAULT_USER_AGENT);
         headers.put("Accept", "*/*");
         headers.put("Connection", "keep-alive");
-        headers.put("Icy-MetaData", "1");
+        headers.put("Icy-MetaData", ICY_META_DATA_VALUE);
 
-        boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
-        boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
+        boolean isHuya = url.contains(HUYA_DOMAIN_KEY + ".com") || url.contains(HUYA_DOMAIN_KEY + ".cn");
+        boolean isDouyu = url.contains(DOUYU_DOMAIN_KEY + ".com") || url.contains(DOUYU_DOMAIN_KEY + "cdn.cn");
 
         if (isHuya) {
-            headers.put("Referer", "https://www.huya.com/");
+            headers.put("Referer", DEFAULT_REFERER);
             Log.d(TAG, "虎牙直播，设置虎牙Referer");
         } else if (isDouyu) {
-            headers.put("Referer", "https://www.douyu.com/");
+            headers.put("Referer", DOUYU_REFERER);
             Log.d(TAG, "斗鱼直播，设置斗鱼Referer");
         } else {
-            headers.put("Referer", "https://www.huya.com/");
+            headers.put("Referer", DEFAULT_REFERER);
         }
 
         String cookies = CookieManager.getInstance().getCookie(url);
@@ -497,7 +572,7 @@ public class TVPlayerManager {
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
 
             MediaSource mediaSource;
-            if (currentUrl.toLowerCase().contains("m3u8")) {
+            if (currentUrl.toLowerCase().contains(HLS_STREAM_FLAG)) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
                 mediaSource = new HlsMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             } else {
@@ -546,6 +621,11 @@ public class TVPlayerManager {
 
     public void bindChannelText(TextView textView) {
         channelNumberTextView = textView;
+        // 初始化频道号样式（可选）
+        if (channelNumberTextView != null) {
+            channelNumberTextView.setTextColor(CHANNEL_NUM_DEFAULT_COLOR);
+            channelNumberTextView.setTextSize(CHANNEL_NUM_DEFAULT_SIZE_SP);
+        }
     }
 
     private void showChannelAndAutoHide() {
@@ -553,7 +633,7 @@ public class TVPlayerManager {
             channelNumberTextView.setText(String.valueOf(currentChannelNumber));
             channelNumberTextView.setVisibility(View.VISIBLE);
             mHandler.removeCallbacks(hideChannelRunnable);
-            mHandler.postDelayed(hideChannelRunnable, CHANNEL_NUM_HIDE_DELAY);
+            mHandler.postDelayed(hideChannelRunnable, CHANNEL_NUM_HIDE_DELAY_MS);
         }
     }
 
