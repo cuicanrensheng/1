@@ -321,7 +321,7 @@
     android:orientation="vertical"
     android:padding="8dp"
     android:layout_gravity="bottom"
-    android:background="#00000000"
+    android:background="@drawable/info_bar_gradient_bg"
     android:visibility="gone">
 
   <!-- 第一行：频道名称 + 画质标签 + 音频标签 + 码率 -->
