@@ -1,4 +1,5 @@
 package com.tv.live;
+
 import android.app.PictureInPictureParams;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -6,10 +7,9 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.SimpleDateFormat;
-import android.graphics.Rect;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -21,8 +21,10 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.media3.ui.PlayerView;
+
 import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
 import com.tv.live.manager.*;
@@ -30,11 +32,14 @@ import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
 import com.tv.live.widget.GroupListManager;
+
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+
 /**
  * 主活动类：直播APP的核心页面，负责直播播放、频道管理、交互控制等核心功能
  * 新增：频道面板右上角频道号/日期/周几/时间、右下角信息栏联动逻辑
@@ -81,7 +86,8 @@ public class MainActivity extends AppCompatActivity {
     // 时间刷新定时器
     private final Handler timeHandler = new Handler(Looper.getMainLooper());
     private Runnable timeRefreshTask;
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd E HH:mm", Locale.CHINA);
+    // 修正：正确的SimpleDateFormat定义（英文符号+正确修饰符+java.text包）
+    private static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd E HH:mm", Locale.CHINA);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
