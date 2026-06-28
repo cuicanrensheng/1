@@ -372,8 +372,12 @@ public class PictureInPictureManager {
     }
     
     // ====================================================================
-// 退出画中画处理（释放判断）【修复：增加activity入参】
+// 退出画中画处理（兼容旧调用重载）
 // ====================================================================
+public void handleExitPip(Runnable releaseAction) {
+    handleExitPip(null, releaseAction);
+}
+
 public void handleExitPip(Activity activity, Runnable releaseAction) {
     log("========== 退出画中画处理 ==========");
     log("onStopCalled = " + onStopCalled);
@@ -393,8 +397,8 @@ public void handleExitPip(Activity activity, Runnable releaseAction) {
         }
     } else {
         log("用户返回应用，继续播放（不释放）");
-        // 新增：如果是从后台小窗返回，触发交互恢复
-        if (isReturnFromBackgroundPip) {
+        // 判空，防止activity为null时调用恢复方法崩溃
+        if (isReturnFromBackgroundPip && activity != null) {
             logDebug("检测到从后台小窗返回前台，准备恢复手势/切台");
             restoreGestureAndChannelSwitch(activity);
         }
