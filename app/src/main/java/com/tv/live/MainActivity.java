@@ -185,35 +185,66 @@ public class MainActivity extends AppCompatActivity {
         // 加载直播源和EPG数据
         appCoreManager.loadLiveAndEpg();
     }
-
     /**
-     * 初始化画中画（PIP）功能
-     * 包含PIP管理器初始化、开关配置、状态监听器设置
-     */
-    private void initPictureInPicture() {
-        try {
-            // 获取PIP管理器单例
-            pipManager = PictureInPictureManager.getInstance(this);
-            // 设置PIP功能开关状态
-            pipManager.setPipEnabled(pipEnable);
-            // 启用调试日志
-            pipManager.setDebugLogEnabled(true);
-            // 设置PIP状态变化监听器
-            pipManager.setListener(new PictureInPictureManager.OnPipListener() {
-                @Override
-                public void onPipModeChanged(boolean inPip) {
-                    log("【画中画】监听器回调：" + (inPip ? "进入" : "退出"));
-                }
-            });
-            log("【画中画】初始化完成，开关状态：" + (pipEnable ? "开启" : "关闭"));
-            SettingsActivity.logOperation("【画中画】初始化完成，设备支持：" + pipManager.isPipSupported());
-        } catch (Exception e) {
-            // 捕获初始化异常，记录日志
-            log("【画中画】初始化失败：" + e.getMessage());
-            pipManager = null;
-        }
-    }
+ * 初始化画中画（PIP）功能
+ * 包含PIP管理器初始化、开关配置、状态监听器设置、后台返回交互恢复监听
+ */
+private void initPictureInPicture() {
+    try {
+        // 获取PIP管理器单例
+        pipManager = PictureInPictureManager.getInstance(this);
+        // 设置PIP功能开关状态
+        pipManager.setPipEnabled(pipEnable);
+        // 启用调试日志
+        pipManager.setDebugLogEnabled(true);
 
+        // 新增：绑定交互恢复监听器，从后台小窗返回前台时自动恢复手势、切台、横屏UI
+        pipManager.setInteractionRestoreListener(new PictureInPictureManager.OnPipInteractionRestoreListener() {
+            @Override
+            public void onRestoreGesture() {
+                // 恢复全局触摸手势（滑动调节音量/亮度、点击播放暂停等）
+                enableGestureTouch(true);
+                log("【画中画恢复】手势操作已启用");
+            }
+
+            @Override
+            public void onRestoreChannelSwitch() {
+                // 恢复遥控器按键、频道面板切台功能
+                channelPanelController.enableSwitch(true);
+                log("【画中画恢复】频道切换功能已启用");
+            }
+
+            @Override
+            public void onRestoreLandscapeUi() {
+                // 重置横屏全屏布局
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                displayManager.reapplyFullScreen();
+                log("【画中画恢复】横屏全屏UI已重置");
+            }
+        });
+
+        // 设置PIP状态变化监听器
+        pipManager.setListener(new PictureInPictureManager.OnPipListener() {
+            @Override
+            public void onPipModeChanged(boolean inPip) {
+                log("【画中画】监听器回调：" + (inPip ? "进入" : "退出"));
+                // 进入画中画时禁用手势、切台，避免小窗误操作
+                if (inPip) {
+                    enableGestureTouch(false);
+                    channelPanelController.enableSwitch(false);
+                }
+            }
+        });
+
+        log("【画中画】初始化完成，开关状态：" + (pipEnable ? "开启" : "关闭"));
+        SettingsActivity.logOperation("【画中画】初始化完成，设备支持：" + pipManager.isPipSupported());
+    } catch (Exception e) {
+        // 捕获初始化异常，记录日志
+        log("【画中画】初始化失败：" + e.getMessage());
+        pipManager = null;
+    }
+}
     /**
      * 初始化遥控器管理器
      * 配置遥控器按键事件回调（切换频道、打开面板、设置、数字选台等）
