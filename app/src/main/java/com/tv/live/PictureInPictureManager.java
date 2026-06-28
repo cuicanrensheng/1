@@ -12,7 +12,6 @@ import android.view.WindowManager;
 import androidx.media3.ui.PlayerView;
 import com.tv.live.manager.ChannelPanelController;
 import com.tv.live.manager.DisplayManager;
-import com.tv.live.manager.InfoManager;
 import java.lang.ref.WeakReference;
 import java.util.List;
 
