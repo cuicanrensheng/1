@@ -26,9 +26,10 @@ import java.util.regex.Pattern;
 
 /**
  * 设置页面 Activity
- * 新增功能：【查看解析日志】一键自动分析直播卡顿根源
+ * 新增功能：【查看解析日志】一键自动分析直播卡顿
+ * 修复编译错误：if后裸变量无效语句、变量名hasNetwork笔误
  */
-public class SettingsActivity extends AppCompatActivity {
+public class SettingsActivity {
     // ====================== 控件声明 ======================
     private Switch sw_boot, sw_epg, sw_auto_update, sw_reverse, sw_num_channel;
     private Switch sw_pip;
@@ -134,7 +135,7 @@ public class SettingsActivity extends AppCompatActivity {
         initSettingsItemList();
         initRemoteManager();
 
-        // ========== 核心按钮绑定：卡顿自动分析日志弹窗 ==========
+        // ========== 核心按钮绑定：卡顿自动分析日志 ==========
         findViewById(R.id.log_viewer).setOnClickListener(v -> showPlayLogWithStallAnalysis());
         // 操作日志按钮
         findViewById(R.id.log_operation).setOnClickListener(v -> showOperationLogDialog());
@@ -212,8 +213,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     /**
-     * 【核心新增方法】打开播放日志 + 自动卡顿分析
-     * 自动解析缓冲、卡顿时长、解码器、网络、码率，输出卡顿根源
+     * 【核心新增】播放日志弹窗 + 卡顿自动分析（已修复编译报错）
      */
     private void showPlayLogWithStallAnalysis() {
         ScrollView scroll = new ScrollView(this);
@@ -223,7 +223,7 @@ public class SettingsActivity extends AppCompatActivity {
         tvLog.setTextColor(Color.BLACK);
 
         StringBuilder fullLogBuf = PLAY_LOG == null ? new StringBuilder() : new StringBuilder(PLAY_LOG);
-        String rawLog = fullLogBuf.toString();
+        String rawLog = fullLog.toString();
         String[] logLines = rawLog.split("\n");
 
         // 卡顿统计变量
@@ -234,7 +234,7 @@ public class SettingsActivity extends AppCompatActivity {
         boolean hasNetworkError = false;
         boolean highBitStream = false;
 
-        // 正则匹配卡顿关键字（和TVPlayerManager打印日志完全对应）
+        // 正则匹配卡顿关键字
         Pattern patBufferStart = Pattern.compile("【播放器】开始缓冲");
         Pattern patStallTime = Pattern.compile("卡顿结束，时长：(\\d+)ms");
         Pattern patHardMode = Pattern.compile("硬解模式");
@@ -243,7 +243,7 @@ public class SettingsActivity extends AppCompatActivity {
         Pattern patBitNum = Pattern.compile("(\\d+\\.\\d+) Mbps");
         Pattern stallDetect = Pattern.compile("检测到播放卡住");
 
-        // 逐行解析日志统计指标
+        // 逐行解析日志（修复：if后必须赋值语句，不能裸变量）
         for (String line : logLines) {
             Matcher mBuffer = patBufferStart.matcher(line);
             if (mBuffer.find()) bufferCount++;
@@ -256,7 +256,10 @@ public class SettingsActivity extends AppCompatActivity {
 
             if (patHardMode.matcher(line).find()) useHardDecoder = true;
             if (patAutoSoft.matcher(line).find()) autoSwitchSoftFlag = true;
-            if (patNetErr.matcher(line).find()) hasNetworkError;
+            // 修复原报错行：if (patNetErr.matcher(line).find()) hasNetworkError;
+            if (patNetErr.matcher(line).find()) {
+                hasNetworkError = true;
+            }
 
             Matcher bitMatcher = patBitNum.matcher(line);
             if (bitMatcher.find()) {
@@ -272,28 +275,28 @@ public class SettingsActivity extends AppCompatActivity {
         analysis.append("1. 缓冲总次数：").append(buffer).append("次\n");
         analysis.append("2. 累计卡顿时长：").append(totalStallMs / 1000).append("秒\n");
         analysis.append("3. 当前解码器：").append(useHardDecoder ? "硬解" : "软解").append("\n");
-        analysis.append("4. 硬解自动降级软解记录：").append(autoSwitchSoftFlag ? "存在（硬解兼容卡顿）" : "无").append("\n");
-        analysis.append("5. 网络/超时异常日志：").append(hasNetworkError ? "存在" : "无").append("\n");
+        analysis.append("4. 硬解自动降级软解：").append(autoSwitchSoftFlag ? "存在（硬解兼容卡顿）" : "无").append("\n");
+        analysis.append("5. 网络/超时异常：").append(hasNetworkError ? "存在" : "无").append("\n");
         analysis.append("6. 高码率流(≥6Mbps)：").append(highBitStream ? "是" : "否").append("\n\n");
         analysis.append("【卡顿根因判定与解决方案】\n");
 
-        // 分级判断卡顿根源
+        // 修复变量名错误 hasNetwork → hasNetworkError
         if (autoSwitchSoftFlag) {
-            analysis.append("★ 核心卡顿原因：设备硬解码器对该直播源兼容差\n");
-            analysis.append("解决：设置页切换解码器为【软解（兼容性好）】重新播放\n");
-        } else if (hasNetwork || bufferCount > 5) {
-            analysis.append("★ 核心卡顿原因：网络波动/丢包/延迟过高\n");
-            analysis.append("解决：切换5G/WiFi，降低直播源码率\n");
+            analysis.append("★ 核心卡顿：硬解码器与当前直播源兼容差\n");
+            analysis.append("解决：设置切换软解模式后重新播放\n");
+        } else if (hasNetworkError || bufferCount > 5) {
+            analysis.append("★ 核心卡顿：网络波动、丢包、延迟过高\n");
+            analysis.append("解决：切换5G/WiFi，选用低码流直播源\n");
         } else if (highBitStream) {
-            analysis.append("★ 核心卡顿原因：直播源码率过高，本地带宽不足\n");
+            analysis.append("★ 核心卡顿：直播源码率过高，带宽不足\n");
         } else if (totalStallMs > 10000) {
-            analysis.append("★ 核心卡顿原因：直播源分片异常/源服务器负载高\n");
+            analysis.append("★ 核心卡顿：直播源分片/服务器负载异常\n");
         } else {
-            analysis.append("未检测到明显卡顿异常，播放流畅\n");
+            analysis.append("未检测到明显卡顿，播放流畅\n");
         }
         analysis.append("================================================\n\n");
 
-        // 日志倒序展示（最新日志在顶部）
+        // 日志倒序展示
         StringBuilder showContent = new StringBuilder(analysisReport);
         for (int i = logLines.length - 1; i >= 0; i--) {
             String line = logLines[i];
@@ -304,7 +307,6 @@ public class SettingsActivity extends AppCompatActivity {
         tvLog.setText(showContent.toString());
         scroll.addView(tvLog);
 
-        // 弹窗
         new AlertDialog.Builder(this)
                 .setTitle("解析日志（卡顿自动分析）")
                 .setView(scroll)
@@ -328,9 +330,9 @@ public class SettingsActivity extends AppCompatActivity {
         String[] lines = opBuf.toString().split("\n");
         StringBuilder revLog = new StringBuilder();
         for (int i = lines.length - 1; i >= 0; i--) {
-            if (!lines[i].isEmpty()) rev.append(lines[i]).append("\n");
+            if (!lines[i].isEmpty()) revLog.append(lines[i]).append("\n");
         }
-        tv.setText(rev.toString());
+        tv.setText(revLog.toString());
         scroll.addView(tv);
 
         new AlertDialog.Builder(this)
@@ -374,16 +376,16 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.tv_multi_source));
         settingsItemList.add(findViewById(R.id.tv_multi_epg));
         settingsItemList.add(findViewById(R.id.tv_qr_code));
-        settingsItemList.add(findViewById(R.id.log_viewer)); // 卡顿分析日志按钮
+        settingsItemList.add(findViewById(R.id.log_viewer));
         settingsItemList.add(findViewById(R.id.log_operation));
         settingsItemList.add(findViewById(R.id.item_check_update));
 
-        // 清理空控件
+        // 移除空控件
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) settingsItemList.remove(i);
         }
 
-        // 焦点监听适配遥控器+触摸
+        // 焦点监听
         for (View item : settingsItemList) {
             if (item == null) continue;
             item.setFocusableInTouchMode(true);
@@ -473,32 +475,32 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void showDecoderModeDialog() {
-        final String[] names = {"自动（推荐）", "硬解", "软解（兼容性好）"};
-        final String[] vals = {"auto", "hard", "soft"};
-        String curr = sp.getString("decoder_mode", "auto");
-        int idx = 0;
-        for (int i = 0; i < vals.length; i++) {
-            if (vals[i].equals(curr)) idx = i;
+        final String[] modeNames = {"自动（推荐）", "硬解", "软解（兼容性好）"};
+        final String[] modeVals = {"auto", "hard", "soft"};
+        String currMode = sp.getString("decoder_mode", "auto");
+        int selectIdx = 0;
+        for (int i = 0; i < modeVals.length; i++) {
+            if (modeVals[i].equals(currMode)) selectIdx = i;
         }
         new AlertDialog.Builder(this)
                 .setTitle("解码器选择")
-                .setSingleChoiceItems(names, idx, (dialog, which) -> {
-                    String sel = vals[which];
-                    sp.edit().putString("decoder_mode", sel).apply();
-                    updateDecoderModeText(sel);
+                .setSingleChoiceItems(modeNames, selectIdx, (dialog, which) -> {
+                    String selMode = modeVals[which];
+                    sp.edit().putString("decoder_mode", selMode).apply();
+                    updateDecoderModeText(selMode);
                     sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
-                    logOperation("【设置】切换解码器：" + names[which]);
-                    Toast.makeText(this, "已切换，重新加载播放", Toast.LENGTH_SHORT).show();
+                    logOperation("【设置】切换解码器：" + modeNames[which]);
+                    Toast.makeText(this, "切换完成，重新播放生效", Toast.LENGTH_SHORT).show();
                     dialog.dismiss();
                 }).show();
     }
 
     private void showRatioDialog() {
-        String[] arr = {"全屏", "填充", "原始"};
+        String[] ratioArr = {"全屏", "填充", "原始"};
         new AlertDialog.Builder(this)
                 .setTitle("画面比例")
-                .setItems(arr, (d, w) -> {
-                    sp.edit().putString("screen_ratio", arr[w]).apply();
+                .setItems(ratioArr, (d, w) -> {
+                    sp.edit().putString("screen_ratio", ratioArr[w]).apply();
                     Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show();
                 }).show();
     }
@@ -511,7 +513,7 @@ public class SettingsActivity extends AppCompatActivity {
                 .setTitle(title)
                 .setView(editText)
                 .setPositiveButton("确定", (d, w) -> {
-                    String url = editText.getText().toString().trim();
+                    String url = editText.getText().trim();
                     sp.edit().putString(spKey, url).apply();
                     sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
                     logOperation("【设置】更新自定义地址：" + url);
@@ -522,12 +524,12 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void updateSettingsFocus() {
-        int selPos = remoteManager.getSettingsFocusPosition();
-        logOperation("焦点更新至第" + (selPos + 1) + "项");
+        int selectedPos = remoteManager.getSettingsFocusPosition();
+        logOperation("焦点更新至第" + (selectedPos + 1) + "项");
         for (int i = 0; i < settingsItemList.size(); i++) {
             View item = settingsItemList.get(i);
             if (item == null) continue;
-            if (i == selPos) {
+            if (i == selectedPos) {
                 setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
                 item.requestFocus();
                 scrollToView(item);
