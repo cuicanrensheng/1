@@ -431,12 +431,18 @@ public class MainActivity extends AppCompatActivity {
         if ("hard".equals(decoderMode)) mode = TVPlayerManager.DECODER_MODE_HARD;
         else if ("soft".equals(decoderMode)) mode = TVPlayerManager.DECODER_MODE_SOFT;
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
-
-        String modeName = switch (mode) {
-            case TVPlayerManager.DECODER_MODE_HARD -> "硬解";
-            case TVPlayerManager.DECODER_MODE_SOFT -> "软解（兼容性好）";
-            default -> "自动（推荐）";
-        };
+        String modeName;
+switch (mode) {
+    case TVPlayerManager.DECODER_MODE_HARD:
+        modeName = "硬解";
+        break;
+    case TVPlayerManager.DECODER_MODE_SOFT:
+        modeName = "软解（兼容性好）";
+        break;
+    default:
+        modeName = "自动（推荐）";
+        break;
+}
         SettingsActivity.logOperation("【设置】解码器模式：" + modeName);
 
         if (remoteManager != null) remoteManager.setNumberChannelEnable(number_channel_enable);
