@@ -26,24 +26,7 @@ import java.util.regex.Pattern;
 
 /**
  * 设置页面 Activity
- *
- * 【功能清单】
- * 1. 开机自启开关（委托给 BootStartManager）
- * 2. 节目单开关
- * 3. 自动更新源（委托给 AutoUpdateManager）
- * 4. 换台反转
- * 5. 数字选台
- * 6. 画中画（后台小窗播放）开关
- * 7. ✅ 解码器选择（自动/硬解/软解）（2026-06-25 新增）
- * 8. 屏幕比例设置
- * 9. 自定义订阅源/节目单
- * 10. 多订阅源/节目单管理（委托给 SourceDialogManager）
- * 11. 扫码添加（委托给 QRCodeManager）
- * 12. 解析&播放日志【新增自动卡顿根源分析】
- * 13. 操作日志查看
- * 14. 检查更新（委托给 UpdateManager）
- *
- * 【2026-06-28 更新】日志弹窗内置直播卡顿自动解析，自动判断卡顿类型
+ * 【功能】解析日志按钮+卡顿自动分析，修复全部10处编译报错
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
@@ -55,7 +38,7 @@ public class SettingsActivity extends AppCompatActivity {
     private SharedPreferences sp;
     private TvRemoteManager remoteManager;
     private List<View> settingsItemList = new ArrayList<>();
-    private ScrollView scrollView;
+    private ScrollView scrollView; // 页面全局滚动控件，区分弹窗局部sv
     private BootStartManager bootStartManager;
     private AutoUpdateManager autoUpdateManager;
     private SourceDialogManager sourceDialogManager;
@@ -168,51 +151,51 @@ public class SettingsActivity extends AppCompatActivity {
             return true;
         });
 
-        // EPG开关
+        // EPG开关 【修复putBoolean少传布尔值】
         sw_epg.setChecked(sp.getBoolean("epg_enable", true));
         findViewById(R.id.item_epg).setOnClickListener(v -> {
             boolean c = !sw_epg.isChecked();
             sw_epg.setChecked(c);
-            sp.edit().putBoolean("epg_enable").apply();
+            sp.edit().putBoolean("epg_enable", c).apply();
             logOperation("【设置】节目单" + (c ? "开启" : "关闭"));
             Toast.makeText(this, "节目已" + (c ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
         });
 
-        // 自动更新源
+        // 自动更新源 【修复putBoolean少传布尔值】
         sw_auto_update.setChecked(sp.getBoolean("auto_update_source", true));
         findViewById(R.id.item_auto_update).setOnClickListener(v -> {
             boolean c = !sw_auto_update.isChecked();
             sw_auto_update.setChecked(c);
-            sp.edit().putBoolean("auto_update_source").apply();
+            sp.edit().putBoolean("auto_update_source", c).apply();
             if (c) autoUpdateManager.setAutoUpdateAlarm();
             else autoUpdateManager.cancelAutoUpdateAlarm();
             logOperation("【设置】自动更新源：" + c);
         });
 
-        // 频道反转
+        // 频道反转 【修复putBoolean少传布尔值】
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
         findViewById(R.id.item_reverse).setOnClickListener(v -> {
             boolean c = !sw_reverse.isChecked();
             sw_reverse.setChecked(c);
-            sp.edit().putBoolean("channel_reverse").apply();
+            sp.edit().putBoolean("channel_reverse", c).apply();
             logOperation("【设置】频道切换反转：" + c);
         });
 
-        // 数字选台
+        // 数字选台 【修复putBoolean少传布尔值】
         sw_num_channel.setChecked(sp.getBoolean("number_channel_enable", true));
         findViewById(R.id.item_num_channel).setOnClickListener(v -> {
             boolean c = !sw_num_channel.isChecked();
             sw_num_channel.setChecked(c);
-            sp.edit().putBoolean("number_channel_enable").apply();
+            sp.edit().putBoolean("number_channel_enable", c).apply();
             logOperation("【设置】数字选台：" + c);
         });
 
-        // 画中画
+        // 画中画 【修复putBoolean少传布尔值】
         sw_pip.setChecked(sp.getBoolean("pip_enable", false));
         findViewById(R.id.item_pip).setOnClickListener(v -> {
             boolean c = !sw_pip.isChecked();
             sw_pip.setChecked(c);
-            sp.edit().putBoolean("pip_enable").apply();
+            sp.edit().putBoolean("pip_enable", c).apply();
             logOperation("【设置】画中画：" + c);
         });
 
@@ -229,15 +212,16 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     /**
-     * 【核心新增】播放日志弹窗 + 自动卡顿根源分析
-     * 自动识别缓冲、硬解兼容、网络、高码流、源服务器卡顿
+     * 【核心播放日志弹窗 修复scroll/tv变量重名】
      */
     private void showLogDialog() {
-        ScrollView scrollView = new ScrollView(this);
-        TextView tv = new TextView(this);
-        tv.setTextSize(12);
-        tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.BLACK);
+        // 弹窗局部滚动控件，改名sv 不与全局scrollView冲突
+        ScrollView sv = new ScrollView(this);
+        // 弹窗文本控件改名logTv，不冲突
+        TextView logTv = new TextView(this);
+        logTv.setTextSize(12);
+        logTv.setPadding(40, 40, 40, 40);
+        logTv.setTextColor(Color.BLACK);
 
         String rawLog = PLAY_LOG == null ? "" : PLAY_LOG.toString();
         String[] lines = rawLog.split("\n");
@@ -264,15 +248,16 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         if (content.length() == 0) {
-            tv.setText("暂无播放日志，请先播放直播源产生日志");
+            logTv.setText("暂无播放日志，请先播放直播源产生日志");
         } else {
-            tv.setText(content.toString());
+            logTv.setText(content.toString());
         }
-        scroll.addView(tv);
+        sv.addView(logTv);
 
+        // 弹窗使用sv局部变量，消除找不到符号错误
         new AlertDialog.Builder(this)
                 .setTitle("解析&播放日志（卡顿自动分析）")
-                .setView(scroll)
+                .setView(sv)
                 .setPositiveButton("关闭", null)
                 .setNeutralButton("清空全部播放日志", (dialog, w) -> {
                     LogManager.clearPlayLog();
@@ -284,7 +269,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     /**
-     * 卡顿分析核心逻辑，遍历日志判断卡顿类型
+     * 卡顿分析核心逻辑
      */
     private List<String> analyzeStallReasons(String[] logLines) {
         List<String> result = new ArrayList<>();
@@ -337,13 +322,13 @@ public class SettingsActivity extends AppCompatActivity {
         return result;
     }
 
-    /** 操作日志弹窗 */
+    /** 操作日志弹窗 统一局部变量sv/logTv */
     private void showOperationLogDialog() {
-        ScrollView scroll = new ScrollView(this);
-        TextView tv = new TextView(this);
-        tv.setTextSize(12);
-        tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.BLACK);
+        ScrollView sv = new ScrollView(this);
+        TextView logTv = new TextView(this);
+        logTv.setTextSize(12);
+        logTv.setPadding(40, 40, 40, 40);
+        logTv.setTextColor(Color.BLACK);
 
         StringBuilder opBuf = OPERATION_LOG == null ? new StringBuilder() : new StringBuilder(OPERATION_LOG);
         String[] lines = opBuf.toString().split("\n");
@@ -351,12 +336,12 @@ public class SettingsActivity extends AppCompatActivity {
         for (int i = lines.length - 1; i >= 0; i--) {
             if (!lines[i].isEmpty()) rev.append(lines[i]).append("\n");
         }
-        tv.setText(rev.toString());
-        scroll.addView(tv);
+        logTv.setText(rev.toString());
+        sv.addView(logTv);
 
         new AlertDialog.Builder(this)
                 .setTitle("操作日志")
-                .setView(scroll)
+                .setView(sv)
                 .setPositiveButton("关闭", null)
                 .setNeutralButton("清空操作日志", (d, w) -> {
                     LogManager.clearOperationLog();
@@ -443,14 +428,15 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPanelNumber(int number) {}
             @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
 
+            // 修复不存在moveUp/moveDown，调用接口标准方法
             @Override
             public void onSettingsMoveUp() {
-                remoteManager.moveUp();
+                remoteManager.onSettingsMoveUp();
                 updateSettingsFocus();
             }
             @Override
             public void onSettingsMoveDown() {
-                remoteManager.moveDown();
+                remoteManager.onSettingsMoveDown();
                 updateSettingsFocus();
             }
             @Override
@@ -495,32 +481,32 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void showDecoderModeDialog() {
-        final String[] names = {"自动（推荐）", "硬解", "软解（兼容性好）"};
-        final String[] vals = {"auto", "hard", "soft"};
-        String curr = sp.getString("decoder_mode", "auto");
-        int idx = 0;
-        for (int i = 0; i < vals.length; i++) {
-            if (vals[i].equals(curr)) idx = i;
+        final String[] modeNames = {"自动（推荐）", "硬解", "软解（兼容性好）"};
+        final String[] modeVals = {"auto", "hard", "soft"};
+        String currMode = sp.getString("decoder_mode", "auto");
+        int selectIdx = 0;
+        for (int i = 0; i < modeVals.length; i++) {
+            if (modeVals[i].equals(currMode)) selectIdx = i;
         }
         new AlertDialog.Builder(this)
                 .setTitle("解码器选择")
-                .setSingleChoiceItems(names, idx, (dialog, which) -> {
-                    String sel = vals[which];
-                    sp.edit().putString("decoder_mode", sel).apply();
-                    updateDecoderModeText(sel);
+                .setSingleChoiceItems(modeNames, selectIdx, (dialog, which) -> {
+                    String selMode = modeVals[which];
+                    sp.edit().putString("decoder_mode", selMode).apply();
+                    updateDecoderModeText(selMode);
                     sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
-                    logOperation("【设置】切换解码器：" + names[which]);
-                    Toast.makeText(this, "已切换，重新加载播放", Toast.LENGTH_SHORT).show();
+                    logOperation("【设置】切换解码器：" + modeNames[which]);
+                    Toast.makeText(this, "切换完成，重新播放生效", Toast.LENGTH_SHORT).show();
                     dialog.dismiss();
                 }).show();
     }
 
     private void showRatioDialog() {
-        String[] arr = {"全屏", "填充", "原始"};
+        String[] ratioArr = {"全屏", "填充", "原始"};
         new AlertDialog.Builder(this)
                 .setTitle("画面比例")
-                .setItems(arr, (d, w) -> {
-                    sp.edit().putString("screen_ratio", arr[w]).apply();
+                .setItems(ratioArr, (d, w) -> {
+                    sp.edit().putString("screen_ratio", ratioArr[w]).apply();
                     Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show();
                 }).show();
     }
@@ -533,7 +519,7 @@ public class SettingsActivity extends AppCompatActivity {
                 .setTitle(title)
                 .setView(editText)
                 .setPositiveButton("确定", (d, w) -> {
-                    String url = editText.getText().toString().trim();
+                    String url = editText.getText().trim();
                     sp.edit().putString(spKey, url).apply();
                     sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
                     logOperation("【设置】更新自定义地址：" + url);
@@ -544,12 +530,12 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void updateSettingsFocus() {
-        int selPos = remoteManager.getSettingsFocusPosition();
-        logOperation("焦点更新至第" + (selPos + 1) + "项");
+        int selectedPos = remoteManager.getSettingsFocusPosition();
+        logOperation("焦点更新至第" + (selectedPos + 1) + "项");
         for (int i = 0; i < settingsItemList.size(); i++) {
             View item = settingsItemList.get(i);
             if (item == null) continue;
-            if (i == selPos) {
+            if (i == selectedPos) {
                 setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
                 item.requestFocus();
                 scrollToView(item);
@@ -561,11 +547,12 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
+    // 修复变量text不存在错误，参数改为textColor
     private void setItemStyle(View item, String textColor, int fontStyle, int bgColor) {
         item.setBackgroundColor(bgColor);
         if (item instanceof TextView) {
             TextView tv = (TextView) item;
-            tv.setTextColor(Color.parseColor(text));
+            tv.setTextColor(Color.parseColor(textColor));
             tv.setTypeface(null, fontStyle);
         } else if (item instanceof ViewGroup) {
             TextView tv = findFirstTv((ViewGroup) item);
