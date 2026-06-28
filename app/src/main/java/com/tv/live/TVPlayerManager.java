@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
@@ -88,6 +89,10 @@ public class TVPlayerManager {
 
     private DecoderBroadcastReceiver decoderModeReceiver;
     private boolean decoderReceiverRegistered = false;
+
+    // 卡顿检测相关变量补充
+    private long lastPosition = 0;
+    private long lastPositionUpdateTime = 0;
 
     // 静态弱引用 Runnable：隐藏频道号
     private static class HideChannelRunnable implements Runnable {
@@ -187,17 +192,17 @@ public class TVPlayerManager {
                 else if ("soft".equals(modeStr)) mode = DECODER_MODE_SOFT;
                 mgr.setDecoderMode(mode);
                 String modeName;
-switch (mode) {
-    case DECODER_MODE_HARD:
-        modeName = "硬解";
-        break;
-    case DECODER_MODE_SOFT:
-        modeName = "软解（兼容性好）";
-        break;
-    default:
-        modeName = "自动（推荐）";
-        break;
-}
+                switch (mode) {
+                    case DECODER_MODE_HARD:
+                        modeName = "硬解";
+                        break;
+                    case DECODER_MODE_SOFT:
+                        modeName = "软解（兼容性好）";
+                        break;
+                    default:
+                        modeName = "自动（推荐）";
+                        break;
+                }
                 SettingsActivity.logOperation("【解码器】收到广播，切换到：" + modeName);
             }
         }
@@ -244,7 +249,7 @@ switch (mode) {
 
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(ctx);
         SoftwareFirstMediaCodecSelector codecSelector = new SoftwareFirstMediaCodecSelector(mDecoderMode);
-        renderersFactory.setMediaCodecSelector(codeSelector);
+        renderersFactory.setMediaCodecSelector(codecSelector);
 
         switch (mDecoderMode) {
             case DECODER_MODE_SOFT:
@@ -359,7 +364,7 @@ switch (mode) {
             isRetrying = false;
             startStuckDetection();
             if (initialPlayStartTime == 0) initialPlayStartTime = System.currentTimeMillis();
-            if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitched
+            if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
                     && initialPlayStartTime > 0
                     && System.currentTimeMillis() - initialPlayStartTime < 15000
                     && bufferCount > 1) {
@@ -447,17 +452,17 @@ switch (mode) {
         mDecoderMode = mode;
         useSoftwareDecoder = (mode == DECODER_MODE_SOFT);
         String decoderType;
-switch (mode) {
-    case DECODER_MODE_HARD:
-        decoderType = "系统硬解码（强制）";
-        break;
-    case DECODER_MODE_SOFT:
-        decoderType = "系统软解码（优先）";
-        break;
-    default:
-        decoderType = "自动模式（硬解优先）";
-        break;
-}
+        switch (mode) {
+            case DECODER_MODE_HARD:
+                decoderType = "系统硬解码（强制）";
+                break;
+            case DECODER_MODE_SOFT:
+                decoderType = "系统软解码（优先）";
+                break;
+            default:
+                decoderType = "自动模式（硬解优先）";
+                break;
+        }
         Log.d(TAG, "切换解码器模式：" + decoderType);
         SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
 
@@ -640,10 +645,17 @@ switch (mode) {
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
+            // 修复：替换Java 14+箭头语法为传统case-break
             switch (mode) {
-                case FIT -> playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
-                case FILL -> playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
-                case ZOOM -> playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                case FIT:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                    break;
+                case FILL:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                    break;
+                case ZOOM:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                    break;
             }
         } catch (Exception e) {
             Log.e(TAG, "设置缩放模式异常", e);
@@ -684,19 +696,19 @@ switch (mode) {
             if (player != null) {
                 Format videoFormat = player.getVideoFormat();
                 if (videoFormat != null) {
-                    int width = video.width;
-                    int height = video.height;
+                    int width = videoFormat.width;
+                    int height = videoFormat.height;
                     if (width > 0 && height > 0) info.resolution = width + "×" + height;
-                    info.format = video.sampleMimeType;
-                    if (video.bitrate > 0) {
-                        float mbps = video.bitrate / 1000000f;
+                    info.format = videoFormat.sampleMimeType;
+                    if (videoFormat.bitrate > 0) {
+                        float mbps = videoFormat.bitrate / 1000000f;
                         info.bitrate = String.format(Locale.getDefault(), "%.1f Mbps", mbps);
                     }
                 }
                 Format audioFormat = player.getAudioFormat();
                 if (audioFormat != null) {
-                    info.audio = audio.sampleMimeType;
-                    if (audioFormat.sampleRate > 0) info.audio += " " + (audioFormat / 1000) + "kHz";
+                    info.audio = audioFormat.sampleMimeType;
+                    if (audioFormat.sampleRate > 0) info.audio += " " + (audioFormat.sampleRate / 1000) + "kHz";
                 }
             }
         } catch (Exception e) {
@@ -791,32 +803,36 @@ switch (mode) {
         }
     }
 
-    // 原有静态解码器选择器（无泄漏无需改动）
+    // 原有静态解码器选择器（修复语法错误 + 兼容Java8）
     private static class SoftwareFirstMediaCodecSelector implements MediaCodecSelector {
         private final int decoderMode;
         public SoftwareFirstMediaCodecSelector(int mode) { this.decoderMode = mode; }
+        
         @Override
         public List<MediaCodecInfo> getDecoderInfos(String mimeType, boolean requiresSecureDecoder, boolean requiresTunnelingDecoder) throws MediaCodecUtil.DecoderQueryException {
             List<MediaCodecInfo> allCodecs = MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
             if (allCodecs == null || allCodecs.isEmpty()) return allCodecs;
+            
             if (decoderMode == DECODER_MODE_HARD) {
-    return allCodecs.stream().filter(c -> !isSoftwareDecoder(c.name)).collect(Collectors.toList());
-} else if (decoderMode == DECODER_MODE_SOFT) {
-    List<MediaCodecInfo> soft = new ArrayList<>();
-    List<MediaCodecInfo> hard = new ArrayList<>();
-    for (MediaCodecInfo c : allCodecs) {
-        if (isSoftwareDecoder(c.name)) {
-            soft.add(c);
-        } else {
-            hard.add(c);
-        }
-    }
-    soft.addAll(hard);
-    return soft;
-} else {
-    return allCodecs;
-}
-            };
+                // 过滤硬解码器（排除软解）
+                return allCodecs.stream().filter(c -> !isSoftwareDecoder(c.name)).collect(Collectors.toList());
+            } else if (decoderMode == DECODER_MODE_SOFT) {
+                // 优先软解码器，后加硬解码器
+                List<MediaCodecInfo> soft = new ArrayList<>();
+                List<MediaCodecInfo> hard = new ArrayList<>();
+                for (MediaCodecInfo c : allCodecs) {
+                    if (isSoftwareDecoder(c.name)) {
+                        soft.add(c);
+                    } else {
+                        hard.add(c);
+                    }
+                }
+                soft.addAll(hard);
+                return soft;
+            } else {
+                // 自动模式返回原列表
+                return allCodecs;
+            }
         }
     }
 }
