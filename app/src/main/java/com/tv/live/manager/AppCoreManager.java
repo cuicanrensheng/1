@@ -13,7 +13,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.Text;
 import android.text.TextUtils;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
