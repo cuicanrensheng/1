@@ -182,7 +182,7 @@ public class TVPlayerManager {
                         2000,
                         50000,
                         300,
-                        4000
+                        2000
                 )
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
