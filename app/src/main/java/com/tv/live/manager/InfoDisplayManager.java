@@ -419,8 +419,7 @@ public class InfoDisplayManager {
             return 0;
         }
     }
-
-    // ========== 规范完整release方法 ==========
+        // ========== 规范完整release方法 ==========
     public void release() {
         // 1 清空所有Handler延迟任务
         mainHandler.removeCallbacksAndMessages(null);
@@ -448,6 +447,6 @@ public class InfoDisplayManager {
         progressProgram = null;
         tvRemainingTime = null;
         tvNextProgramName = null;
-        tvNextTimeRange;
+        tvNextTimeRange = null; // 修复：补充赋值null，修正语法错误
     }
 }
