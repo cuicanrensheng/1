@@ -5,11 +5,14 @@ import android.app.PictureInPictureParams;
 import android.content.Context;
 import android.graphics.Rect;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Rational;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.view.WindowManager.LayoutParams;
 
 import androidx.media3.ui.PlayerView;
 
@@ -23,10 +26,11 @@ import java.util.List;
  * 画中画(PIP)核心管理器
  *
  * 【2026-06-26 增强：合并 onPictureInPictureModeChanged 逻辑】
+ * 【2026-06-27 增强：后台小窗返回前台检测，恢复手势/切台功能】
  * 【修改说明】
- * 把 MainActivity.onPictureInPictureModeChanged() 中的进入/退出画中画 UI 处理逻辑合并到这里，
- * 新增 handleEnterPip() 和 handleExitPipRestore() 两个方法。
- * MainActivity 只需调用状态更新 + UI 处理，画中画逻辑全部集中在此。
+ * 1. 新增后台返回前台检测逻辑（isReturnFromBackgroundPip）
+ * 2. 新增交互恢复方法（restoreGestureAndChannelSwitch）
+ * 3. 关联退出画中画流程，确保手势/切台功能正常
  */
 public class PictureInPictureManager {
 
@@ -41,8 +45,14 @@ public class PictureInPictureManager {
     private boolean isPipEntering = false;
     private boolean onStopCalled = false;
     private boolean debugLogEnabled = true;
+    // 新增：标记是否从后台小窗返回前台
+    private boolean isReturnFromBackgroundPip = false;
+    // 新增：主线程 Handler，用于延迟检测
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private OnPipListener listener;
+    // 新增：交互恢复监听器（用于恢复手势/切台）
+    private OnPipInteractionRestoreListener interactionRestoreListener;
 
     public static PictureInPictureManager getInstance(Context context) {
         if (instance == null) {
@@ -57,6 +67,13 @@ public class PictureInPictureManager {
 
     public interface OnPipListener {
         void onPipModeChanged(boolean inPip);
+    }
+
+    // 新增：交互恢复监听器（供Activity实现，恢复手势/切台）
+    public interface OnPipInteractionRestoreListener {
+        void onRestoreGesture();       // 恢复手势操作
+        void onRestoreChannelSwitch(); // 恢复切台功能
+        void onRestoreLandscapeUi();   // 恢复横屏UI布局
     }
 
     // ====================================================================
@@ -76,7 +93,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 基础状态方法
+    // 基础状态方法（新增后台返回标记）
     // ====================================================================
     public boolean isPipSupported() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O;
@@ -115,6 +132,18 @@ public class PictureInPictureManager {
 
     public void setListener(OnPipListener listener) {
         this.listener = listener;
+    }
+
+    // 新增：设置交互恢复监听器
+    public void setInteractionRestoreListener(OnPipInteractionRestoreListener listener) {
+        this.interactionRestoreListener = listener;
+        logDebug("已设置交互恢复监听器");
+    }
+
+    // 新增：标记是否从后台小窗返回前台
+    public void setReturnFromBackgroundPip(boolean isReturn) {
+        this.isReturnFromBackgroundPip = isReturn;
+        logDebug("设置后台小窗返回标记：" + isReturn);
     }
 
     // ====================================================================
@@ -315,13 +344,19 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 画中画模式变化回调
+    // 画中画模式变化回调（新增后台返回检测）
     // ====================================================================
     public void onPipModeChanged(Activity activity, boolean isInPip) {
         log("========== 模式变化回调 ==========");
         log("新模式：" + (isInPip ? "✅ 进入画中画" : "❌ 退出画中画"));
         this.isInPipMode = isInPip;
         this.isPipEntering = false;
+        
+        // 新增：退出画中画时，标记为「从后台小窗返回」
+        if (!isInPip) {
+            setReturnFromBackgroundPip(true);
+        }
+        
         log("更新状态：isInPipMode=" + isInPip + "，isPipEntering=false");
         if (listener != null) {
             try {
@@ -356,14 +391,20 @@ public class PictureInPictureManager {
             }
         } else {
             log("用户返回应用，继续播放（不释放）");
+            // 新增：如果是从后台小窗返回，触发交互恢复
+            if (isReturnFromBackgroundPip) {
+                logDebug("检测到从后台小窗返回前台，准备恢复手势/切台");
+                restoreGestureAndChannelSwitch(activity);
+            }
         }
         onStopCalled = false;
-        log("重置 onStopCalled = false");
+        isReturnFromBackgroundPip = false; // 重置标记
+        log("重置 onStopCalled = false，重置后台返回标记 = false");
         log("================================");
     }
 
     // ====================================================================
-    // ✅ 2026-06-26 新增：处理进入画中画的 UI 变化
+    // 2026-06-26 新增：处理进入画中画的 UI 变化
     // ====================================================================
     public void handleEnterPip(Activity activity,
                                ChannelPanelController channelPanelController,
@@ -394,7 +435,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // ✅ 2026-06-26 新增：处理退出画中画的 UI 恢复
+    // 2026-06-26 新增：处理退出画中画的 UI 恢复（增强交互恢复）
     // ====================================================================
     public void handleExitPipRestore(Activity activity,
                                      DisplayManager displayManager,
@@ -453,6 +494,15 @@ public class PictureInPictureManager {
                                 logViewSize("父布局", (View) playerView.getParent());
                             }
                             log("【尺寸】================================");
+                            
+                            // 新增：延迟恢复交互（确保UI完全加载）
+                            mainHandler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    restoreGestureAndChannelSwitch(activity);
+                                }
+                            }, 300);
+                            
                         } catch (Exception e) {
                             log("❌ 延迟刷新失败：" + e.getMessage());
                         }
@@ -490,6 +540,50 @@ public class PictureInPictureManager {
             log("❌ 退出画中画 UI 恢复失败：" + e.getMessage());
         }
         log("================================");
+    }
+
+    // ====================================================================
+    // 2026-06-27 新增：恢复手势和切台功能（核心逻辑）
+    // ====================================================================
+    private void restoreGestureAndChannelSwitch(Activity activity) {
+        log("========== 恢复手势/切台功能 ==========");
+        try {
+            // 1. 确保Activity处于前台且横屏
+            if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+                logDebug("❌ Activity不可用，跳过交互恢复");
+                return;
+            }
+            
+            // 2. 恢复横屏UI布局
+            if (interactionRestoreListener != null) {
+                interactionRestoreListener.onRestoreLandscapeUi();
+                log("✅ 触发横屏UI恢复");
+            }
+            
+            // 3. 恢复手势操作（如滑动切换、点击控制）
+            if (interactionRestoreListener != null) {
+                interactionRestoreListener.onRestoreGesture();
+                log("✅ 触发手势功能恢复");
+            }
+            
+            // 4. 恢复频道切换功能
+            if (interactionRestoreListener != null) {
+                interactionRestoreListener.onRestoreChannelSwitch();
+                log("✅ 触发切台功能恢复");
+            }
+            
+            // 5. 确保窗口焦点和触摸事件可用
+            if (activity.getWindow() != null) {
+                activity.getWindow().getDecorView().setFocusable(true);
+                activity.getWindow().getDecorView().setFocusableInTouchMode(true);
+                activity.getWindow().getDecorView().requestFocus();
+                log("✅ 恢复窗口焦点和触摸事件");
+            }
+            
+        } catch (Exception e) {
+            log("❌ 恢复手势/切台失败：" + e.getMessage());
+        }
+        log("======================================");
     }
 
     // ====================================================================
@@ -634,14 +728,16 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 释放资源
+    // 释放资源（新增清空交互监听器）
     // ====================================================================
     public void release() {
         log("========== 释放资源 ==========");
         listener = null;
+        interactionRestoreListener = null; // 清空交互恢复监听器
         isInPipMode = false;
         isPipEntering = false;
         onStopCalled = false;
+        isReturnFromBackgroundPip = false; // 重置后台返回标记
         log("✅ 资源释放完成");
     }
 
