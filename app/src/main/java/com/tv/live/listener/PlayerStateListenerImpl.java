@@ -1,11 +1,12 @@
 package com.tv.live.listener;
 
 import android.content.Context;
+import java.lang.ref.WeakReference;
 import com.tv.live.TVPlayerManager;
 
 /**
  * ================================================
- * 播放状态监听器实现类
+ * 播放状态监听器实现类【内存泄漏修复完整版】
  * 核心职责：
  * 1. 接收播放器各状态回调，统一做UI层提示
  * 2. 遵循「只提示、不自动重试」原则，播放异常由用户手动切台
@@ -13,17 +14,23 @@ import com.tv.live.TVPlayerManager;
  * ================================================
  */
 public class PlayerStateListenerImpl implements TVPlayerManager.OnPlayStateListener {
-    // 应用上下文，保留引用备用
-    private final Context context;
-    // 当前播放的频道名称，保留备用
+    // 弱引用存储应用上下文，杜绝强持有泄漏
+    private final WeakReference<Context> ctxRef;
+    // 当前播放频道缓存
     private String currentChannelName = "";
 
     /**
-     * 构造函数
-     * @param context 上下文，内部自动转成ApplicationContext避免内存泄漏
+     * 构造函数：入参Context，内部包装ApplicationContext弱引用
+     * @param context 页面/应用上下文
      */
     public PlayerStateListenerImpl(Context context) {
-        this.context = context.getApplicationContext();
+        Context appCtx = context.getApplicationContext();
+        this.ctxRef = new WeakReference<>(appCtx);
+    }
+
+    // 安全获取上下文，使用前判空
+    private Context getContext() {
+        return ctx != null ? ctxRef.get() : null;
     }
 
     /**
@@ -80,5 +87,16 @@ public class PlayerStateListenerImpl implements TVPlayerManager.OnPlayStateListe
     @Override
     public void onPlayError(String msg) {
         // 已屏蔽播放错误提示
+    }
+
+    // ========== 标准规范 release() 资源释放 ==========
+    public void release() {
+        // 1. 本类无自定义监听器、无广播，无需解绑
+        // 2. 清空上下文弱引用
+        if (ctxRef != null) {
+            ctxRef.clear();
+        }
+        // 3. 置空频道名称缓存资源
+        currentChannelName = null;
     }
 }
