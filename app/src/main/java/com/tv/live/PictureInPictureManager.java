@@ -14,6 +14,7 @@ import com.tv.live.manager.ChannelPanelController;
 import com.tv.live.manager.DisplayManager;
 import java.lang.ref.WeakReference;
 import java.util.List;
+import com.tv.live.manager.InfoDisplayManager;
 
 /**
  * 画中画(PIP)核心管理器 修复内存泄漏版
