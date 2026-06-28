@@ -1,5 +1,7 @@
 package com.tv.live;
-
+import com.tv.live.TVPlayerManager;
+import com.tv.live.bean.Channel;
+import com.tv.live.SettingsActivity;
 import android.app.Activity;
 import android.app.PictureInPictureParams;
 import android.content.Context;
