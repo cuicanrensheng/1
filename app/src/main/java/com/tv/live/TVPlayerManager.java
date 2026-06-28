@@ -186,11 +186,18 @@ public class TVPlayerManager {
                 if ("hard".equals(modeStr)) mode = DECODER_MODE_HARD;
                 else if ("soft".equals(modeStr)) mode = DECODER_MODE_SOFT;
                 mgr.setDecoderMode(mode);
-                String modeName = switch (mode) {
-                    case DECODER_MODE_HARD -> "硬解";
-                    case DECODER_MODE_SOFT -> "软解（兼容性好）";
-                    default -> "自动（推荐）";
-                };
+                String modeName;
+switch (mode) {
+    case DECODER_MODE_HARD:
+        modeName = "硬解";
+        break;
+    case DECODER_MODE_SOFT:
+        modeName = "软解（兼容性好）";
+        break;
+    default:
+        modeName = "自动（推荐）";
+        break;
+}
                 SettingsActivity.logOperation("【解码器】收到广播，切换到：" + modeName);
             }
         }
@@ -439,11 +446,18 @@ public class TVPlayerManager {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
         useSoftwareDecoder = (mode == DECODER_MODE_SOFT);
-        String decoderType = switch (mode) {
-            case DECODER_MODE_HARD -> "系统硬解码（强制）";
-            case DECODER_MODE_SOFT -> "系统软解码（优先）";
-            default -> "自动模式（硬解优先）";
-        };
+        String decoderType;
+switch (mode) {
+    case DECODER_MODE_HARD:
+        decoderType = "系统硬解码（强制）";
+        break;
+    case DECODER_MODE_SOFT:
+        decoderType = "系统软解码（优先）";
+        break;
+    default:
+        decoderType = "自动模式（硬解优先）";
+        break;
+}
         Log.d(TAG, "切换解码器模式：" + decoderType);
         SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
 
@@ -785,19 +799,23 @@ public class TVPlayerManager {
         public List<MediaCodecInfo> getDecoderInfos(String mimeType, boolean requiresSecureDecoder, boolean requiresTunnelingDecoder) throws MediaCodecUtil.DecoderQueryException {
             List<MediaCodecInfo> allCodecs = MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
             if (allCodecs == null || allCodecs.isEmpty()) return allCodecs;
-            return switch (decoderMode) {
-                case DECODER_MODE_HARD -> allCodecs.stream().filter(c -> !isSoftwareDecoder(c.name)).toList();
-                case DECODER_MODE_SOFT -> {
-                    List<MediaCodecInfo> soft = new ArrayList<>();
-                    List<MediaCodecInfo> hard = new ArrayList<>();
-                    for (MediaCodecInfo c : allCodecs) {
-                        if (isSoftwareDecoder(c.name)) soft.add(c);
-                        else hard.add(c);
-                    }
-                    soft.addAll(hard);
-                    yield soft;
-                }
-                default -> allCodecs;
+            if (decoderMode == DECODER_MODE_HARD) {
+    return allCodecs.stream().filter(c -> !isSoftwareDecoder(c.name)).collect(Collectors.toList());
+} else if (decoderMode == DECODER_MODE_SOFT) {
+    List<MediaCodecInfo> soft = new ArrayList<>();
+    List<MediaCodecInfo> hard = new ArrayList<>();
+    for (MediaCodecInfo c : allCodecs) {
+        if (isSoftwareDecoder(c.name)) {
+            soft.add(c);
+        } else {
+            hard.add(c);
+        }
+    }
+    soft.addAll(hard);
+    return soft;
+} else {
+    return allCodecs;
+}
             };
         }
     }
