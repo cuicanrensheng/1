@@ -76,27 +76,28 @@ public class PictureInPictureManager {
             this.channelList = channels;
             this.playIndex = index;
         }
-
         @Override
-        public void run() {
-            PictureInPictureManager mgr = mgrRef.get();
-            PlayerView pv = viewRef.get();
-            TVPlayerManager player = playerRef.get();
-            if (mgr == null || pv == null) return;
-            try {
-                pv.requestLayout();
-                pv.invalidate();
-                mgr.keepPlaying(player, pv, channelList, playIndex);
-                mgr.log("✅ 延迟刷新 PlayerView + 重新绑定");
-                mgr.logViewSize("PlayerView", pv);
-                if (pv.getParent() instanceof View parent) {
-                    mgr.logViewSize("父布局", parent);
-                }
-                mgr.log("【尺寸】================================");
-            } catch (Exception e) {
-                mgr.log("❌ 延迟刷新失败：" + e.getMessage());
-            }
+public void run() {
+    PictureInPictureManager mgr = mgrRef.get();
+    PlayerView pv = viewRef.get();
+    TVPlayerManager player = playerRef.get();
+    if (mgr == null || pv == null) return;
+    try {
+        pv.requestLayout();
+        pv.invalidate();
+        mgr.keepPlaying(player, pv, channelList, playIndex);
+        mgr.log("✅ 延迟刷新 PlayerView + 重新绑定");
+        mgr.logViewSize("PlayerView", pv);
+        // 修复 instanceof 模式匹配语法（适配 Java 8）
+        if (pv.getParent() instanceof View) {
+            View parent = (View) pv.getParent();
+            mgr.logViewSize("父布局", parent);
         }
+        mgr.log("【尺寸】================================");
+    } catch (Exception e) {
+        mgr.log("❌ 延迟刷新失败：" + e.getMessage());
+    }
+}
     }
 
     // 退出Pip释放回调静态弱引用包装
