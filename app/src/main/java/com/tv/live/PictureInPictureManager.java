@@ -368,40 +368,40 @@ public class PictureInPictureManager {
         }
         log("================================");
     }
-
+    
     // ====================================================================
-    // 退出画中画处理（释放判断）
-    // ====================================================================
-    public void handleExitPip(Runnable releaseAction) {
-        log("========== 退出画中画处理 ==========");
-        log("onStopCalled = " + onStopCalled);
-        if (!isPipSupported()) {
-            log("设备不支持画中画，跳过");
-            return;
-        }
-        if (onStopCalled) {
-            log("用户关闭了应用，释放播放器");
-            if (releaseAction != null) {
-                try {
-                    releaseAction.run();
-                    log("✅ 释放播放器执行成功");
-                } catch (Exception e) {
-                    log("❌ 释放播放器失败：" + e.getMessage());
-                }
-            }
-        } else {
-            log("用户返回应用，继续播放（不释放）");
-            // 新增：如果是从后台小窗返回，触发交互恢复
-            if (isReturnFromBackgroundPip) {
-                logDebug("检测到从后台小窗返回前台，准备恢复手势/切台");
-                restoreGestureAndChannelSwitch(activity);
-            }
-        }
-        onStopCalled = false;
-        isReturnFromBackgroundPip = false; // 重置标记
-        log("重置 onStopCalled = false，重置后台返回标记 = false");
-        log("================================");
+// 退出画中画处理（释放判断）【修复：增加activity入参】
+// ====================================================================
+public void handleExitPip(Activity activity, Runnable releaseAction) {
+    log("========== 退出画中画处理 ==========");
+    log("onStopCalled = " + onStopCalled);
+    if (!isPipSupported()) {
+        log("设备不支持画中画，跳过");
+        return;
     }
+    if (onStopCalled) {
+        log("用户关闭了应用，释放播放器");
+        if (releaseAction != null) {
+            try {
+                releaseAction.run();
+                log("✅ 释放播放器执行成功");
+            } catch (Exception e) {
+                log("❌ 释放播放器失败：" + e.getMessage());
+            }
+        }
+    } else {
+        log("用户返回应用，继续播放（不释放）");
+        // 新增：如果是从后台小窗返回，触发交互恢复
+        if (isReturnFromBackgroundPip) {
+            logDebug("检测到从后台小窗返回前台，准备恢复手势/切台");
+            restoreGestureAndChannelSwitch(activity);
+        }
+    }
+    onStopCalled = false;
+    isReturnFromBackgroundPip = false; // 重置标记
+    log("重置 onStopCalled = false，重置后台返回标记 = false");
+    log("================================");
+}
 
     // ====================================================================
     // 2026-06-26 新增：处理进入画中画的 UI 变化
