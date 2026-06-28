@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import com.tv.live.Channel;
 
 /**
  * 分组列表管理器【内存泄漏修复完整版】
