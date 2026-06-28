@@ -742,86 +742,86 @@ public class ChannelPanelController {
     public void setOnPanelStateListener(OnPanelStateListener listener) { panelStateListener = listener; }
 
     // ========== 规范完整release() 全部资源清理 ==========
-    public void release() {
-        // 1 清空Handler全部定时任务并置空
-        if (mAutoHideHandler != null) {
-            mAutoHideHandler.removeCallbacksAndMessages(null);
-            mAutoHideHandler = null;
-        }
-        mAutoHideRunnable = null;
-
-        // 2 清空所有监听器回调
-        channelChangeListener = null;
-        panelStateListener;
-
-        // 3 解绑全部View点击/焦点监听，切断View持有引用
-        if (lvGroup != null) lvGroup.setOnItemClickListener(null);
-        if (lvChannelList != null) lvChannelList.setOnItemClickListener(null);
-        if (lvChannelListEpg != null) lvChannelListEpg.setOnItemClickListener(null);
-        if (btnShowEpg != null) btnShowEpg.setOnClickListener(null);
-        if (btnBackGroup != null) btnBackGroup.setOnClickListener(null);
-        // 焦点监听全部解绑
-        if (lvGroup != null) lvGroup.setOnFocusChangeListener(null);
-        if (lvChannelList != null) lvChannelList.setOnFocusChangeListener(null);
-        if (btnShowEpg != null) btnShowEpg.setOnFocusChangeListener(null);
-        if (lvChannelListEpg != null) lvChannelListEpg.setOnFocusChangeListener(null);
-        if (lvDate != null) lvDate.setOnFocusChangeListener(null);
-        if (lvEpg != null) lvEpg.setOnFocusChangeListener(null);
-        if (btnBackGroup != null) btnBackGroup.setOnFocusChangeListener(null);
-
-        // 4 清空子管理器引用，断开链式持有
-        groupListManager = null;
-        channelListManager = null;
-        channelListManagerEpg = null;
-        dateListManager = null;
-        epgManagerWrapper = null;
-        panelManager = null;
-
-        // 5 清空频道数据集合
-        if (channelSourceList != null) {
-            channelSourceList.clear();
-            channelSourceList = null;
-        }
-        if (currentGroupChannelList != null) {
-            currentGroupChannelList.clear();
-            currentGroupChannelList = null;
-        }
-
-        // 6 清空弱引用上下文
-        if (contextRef != null) {
-            contextRef.clear();
-            contextRef = null;
-        }
-
-        // 7 全部UI视图置空，切断页面View引用链
-        panelLayout = null;
-        llLeftPanel = null;
-        llRightPanel = null;
-        lvGroup = null;
-        lvChannelList = null;
-        lvChannelListEpg = null;
-        lvDate = null;
-        lvEpg = null;
-        btnShowEpg = null;
-        btnBackGroup;
-
-        // 8 重置所有状态标记
-        currentGroupName = "";
-        lastSwitchDirection = "";
-        currentFocusPanel = "left";
-        leftFocusView = "channel";
-        rightFocusView = "channel";
-        mIsFirstLaunch = true;
-        isReverse = false;
-        rightPanelOpen = false;
-        epgPanelOpen = false;
-        epgEnable = true;
-        autoSkipCount = 0;
-        isSwitchingChannel = false;
-        lastChannelChangeTime = 0;
-        mAutoHideEnabled = true;
-        mAutoHideDelayMs = NORMAL_HIDE_DELAY_MS;
-        currentPlayIndex = 0;
-        currentSelectedDateIndex = 0;
+public void release() {
+    // 1 清空Handler全部定时任务并置空
+    if (mAutoHideHandler != null) {
+        mAutoHideHandler.removeCallbacksAndMessages(null);
+        mAutoHideHandler = null;
     }
+    mAutoHideRunnable = null;
+
+    // 2 清空所有监听器回调
+    channelChangeListener = null;
+    panelStateListener = null; // 修复：补充置空操作，替代原无效的 panelStateListener;
+
+    // 3 解绑全部View点击/焦点监听，切断View持有引用
+    if (lvGroup != null) lvGroup.setOnItemClickListener(null);
+    if (lvChannelList != null) lvChannelList.setOnItemClickListener(null);
+    if (lvChannelListEpg != null) lvChannelListEpg.setOnItemClickListener(null);
+    if (btnShowEpg != null) btnShowEpg.setOnClickListener(null);
+    if (btnBackGroup != null) btnBackGroup.setOnClickListener(null);
+    // 焦点监听全部解绑
+    if (lvGroup != null) lvGroup.setOnFocusChangeListener(null);
+    if (lvChannelList != null) lvChannelList.setOnFocusChangeListener(null);
+    if (btnShowEpg != null) btnShowEpg.setOnFocusChangeListener(null);
+    if (lvChannelListEpg != null) lvChannelListEpg.setOnFocusChangeListener(null);
+    if (lvDate != null) lvDate.setOnFocusChangeListener(null);
+    if (lvEpg != null) lvEpg.setOnFocusChangeListener(null);
+    if (btnBackGroup != null) btnBackGroup.setOnFocusChangeListener(null);
+
+    // 4 清空子管理器引用，断开链式持有
+    groupListManager = null;
+    channelListManager = null;
+    channelListManagerEpg = null;
+    dateListManager = null;
+    epgManagerWrapper = null;
+    panelManager = null;
+
+    // 5 清空频道数据集合
+    if (channelSourceList != null) {
+        channelSourceList.clear();
+        channelSourceList = null;
+    }
+    if (currentGroupChannelList != null) {
+        currentGroupChannelList.clear();
+        currentGroupChannelList = null;
+    }
+
+    // 6 清空弱引用上下文
+    if (contextRef != null) {
+        contextRef.clear();
+        contextRef = null;
+    }
+
+    // 7 全部UI视图置空，切断页面View引用链
+    panelLayout = null;
+    llLeftPanel = null;
+    llRightPanel = null;
+    lvGroup = null;
+    lvChannelList = null;
+    lvChannelListEpg = null;
+    lvDate = null;
+    lvEpg = null;
+    btnShowEpg = null;
+    btnBackGroup = null; // 修复：补充置空操作（原代码漏写 = null）
+
+    // 8 重置所有状态标记
+    currentGroupName = "";
+    lastSwitchDirection = "";
+    currentFocusPanel = "left";
+    leftFocusView = "channel";
+    rightFocusView = "channel";
+    mIsFirstLaunch = true;
+    isReverse = false;
+    rightPanelOpen = false;
+    epgPanelOpen = false;
+    epgEnable = true;
+    autoSkipCount = 0;
+    isSwitchingChannel = false;
+    lastChannelChangeTime = 0;
+    mAutoHideEnabled = true;
+    mAutoHideDelayMs = NORMAL_HIDE_DELAY_MS;
+    currentPlayIndex = 0;
+    currentSelectedDateIndex = 0;
+   }
 }
