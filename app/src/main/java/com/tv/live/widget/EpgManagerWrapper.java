@@ -37,8 +37,10 @@ import java.util.Set;
 
 /**
  * EPG 节目单包装管理器
- * 修复：日志无法打印问题、条目空白、下一档不显示
- * 统一日志封装，Release包可输出日志
+ * 修复1：置顶后下一档下标加减反向，界面看不到下一档
+ * 修复2：时间带空格导致数字转换崩溃 For input string
+ * 修复3：统一时间清洗工具，兼容所有EPG时段格式
+ * 日志双输出 Release可打印，区分今日/非今日逻辑
  */
 public class EpgManagerWrapper {
     private static final String TAG = "EPG_DEBUG";
@@ -63,7 +65,7 @@ public class EpgManagerWrapper {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 selectedPosition = pos;
-                printLog(TAG, "选中条目 position=");
+                printLog(TAG, "选中条目 position=" + pos);
                 if (adapter != null) adapter.notifyDataSetChanged();
             }
             @Override
@@ -80,27 +82,34 @@ public class EpgManagerWrapper {
         registerReminderReceiver();
     }
 
-    /**
-     * 统一日志打印工具（解决Release无Log.d问题）
-     * @param tag 标签
-     * @param msg 日志内容
-     */
+    /** 统一日志打印 Info级别 Release不丢失日志 */
     private void printLog(String tag, String msg) {
-        // 1. 写入业务日志文件
         SettingsActivity.log("[" + tag + "] " + msg);
-        // 2. 系统日志使用Log.i（Release不会被移除）
         Log.i(tag, msg);
     }
 
-    /**
-     * 打印异常堆栈日志
-     */
+    /** 异常日志打印，带堆栈 */
     private void printErrLog(String tag, String msg, Throwable e) {
         SettingsActivity.log("[" + tag + "] ERROR:" + msg);
         Log.e(tag, msg, e);
     }
 
-    /** 外部遥控器手动跳转下一档 */
+    /** 【新增统一时间清洗工具】去除空格、分割只保留起始时间 */
+    private String cleanTimeStr(String raw) {
+        if (TextUtils.isEmpty(raw)) {
+            return "";
+        }
+        String str = raw.trim();
+        // 移除全部空格
+        str = str.replaceAll(" ", "");
+        // 分割"-"只取前面起始时间
+        if (str.contains("-")) {
+            str = str.split("-")[0].trim();
+        }
+        return str;
+    }
+
+    /** 遥控器手动跳转下一档 */
     public void jumpNextProgram() {
         printLog(TAG, "调用跳转下一档，缓存nextPlayIndex=" + nextPlayIndex);
         if (adapter == null || adapter.getCount() == 0 || nextPlayIndex == -1) {
@@ -112,7 +121,7 @@ public class EpgManagerWrapper {
         adapter.notifyDataSetChanged();
     }
 
-    /** 刷新核心方法 */
+    /** 刷新节目单核心 */
     public void refresh(Channel currentChannel, List<Channel> channelSourceList, int dateIndex) {
         if (currentChannel == null) {
             SettingsActivity.log("【EPG包装】❌ refresh被调用，但currentChannel为空");
@@ -147,16 +156,20 @@ public class EpgManagerWrapper {
                 String[] weekMap = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
                 String weekDay = weekMap[w - 1];
                 if (dateIndex == 0) {
-                    targetDay = "今天"; targetWeekDay = weekDay;
+                    targetDay = "今天";
+                    targetWeekDay = weekDay;
                 } else if (dateIndex == 1) {
-                    targetDay = "明天"; targetWeekDay = weekDay;
+                    targetDay = "明天";
+                    targetWeekDay = weekDay;
                 } else if (dateIndex == 2) {
-                    targetDay = "后天"; targetWeekDay = weekDay;
+                    targetDay = "后天";
+                    targetWeekDay = weekDay;
                 } else {
                     targetDay = weekDay;
                 }
                 printLog(TAG, "筛选匹配日期 targetDay=" + targetDay + " week=" + weekDay);
 
+                // 日期筛选
                 int matchCount = 0;
                 for (Channel.EpgItem item : rawList) {
                     if (TextUtils.isEmpty(item.dayName)) continue;
@@ -164,28 +177,32 @@ public class EpgManagerWrapper {
                     boolean match = targetDay.equals(dayName);
                     if (!match && targetWeekDay != null) match = targetWeekDay.equals(dayName);
                     if (match) {
-                        data.add(item); matchCount++;
+                        data.add(item);
+                        matchCount++;
                     }
                 }
                 printLog(TAG, "筛选后节目数量=" + matchCount);
-                Collections.sort(data, Comparator.comparing(o -> o.time));
+                Collections.sort(data, Comparator.comparing(o -> cleanTimeStr(o.time)));
 
                 String now = getNow();
                 Channel.EpgItem playing = null;
+                // 遍历计算每条起止时间
                 for (int i = 0; i < data.size(); i++) {
                     Channel.EpgItem curr = data.get(i);
-                    String rawTime = TextUtils.isEmpty(curr.time) ? "" : curr.time.trim();
-                    String showStart = rawTime.contains("-") ? rawTime.split("-")[0].trim() : rawTime;
-                    curr.time = showStart;
+                    // 统一清洗时间
+                    String cleanCurrTime = cleanTimeStr(curr.time);
+                    curr.time = cleanCurrTime;
+
                     String endStr;
                     if (i + 1 < data.size()) {
                         Channel.EpgItem nextItem = data.get(i + 1);
-                        String nextRaw = TextUtils.isEmpty(nextItem.time) ? "" : nextItem.time;
-                        endStr = nextRaw.contains("-") ? nextRaw.split("-")[0].trim() : nextRaw;
+                        String nextClean = cleanTimeStr(nextItem.time);
+                        endStr = nextClean;
                     } else {
                         endStr = addOneHour(curr.time);
                     }
                     epgEndTimeMap.put(curr, endStr);
+
                     curr.isPlaying = false;
                     if (isTimeBetween(now, curr.time, endStr)) {
                         curr.isPlaying = true;
@@ -200,11 +217,11 @@ public class EpgManagerWrapper {
                     if (playingIndex != -1) {
                         nextPlayIndex = playingIndex + 1;
                         if (nextPlayIndex >= data.size()) nextPlayIndex = -1;
-                        printLog(TAG, "存在播放节目，下一档下标=" + nextPlayIndex);
+                        printLog(TAG, "存在播放节目，原始下一档下标=" + nextPlayIndex);
                     } else {
                         nextPlayIndex = -1;
                         for (int i = 0; i < data.size(); i++) {
-                            String t = data.get(i).time;
+                            String t = cleanTimeStr(data.get(i).time);
                             if (t.compareTo(now) > 0) {
                                 nextPlayIndex = i;
                                 printLog(TAG, "无播放，首个未播下标=" + i);
@@ -217,17 +234,20 @@ public class EpgManagerWrapper {
                     printLog(TAG, "非今日，无实时下一档");
                 }
 
-                // 播放节目置顶
+                // ========== 修复：置顶后下标修正逻辑（原来是-1，现在+1）==========
                 if (playing != null && playingIndex > 0) {
                     data.remove(playing);
                     data.add(0, playing);
+                    // 所有原有节目下标全部后移一位，下一档同步+1
+                    if (nextPlayIndex != -1) {
+                        nextPlayIndex = nextPlayIndex + 1;
+                    }
                     playingIndex = 0;
-                    if (nextPlayIndex != -1) nextPlayIndex--;
                     printLog(TAG, "播放节目置顶完成，修正后下一档=" + nextPlayIndex);
                 }
             }
 
-            // UI线程更新
+            // UI刷新
             final List<Channel.EpgItem> finalData = new ArrayList<>(data);
             final Channel finalChannel = currentChannel;
             ((MainActivity) context).runOnUiThread(() -> {
@@ -238,6 +258,7 @@ public class EpgManagerWrapper {
                 } else {
                     adapter.setData(finalChannel, new ArrayList<>(finalData), selectDayIndex);
                 }
+                // 先刷新再滚动，防止条目丢失
                 adapter.notifyDataSetChanged();
                 int targetScrollPos = 0;
                 if (nextPlayIndex != -1) targetScrollPos = nextPlayIndex;
@@ -250,24 +271,28 @@ public class EpgManagerWrapper {
         }).start();
     }
 
+    /** 时间区间对比，增加清洗 */
     private boolean isTimeBetween(String now, String start, String end) {
         try {
-            if (TextUtils.isEmpty(now) || TextUtils.isEmpty(start) || TextUtils.isEmpty(end))
+            String sNow = cleanTimeStr(now);
+            String sStart = cleanTimeStr(start);
+            String sEnd = cleanTimeStr(end);
+            if (TextUtils.isEmpty(sNow) || TextUtils.isEmpty(sStart) || TextUtils.isEmpty(sEnd))
                 return false;
-            return now.contains(":") && start.contains(":")
-                    && now.compareTo(start) >= 0 && now.compareTo(end) < 0;
+            return sNow.contains(":") && sStart.contains(":") && sEnd.contains(":")
+                    && sNow.compareTo(sStart) >= 0 && sNow.compareTo(sEnd) < 0;
         } catch (Exception e) {
             printErrLog(TAG, "时间对比异常", e);
             return false;
         }
     }
 
+    /** 时间加一小时，先清洗再计算 */
     private String addOneHour(String hm) {
         try {
-            if (TextUtils.isEmpty(hm) || !hm.contains(":")) return "23:59";
-            hm = hm.trim();
-            if (hm.contains("-")) hm = hm.split("-")[0].trim();
-            String[] arr = hm.split(":");
+            String cleanHm = cleanTimeStr(hm);
+            if (!cleanHm.contains(":")) return "23:59";
+            String[] arr = cleanHm.split(":");
             int h = Integer.parseInt(arr[0].trim());
             int m = Integer.parseInt(arr[1].trim());
             Calendar c = Calendar.getInstance();
@@ -276,11 +301,12 @@ public class EpgManagerWrapper {
             c.add(Calendar.MINUTE, 60);
             return String.format("%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE));
         } catch (Exception e) {
-            printErrLog(TAG, "时间加1小时异常", e);
+            printErrLog(TAG, "时间加1小时解析失败", e);
             return "23:59";
         }
     }
 
+    /** 获取当前HH:mm */
     private String getNow() {
         return String.format("%02d:%02d",
                 Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
@@ -346,7 +372,7 @@ public class EpgManagerWrapper {
                 printLog(TAG, "getView 复用旧View position=" + position);
             }
 
-            // 前置清空控件，解决滑动空白
+            // 复用前清空全部控件，解决滑动空白错乱
             holder.tv_dayName.setText("");
             holder.tv_time.setText("");
             holder.tv_title.setText("");
@@ -358,7 +384,7 @@ public class EpgManagerWrapper {
             holder.tv_title.setTypeface(null, Typeface.NORMAL);
             convertView.setBackgroundColor(Color.TRANSPARENT);
 
-            // 下标越界保护
+            // 下标越界拦截
             if (position < 0 || position >= list.size()) {
                 printErrLog(TAG, "getView 下标越界 position=" + position + " listSize=" + list.size(), null);
                 return convertView;
@@ -371,7 +397,7 @@ public class EpgManagerWrapper {
 
             holder.tv_dayName.setText(dayText);
             holder.tv_time.setText(timeText);
-            holder.tv_title.setText(titleText);
+            holder.tv_title.setText(title);
             printLog(TAG, "渲染条目[" + position + "] title=" + titleText + " time=" + timeText + " isPlaying=" + item.isPlaying);
 
             boolean isFocused = (position == selectedPosition) && lvEpg.hasFocus();
@@ -393,7 +419,8 @@ public class EpgManagerWrapper {
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
             try {
-                if (!TextUtils.isEmpty(item.time)) isPast = item.time.compareTo(getNow()) < 0;
+                String t = cleanTimeStr(item.time);
+                isPast = t.compareTo(getNow()) < 0;
             } catch (Exception ignored) {}
 
             if (item.isPlaying) {
@@ -414,20 +441,24 @@ public class EpgManagerWrapper {
                         }
                         Calendar playDay = Calendar.getInstance();
                         playDay.add(Calendar.DAY_OF_YEAR, dayIndex);
-                        String[] startHm = item.time.split(":");
+                        String startClean = cleanTimeStr(item.time);
+                        String[] startHm = startClean.split(":");
                         int h = Integer.parseInt(startHm[0].trim());
                         int m = Integer.parseInt(startHm[1].trim());
                         Calendar startCal = (Calendar) playDay.clone();
                         startCal.set(Calendar.HOUR_OF_DAY, h);
                         startCal.set(Calendar.MINUTE, m);
                         startCal.set(Calendar.SECOND, 0);
-                        String[] endHm = endTime.split(":");
+
+                        String endClean = cleanTimeStr(endTime);
+                        String[] endHm = endClean.split(":");
                         int eh = Integer.parseInt(endHm[0].trim());
                         int em = Integer.parseInt(endHm[1].trim());
                         Calendar endCal = (Calendar) playDay.clone();
                         endCal.set(Calendar.HOUR_OF_DAY, eh);
                         endCal.set(Calendar.MINUTE, em);
                         endCal.set(Calendar.SECOND, 0);
+
                         String startStr = sdfFull.format(startCal.getTime());
                         String endStr = sdfFull.format(endCal.getTime());
                         String catchUrl = liveUrl.contains("PLTV") ? liveUrl.replace("PLTV", "TVOD") : liveUrl;
