@@ -49,7 +49,7 @@ import java.util.zip.GZIPInputStream;
  * getCurrentProgram() 查询当前正在播放节目
  * getNextProgram() 查询下一档节目
  * getCurrentAndNext() 一次性返回当前+下一档
- * 配套时间解析工具方法，安全解析 HH:mm 时间段
+ * 配套时间解析工具，适配底部信息栏「暂无下一档」文案需求
  */
 public class EpgManager {
     private static EpgManager instance;
@@ -177,33 +177,22 @@ public class EpgManager {
      * 4. 回调通知
      *
      * 【内存占用】
-     * 峰值只有几 KB（缓冲区大小），彻底解决 OOM
+     * 峰值只有几 KB，彻底解决 OOM
      */
     public void loadEpg(Runnable callback) {
         new Thread(() -> {
             HttpURLConnection conn = null;
             InputStream in = null;
             try {
-                // ================================================================
-                // 第一步：从网络下载
-                // ================================================================
                 URL url = new URL(epgUrl);
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(15000);
                 conn.setReadTimeout(15000);
                 conn.connect();
                 in = conn.getInputStream();
-                // 处理GZIP压缩
                 if (epgUrl.endsWith(".gz")) {
                     in = new GZIPInputStream(in);
                 }
-                // ================================================================
-                // 第二步：用 CacheManager 流式保存到缓存
-                // ================================================================
-                // 【注意】
-                // InputStream 只能读一次，所以这里我们需要先把数据保存到缓存，
-                // 然后再从缓存读取出来解析。
-                // 虽然读了两次（一次写磁盘，一次读磁盘），但是内存占用仍然很小。
                 long savedBytes = cacheManager.saveFileCache(CACHE_KEY_EPG, in);
                 if (savedBytes <= 0) {
                     SettingsActivity.log("【EPG】❌ 保存缓存失败");
@@ -211,9 +200,6 @@ public class EpgManager {
                 }
                 SettingsActivity.log("【EPG】下载完成，大小：" + (savedBytes / 1024) + " KB");
                 SettingsActivity.log("【EPG】缓存已保存（有效期24小时）");
-                // ================================================================
-                // 第三步：从 CacheManager 流式读取缓存，解析 XML
-                // ================================================================
                 hasPrintedSample = false;
                 channelEpgMap.clear();
                 InputStream cacheIs = cacheManager.getFileCacheStream(CACHE_KEY_EPG);
@@ -247,20 +233,13 @@ public class EpgManager {
     // ====================================================================
     /**
      * 从缓存加载EPG（内存优化版）
-     * 用于进入APP时快速显示
-     *
-     * 【说明】
-     * 使用 CacheManager 的流式读取方法，
-     * CacheManager 会自动判断缓存是否过期（24小时）。
-     *
      * @return 是否加载成功
      */
     public boolean loadEpgFromCache() {
         try {
-            // 用 CacheManager 的流式方法读取，自动判断有效期
             InputStream cacheIs = cacheManager.getFileCacheStream(CACHE_KEY_EPG);
             if (cacheIs == null) {
-                return false; // 缓存不存在或已过期
+                return false;
             }
             SettingsActivity.log("【EPG】从缓存加载...");
             hasPrintedSample = false;
@@ -279,15 +258,8 @@ public class EpgManager {
     }
 
     // ====================================================================
-    // 解析XML节目单（不用改，本来就是流式解析的）
+    // XML 解析核心方法
     // ====================================================================
-    /**
-     * 解析XML节目单
-     *
-     * 【说明】
-     * XmlPullParser 本身就是流式解析的，边读边解析，
-     * 只要传入的 InputStream 是文件流，内存占用就很小。
-     */
     private void parseXml(InputStream is) throws Exception {
         XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
         XmlPullParser xml = factory.newPullParser();
@@ -326,7 +298,7 @@ public class EpgManager {
                         if (!hasPrintedSample && programCount < 5) {
                             SettingsActivity.log("【EPG】🔍 样本" + (programCount + 1)
                                     + "：原始时间=" + originalStart
-                                    + "，解析日期=" + (startCal.get(Calendar.MONTH) + 1) + "月" + startCal.get(Calendar.DAY_OF_MONTH) + "日"
+                                    + "，解析日期=" + (startCal.get(Calendar.MONTH) + 1) + "月" + startCal.get(Calendar.DAY_OF_MONTH)
                                     + "，周" + new String[]{"日", "一", "二", "三", "四", "五", "六"}[startCal.get(Calendar.DAY_OF_WEEK) - 1]
                                     + "，dayName=" + dayName);
                             programCount++;
@@ -366,71 +338,39 @@ public class EpgManager {
     }
 
     // ====================================================================
-    // 频道匹配相关（不用改）
+    // 频道匹配相关方法
     // ====================================================================
-    /**
-     * ✅ 根据频道名获取 EPG 节目列表（增强版：智能模糊匹配）
-     *
-     * 【匹配策略】
-     * 1. 先尝试精确匹配
-     * 2. 精确匹配失败，尝试模糊匹配
-     * 3. 计算匹配度分数，返回分数最高的
-     * 4. 匹配失败返回空列表
-     */
     public List<Channel.EpgItem> getEpg(String channelName) {
         if (channelName == null || channelName.isEmpty()) {
             return new ArrayList<>();
         }
-
-        // 先尝试精确匹配
         if (channelEpgMap.containsKey(channelName)) {
             SettingsActivity.log("【EPG】精确匹配成功：" + channelName);
             return channelEpgMap.get(channelName);
         }
-
-        // 标准化输入的频道名
         String cleanName = normalizeChannelName(channelName);
-
-        // 模糊匹配，找到最匹配的频道
         String bestMatch = null;
         int bestScore = 0;
-
         for (Map.Entry<String, List<Channel.EpgItem>> entry : channelEpgMap.entrySet()) {
             String epgName = entry.getKey();
             String cleanEpgName = normalizeChannelName(epgName);
-
             int score = calculateMatchScore(cleanName, cleanEpgName);
             if (score > bestScore) {
                 bestScore = score;
                 bestMatch = epgName;
             }
         }
-
         if (bestMatch != null && bestScore >= 20) {
-            SettingsActivity.log("【EPG】模糊匹配成功：" + channelName
-                    + " → " + bestMatch
-                    + "（匹配度：" + bestScore + "分");
+            SettingsActivity.log("【EPG】模糊匹配成功：" + channelName + " → " + bestMatch + "（匹配度：" + bestScore + "分）");
             return channelEpgMap.get(bestMatch);
         }
-
-        SettingsActivity.log("【EPG】⚠️ 匹配失败：" + channelName
-                + "（标准化后：" + cleanName + "）"
-                + "，共尝试 " + channelEpgMap.size() + " 个频道");
+        SettingsActivity.log("【EPG】⚠️ 匹配失败：" + channelName + "（标准化后：" + cleanName + "）");
         return new ArrayList<>();
     }
 
-    /**
-     * ✅ 标准化频道名称
-     * 去掉各种干扰字符，统一格式，方便匹配
-     */
     private String normalizeChannelName(String name) {
-        if (name == null || name.isEmpty()) {
-            return "";
-        }
-
+        if (name == null || name.isEmpty()) return "";
         String result = name.toLowerCase();
-
-        // 1. 去掉画质后缀
         result = result.replaceAll("(?i)hd", "");
         result = result.replaceAll("(?i)fhd", "");
         result = result.replaceAll("(?i)uhd", "");
@@ -441,8 +381,6 @@ public class EpgManager {
         result = result.replace("标清", "");
         result = result.replace("4k", "");
         result = result.replace("8k", "");
-
-        // 2. 去掉特殊字符
         result = result.replace(" ", "");
         result = result.replace("-", "");
         result = result.replace("_", "");
@@ -450,15 +388,11 @@ public class EpgManager {
         result = result.replace("·", "");
         result = result.replace(":", "");
         result = result.replace("：", "");
-
-        // 3. 去掉"频道"、"卫视"、"电视台"等后缀
         result = result.replace("频道", "");
         result = result.replace("卫视", "");
         result = result.replace("电视台", "");
         result = result.replace("台", "");
         result = result.replace("传媒", "");
-
-        // 4. 中文数字转阿拉伯数字
         result = result.replace("一套", "1套");
         result = result.replace("二套", "2套");
         result = result.replace("三套", "3套");
@@ -474,62 +408,36 @@ public class EpgManager {
         result = result.replace("十三", "13");
         result = result.replace("十四", "14");
         result = result.replace("十五", "15");
-
-        // 5. CCTV 统一成"央视"
         result = result.replace("cctv", "央视");
-
         return result;
     }
 
-    /**
-     * ✅ 计算两个标准化后字符串的匹配度分数
-     */
     private int calculateMatchScore(String s1, String s2) {
-        if (s1 == null || s2 == null || s1.isEmpty() || s2.isEmpty()) {
-            return 0;
-        }
-
-        // 完全匹配：100 分
-        if (s1.equals(s2)) {
-            return 100;
-        }
-
-        // 互相包含：根据长度比例给分
+        if (s1 == null || s2 || s1.isEmpty() || s2.isEmpty()) return 0;
+        if (s1.equals(s2)) return 100;
         if (s1.contains(s2) || s2.contains(s1)) {
             int minLen = Math.min(s1.length(), s2.length());
             int maxLen = Math.max(s1.length(), s2.length());
             return 50 + (minLen * 40 / maxLen);
         }
-
-        // 有共同前缀：根据前缀长度给分
         int prefixLen = 0;
         int minLen = Math.min(s1.length(), s2.length());
         for (int i = 0; i < minLen; i++) {
-            if (s1.charAt(i) == s2.charAt(i)) {
-                prefixLen++;
-            } else {
-                break;
-            }
+            if (s1.charAt(i) == s2.charAt(i)) prefixLen++;
+            else break;
         }
-        if (prefixLen >= 2) {
-            return prefixLen * 5;
-        }
-
-        return 0;
+        return prefixLen >= 2 ? prefixLen * 5 : 0;
     }
 
-    /**
-     * 用 Calendar 直接比较日期，彻底解决毫秒差精度问题
-     */
     public String getDayName(Calendar itemCal, Calendar todayCal) {
         Calendar itemDay = Calendar.getInstance();
-        itemDay.setTime(itemCal.getTime());
+        itemDay.setTime(itemCal);
         itemDay.set(Calendar.HOUR_OF_DAY, 0);
         itemDay.set(Calendar.MINUTE, 0);
         itemDay.set(Calendar.SECOND, 0);
         itemDay.set(Calendar.MILLISECOND, 0);
         Calendar todayDay = Calendar.getInstance();
-        todayDay.setTime(todayCal.getTime());
+        todayDay.setTime(todayCal);
         todayDay.set(Calendar.HOUR_OF_DAY, 0);
         todayDay.set(Calendar.MINUTE, 0);
         todayDay.set(Calendar.SECOND, 0);
@@ -539,46 +447,36 @@ public class EpgManager {
             return "今天";
         }
         Calendar tomorrow = Calendar.getInstance();
-        tomorrow.setTime(todayDay.getTime());
+        tomorrow.setTime(todayDay);
         tomorrow.add(Calendar.DAY_OF_YEAR, 1);
         if (itemDay.get(Calendar.YEAR) == tomorrow.get(Calendar.YEAR)
                 && itemDay.get(Calendar.DAY_OF_YEAR) == tomorrow.get(Calendar.DAY_OF_YEAR)) {
             return "明天";
         }
         Calendar dayAfter = Calendar.getInstance();
-        dayAfter.setTime(todayDay.getTime());
+        dayAfter.setTime(todayDay);
         dayAfter.add(Calendar.DAY_OF_YEAR, 2);
-        if (itemDay.get(Calendar.YEAR) == dayAfter.get(Calendar.DAY_OF_YEAR)) {
+        if (itemDay.get(Calendar.YEAR) == dayAfter.get(Calendar.YEAR)
+                && itemDay.get(Calendar.DAY_OF_YEAR) == dayAfter.get(Calendar.DAY_OF_YEAR)) {
             return "后天";
         }
         String[] weekDays = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
-        int dayOfWeek = itemCal.get(Calendar.DAY_OF_WEEK) - 1;
-        return weekDays[dayOfWeek];
+        return weekDays[itemCal.get(Calendar.DAY_OF_WEEK) - 1];
     }
 
-    // ======================================================================================
-    // ===================== 【新增 信息栏专用节目查询接口】=====================
-    // ======================================================================================
-
+    // ===================== 【信息栏扩展接口】 =====================
     /**
      * 获取当前正在播放的节目
-     * @param channelName 频道名称（支持模糊匹配）
-     * @return 正在播放节目，无则返回null
      */
     public Channel.EpgItem getCurrentProgram(String channelName) {
         List<Channel.EpgItem> epgList = getEpg(channelName);
-        if (epgList == null || epgList.isEmpty()) {
-            return null;
-        }
-        // 按时间重新排序，保证顺序正确
+        if (epgList == null || epgList.isEmpty()) return null;
         List<Channel.EpgItem> sortedList = new ArrayList<>(epgList);
         sortedList.sort((a, b) -> compareTimeStr(extractStartTime(a.time), extractStartTime(b.time)));
         String nowTime = getCurrentTimeStr();
-
         for (Channel.EpgItem item : sortedList) {
             String start = extractStartTime(item.time);
             String end = extractEndTime(item.time);
-            // 当前时间 >= 开始 且 <= 正在播放
             if (compareTimeStr(nowTime, start) >= 0 && compareTimeStr(nowTime, end) <= 0) {
                 return item;
             }
@@ -587,34 +485,28 @@ public class EpgManager {
     }
 
     /**
-     * 获取下一档节目（信息栏核心方法）
-     * @param channelName 频道名
-     * @return 下一档节目，当日无后续返回null
+     * 获取下一档节目，无返回null（上层展示「暂无下一档节目」）
      */
     public Channel.EpgItem getNextProgram(String channelName) {
         List<Channel.EpgItem> epgList = getEpg(channelName);
         if (epgList == null || epgList.isEmpty()) {
-            SettingsActivity.log("【EPG】频道" + channelName + "无节目，无法查询下一档");
+            SettingsActivity.log("【EPG】频道" + channelName + "无节目");
             return null;
         }
         List<Channel.EpgItem> sortedList = new ArrayList<>(epgList);
         sortedList.sort((a, b) -> compareTimeStr(extractStartTime(a.time), extractStartTime(b.time)));
         String nowTime = getCurrentTimeStr();
-
         for (Channel.EpgItem item : sortedList) {
             String start = extractStartTime(item.time);
             if (compareTimeStr(nowTime, start) < 0) {
                 return item;
             }
         }
-        // 当天全部节目已结束，无下一档
         return null;
     }
 
     /**
-     * 一次性获取【当前节目、下一档节目】
-     * @param channelName 频道名
-     * @return 数组 [0]=当前节目 / [1]=下一档节目，任一不存在为null
+     * 同时返回 [当前节目, 下一档节目]
      */
     public Channel.EpgItem[] getCurrentAndNext(String channelName) {
         Channel.EpgItem curr = getCurrentProgram(channelName);
@@ -623,7 +515,7 @@ public class EpgManager {
     }
 
     /**
-     * 异步获取当前+下一档，主线程回调（UI信息栏专用，防止卡顿）
+     * UI专用异步查询，主线程回调
      */
     public void getCurrentAndNextAsync(String channelName, Consumer<Channel.EpgItem[]> callback) {
         new Thread(() -> {
@@ -633,62 +525,63 @@ public class EpgManager {
     }
 
     /**
-     * 批量获取多个频道下一档节目
+     * 批量查询多个频道下一档节目
+     * 修复错误：List不能传入TextUtils.isEmpty，改为判空
      */
     public Map<String, Channel.EpgItem> batchGetNextPrograms(List<String> channelNames) {
         Map<String, Channel.EpgItem> map = new HashMap<>();
-        if (TextUtils.isEmpty(channelNames)) return map;
+        // 修复第1个编译错误
+        if (channelNames == null || channelNames.isEmpty()) {
+            return map;
+        }
         for (String name : channelNames) {
             map.put(name, getNextProgram(name));
         }
         return map;
     }
 
-    // ===================== 内部时间工具方法 =====================
+    // ===================== 时间工具类（修复数组解析错误） =====================
     /**
-     * 拆分时间字符串，提取开始时间 HH:mm
-     * 示例 "12:00 - 13:00" → "12:00"
+     * 截取 HH:mm 开始时间
      */
     private String extractStartTime(String timeStr) {
-        if (TextUtils.isEmpty(timeStr) || !timeStr.contains(" - ")) {
-            return "00:00";
-        }
+        if (TextUtils.isEmpty(timeStr) || !timeStr.contains(" - ")) return "00:00";
         return timeStr.split(" - ")[0].trim();
     }
 
     /**
-     * 拆分时间字符串，提取结束时间 HH:mm
+     * 截取 HH:mm 结束时间
      */
     private String extractEndTime(String timeStr) {
-        if (TextUtils.isEmpty(timeStr) || !timeStr.contains(" - ")) {
-            return "23:59";
-        }
+        if (TextUtils.isEmpty(timeStr) || !timeStr.contains(" - ")) return "23:59";
         return timeStr.split(" - ")[1].trim();
     }
 
     /**
-     * 比较 HH:mm 时间字符串
-     * @return <0 t1更早 / =0相等 / >0 t1更晚
+     * 对比两个时间 HH:mm
+     * 修复第2、3个编译错误：s2是数组，取下标0/1
      */
     private int compareTimeStr(String t1, String t2) {
         try {
             String[] s1 = t1.split(":");
             int h1 = Integer.parseInt(s1[0]);
             int m1 = Integer.parseInt(s1[1]);
+
             String[] s2 = t2.split(":");
-            int h2 = Integer.parseInt(s2);
-            int m2 = Integer.parseInt(s2);
+            int h2 = Integer.parseInt(s2[0]); // 修复：原 s2 → s2[0]
+            int m2 = Integer.parseInt(s2[1]); // 修复：原 s2 → s2[1]
+
             int total1 = h1 * 60 + m1;
-            int total2 = h2 * 60;
+            int total2 = h2 * 60 + m2;
             return total1 - total2;
         } catch (Exception e) {
-            SettingsActivity.log("【EPG】时间解析异常 t1=" + t1 + " t2=" + e.getMessage());
+            SettingsActivity.log("【EPG】时间解析异常 t1=" + t1 + " t2=" + t2 + " err=" + e.getMessage());
             return 0;
         }
     }
 
     /**
-     * 获取当前时间 HH:mm
+     * 获取当前 HH:mm 时间
      */
     private String getCurrentTimeStr() {
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.CHINA);
