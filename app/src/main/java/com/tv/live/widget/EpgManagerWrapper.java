@@ -37,17 +37,17 @@ import java.util.Set;
 
 /**
  * EPG 节目单包装管理器
- * 修复1：置顶后下一档下标加减反向，界面看不到下一档
- * 修复2：时间带空格导致数字转换 For input string 崩溃
- * 修复3：统一时间清洗工具，兼容所有EPG时段格式
- * 修复4：编译错误 中文变量"标题"
- * 日志双输出 Release可打印，区分今日/非今日逻辑
+ * 修复切台新频道下一档不显示问题：
+ * 1. 适配器全局只实例化一次，切换频道不复建ListView
+ * 2. 滚动放入post延迟执行，等待列表布局完成
+ * 3. 增加目标下标合法性校验
+ * 4. 日志区分适配器新建/复用状态
  */
 public class EpgManagerWrapper {
     private static final String TAG = "EPG_DEBUG";
     private final ListView lvEpg;
     private final Context context;
-    private EpgAdapter adapter;
+    private EpgAdapter adapter; // 全局唯一适配器，不复建
     private final Set<String> bookedSet = new HashSet<>();
     private final Map<Channel.EpgItem, String> epgEndTimeMap = new HashMap<>();
     private static final String ACTION_REMINDER = "com.tv.live.EPG_REMINDER";
@@ -59,20 +59,19 @@ public class EpgManagerWrapper {
     public EpgManagerWrapper(Context context, ListView lvEpg) {
         this.context = context;
         this.lvEpg = lvEpg;
-        lvEpg.setItemsCanFocus(false);
         lvEpg.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
         lvEpg.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 selectedPosition = pos;
-                printLog(TAG, "选中条目 position=" + pos);
+                printLog(TAG, "手动选中 position=" + pos);
                 if (adapter != null) adapter.notifyDataSetChanged();
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
                 selectedPosition = -1;
-                printLog(TAG, "取消选中ListView条目");
+                printLog(TAG, "取消选中");
                 if (adapter != null) adapter.notifyDataSetChanged();
             }
         });
@@ -83,53 +82,48 @@ public class EpgManagerWrapper {
         registerReminderReceiver();
     }
 
-    /** 统一日志打印 Info级别 Release不丢失日志 */
+    /** 统一日志打印 Info级别 Release不丢失 */
     private void printLog(String tag, String msg) {
         SettingsActivity.log("[" + tag + "] " + msg);
         Log.i(tag, msg);
     }
 
-    /** 异常日志打印，带堆栈 */
+    /** 异常日志 */
     private void printErrLog(String tag, String msg, Throwable e) {
         SettingsActivity.log("[" + tag + "] ERROR:" + msg);
         Log.e(tag, msg, e);
     }
 
-    /** 【新增统一时间清洗工具】去除空格、分割只保留起始时间 */
+    /** 时间清洗：去空格、截取起始HH:mm */
     private String cleanTimeStr(String raw) {
-        if (TextUtils.isEmpty(raw)) {
-            return "";
-        }
-        String str = raw.trim();
-        // 移除全部空格
-        str = str.replaceAll(" ", "");
-        // 分割"-"只取前面起始时间
-        if (str.contains("-")) {
-            str = str.split("-")[0].trim();
-        }
+        if (TextUtils.isEmpty(raw)) return "";
+        String str = raw.trim().replaceAll(" ", "");
+        if (str.contains("-")) str = str.split("-")[0].trim();
         return str;
     }
 
-    /** 遥控器手动跳转下一档 */
+    /** 遥控器跳转下一档 */
     public void jumpNextProgram() {
-        printLog(TAG, "调用跳转下一档，缓存nextPlayIndex=" + nextPlayIndex);
+        printLog(TAG, "外部跳转下一档，缓存下标=" + nextPlayIndex);
         if (adapter == null || adapter.getCount() == 0 || nextPlayIndex == -1) {
             Toast.makeText(context, "暂无下一档节目", Toast.LENGTH_SHORT).show();
             return;
         }
-        selectedPosition = nextPlayIndex;
-        lvEpg.setSelection(nextPlayIndex);
-        adapter.notifyDataSetChanged();
+        // 延迟滚动保证布局完成
+        lvEpg.post(() -> {
+            selectedPosition = nextPlayIndex;
+            lvEpg.setSelection(nextPlayIndex);
+            adapter.notifyDataSetChanged();
+        });
     }
 
-    /** 刷新节目单核心 */
+    /** 切换频道刷新入口 */
     public void refresh(Channel currentChannel, List<Channel> channelSourceList, int dateIndex) {
         if (currentChannel == null) {
-            SettingsActivity.log("【EPG包装】❌ refresh被调用，但currentChannel为空");
-            printErrLog(TAG, "刷新入参频道对象为空", null);
+            printErrLog(TAG, "刷新频道为空", null);
             return;
         }
-        printLog(TAG, "===== 开始刷新 ==== 频道=" + currentChannel.getName() + " dateIndex=" + dateIndex);
+        printLog(TAG, "=====切换频道刷新 频道名=" + current.getName() + " dateIndex=" + dateIndex);
         playingIndex = -1;
         nextPlayIndex = -1;
         selectDayIndex = dateIndex;
@@ -141,11 +135,10 @@ public class EpgManagerWrapper {
                 List<Channel.EpgItem> temp = EpgManager.getInstance().getEpg(currentChannel.getName());
                 rawList = temp == null ? new ArrayList<>() : new ArrayList<>(temp);
             } catch (Exception e) {
-                SettingsActivity.log("【EPG包装】获取EPG异常：" + e.getMessage());
-                printErrLog(TAG, "拉取原始EPG数据失败", e);
+                printErrLog(TAG, "拉取EPG数据失败", e);
                 rawList = new ArrayList<>();
             }
-            printLog(TAG, "原始EPG总数=" + rawList.size());
+            printLog(TAG, "原始节目总数：" + rawList.size());
             List<Channel.EpgItem> data = new ArrayList<>();
 
             if (!rawList.isEmpty()) {
@@ -157,60 +150,43 @@ public class EpgManagerWrapper {
                 String[] weekMap = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
                 String weekDay = weekMap[w - 1];
                 if (dateIndex == 0) {
-                    targetDay = "今天";
-                    targetWeekDay = weekDay;
+                    targetDay = "今天"; targetWeekDay = weekDay;
                 } else if (dateIndex == 1) {
-                    targetDay = "明天";
-                    targetWeekDay = weekDay;
+                    targetDay = "明天"; targetWeekDay = weekDay;
                 } else if (dateIndex == 2) {
-                    targetDay = "后天";
-                    targetWeekDay = weekDay;
+                    targetDay = "后天"; targetWeekDay = weekDay;
                 } else {
                     targetDay = weekDay;
                 }
-                printLog(TAG, "筛选匹配日期 targetDay=" + targetDay + " week=" + weekDay);
 
-                // 日期筛选
+                // 筛选节目
                 int matchCount = 0;
                 for (Channel.EpgItem item : rawList) {
                     if (TextUtils.isEmpty(item.dayName)) continue;
                     String dayName = item.dayName.trim();
                     boolean match = targetDay.equals(dayName);
-                    if (!match && targetWeekDay != null) match = targetWeekDay.equals(dayName);
-                    if (match) {
-                        data.add(item);
-                        matchCount++;
-                    }
+                    if (!match && targetWeekDay != null) match = targetWeekDay;
+                    if (match) { data.add(item); matchCount++; }
                 }
-                printLog(TAG, "筛选后节目数量=" + matchCount);
+                printLog(TAG, "筛选后节目：" + matchCount);
                 Collections.sort(data, Comparator.comparing(o -> cleanTimeStr(o.time)));
 
                 String now = getNow();
                 Channel.EpgItem playing = null;
-                // 遍历计算每条起止时间
                 for (int i = 0; i < data.size(); i++) {
                     Channel.EpgItem curr = data.get(i);
-                    // 统一清洗时间
-                    String cleanCurrTime = cleanTimeStr(curr.time);
-                    curr.time = cleanCurrTime;
-
+                    curr.time = cleanTimeStr(curr.time);
                     String endStr;
-                    if (i + 1 < data.size()) {
-                        Channel.EpgItem nextItem = data.get(i + 1);
-                        String nextClean = cleanTimeStr(nextItem.time);
-                        endStr = nextClean;
-                    } else {
-                        endStr = addOneHour(curr.time);
-                    }
+                    if (i + 1 < data.size()) endStr = cleanTimeStr(data.get(i + 1).time);
+                    else endStr = addOneHour(curr.time);
                     epgEndTimeMap.put(curr, endStr);
-
                     curr.isPlaying = false;
                     if (isTimeBetween(now, curr.time, endStr)) {
                         curr.isPlaying = true;
                         playing = curr;
                         playingIndex = i;
                     }
-                    printLog(TAG, "节目[" + i + "] title=" + curr.title + " time=" + curr.time + " end=" + endStr + " isPlaying=" + curr.isPlaying);
+                    printLog(TAG, "[" + i + "] " + curr.title + " " + curr.time + " 播放=" + curr.isPlaying);
                 }
 
                 // 计算下一档下标
@@ -218,68 +194,68 @@ public class EpgManagerWrapper {
                     if (playingIndex != -1) {
                         nextPlayIndex = playingIndex + 1;
                         if (nextPlayIndex >= data.size()) nextPlayIndex = -1;
-                        printLog(TAG, "存在播放节目，原始下一档下标=" + nextPlayIndex);
+                        printLog(TAG, "原始下一档下标：" + nextPlayIndex);
                     } else {
                         nextPlayIndex = -1;
                         for (int i = 0; i < data.size(); i++) {
                             String t = cleanTimeStr(data.get(i).time);
                             if (t.compareTo(now) > 0) {
                                 nextPlayIndex = i;
-                                printLog(TAG, "无播放，首个未播下标=" + i);
+                                printLog(TAG, "首个未播下标：" + i);
                                 break;
                             }
                         }
                     }
                 } else {
                     nextPlayIndex = -1;
-                    printLog(TAG, "非今日，无实时下一档");
+                    printLog(TAG, "非今日无下一档");
                 }
 
-                // ========== 修复：置顶后下标修正逻辑（原来减一错误，改为加一）==========
+                // 播放节目置顶，修正下标
                 if (playing != null && playingIndex > 0) {
                     data.remove(playing);
                     data.add(0, playing);
-                    // 所有原有节目下标全部后移一位，下一档同步+1
-                    if (nextPlayIndex != -1) {
-                        nextPlayIndex = nextPlayIndex + 1;
-                    }
                     playingIndex = 0;
-                    printLog(TAG, "播放节目置顶完成，修正后下一档=" + nextPlayIndex);
+                    if (nextPlayIndex != -1) nextPlayIndex += 1;
+                    printLog(TAG, "置顶修正后下一档：" + nextPlayIndex);
                 }
             }
 
-            // UI刷新
+            // 主线程更新数据，不复建Adapter
             final List<Channel.EpgItem> finalData = new ArrayList<>(data);
             final Channel finalChannel = currentChannel;
             ((MainActivity) context).runOnUiThread(() -> {
-                printLog(TAG, "UI刷新回调，列表总数=" + finalData.size() + " 目标滚动pos=" + nextPlayIndex);
+                // 只在第一次创建适配器，切台复用旧实例
                 if (adapter == null) {
-                    adapter = new EpgAdapter(context, finalChannel, finalData, selectDayIndex);
+                    printLog(TAG, "首次创建适配器");
+                    adapter = new EpgAdapter(context, finalData, selectDayIndex);
                     lvEpg.setAdapter(adapter);
                 } else {
-                    adapter.setData(finalChannel, new ArrayList<>(finalData), selectDayIndex);
+                    printLog(TAG, "切换频道，复用适配器，仅更新数据");
+                    adapter.setData(finalChannel, finalData, selectDayIndex);
                 }
-                // 先刷新再滚动，防止条目丢失
                 adapter.notifyDataSetChanged();
-                int targetScrollPos = 0;
-                if (nextPlayIndex != -1) targetScrollPos = nextPlayIndex;
-                else if (playingIndex != -1) targetScrollPos = playingIndex;
-                targetScrollPos = Math.min(targetScrollPos, finalData.size() - 1);
-                selectedPosition = targetScrollPos;
-                lvEpg.setSelection(targetScrollPos);
-                printLog(TAG, "滚动完成，最终选中=" + targetScrollPos);
+                int targetScrollPos = nextPlayIndex != -1 ? nextPlayIndex : playingIndex;
+                // 边界校验，防止下标越界
+                if (targetScrollPos < 0 || targetScrollPos >= finalData.size()) {
+                    targetScrollPos = 0;
+                }
+                printLog(TAG, "目标滚动下标：" + targetScrollPos + " 列表总条数：" + finalData.size());
+                // 【核心修复】延迟滚动，等待ListView布局完成
+                lvEpg.post(() -> {
+                    selectedPosition = targetScrollPos;
+                    lvEpg.setSelection(targetScrollPos);
+                    printLog(TAG, "延迟滚动执行完成");
+                });
             });
         }).start();
     }
 
-    /** 时间区间对比，增加清洗 */
     private boolean isTimeBetween(String now, String start, String end) {
         try {
             String sNow = cleanTimeStr(now);
             String sStart = cleanTimeStr(start);
             String sEnd = cleanTimeStr(end);
-            if (TextUtils.isEmpty(sNow) || TextUtils.isEmpty(sStart) || TextUtils.isEmpty(sEnd))
-                return false;
             return sNow.contains(":") && sStart.contains(":") && sEnd.contains(":")
                     && sNow.compareTo(sStart) >= 0 && sNow.compareTo(sEnd) < 0;
         } catch (Exception e) {
@@ -288,12 +264,11 @@ public class EpgManagerWrapper {
         }
     }
 
-    /** 时间加一小时，先清洗再计算 */
     private String addOneHour(String hm) {
         try {
-            String cleanHm = cleanTimeStr(hm);
-            if (!cleanHm.contains(":")) return "23:59";
-            String[] arr = cleanHm.split(":");
+            String clean = cleanTimeStr(hm);
+            if (!clean.contains(":")) return "23:59";
+            String[] arr = clean.split(":");
             int h = Integer.parseInt(arr[0].trim());
             int m = Integer.parseInt(arr[1].trim());
             Calendar c = Calendar.getInstance();
@@ -302,12 +277,11 @@ public class EpgManagerWrapper {
             c.add(Calendar.MINUTE, 60);
             return String.format("%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE));
         } catch (Exception e) {
-            printErrLog(TAG, "时间加1小时解析失败", e);
+            printErrLog(TAG, "时间加1h失败", e);
             return "23:59";
         }
     }
 
-    /** 获取当前HH:mm */
     private String getNow() {
         return String.format("%02d:%02d",
                 Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
@@ -320,7 +294,7 @@ public class EpgManagerWrapper {
             public void onReceive(Context context, Intent intent) {
                 if (ACTION_REMINDER.equals(intent.getAction())) {
                     String title = intent.getStringExtra("title");
-                    printLog(TAG, "节目提醒广播 title=" + title);
+                    printLog(TAG, "节目提醒：" + title);
                     Toast.makeText(context, "节目提醒：" + title, Toast.LENGTH_LONG).show();
                 }
             }
@@ -328,7 +302,7 @@ public class EpgManagerWrapper {
         context.registerReceiver(receiver, new IntentFilter(ACTION_REMINDER));
     }
 
-    // EPG适配器
+    // 适配器
     private class EpgAdapter extends ArrayAdapter<Channel.EpgItem> {
         private final Context ctx;
         private Channel currentChannel;
@@ -337,14 +311,12 @@ public class EpgManagerWrapper {
         private int dayIndex;
         private final SimpleDateFormat sdfFull = new SimpleDateFormat("yyyyMMddHHmmss", Locale.CHINA);
 
-        public EpgAdapter(Context ctx, Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
+        public EpgAdapter(Context ctx, List<Channel.EpgItem> list, int dayIndex) {
             super(ctx, R.layout.item_epg, list);
             this.ctx = ctx;
-            this.currentChannel = currentChannel;
             this.list = new ArrayList<>(list);
             this.inflater = LayoutInflater.from(ctx);
             this.dayIndex = dayIndex;
-            printLog(TAG, "适配器初始化，数据条数=" + list.size());
         }
 
         public void setData(Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
@@ -352,28 +324,26 @@ public class EpgManagerWrapper {
             this.list.clear();
             this.list.addAll(new ArrayList<>(list));
             this.dayIndex = dayIndex;
-            printLog(TAG, "适配器更新数据，新条数=" + list.size());
         }
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder holder;
-            boolean isNewView = convertView == null;
-            if (isNewView) {
+            boolean newView = convertView == null;
+            if (newView) {
                 convertView = inflater.inflate(R.layout.item_epg, parent, false);
                 holder = new ViewHolder();
                 holder.tv_dayName = convertView.findViewById(R.id.tv_dayName);
                 holder.tv_time = convertView.findViewById(R.id.tv_time);
-                holder.tv_title = convertView.findViewById(R.id.tv_title);
+                holder.tv_title = convertView.findViewById(R.id.tv_action);
                 holder.tv_action = convertView.findViewById(R.id.tv_action);
                 convertView.setTag(holder);
-                printLog(TAG, "getView 创建新View position=" + position);
+                printLog(TAG, "创建ItemView pos=" + position);
             } else {
                 holder = (ViewHolder) convertView.getTag();
-                printLog(TAG, "getView 复用旧View position=" + position);
             }
 
-            // 复用前清空全部控件，解决滑动空白错乱
+            // 清空复用残留
             holder.tv_dayName.setText("");
             holder.tv_time.setText("");
             holder.tv_title.setText("");
@@ -385,22 +355,16 @@ public class EpgManagerWrapper {
             holder.tv_title.setTypeface(null, Typeface.NORMAL);
             convertView.setBackgroundColor(Color.TRANSPARENT);
 
-            // 下标越界拦截
-            if (position < 0 || position >= list.size()) {
-                printErrLog(TAG, "getView 下标越界 position=" + position + " listSize=" + list.size(), null);
-                return convertView;
-            }
+            if (position < 0 || position >= list.size()) return convertView;
             Channel.EpgItem item = list.get(position);
             String endTime = epgEndTimeMap.get(item);
             String dayText = TextUtils.isEmpty(item.dayName) ? "" : item.dayName;
-            String timeText = (TextUtils.isEmpty(item.time) ? "" : item.time) + "-" + (TextUtils.isEmpty(endTime) ? "23:59" : endTime);
             String titleText = TextUtils.isEmpty(item.title) ? "" : item.title;
+            String timeText = cleanTimeStr(item.time) + "-" + (TextUtils.isEmpty(endTime) ? "23:59" : cleanTimeStr(endTime));
 
             holder.tv_dayName.setText(dayText);
             holder.tv_time.setText(timeText);
-            // 修复编译错误：移除中文变量「标题」，使用titleText
             holder.tv_title.setText(titleText);
-            printLog(TAG, "渲染条目[" + position + "] title=" + titleText + " time=" + timeText + " isPlaying=" + item.isPlaying);
 
             boolean isFocused = (position == selectedPosition) && lvEpg.hasFocus();
             boolean isPlaying = item.isPlaying && dayIndex == 0;
@@ -414,17 +378,12 @@ public class EpgManagerWrapper {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_title.setTypeface(null, Typeface.NORMAL);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             }
 
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
-            try {
-                String t = cleanTimeStr(item.time);
-                isPast = t.compareTo(getNow()) < 0;
-            } catch (Exception ignored) {}
-
+            try { isPast = cleanTimeStr(item.time).compareTo(getNow()) < 0; } catch (Exception ignored) {}
             if (item.isPlaying) {
                 holder.tv_action.setText("播放中");
                 holder.tv_action.setBackgroundColor(0xFFFF9800);
@@ -434,7 +393,7 @@ public class EpgManagerWrapper {
                 holder.tv_action.setBackgroundColor(0xFF607D8B);
                 holder.tv_action.setEnabled(true);
                 holder.tv_action.setOnClickListener(v -> {
-                    printLog(TAG, "点击回看 position=" + position + " title=" + item.title);
+                    printLog(TAG, "点击回看：" + item.title);
                     try {
                         String liveUrl = currentChannel.getPlayUrl();
                         if (TextUtils.isEmpty(liveUrl)) {
@@ -443,33 +402,28 @@ public class EpgManagerWrapper {
                         }
                         Calendar playDay = Calendar.getInstance();
                         playDay.add(Calendar.DAY_OF_YEAR, dayIndex);
-                        String startClean = cleanTimeStr(item.time);
-                        String[] startHm = startClean.split(":");
+                        String[] startHm = cleanTimeStr(item.time).split(":");
                         int h = Integer.parseInt(startHm[0].trim());
                         int m = Integer.parseInt(startHm[1].trim());
-                        Calendar startCal = (Calendar) playDay.clone();
+                        Calendar startCal = Calendar.getInstance();
                         startCal.set(Calendar.HOUR_OF_DAY, h);
                         startCal.set(Calendar.MINUTE, m);
                         startCal.set(Calendar.SECOND, 0);
-
-                        String endClean = cleanTimeStr(endTime);
-                        String[] endHm = endClean.split(":");
+                        String[] endHm = cleanTimeStr(endTime).split(":");
                         int eh = Integer.parseInt(endHm[0].trim());
                         int em = Integer.parseInt(endHm[1].trim());
-                        Calendar endCal = (Calendar) playDay.clone();
+                        Calendar endCal = Calendar.getInstance();
                         endCal.set(Calendar.HOUR_OF_DAY, eh);
                         endCal.set(Calendar.MINUTE, em);
                         endCal.set(Calendar.SECOND, 0);
-
-                        String startStr = sdfFull.format(startCal.getTime());
-                        String endStr = sdfFull.format(endCal.getTime());
-                        String catchUrl = liveUrl.contains("PLTV") ? liveUrl.replace("PLTV", "TVOD") : liveUrl;
-                        catchUrl += catchUrl.contains("?") ? "&playseek=" + startStr + "-" + endStr : "?playseek=" + startStr;
-                        ((MainActivity) ctx).mPlayerManager.playUrl(catchUrl);
-                        Toast.makeText(ctx, "回看：" + item.title, Toast.LENGTH_SHORT).show();
+                        String sStart = sdfFull.format(startCal.getTime());
+                        String sEnd = sdfFull.format(endCal.getTime());
+                        String url = liveUrl.contains("PLTV") ? liveUrl.replace("PLTV", "TVOD") : liveUrl;
+                        url += url.contains("?") ? "&playseek=" + sStart + "-" + sEnd : "?playseek=" + sStart;
+                        ((MainActivity) ctx).mPlayerManager.playUrl(url);
+                        Toast.makeText(ctx, "回看：" + item.title, Toast.LENGTH_SHORT);
                     } catch (Exception e) {
-                        printErrLog(TAG, "回看播放失败", e);
-                        Toast.makeText(ctx, "回看失败", Toast.LENGTH_SHORT).show();
+                        printErrLog(TAG, "回看失败", e);
                     }
                 });
             } else {
@@ -478,20 +432,15 @@ public class EpgManagerWrapper {
                 holder.tv_action.setBackgroundColor(bookedSet.contains(key) ? 0xFF607D8B : 0xFF4CAF50);
                 holder.tv_action.setEnabled(true);
                 holder.tv_action.setOnClickListener(v -> {
-                    if (bookedSet.contains(key)) {
-                        bookedSet.remove(key);
-                        Toast.makeText(ctx, "已取消预约", Toast.LENGTH_SHORT).show();
-                    } else {
-                        bookedSet.add(key);
-                        Toast.makeText(ctx, "已预约：" + item.title, Toast.LENGTH_SHORT);
-                    }
+                    if (bookedSet.contains(key)) bookedSet.remove(key);
+                    else bookedSet.add(key);
                     notifyDataSetChanged();
                 });
             }
             return convertView;
         }
 
-        class ViewHolder {
+        static class ViewHolder {
             TextView tv_dayName;
             TextView tv_time;
             TextView tv_title;
