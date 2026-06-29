@@ -36,7 +36,7 @@ public class ChannelPanelController {
 
     // ✅ 2026-06-26 新增：首次启动面板特殊延迟常量
     private static final long FIRST_LAUNCH_HIDE_DELAY_MS = 5000;
-    private static final long NORMAL_HIDE_DELAY_MS = 10000;
+    private static final long NORMAL_HIDE_DELAY_MS = 20000;
 
     private Context context;
     private View panelLayout;
