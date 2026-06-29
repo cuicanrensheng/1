@@ -100,7 +100,8 @@ public class EpgManagerWrapper {
             Log.e(TAG, "刷新入参频道null，直接返回");
             return;
         }
-        Log.d(TAG, "===== 开始刷新 ==== 频道=" + current.getName() + " dateIndex=" + dateIndex);
+        // 修复变量名错误 current → currentChannel
+        Log.d(TAG, "===== 开始刷新 ==== 频道=" + currentChannel.getName() + " dateIndex=" + dateIndex);
         playingIndex = -1;
         nextPlayIndex = -1;
         selectDayIndex = dateIndex;
@@ -306,7 +307,7 @@ public class EpgManagerWrapper {
         public void setData(Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
             this.currentChannel = currentChannel;
             this.list.clear();
-            this.list.addAll(new ArrayList<>(list)); // 深拷贝，外部list修改不影响适配器
+            this.list.addAll(new ArrayList<>(list));
             this.dayIndex = dayIndex;
             Log.d(TAG, "适配器更新数据，新条数=" + list.size());
         }
@@ -352,7 +353,7 @@ public class EpgManagerWrapper {
             String timeText = (TextUtils.isEmpty(item.time) ? "" : item.time) + "-" + (TextUtils.isEmpty(endTime) ? "23:59" : endTime);
             String titleText = TextUtils.isEmpty(item.title) ? "" : item.title;
 
-            // 绑定数据 + 日志打印每条渲染内容
+            // 绑定数据
             holder.tv_dayName.setText(dayText);
             holder.tv_time.setText(timeText);
             holder.tv_title.setText(titleText);
@@ -374,7 +375,7 @@ public class EpgManagerWrapper {
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             }
 
-            // 按钮逻辑日志
+            // 按钮逻辑
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
             try {
