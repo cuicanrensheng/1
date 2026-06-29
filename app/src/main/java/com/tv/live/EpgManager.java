@@ -2,7 +2,7 @@ package com.tv.live;
 
 import android.content.Context;
 import android.os.Handler;
-import android.os.Lo;
+import android.os.Looper;
 import android.text.TextUtils;
 import com.tv.live.util.CacheManager;
 import org.xmlpull.v1.XmlPullParser;
