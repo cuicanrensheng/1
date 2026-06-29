@@ -37,7 +37,7 @@ import java.util.Set;
 /**
  * EPG（电子节目指南）管理器包装类
  * 新增：自动识别、快速定位下一档节目
- * 修复：条目空白、编译参数错误
+ * 修复：条目空白、编译数组trim错误、参数不匹配
  */
 public class EpgManagerWrapper {
     private final ListView lvEpg;
@@ -55,7 +55,7 @@ public class EpgManagerWrapper {
     public EpgManagerWrapper(Context context, ListView lvEpg) {
         this.context = context;
         this.lvEpg = lvEpg;
-        lvEpg.setItemsCanFocus(true);
+        // 移除过时setItemsCanFocus 消除警告
         lvEpg.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
         lvEpg.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -222,7 +222,6 @@ public class EpgManagerWrapper {
                     adapter = new EpgAdapter(context, finalChannel, finalData, selectDayIndex);
                     lvEpg.setAdapter(adapter);
                 } else {
-                    // 修复：去掉第四个多余参数，只传3个
                     adapter.setData(finalChannel, finalData, selectDayIndex);
                 }
 
@@ -309,7 +308,6 @@ public class EpgManagerWrapper {
             this.dayIndex = dayIndex;
         }
 
-        /** 仅3个入参，匹配调用 */
         public void setData(Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
             this.currentChannel = currentChannel;
             this.list.clear();
@@ -332,7 +330,7 @@ public class EpgManagerWrapper {
                 holder = (ViewHolder) convertView.getTag();
             }
 
-            // 清空复用残留，解决条目空白
+            // 清空复用残留，解决滑动空白
             holder.tv_dayName.setText("");
             holder.tv_time.setText("");
             holder.tv_title.setText("");
@@ -347,12 +345,11 @@ public class EpgManagerWrapper {
             if (position < 0 || position >= list.size()) return convertView;
             Channel.EpgItem item = list.get(position);
             String endTime = epgEndTimeMap.get(item);
-
             String dayText = TextUtils.isEmpty(item.dayName) ? "" : item.dayName;
             String timeText = (TextUtils.isEmpty(item.time) ? "" : item.time) + "-" + (TextUtils.isEmpty(endTime) ? "23:59" : endTime);
             String titleText = TextUtils.isEmpty(item.title) ? "" : item.title;
 
-            holder.tv_dayName.setText(dayText);
+            holder.tv_day.setText(dayText);
             holder.tv_time.setText(timeText);
             holder.tv_title.setText(titleText);
 
@@ -396,18 +393,22 @@ public class EpgManagerWrapper {
                         Calendar playDay = Calendar.getInstance();
                         playDay.add(Calendar.DAY_OF_YEAR, dayIndex);
                         String[] startHm = item.time.split(":");
+                        // ========== 修复数组trim错误：先取下标0再trim ==========
+                        int h = Integer.parseInt(startHm[0].trim());
+                        int m = Integer.parseInt(startHm[1].trim());
                         Calendar startCal = (Calendar) playDay.clone();
-                        startCal.set(Calendar.HOUR_OF_DAY, Integer.parseInt(startHm.trim()));
-                        startCal.set(Calendar.MINUTE, Integer.parseInt(startHm[1].trim()));
+                        startCal.set(Calendar.HOUR_OF_DAY, h);
+                        startCal.set(Calendar.MINUTE, m);
                         startCal.set(Calendar.SECOND, 0);
                         String[] endHm = endTime.split(":");
+                        int eh = Integer.parseInt(endHm[0].trim());
+                        int em = Integer.parseInt(endHm[1].trim());
                         Calendar endCal = (Calendar) playDay.clone();
-                        endCal.set(Calendar.HOUR_OF_DAY, Integer.parseInt(endHm[0].trim()));
-                        endCal.set(Calendar.MINUTE, Integer.parseInt(endHm[1].trim()));
+                        endCal.set(Calendar.HOUR_OF_DAY, eh);
+                        endCal.set(Calendar.MINUTE, em);
                         endCal.set(Calendar.SECOND, 0);
                         String startStr = sdfFull.format(startCal.getTime());
                         String endStr = sdfFull.format(endCal.getTime());
-                        // 修复笔误 liveUrl
                         String catchUrl = liveUrl.contains("PLTV") ? liveUrl.replace("PLTV", "TVOD") : liveUrl;
                         catchUrl += catchUrl.contains("?") ? "&playseek=" + startStr + "-" + endStr : "?playseek=" + startStr;
                         ((MainActivity) ctx).mPlayerManager.playUrl(catchUrl);
@@ -421,14 +422,10 @@ public class EpgManagerWrapper {
                 holder.tv_action.setBackgroundColor(bookedSet.contains(key) ? 0xFF607D8B : 0xFF4CAF50);
                 holder.tv_action.setEnabled(true);
                 holder.tv_action.setOnClickListener(v -> {
-                    if (bookedSet.contains(key)) {
-                        bookedSet.remove(key);
-                        Toast.makeText(ctx, "已取消预约", Toast.LENGTH_SHORT).show();
-                    } else {
-                        bookedSet.add(key);
-                        Toast.makeText(ctx, "已预约：" + item.title, Toast.LENGTH_SHORT).show();
-                    }
+                    if (bookedSet.contains(key)) bookedSet.remove(key);
+                    else bookedSet.add(key);
                     notifyDataSetChanged();
+                    Toast.makeText(ctx, bookedSet.contains(key) ? "已预约：" + item.title : "已取消预约", Toast.LENGTH_SHORT);
                 });
             }
             return convertView;
