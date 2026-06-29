@@ -41,7 +41,7 @@ import java.util.Set;
  * 2、播放中条目（仅今日首位，无焦点）：蓝色字体、不加粗、透明无背景
  * 3、普通条目：白色常规文字、透明背景
  * 4、非今日完全不渲染播放中蓝色样式
- * 已按规范优化：区分今日/非今日、增加各类边界防护、时间预处理
+ * 已按规范优化：强区分今日/非今日、多层边界NPE/越界/格式校验
  */
 public class EpgManagerWrapper {
     // 展示EPG的ListView控件
@@ -127,7 +127,7 @@ public class EpgManagerWrapper {
             List<Channel.EpgItem> tempList;
             try {
                 List<Channel.EpgItem> raw = EpgManager.getInstance().getEpg(currentChannel.getName());
-                // 空值防护
+                // NPE防护
                 tempList = raw == null ? new ArrayList<>() : new ArrayList<>(raw);
             } catch (Exception e) {
                 SettingsActivity.log("【EPG包装】获取EPG异常：" + e.getMessage());
@@ -167,7 +167,7 @@ public class EpgManagerWrapper {
                 // ========== 步骤2：双重兼容筛选节目 ==========
                 int matchCount = 0;
                 for (Channel.EpgItem item : tempList) {
-                    if (item.dayName == null) continue;
+                    if (TextUtils.isEmpty(item.dayName)) continue;
                     String dayName = item.dayName.trim();
                     // 匹配目标日期描述 或 对应的周几（兼容不同数据源的日期格式）
                     boolean match = targetDay.equals(dayName);
@@ -184,25 +184,26 @@ public class EpgManagerWrapper {
                 // ========== 步骤3：按节目开始时间排序 ==========
                 Collections.sort(data, Comparator.comparing(o -> o.time));
 
-                // ========== 步骤4：区分今日/非今日分别计算时间、标记播放 ==========
+                // ========== 步骤4：强区分今日/非今日两套独立逻辑 ==========
                 if (dateIndex == 0) {
                     String now = getNow();
                     Channel.EpgItem playing = null;
                     for (int i = 0; i < data.size(); i++) {
                         Channel.EpgItem curr = data.get(i);
-                        // 先预处理时间，分割去除后缀
+                        // 时间格式清洗
                         if (!TextUtils.isEmpty(curr.time) && curr.time.contains("-"))
                             curr.time = curr.time.split("-")[0].trim();
 
-                        // 计算结束时间
+                        // 预计算结束时间存入缓存
                         if (TextUtils.isEmpty(epgEndTimeMap.get(curr))) {
-                            if (i + 1 < data.size())
+                            if (i + 1 < data.size()) {
                                 epgEndTimeMap.put(curr, data.get(i + 1).time.split("-")[0].trim());
-                            else
+                            } else {
                                 epgEndTimeMap.put(curr, addOneHour(curr.time));
+                            }
                         }
 
-                        // 标记播放状态
+                        // 仅今日标记播放状态
                         curr.isPlaying = false;
                         String currEnd = epgEndTimeMap.get(curr);
                         if (isTimeBetween(now, curr.time, currEnd)) {
@@ -212,14 +213,14 @@ public class EpgManagerWrapper {
                         }
                     }
 
-                    // 步骤5：仅今日播放节目置顶
+                    // 仅今日执行播放节目置顶
                     if (playing != null && playingIndex > 0) {
                         data.remove(playing);
                         data.add(0, playing);
                         playingIndex = 0;
                     }
                 } else {
-                    // 明天/后天等非今日：不判断播放状态，仅计算结束时间
+                    // 非今日：强制清空播放下标、全部节目置为非播放
                     playingIndex = -1;
                     for (int i = 0; i < data.size(); i++) {
                         Channel.EpgItem curr = data.get(i);
@@ -227,22 +228,23 @@ public class EpgManagerWrapper {
                             curr.time = curr.time.split("-")[0].trim();
 
                         if (TextUtils.isEmpty(epgEndTimeMap.get(curr))) {
-                            if (i + 1 < data.size())
+                            if (i + 1 < data.size()) {
                                 epgEndTimeMap.put(curr, data.get(i + 1).time.split("-")[0].trim());
-                            else
+                            } else {
                                 epgEndTimeMap.put(curr, addOneHour(curr.time));
+                            }
                         }
                         curr.isPlaying = false;
                     }
                 }
             }
 
-            // ========== 主线程更新UI（必须在主线程操作控件） ==========
+            // ========== 主线程更新UI ==========
             final List<Channel.EpgItem> finalData = data;
             final Channel finalChannel = currentChannel;
             ((MainActivity) context).runOnUiThread(() -> {
                 SettingsActivity.logOperation("【EPG包装】📱 主线程更新UI，节目数：" + finalData.size());
-                // 初始化适配器或更新适配器数据
+                // 初始化/更新适配器
                 if (adapter == null) {
                     adapter = new EpgAdapter(context, finalChannel, finalData, selectDayIndex);
                     lvEpg.setAdapter(adapter);
@@ -250,7 +252,7 @@ public class EpgManagerWrapper {
                     adapter.setData(finalChannel, finalData, selectDayIndex);
                 }
 
-                // 新增：选中下标越界保护
+                // 下标越界保护
                 if (selectedPosition >= finalData.size()) {
                     selectedPosition = Math.max(0, finalData.size() - 1);
                 }
@@ -270,9 +272,9 @@ public class EpgManagerWrapper {
      */
     private boolean isTimeBetween(String now, String start, String end) {
         try {
-            if (now == null || start == null || end == null) return false;
-            // 校验时间格式（必须包含":"），并比较时间字符串
-            return now.contains(":") && start.contains(":") && end.contains(":")
+            if (TextUtils.isEmpty(now) || TextUtils.isEmpty(start) || TextUtils.isEmpty(end))
+                return false;
+            return now.contains(":") && start.contains(":")
                     && now.compareTo(start) >= 0 && now.compareTo(end) < 0;
         } catch (Exception e) {
             return false;
@@ -286,7 +288,7 @@ public class EpgManagerWrapper {
      */
     private String addOneHour(String hm) {
         try {
-            if (hm == null || !hm.contains(":")) return "23:59";
+            if (TextUtils.isEmpty(hm) || !hm.contains(":")) return "23:59";
             hm = hm.trim();
             if (hm.contains("-")) hm = hm.split("-")[0].trim();
             String[] arr = hm.split(":");
@@ -327,9 +329,7 @@ public class EpgManagerWrapper {
         context.registerReceiver(receiver, new IntentFilter(ACTION_REMINDER));
     }
 
-    /**
-     * EPG列表适配器（自定义ArrayAdapter）
-     */
+    // EPG列表适配器
     private class EpgAdapter extends ArrayAdapter<Channel.EpgItem> {
         private final Context ctx;
         private Channel currentChannel;
@@ -352,12 +352,8 @@ public class EpgManagerWrapper {
             this.list.clear();
             this.list.addAll(list);
             this.dayIndex = dayIndex;
-            notifyDataSetChanged();
         }
 
-        /**
-         * 核心渲染Item
-         */
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder holder;
@@ -373,48 +369,56 @@ public class EpgManagerWrapper {
                 holder = (ViewHolder) convertView.getTag();
             }
 
-            // 新增：边界保护，防止下标越界空白
+            // 复用前清空所有控件，解决滑动空白残留
+            holder.tv_dayName.setText("");
+            holder.tv_time.setText("");
+            holder.tv_title.setText("");
+            holder.tv_action.setText("");
+            holder.tv_action.setOnClickListener(null);
+            holder.tv_dayName.setTextColor(Color.WHITE);
+            holder.tv_time.setTextColor(Color.LTGRAY);
+            holder.tv_title.setTextColor(Color.WHITE);
+            holder.tv_title.setTypeface(null, Typeface.NORMAL);
+            convertView.setBackgroundColor(Color.TRANSPARENT);
+
+            // 下标越界防护
             if (position < 0 || position >= list.size()) {
                 return convertView;
             }
 
             Channel.EpgItem item = list.get(position);
             String endTime = epgEndTimeMap.get(item);
-            holder.tv_day.setText(item.dayName);
-            holder.tv_time.setText(item.time + "-" + endTime);
-            holder.tv_title.setText(item.title);
+            // 空值兜底，避免setText(null)空白
+            String dayText = TextUtils.isEmpty(item.dayName) ? "" : item.dayName;
+            String timeText = (TextUtils.isEmpty(item.time) ? "" : item.time) + "-" + (TextUtils.isEmpty(endTime) ? "23:59" : endTime);
+            String titleText = TextUtils.isEmpty(item.title) ? "" : item.title;
 
-            // 样式重置+判断
-            boolean isSelected = (position == selectedPosition || item.isPlaying);
-            boolean hasItemFocus = convertView.isFocused();
-            // 统一重置基础样式
-            holder.tv_dayName.setTextColor(Color.WHITE);
-            holder.tv_time.setTextColor(Color.LTGRAY);
-            holder.tv_title.setTextColor(Color.WHITE);
-            holder.tv_title.setTypeface(null, Typeface.NORMAL);
-            convertView.setBackgroundColor(Color.TRANSPARENT);
-            convertView.setSelected(false);
+            // 修复编译错误：tv_day → tv_dayName
+            holder.tv_dayName.setText(dayText);
+            holder.tv_time.setText(timeText);
+            holder.tv_title.setText(titleText);
 
-            if (isSelected) {
-                // 选中/播放中：蓝色字体+加粗+半透背景
+            boolean isFocused = (position == selectedPosition) && lvEpg.hasFocus();
+            boolean isPlaying = item.isPlaying && dayIndex == 0;
+            if (isFocused) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(0x3340A9FF);
-            } else if (hasItemFocus) {
-                // 单独焦点样式
+            } else if (isPlaying) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.NORMAL);
-                convertView.setBackgroundColor(0x4440A9FF);
+                convertView.setBackgroundColor(Color.TRANSPARENT);
             }
 
-            // 按钮逻辑
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
-            try { isPast = item.time.compareTo(getNow()) < 0; } catch (Exception ignored) {}
+            try {
+                if (!TextUtils.isEmpty(item.time)) isPast = item.time.compareTo(getNow()) < 0;
+            } catch (Exception ignored) {}
 
             if (item.isPlaying) {
                 holder.tv_action.setText("播放中");
@@ -434,14 +438,18 @@ public class EpgManagerWrapper {
                         Calendar playDay = Calendar.getInstance();
                         playDay.add(Calendar.DAY_OF_YEAR, dayIndex);
                         String[] startHm = item.time.split(":");
+                        int h = Integer.parseInt(startHm[0].trim());
+                        int m = Integer.parseInt(startHm[1].trim());
                         Calendar startCal = (Calendar) playDay.clone();
-                        startCal.set(Calendar.HOUR_OF_DAY, Integer.parseInt(startHm[0].trim()));
-                        startCal.set(Calendar.MINUTE, Integer.parseInt(startHm[1].trim()));
+                        startCal.set(Calendar.HOUR_OF_DAY, h);
+                        startCal.set(Calendar.MINUTE, m);
                         startCal.set(Calendar.SECOND, 0);
                         String[] endHm = endTime.split(":");
+                        int eh = Integer.parseInt(endHm[0].trim());
+                        int em = Integer.parseInt(endHm[1].trim());
                         Calendar endCal = (Calendar) playDay.clone();
-                        endCal.set(Calendar.HOUR_OF_DAY, Integer.parseInt(endHm[0].trim()));
-                        endCal.set(Calendar.MINUTE, Integer.parseInt(endHm[1].trim()));
+                        endCal.set(Calendar.HOUR_OF_DAY, eh);
+                        endCal.set(Calendar.MINUTE, em);
                         endCal.set(Calendar.SECOND, 0);
                         String startStr = sdfFull.format(startCal.getTime());
                         String endStr = sdfFull.format(endCal.getTime());
