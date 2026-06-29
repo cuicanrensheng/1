@@ -38,8 +38,9 @@ import java.util.Set;
 /**
  * EPG 节目单包装管理器
  * 修复1：置顶后下一档下标加减反向，界面看不到下一档
- * 修复2：时间带空格导致数字转换崩溃 For input string
+ * 修复2：时间带空格导致数字转换 For input string 崩溃
  * 修复3：统一时间清洗工具，兼容所有EPG时段格式
+ * 修复4：编译错误 中文变量"标题"
  * 日志双输出 Release可打印，区分今日/非今日逻辑
  */
 public class EpgManagerWrapper {
@@ -234,7 +235,7 @@ public class EpgManagerWrapper {
                     printLog(TAG, "非今日，无实时下一档");
                 }
 
-                // ========== 修复：置顶后下标修正逻辑（原来是-1，现在+1）==========
+                // ========== 修复：置顶后下标修正逻辑（原来减一错误，改为加一）==========
                 if (playing != null && playingIndex > 0) {
                     data.remove(playing);
                     data.add(0, playing);
@@ -397,7 +398,8 @@ public class EpgManagerWrapper {
 
             holder.tv_dayName.setText(dayText);
             holder.tv_time.setText(timeText);
-            holder.tv_title.setText(title);
+            // 修复编译错误：移除中文变量「标题」，使用titleText
+            holder.tv_title.setText(titleText);
             printLog(TAG, "渲染条目[" + position + "] title=" + titleText + " time=" + timeText + " isPlaying=" + item.isPlaying);
 
             boolean isFocused = (position == selectedPosition) && lvEpg.hasFocus();
