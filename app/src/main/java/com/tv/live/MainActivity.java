@@ -471,6 +471,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+        // ✅ 新增：绑定节目单管理器到信息栏（联动复用EPG数据）
+        infoDisplayManager.setEpgManagerWrapper(epgManagerWrapper);
+    }
 
     /**
      * 初始化播放器核心
