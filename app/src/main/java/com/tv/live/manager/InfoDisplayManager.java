@@ -3,6 +3,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -38,6 +39,7 @@ import java.util.Locale;
 * 2026-06-27 修复3：播放时长超大数字溢出，限制单日最大时长24h
 * 2026-06-27 修复：解决"暂无下一档节目"问题
 * 2026-06-27 修复：解决码率显示为0的问题
+* 2026-07-01 修复：兼容带结束时间的格式（如 "17:00-17:30"）
 */
 public class InfoDisplayManager {
 // ===================== 定时延时常量 =====================
@@ -74,7 +76,6 @@ private String lastResolution = "";
  * 两边用同一套数据，确保时间完全一致。
  */
 private EpgManagerWrapper mEpgManagerWrapper;
-
 /**
  * 设置节目单管理器（联动用）
  * @param wrapper 右侧节目单的 EpgManagerWrapper 实例
@@ -203,7 +204,6 @@ if (isValidBitrate(bitrate)) {
     }
 }
 }
-
 public void updateBitrate(String bitrate) {
     if (tvBitrate == null) return;
     if (isValidBitrate(bitrate)) {
@@ -211,7 +211,6 @@ public void updateBitrate(String bitrate) {
         tvBitrate.setText(formatBitrate(bitrate));
     }
 }
-
 private void showCachedLiveInfo() {
     if (tvTagFhd != null) {
         if (!lastResolution.isEmpty()) {
@@ -228,7 +227,6 @@ private void showCachedLiveInfo() {
         }
     }
 }
-
 private boolean isValidBitrate(String bitrate) {
     if (bitrate == null || bitrate.trim().isEmpty()) return false;
     String clean = bitrate.trim().toLowerCase();
@@ -240,7 +238,6 @@ private boolean isValidBitrate(String bitrate) {
         return true;
     }
 }
-
 private boolean isValidResolution(String resolution) {
     if (resolution == null || resolution.trim().isEmpty()) return false;
     String clean = resolution.trim();
@@ -252,7 +249,6 @@ private boolean isValidResolution(String resolution) {
         return true;
     }
 }
-
 private String formatBitrate(String bitrate) {
     if (bitrate == null || bitrate.trim().isEmpty()) return "加载中...";
     String clean = bitrate.trim();
@@ -293,7 +289,6 @@ private String formatBitrate(String bitrate) {
         return clean;
     }
 }
-
 private String parseQualityText(String resolution){
 if(resolution == null || resolution.isEmpty()) return "未知";
 try {
@@ -314,14 +309,12 @@ if(channel == null) return;
 currentPlayChannel = channel;
 updateEpgInternal(channel);
 }
-
 private void updateEpgInternal(Channel channel){
 if(channel == null || tvCurrentProgramName == null) return;
 String channelName = channel.getName();
 try {
 SettingsActivity.logOperation("【EPG匹配】========== 开始匹配 ==========");
 SettingsActivity.logOperation("【EPG匹配】频道名：" + channelName);
-
 // ====================================================================
 // ✅ 2026-07-01 新增：优先从节目单获取数据（联动）
 // ====================================================================
@@ -334,15 +327,12 @@ if (mEpgManagerWrapper != null && mEpgManagerWrapper.getCurrentDayIndex() == 0) 
         useWrapperData = true;
     }
 }
-
 // 节目单没有今日数据，走原来的逻辑自己获取
 if (!useWrapperData) {
     SettingsActivity.logOperation("【EPG联动】节目单无今日数据，自行获取");
     updateEpgSelf(channelName);
 }
-
 SettingsActivity.logOperation("【EPG匹配】========== 匹配结束 ==========");
-
 }catch (Exception e){
 e.printStackTrace();
 SettingsActivity.logOperation("【EPG匹配异常】" + e.getMessage());
@@ -375,7 +365,8 @@ private void updateEpgFromWrapper(List<Channel.EpgItem> programList) {
     // 遍历找当前播放节目
     for (int i = 0; i < programList.size(); i++) {
         Channel.EpgItem item = programList.get(i);
-        String start = item.time;
+        // ✅ 修复：提取开始时间（兼容带结束时间的格式）
+        String start = getStartTime(item.time);
         // 结束时间直接复用节目单的计算结果
         String end = mEpgManagerWrapper.getProgramEndTime(item);
         if (end == null) end = "23:59";
@@ -404,7 +395,6 @@ private void updateEpgFromWrapper(List<Channel.EpgItem> programList) {
     refreshCurrProgramUiWithWrapper(currItem, currIndex, programList, nowTime);
     refreshNextProgramUiWithWrapper(nextItem, currIndex, programList);
 }
-
 /**
  * 简单的时间范围判断（和节目单逻辑一致）
  */
@@ -417,7 +407,6 @@ private boolean isTimeBetweenSimple(String now, String start, String end) {
         return false;
     }
 }
-
 /**
  * 用节目单数据刷新当前节目UI
  */
@@ -426,7 +415,8 @@ private void refreshCurrProgramUiWithWrapper(Channel.EpgItem currItem, int currI
     if(currItem != null){
         tvCurrentProgramName.setText(currItem.title);
         
-        String start = currItem.time;
+        // ✅ 修复：提取开始时间（兼容带结束时间的格式）
+        String start = getStartTime(currItem.time);
         // 结束时间直接从节目单取
         String end = mEpgManagerWrapper.getProgramEndTime(currItem);
         if (end == null) end = "23:59";
@@ -477,14 +467,14 @@ private void refreshCurrProgramUiWithWrapper(Channel.EpgItem currItem, int currI
         if(tvRemainingTime != null) tvRemainingTime.setText("");
     }
 }
-
 /**
  * 用节目单数据刷新下一档节目UI
  */
 private void refreshNextProgramUiWithWrapper(Channel.EpgItem nextItem, int currIdx, 
         List<Channel.EpgItem> todayList) {
     if(nextItem != null && tvNextProgramName != null && tvNextTimeRange != null){
-        String s = nextItem.time;
+        // ✅ 修复：提取开始时间（兼容带结束时间的格式）
+        String s = getStartTime(nextItem.time);
         // 结束时间直接从节目单取
         String e = mEpgManagerWrapper.getProgramEndTime(nextItem);
         if (e == null) e = "次日";
@@ -493,7 +483,7 @@ private void refreshNextProgramUiWithWrapper(Channel.EpgItem nextItem, int currI
         tvNextProgramName.setText(nextItem.title);
     }else {
         if(lastNextItem != null){
-            String s = lastNextItem.time;
+            String s = getStartTime(lastNextItem.time);
             tvNextTimeRange.setText(s + " - 次日");
             tvNextProgramName.setText(lastNextItem.title);
         }else {
@@ -569,8 +559,8 @@ try {
     int currIndex = -1;
     for(int i=0; i<todayEpg.size(); i++){
         Channel.EpgItem item = todayEpg.get(i);
-        String start = item.time;
-        String end = (i+1 < todayEpg.size()) ? todayEpg.get(i+1).time : "23:59";
+        String start = getStartTime(item.time);
+        String end = (i+1 < todayEpg.size()) ? getStartTime(todayEpg.get(i+1).time) : "23:59";
         
         if(timeBetween(nowTime, start, end)){
             currItem = item;
@@ -605,7 +595,6 @@ try {
     SettingsActivity.logOperation("【EPG自获取异常】" + e.getMessage());
 }
 }
-
 // 模糊匹配（精简版，减少误匹配）
 private String fuzzyMatchEpgGetName(String rawName){
 if(rawName == null || rawName.isEmpty()) return null;
@@ -653,7 +642,6 @@ SettingsActivity.logOperation("【EPG模糊匹配异常】" + e.getMessage());
 }
 return null;
 }
-
 private List<Channel.EpgItem> fuzzyMatchEpg(String rawName){
     String matchedName = fuzzyMatchEpgGetName(rawName);
     if (matchedName != null) {
@@ -661,36 +649,29 @@ private List<Channel.EpgItem> fuzzyMatchEpg(String rawName){
     }
     return null;
 }
-
 // 筛选今日节目
 private List<Channel.EpgItem> filterTodayEpg(List<Channel.EpgItem> source){
 List<Channel.EpgItem> res = new ArrayList<>();
 if (source == null || source.isEmpty()) return res;
-
 Calendar cal = Calendar.getInstance();
-
 int weekNum = cal.get(Calendar.DAY_OF_WEEK);
 String[] weekFullArr = {"星期日","星期一","星期二","星期三","星期四","星期五","星期六"};
 String[] weekShortArr = {"周日","周一","周二","周三","周四","周五","周六"};
 String todayWeekFull = weekFullArr[weekNum - 1];
 String todayWeekShort = weekShortArr[weekNum - 1];
-
 SimpleDateFormat sdf1 = new SimpleDateFormat("yyyy-MM-dd", Locale.CHINA);
 SimpleDateFormat sdf2 = new SimpleDateFormat("MM-dd", Locale.CHINA);
 SimpleDateFormat sdf3 = new SimpleDateFormat("M月d日", Locale.CHINA);
 SimpleDateFormat sdf4 = new SimpleDateFormat("yyyy/MM/dd", Locale.CHINA);
 SimpleDateFormat sdf5 = new SimpleDateFormat("yyyyMMdd", Locale.CHINA);
-
 String todayDate1 = sdf1.format(cal.getTime());
 String todayDate2 = sdf2.format(cal.getTime());
 String todayDate3 = sdf3.format(cal.getTime());
 String todayDate4 = sdf4.format(cal.getTime());
 String todayDate5 = sdf5.format(cal.getTime());
-
 for(Channel.EpgItem item : source){
 if(item.dayName == null) continue;
 String day = item.dayName.trim();
-
 if("今天".equals(day) || "今日".equals(day)){
 res.add(item);
 continue;
@@ -712,37 +693,29 @@ res.add(item);
 continue;
 }
 }
-
 SettingsActivity.logOperation("【EPG筛选】原始 " + source.size() + " 条，今日 " + res.size() + " 条");
 return res;
 }
-
 private Channel.EpgItem findTomorrowFirstProgram(List<Channel.EpgItem> allEpg){
 if (allEpg == null || allEpg.isEmpty()) return null;
-
 try {
 Calendar cal = Calendar.getInstance();
 cal.add(Calendar.DAY_OF_YEAR, 1);
-
 int weekNum = cal.get(Calendar.DAY_OF_WEEK);
 String[] weekFullArr = {"星期日","星期一","星期二","星期三","星期四","星期五","星期六"};
 String[] weekShortArr = {"周日","周一","周二","周三","周四","周五","周六"};
 String tomorrowWeekFull = weekFullArr[weekNum - 1];
 String tomorrowWeekShort = weekShortArr[weekNum - 1];
-
 SimpleDateFormat sdf1 = new SimpleDateFormat("yyyy-MM-dd", Locale.CHINA);
 SimpleDateFormat sdf2 = new SimpleDateFormat("MM-dd", Locale.CHINA);
 SimpleDateFormat sdf3 = new SimpleDateFormat("M月d日", Locale.CHINA);
-
 String tomorrowDate1 = sdf1.format(cal.getTime());
 String tomorrowDate2 = sdf2.format(cal.getTime());
 String tomorrowDate3 = sdf3.format(cal.getTime());
-
 List<Channel.EpgItem> tomorrowEpg = new ArrayList<>();
 for (Channel.EpgItem item : allEpg) {
 if (item.dayName == null) continue;
 String day = item.dayName.trim();
-
 if ("明天".equals(day) 
 || "明日".equals(day)
 || tomorrowWeekFull.equals(day) 
@@ -755,24 +728,20 @@ if ("明天".equals(day)
 tomorrowEpg.add(item);
 }
 }
-
 if (tomorrowEpg.isEmpty()) {
 return null;
 }
-
 sortEpgByTime(tomorrowEpg);
 return tomorrowEpg.get(0);
-
 } catch (Exception e) {
 return null;
 }
 }
-
 private void sortEpgByTime(List<Channel.EpgItem> list){
 Collections.sort(list, new Comparator<Channel.EpgItem>() {
 @Override
 public int compare(Channel.EpgItem o1, Channel.EpgItem o2) {
-return o1.time.compareTo(o2.time);
+return getStartTime(o1.time).compareTo(getStartTime(o2.time));
 }
 });
 }
@@ -780,16 +749,13 @@ return o1.time.compareTo(o2.time);
 private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Channel.EpgItem> todayList, String now){
 if(currItem != null){
 tvCurrentProgramName.setText(currItem.title);
-
-String start = currItem.time;
-String end = (currIdx+1 < todayList.size()) ? todayList.get(currIdx+1).time : "23:59";
-
+// ✅ 修复：提取开始时间（兼容带结束时间的格式）
+String start = getStartTime(currItem.time);
+String end = (currIdx+1 < todayList.size()) ? getStartTime(todayList.get(currIdx+1).time) : "23:59";
 if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText(start + " - " + end);
-
 long nowMs = timeToMs(now, false, 0);
 long sMs = timeToMs(start, false, 0);
 long eMs = timeToMs(end, true, sMs);
-
 if(progressProgram != null){
 long totalDuration = eMs - sMs;
 long played = nowMs - sMs;
@@ -801,7 +767,6 @@ progress = Math.max(0, Math.min(100, progress));
 progressProgram.setProgress(progress);
 progressProgram.invalidate();
 }
-
 if(tvRemainingTime != null){
 long played = nowMs - sMs;
 if(played < 0){
@@ -832,21 +797,21 @@ if(tvRemainingTime != null) tvRemainingTime.setText("");
 // ===================== 刷新下一档节目UI（自行获取数据时用） =====================
 private void refreshNextProgramUi(Channel.EpgItem nextItem, int currIdx, List<Channel.EpgItem> todayList){
 if(nextItem != null && tvNextProgramName != null && tvNextTimeRange != null){
-String s = nextItem.time;
+// ✅ 修复：提取开始时间（兼容带结束时间的格式）
+String s = getStartTime(nextItem.time);
 String e;
 if (currIdx + 2 < todayList.size()) {
-    e = todayList.get(currIdx + 2).time;
+    e = getStartTime(todayList.get(currIdx + 2).time);
 } else if (currIdx + 1 < todayList.size()) {
     e = "23:59";
 } else {
     e = "次日";
 }
-
 tvNextTimeRange.setText(s + " - " + e);
 tvNextProgramName.setText(nextItem.title);
 }else {
 if(lastNextItem != null){
-String s = lastNextItem.time;
+String s = getStartTime(lastNextItem.time);
 tvNextTimeRange.setText(s + " - 次日");
 tvNextProgramName.setText(lastNextItem.title);
 }else {
@@ -855,7 +820,6 @@ if(tvNextTimeRange != null) tvNextTimeRange.setText("");
 }
 }
 }
-
 private void setEpgEmptyUi(){
 if(tvCurrentProgramName != null) tvCurrentProgramName.setText("暂无节目信息");
 if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
@@ -871,6 +835,40 @@ mainHandler.postDelayed(refreshProgressTask, PROGRAM_PROGRESS_INTERVAL);
 }
 public void stopProgressLoop(){
 mainHandler.removeCallbacks(refreshProgressTask);
+}
+// ====================================================================
+// ✅ 2026-07-01 新增：统一时间处理工具（兼容带结束时间的格式）
+// ====================================================================
+/**
+ * 从时间字符串中提取开始时间
+ * 【兼容格式】
+ * - "17:00" → 返回 "17:00"
+ * - "17:00-17:30" → 返回 "17:00"
+ * - "17:00~17:30" → 返回 "17:00"
+ * @param timeStr 原始时间字符串
+ * @return 纯开始时间（HH:mm 格式）
+ */
+private String getStartTime(String timeStr) {
+    if (timeStr == null || timeStr.isEmpty()) {
+        return "00:00";
+    }
+    try {
+        String trimmed = timeStr.trim();
+        // 兼容多种分隔符
+        if (trimmed.contains("-")) {
+            return trimmed.split("-")[0].trim();
+        }
+        if (trimmed.contains("~")) {
+            return trimmed.split("~")[0].trim();
+        }
+        if (trimmed.contains("～")) {
+            return trimmed.split("～")[0].trim();
+        }
+        return trimmed;
+    } catch (Exception e) {
+        Log.e("InfoDisplayManager", "提取开始时间失败：" + timeStr);
+        return "00:00";
+    }
 }
 // ===================== 时间工具 =====================
 private String getCurrentTimeStr(){
@@ -892,7 +890,9 @@ return false;
 }
 private long timeToMs(String timeStr, boolean isEndTime, long startMs){
 try {
-String[] split = timeStr.split(":");
+// ✅ 修复：先提取开始时间（兼容带结束时间的格式）
+String startTime = getStartTime(timeStr);
+String[] split = startTime.split(":");
 if (split.length < 2) {
 return 0;
 }
@@ -910,6 +910,7 @@ ms = cal.getTimeInMillis();
 }
 return ms;
 }catch (Exception e){
+Log.e("InfoDisplayManager", "时间解析失败：" + timeStr + "，错误：" + e.getMessage());
 return 0;
 }
 }
