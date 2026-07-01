@@ -13,7 +13,6 @@ import androidx.media3.datasource.HttpDataSource;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InterruptedIOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
@@ -25,14 +24,13 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 /**
- * 带重定向日志的 HTTP 数据源（格式对齐修正版）
- *
- * 【功能】
- * 1. 手动处理 HTTP 重定向（301/302/303/307/308）
- * 2. 支持跨协议重定向（HTTP ↔ HTTPS）
- * 3. 支持相对路径的 Location
- * 4. 支持 GZIP 解压
- * 5. ✅ 日志格式完全匹配用户截图：带 [HH:mm:ss] 时间戳，详细步骤
+ * 带重定向日志的 HTTP 数据源（带频道名显示版）
+ * 日志格式：
+ * [HH:mm:ss] 开始播放（江西卫视）: http://xxx
+ * [HH:mm:ss] 第1次重定向到: http://yyy
+ * [HH:mm:ss] 第2次重定向到: http://zzz
+ * [HH:mm:ss] ✅ 解析完成，共2次跳转
+ * [HH:mm:ss] ✅ 最终响应: HTTP 200
  */
 public class RedirectLoggingHttpDataSource extends BaseDataSource implements HttpDataSource {
 
@@ -62,6 +60,9 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     /** HTTP 响应状态码（用于 getResponseCode()） */
     private int responseCode = -1;
 
+    /** ===== 【新增】当前播放的频道名称 ===== */
+    private String currentChannelName = "";
+
     // ====================================================================
     // 时间戳格式化工具
     // ====================================================================
@@ -84,6 +85,13 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     }
 
     // ====================================================================
+    // 【新增】设置当前播放的频道名称（供上层调用）
+    // ====================================================================
+    public void setChannelName(String channelName) {
+        this.currentChannelName = (channelName != null) ? channelName : "";
+    }
+
+    // ====================================================================
     // open 方法
     // ====================================================================
     @Override
@@ -98,7 +106,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             // ===== 处理错误响应 =====
             if (responseCode < 20 || responseCode > 299) {
                 String responseMessage = connection.getResponseMessage();
-                // ✅ 错误日志带时间戳
                 SettingsActivity.log("[" + getTimeStr() + "] ❌ 失败: HTTP " + responseCode + " " + responseMessage);
                 throw new HttpDataSource.HttpDataSourceException(
                         "HTTP " + responseCode + " " + responseMessage,
@@ -109,13 +116,11 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             // ===== 获取输入流 =====
             try {
                 inputStream = connection.getInputStream();
-                // 处理 GZIP 压缩
                 String contentEncoding = connection.getContentEncoding();
                 if (contentEncoding != null && contentEncoding.equalsIgnoreCase("gzip")) {
                     inputStream = new GZIPInputStream(inputStream);
                 }
             } catch (IOException e) {
-                // 如果获取输入流失败，尝试用错误流
                 inputStream = connection.getErrorStream();
             }
 
@@ -142,13 +147,14 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     }
 
     // ====================================================================
-    // 打开连接，手动处理重定向（核心日志改造区域）
+    // 打开连接，手动处理重定向（日志核心逻辑）
     // ====================================================================
     private HttpURLConnection openConnection(DataSpec dataSpec) throws IOException {
         String currentUrl = dataSpec.uri.toString();
 
-        // ✅ 【新增】打印原始 URL
-        SettingsActivity.log("[" + getTimeStr() + "] 原始URL: " + currentUrl);
+        // ✅ 【第一步】开始播放（带上频道名）
+        String channelInfo = (currentChannelName != null && !currentChannelName.isEmpty()) ? "（" + currentChannelName + "）" : "";
+        SettingsActivity.log("[" + getTimeStr() + "] 开始播放" + channelInfo + ": " + currentUrl);
 
         int redirectCount = 0;
 
@@ -192,11 +198,9 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
 
             if (!isRedirect) {
                 String time = getTimeStr();
-                // ✅ 【新增】解析完成，共 N 次跳转
-                if (redirectCount > 0) {
-                    SettingsActivity.log("[" + time + "] ✅ 解析完成，共" + redirectCount + "次跳转");
-                }
-                // ✅ 【新增】最终响应（替换掉旧版单行日志）
+                // ✅ 【第三步】解析完成，共 N 次跳转
+                SettingsActivity.log("[" + time + "] ✅ 解析完成，共" + redirectCount + "次跳转");
+                // ✅ 【第四步】最终响应
                 SettingsActivity.log("[" + time + "] ✅ 最终响应: HTTP " + respCode);
                 return conn;
             }
@@ -206,7 +210,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             String location = conn.getHeaderField("Location");
 
             if (TextUtils.isEmpty(location)) {
-                SettingsActivity.log("[" + getTimeStr() + "] ❌ 失败: 第 " + redirectCount + " 重定向没有 Location 头");
+                SettingsActivity.log("[" + getTimeStr() + "] ❌ 失败: 第 " + redirectCount + " 次重定向没有 Location 头");
                 conn.disconnect();
                 throw new IOException("Redirect with no Location header");
             }
@@ -223,10 +227,9 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                 throw new IOException("Cross-protocol redirect not allowed");
             }
 
-            // ✅ 【新增】详细记录重定向步骤（精确对齐截图格式）
+            // ✅ 【第二步】打印第N次重定向
             String time = getTimeStr();
-            SettingsActivity.log("[" + time + "] 第" + redirectCount + "次: HTTP " + respCode + " → " + location);
-            SettingsActivity.log("[" + time + "] 重定向到: " + location);
+            SettingsActivity.log("[" + time + "] 第" + redirectCount + "次重定向到: " + redirectUrl);
 
             // ===== 关闭当前连接，准备下一次请求 =====
             conn.disconnect();
@@ -235,15 +238,13 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     }
 
     // ====================================================================
-    // 解析重定向地址（处理相对路径）
+    // 解析重定向地址
     // ====================================================================
     private String resolveRedirectUrl(String baseUrl, String location) throws IOException {
-        // 如果 location 已经是完整 URL，直接返回
         if (location.startsWith("http://") || location.startsWith("https://")) {
             return location;
         }
 
-        // 相对路径，需要拼接
         Uri baseUri = Uri.parse(baseUrl);
         String scheme = baseUri.getScheme();
         String host = baseUri.getHost();
@@ -257,10 +258,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         }
 
         if (location.startsWith("/")) {
-            // 绝对路径（相对于域名）
             sb.append(location);
         } else {
-            // 相对路径（相对于当前路径）
             if (path != null && path.contains("/")) {
                 String parentPath = path.substring(0, path.lastIndexOf('/') + 1);
                 sb.append(parentPath).append(location);
@@ -305,9 +304,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             int bytesReadThisTime = inputStream.read(buffer, offset, bytesToReadThisTime);
 
             if (bytesReadThisTime == -1) {
-                // 读取结束
                 if (bytesToRead != C.LENGTH_UNSET && bytesRead != bytesToRead) {
-                    // 读取的字节数和预期不符
                     throw new HttpDataSource.HttpDataSourceException(
                             "Unexpected end of input",
                             new DataSpec(Uri.parse(connection.getURL().toString())),
