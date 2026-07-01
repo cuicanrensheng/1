@@ -10,7 +10,6 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserFactory;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -201,10 +200,6 @@ public class EpgManager {
                 // ================================================================
                 // 第二步：用 CacheManager 流式保存到缓存
                 // ================================================================
-                // 【注意】
-                // InputStream 只能读一次，所以这里我们需要先把数据保存到缓存，
-                // 然后再从缓存读取出来解析。
-                // 虽然读了两次（一次写磁盘，一次读磁盘），但是内存占用仍然很小。
                 long savedBytes = cacheManager.saveFileCache(CACHE_KEY_EPG, in);
                 if (savedBytes <= 0) {
                     SettingsActivity.log("【EPG】❌ 保存缓存失败");
@@ -258,15 +253,10 @@ public class EpgManager {
      * 从缓存加载EPG（内存优化版）
      * 用于进入APP时快速显示
      *
-     * 【说明】
-     * 使用 CacheManager 的流式读取方法，
-     * CacheManager 会自动判断缓存是否过期（24小时）。
-     *
      * @return 是否加载成功
      */
     public boolean loadEpgFromCache() {
         try {
-            // 用 CacheManager 的流式方法读取，自动判断有效期
             InputStream cacheIs = cacheManager.getFileCacheStream(CACHE_KEY_EPG);
             if (cacheIs == null) {
                 return false; // 缓存不存在或已过期
@@ -292,16 +282,9 @@ public class EpgManager {
     }
 
     // ====================================================================
-    // 解析XML节目单（不用改，本来就是流式解析的）
+    // 解析XML节目单
     // ====================================================================
 
-    /**
-     * 解析XML节目单
-     *
-     * 【说明】
-     * XmlPullParser 本身就是流式解析的，边读边解析，
-     * 只要传入的 InputStream 是文件流，内存占用就很小。
-     */
     private void parseXml(InputStream is) throws Exception {
         XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
         XmlPullParser xml = factory.newPullParser();
@@ -398,74 +381,55 @@ public class EpgManager {
     }
 
     // ====================================================================
-    // 频道匹配相关（不用改）
+    // 频道匹配相关
     // ====================================================================
 
-    /**
-     * ✅ 根据频道名获取 EPG 节目列表（增强版：智能模糊匹配）
-     *
-     * 【匹配策略】
-     * 1. 先尝试精确匹配
-     * 2. 精确匹配失败，尝试模糊匹配
-     * 3. 计算匹配度分数，返回分数最高的
-     * 4. 匹配失败返回空列表
-     */
     public List<Channel.EpgItem> getEpg(String channelName) {
         if (channelName == null || channelName.isEmpty()) {
             return new ArrayList<>();
         }
-        
-        // 先尝试精确匹配
+
         if (channelEpgMap.containsKey(channelName)) {
             SettingsActivity.log("【EPG】精确匹配成功：" + channelName);
             return channelEpgMap.get(channelName);
         }
-        
-        // 标准化输入的频道名
+
         String cleanName = normalizeChannelName(channelName);
-        
-        // 模糊匹配，找到最匹配的频道
+
         String bestMatch = null;
         int bestScore = 0;
-        
+
         for (Map.Entry<String, List<Channel.EpgItem>> entry : channelEpgMap.entrySet()) {
             String epgName = entry.getKey();
             String cleanEpgName = normalizeChannelName(epgName);
-            
+
             int score = calculateMatchScore(cleanName, cleanEpgName);
             if (score > bestScore) {
                 bestScore = score;
                 bestMatch = epgName;
             }
         }
-        
+
         if (bestMatch != null && bestScore >= 20) {
-            // 匹配度大于 20 分才算匹配成功
             SettingsActivity.log("【EPG】模糊匹配成功：" + channelName 
                     + " → " + bestMatch 
                     + "（匹配度：" + bestScore + "分）");
             return channelEpgMap.get(bestMatch);
         }
-        
-        // 都匹配失败
+
         SettingsActivity.log("【EPG】⚠️ 匹配失败：" + channelName 
                 + "（标准化后：" + cleanName + "）"
                 + "，共尝试 " + channelEpgMap.size() + " 个频道");
         return new ArrayList<>();
     }
 
-    /**
-     * ✅ 标准化频道名称
-     * 去掉各种干扰字符，统一格式，方便匹配
-     */
     private String normalizeChannelName(String name) {
         if (name == null || name.isEmpty()) {
             return "";
         }
-        
+
         String result = name.toLowerCase();
-        
-        // 1. 去掉画质后缀
+
         result = result.replaceAll("(?i)hd", "");
         result = result.replaceAll("(?i)fhd", "");
         result = result.replaceAll("(?i)uhd", "");
@@ -476,8 +440,7 @@ public class EpgManager {
         result = result.replace("标清", "");
         result = result.replace("4k", "");
         result = result.replace("8k", "");
-        
-        // 2. 去掉特殊字符
+
         result = result.replace(" ", "");
         result = result.replace("-", "");
         result = result.replace("_", "");
@@ -485,15 +448,13 @@ public class EpgManager {
         result = result.replace("·", "");
         result = result.replace(":", "");
         result = result.replace("：", "");
-        
-        // 3. 去掉"频道"、"卫视"、"电视台"等后缀
+
         result = result.replace("频道", "");
         result = result.replace("卫视", "");
         result = result.replace("电视台", "");
         result = result.replace("台", "");
         result = result.replace("传媒", "");
-        
-        // 4. 中文数字转阿拉伯数字
+
         result = result.replace("一套", "1套");
         result = result.replace("二套", "2套");
         result = result.replace("三套", "3套");
@@ -509,34 +470,27 @@ public class EpgManager {
         result = result.replace("十三", "13");
         result = result.replace("十四", "14");
         result = result.replace("十五", "15");
-        
-        // 5. CCTV 统一成"央视"
+
         result = result.replace("cctv", "央视");
-        
+
         return result;
     }
 
-    /**
-     * ✅ 计算两个标准化后字符串的匹配度分数
-     */
     private int calculateMatchScore(String s1, String s2) {
         if (s1 == null || s2 == null || s1.isEmpty() || s2.isEmpty()) {
             return 0;
         }
-        
-        // 完全匹配：100 分
+
         if (s1.equals(s2)) {
             return 100;
         }
-        
-        // 互相包含：根据长度比例给分
+
         if (s1.contains(s2) || s2.contains(s1)) {
             int minLen = Math.min(s1.length(), s2.length());
             int maxLen = Math.max(s1.length(), s2.length());
             return 50 + (minLen * 40 / maxLen);
         }
-        
-        // 有共同前缀：根据前缀长度给分
+
         int prefixLen = 0;
         int minLen = Math.min(s1.length(), s2.length());
         for (int i = 0; i < minLen; i++) {
@@ -549,12 +503,12 @@ public class EpgManager {
         if (prefixLen >= 2) {
             return prefixLen * 5;
         }
-        
+
         return 0;
     }
 
     /**
-     * 用 Calendar 直接比较日期，彻底解决毫秒差精度问题
+     * 用 Calendar 直接比较日期
      */
     public String getDayName(Calendar itemCal, Calendar todayCal) {
         Calendar itemDay = Calendar.getInstance();
@@ -595,5 +549,12 @@ public class EpgManager {
         String[] weekDays = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
         int dayOfWeek = itemCal.get(Calendar.DAY_OF_WEEK) - 1;
         return weekDays[dayOfWeek];
+    }
+
+    // ====================================================================
+    // ✅ 【新增】获取已加载的频道数量，用于判断数据是否就绪
+    // ====================================================================
+    public int getChannelEpgMapSize() {
+        return channelEpgMap.size();
     }
 }
