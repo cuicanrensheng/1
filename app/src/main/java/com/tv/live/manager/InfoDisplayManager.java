@@ -339,57 +339,54 @@ public class InfoDisplayManager {
             }
         }
     }
-    // ====================================================================
-    // ✅ 2026-07-01 新增：从节目单复用数据更新信息栏
-    // ====================================================================
-    /**
-     * 从节目单（EpgManagerWrapper）复用已处理好的数据
-     * 【优势】两边用同一套数据，时间完全一致，不会对不上
-     */
     private void updateEpgFromWrapper(List<Channel.EpgItem> programList) {
-        if (programList == null || programList.isEmpty()) {
-            setEpgEmptyUi();
-            return;
-        }
-        
-        String nowTime = getCurrentTimeStr();
-        Channel.EpgItem currItem = null;
-        Channel.EpgItem nextItem = null;
-        int currIndex = -1;
-        
-        // 遍历找当前播放节目
-        for (int i = 0; i < programList.size(); i++) {
-            Channel.EpgItem item = programList.get(i);
-            // 提取开始时间（兼容带结束时间的格式）
-            String start = getStartTime(item.time);
-            // 结束时间直接复用节目单的计算结果
-            String end = mEpgManagerWrapper.getProgramEndTime(item);
-            if (end == null) end = "23:59";
-            
-            if (isTimeBetweenSimple(nowTime, start, end)) {
-                currItem = item;
-                currIndex = i;
-                break;
-            }
-        }
-        
-        // 找下一档节目
-        if (currIndex >= 0 && currIndex + 1 < programList.size()) {
-            nextItem = programList.get(currIndex + 1);
-        }
-        
-        SettingsActivity.logOperation("【EPG联动】当前节目：" + (currItem != null ? currItem.title : "未找到") 
-            + "（第" + (currIndex + 1) + "个）");
-        SettingsActivity.logOperation("【EPG联动】下一档节目：" + (nextItem != null ? nextItem.title : "无"));
-        
-        // 更新缓存
-        if (currItem != null) lastCurrItem = currItem;
-        if (nextItem != null) lastNextItem = nextItem;
-        
-        // 更新UI
-        refreshCurrProgramUiWithWrapper(currItem, currIndex, programList, nowTime);
-        refreshNextProgramUiWithWrapper(nextItem, currIndex, programList);
+    if (programList == null || programList.isEmpty()) {
+        setEpgEmptyUi();
+        return;
     }
+    
+    // ✅ 修复：先按时间重新排序（节目单把当前节目置顶了，顺序不对）
+    List<Channel.EpgItem> sortedList = new ArrayList<>(programList);
+    sortEpgByTime(sortedList);
+    
+    String nowTime = getCurrentTimeStr();
+    Channel.EpgItem currItem = null;
+    Channel.EpgItem nextItem = null;
+    int currIndex = -1;
+    
+    // 遍历找当前播放节目
+    for (int i = 0; i < sortedList.size(); i++) {
+        Channel.EpgItem item = sortedList.get(i);
+        // 提取开始时间（兼容带结束时间的格式）
+        String start = getStartTime(item.time);
+        // 结束时间直接复用节目单的计算结果
+        String end = mEpgManagerWrapper.getProgramEndTime(item);
+        if (end == null) end = "23:59";
+        
+        if (isTimeBetweenSimple(nowTime, start, end)) {
+            currItem = item;
+            currIndex = i;
+            break;
+        }
+    }
+    
+    // 找下一档节目
+    if (currIndex >= 0 && currIndex + 1 < sortedList.size()) {
+        nextItem = sortedList.get(currIndex + 1);
+    }
+    
+    SettingsActivity.logOperation("【EPG联动】当前节目：" + (currItem != null ? currItem.title : "未找到") 
+        + "（第" + (currIndex + 1) + "个）");
+    SettingsActivity.logOperation("【EPG联动】下一档节目：" + (nextItem != null ? nextItem.title : "无"));
+    
+    // 更新缓存
+    if (currItem != null) lastCurrItem = currItem;
+    if (nextItem != null) lastNextItem = nextItem;
+    
+    // 更新UI（注意：这里也要用 sortedList）
+    refreshCurrProgramUiWithWrapper(currItem, currIndex, sortedList, nowTime);
+    refreshNextProgramUiWithWrapper(nextItem, currIndex, sortedList);
+}
     /**
      * 简单的时间范围判断（和节目单逻辑一致）
      */
