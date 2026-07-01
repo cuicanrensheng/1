@@ -10,6 +10,7 @@ import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.SettingsActivity;
 import com.tv.live.TVPlayerManager;
+import com.tv.live.widget.EpgManagerWrapper;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -20,13 +21,16 @@ import java.util.Locale;
 /**
 * 信息展示管理器
 * 
-* 【2026-07-01 修复：解决信息栏与节目单时间对不上的问题】
-* 修复内容：
-* 1. ✅ 优化模糊匹配逻辑，大幅减少匹配错误频道的概率
-* 2. ✅ 增加匹配结果校验，只有相似度足够高才采用
-* 3. ✅ 增加详细匹配日志，方便排查匹配到了哪个频道
-* 4. ✅ 统一时间计算逻辑，和右侧节目单保持一致
-* 5. ✅ 修复下一档节目时间显示格式问题
+* 【2026-07-01 新增：对接联动节目单内容】
+* 功能说明：
+* 1. ✅ 信息栏优先复用右侧节目单（EpgManagerWrapper）已处理好的 EPG 数据
+* 2. ✅ 两边用同一套数据，彻底解决时间对不上的问题
+* 3. ✅ 节目单没有数据时自动降级，自己获取 EPG 数据
+* 4. ✅ 节目结束时间直接复用节目单的计算结果
+* 
+* 使用方法：
+* 在 MainActivity 中初始化后调用：
+*   infoDisplayManager.setEpgManagerWrapper(epgManagerWrapper);
 * 
 * 【历史修复】
 * 2026-06-27 修复1：码率显示延迟，调换更新顺序优先渲染码率画质
@@ -60,6 +64,25 @@ private Channel.EpgItem lastNextItem;
 // 码率和分辨率缓存
 private String lastBitrate = "";
 private String lastResolution = "";
+// ====================================================================
+// ✅ 2026-07-01 新增：节目单联动引用
+// ====================================================================
+/**
+ * 右侧节目单管理器（联动复用）
+ * 【作用】
+ * 信息栏优先从节目单获取已处理好的 EPG 数据，
+ * 两边用同一套数据，确保时间完全一致。
+ */
+private EpgManagerWrapper mEpgManagerWrapper;
+
+/**
+ * 设置节目单管理器（联动用）
+ * @param wrapper 右侧节目单的 EpgManagerWrapper 实例
+ */
+public void setEpgManagerWrapper(EpgManagerWrapper wrapper) {
+    this.mEpgManagerWrapper = wrapper;
+    SettingsActivity.logOperation("【EPG联动】✅ 已绑定节目单管理器");
+}
 // ===================== 调度变量 =====================
 private final Handler mainHandler = new Handler(Looper.getMainLooper());
 private Channel currentPlayChannel;
@@ -300,110 +323,26 @@ SettingsActivity.logOperation("【EPG匹配】========== 开始匹配 ==========
 SettingsActivity.logOperation("【EPG匹配】频道名：" + channelName);
 
 // ====================================================================
-// 第1步：精确匹配（优先，和右侧节目单保持一致）
+// ✅ 2026-07-01 新增：优先从节目单获取数据（联动）
 // ====================================================================
-List<Channel.EpgItem> epgList = EpgManager.getInstance().getEpg(channelName);
-boolean isExactMatch = (epgList != null && !epgList.isEmpty());
-SettingsActivity.logOperation("【EPG匹配】精确匹配结果：" + (isExactMatch ? "✅ 成功，" + epgList.size() + "条" : "❌ 失败"));
-
-// ====================================================================
-// 第2步：精确匹配失败，才执行模糊匹配
-// ====================================================================
-if(!isExactMatch && channelName != null){
-SettingsActivity.logOperation("【EPG匹配】精确匹配失败，尝试模糊匹配...");
-String matchedName = fuzzyMatchEpgGetName(channelName);
-if (matchedName != null) {
-    epgList = EpgManager.getInstance().getEpg(matchedName);
-    SettingsActivity.logOperation("【EPG匹配】✅ 模糊匹配成功：" + channelName + " → " + matchedName 
-        + "（" + epgList.size() + "条）");
-} else {
-    SettingsActivity.logOperation("【EPG匹配】❌ 模糊匹配也失败");
-}
+boolean useWrapperData = false;
+if (mEpgManagerWrapper != null && mEpgManagerWrapper.getCurrentDayIndex() == 0) {
+    List<Channel.EpgItem> wrapperList = mEpgManagerWrapper.getProgramList();
+    if (wrapperList != null && !wrapperList.isEmpty()) {
+        SettingsActivity.logOperation("【EPG联动】✅ 复用节目单数据，共 " + wrapperList.size() + " 个节目");
+        updateEpgFromWrapper(wrapperList);
+        useWrapperData = true;
+    }
 }
 
-// 第3步：完全没有 EPG 数据，复用缓存
-if(epgList == null || epgList.size() == 0){
-SettingsActivity.logOperation("【EPG匹配】未获取任何节目，复用缓存");
-if(lastCurrItem != null){
-refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<Channel.EpgItem>(), getCurrentTimeStr());
-refreshNextProgramUi(lastNextItem, 0, new ArrayList<Channel.EpgItem>());
-}else {
-setEpgEmptyUi();
+// 节目单没有今日数据，走原来的逻辑自己获取
+if (!useWrapperData) {
+    SettingsActivity.logOperation("【EPG联动】节目单无今日数据，自行获取");
+    updateEpgSelf(channelName);
 }
-return;
-}
-
-// 第4步：筛选今日节目
-List<Channel.EpgItem> todayEpg = filterTodayEpg(epgList);
-SettingsActivity.logOperation("【EPG匹配】今日节目数：" + todayEpg.size());
-
-if(todayEpg.isEmpty()){
-SettingsActivity.logOperation("【EPG匹配】今日无节目，复用缓存");
-if(lastCurrItem != null){
-refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<Channel.EpgItem>(), getCurrentTimeStr());
-refreshNextProgramUi(lastNextItem, 0, new ArrayList<Channel.EpgItem>());
-}else {
-setEpgEmptyUi();
-}
-return;
-}
-
-// 第5步：按时间排序
-sortEpgByTime(todayEpg);
-String nowTime = getCurrentTimeStr();
-SettingsActivity.logOperation("【EPG匹配】当前时间：" + nowTime);
-
-// 打印今日节目列表（方便排查）
-for (int i = 0; i < todayEpg.size(); i++) {
-    Channel.EpgItem item = todayEpg.get(i);
-    SettingsActivity.logOperation("【EPG匹配】节目" + (i+1) + "：" + item.time + " " + item.title);
-}
-
-// 第6步：查找当前播放节目
-Channel.EpgItem currItem = null;
-Channel.EpgItem nextItem = null;
-int currIndex = -1;
-for(int i=0; i<todayEpg.size(); i++){
-Channel.EpgItem item = todayEpg.get(i);
-String start = item.time;
-// 结束时间：取下一个节目的开始时间（和右侧节目单逻辑一致）
-String end = (i+1 < todayEpg.size()) ? todayEpg.get(i+1).time : "23:59";
-
-if(timeBetween(nowTime, start, end)){
-currItem = item;
-currIndex = i;
-SettingsActivity.logOperation("【EPG匹配】✅ 找到当前节目：" + item.title + "（第" + (i+1) + "个）");
-
-// 下一档节目
-if(i+1 < todayEpg.size()){
-nextItem = todayEpg.get(i+1);
-SettingsActivity.logOperation("【EPG匹配】下一档节目：" + nextItem.title);
-} else {
-SettingsActivity.logOperation("【EPG匹配】当前是今日最后一个节目，尝试跨天查找");
-nextItem = findTomorrowFirstProgram(epgList);
-if(nextItem != null){
-SettingsActivity.logOperation("【EPG匹配】✅ 跨天找到下一档：" + nextItem.title);
-}
-}
-break;
-}
-}
-
-if(currIndex == -1){
-SettingsActivity.logOperation("【EPG匹配】未找到当前播放节目，复用缓存");
-}
-
-if(currItem != null){
-lastCurrItem = currItem;
-}
-if(nextItem != null){
-lastNextItem = nextItem;
-}
-
-refreshCurrProgramUi(currItem, currIndex, todayEpg, nowTime);
-refreshNextProgramUi(nextItem, currIndex, todayEpg);
 
 SettingsActivity.logOperation("【EPG匹配】========== 匹配结束 ==========");
+
 }catch (Exception e){
 e.printStackTrace();
 SettingsActivity.logOperation("【EPG匹配异常】" + e.getMessage());
@@ -416,41 +355,270 @@ setEpgEmptyUi();
 }
 }
 // ====================================================================
-// ✅ 2026-07-01 重写：优化模糊匹配逻辑，减少匹配错误
+// ✅ 2026-07-01 新增：从节目单复用数据更新信息栏
 // ====================================================================
 /**
- * 模糊匹配 EPG 频道，返回匹配到的频道名
- * 
- * 【优化说明】
- * 原来的模糊匹配变体太多，容易匹配到错误的频道。
- * 现在只保留最安全的几种变体，大幅降低误匹配概率。
- * 
- * 【只尝试这些变体】
- * 1. 去掉所有空格
- * 2. 转小写（去空格前后各一次）
- * 3. 去掉常见的"高清/HD/标清/SD"后缀
- * 
- * 【不再尝试】
- * - 加上后缀（容易匹配到其他频道）
- * - 去掉分隔符（容易改变频道含义）
- * 
- * @param rawName 原始频道名
- * @return 匹配到的 EPG 频道名，没找到返回 null
+ * 从节目单（EpgManagerWrapper）复用已处理好的数据
+ * 【优势】两边用同一套数据，时间完全一致，不会对不上
  */
+private void updateEpgFromWrapper(List<Channel.EpgItem> programList) {
+    if (programList == null || programList.isEmpty()) {
+        setEpgEmptyUi();
+        return;
+    }
+    
+    String nowTime = getCurrentTimeStr();
+    Channel.EpgItem currItem = null;
+    Channel.EpgItem nextItem = null;
+    int currIndex = -1;
+    
+    // 遍历找当前播放节目
+    for (int i = 0; i < programList.size(); i++) {
+        Channel.EpgItem item = programList.get(i);
+        String start = item.time;
+        // 结束时间直接复用节目单的计算结果
+        String end = mEpgManagerWrapper.getProgramEndTime(item);
+        if (end == null) end = "23:59";
+        
+        if (isTimeBetweenSimple(nowTime, start, end)) {
+            currItem = item;
+            currIndex = i;
+            break;
+        }
+    }
+    
+    // 找下一档节目
+    if (currIndex >= 0 && currIndex + 1 < programList.size()) {
+        nextItem = programList.get(currIndex + 1);
+    }
+    
+    SettingsActivity.logOperation("【EPG联动】当前节目：" + (currItem != null ? currItem.title : "未找到") 
+        + "（第" + (currIndex + 1) + "个）");
+    SettingsActivity.logOperation("【EPG联动】下一档节目：" + (nextItem != null ? nextItem.title : "无"));
+    
+    // 更新缓存
+    if (currItem != null) lastCurrItem = currItem;
+    if (nextItem != null) lastNextItem = nextItem;
+    
+    // 更新UI
+    refreshCurrProgramUiWithWrapper(currItem, currIndex, programList, nowTime);
+    refreshNextProgramUiWithWrapper(nextItem, currIndex, programList);
+}
+
+/**
+ * 简单的时间范围判断（和节目单逻辑一致）
+ */
+private boolean isTimeBetweenSimple(String now, String start, String end) {
+    try {
+        if (now == null || start == null || end == null) return false;
+        return now.contains(":") && start.contains(":") && end.contains(":")
+                && now.compareTo(start) >= 0 && now.compareTo(end) < 0;
+    } catch (Exception e) {
+        return false;
+    }
+}
+
+/**
+ * 用节目单数据刷新当前节目UI
+ */
+private void refreshCurrProgramUiWithWrapper(Channel.EpgItem currItem, int currIdx, 
+        List<Channel.EpgItem> todayList, String now) {
+    if(currItem != null){
+        tvCurrentProgramName.setText(currItem.title);
+        
+        String start = currItem.time;
+        // 结束时间直接从节目单取
+        String end = mEpgManagerWrapper.getProgramEndTime(currItem);
+        if (end == null) end = "23:59";
+        
+        if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText(start + " - " + end);
+        
+        // 计算进度和已播放时间
+        long nowMs = timeToMs(now, false, 0);
+        long sMs = timeToMs(start, false, 0);
+        long eMs = timeToMs(end, true, sMs);
+        
+        if(progressProgram != null){
+            long totalDuration = eMs - sMs;
+            long played = nowMs - sMs;
+            int progress = 0;
+            if(totalDuration > 0){
+                progress = (int) (played * 100 / totalDuration);
+                progress = Math.max(0, Math.min(100, progress));
+            }
+            progressProgram.setProgress(progress);
+            progressProgram.invalidate();
+        }
+        
+        if(tvRemainingTime != null){
+            long played = nowMs - sMs;
+            if(played < 0){
+                tvRemainingTime.setText("已播放0分钟");
+                return;
+            }
+            long playedSec = played / 1000;
+            long validSec = playedSec % (24 * 3600);
+            long playedMin = validSec / 60;
+            if(playedMin >= 60){
+                int h = (int) (playedMin / 60);
+                int m = (int) (playedMin % 60);
+                tvRemainingTime.setText("已播放"+h+"时"+m+"分");
+            }else {
+                tvRemainingTime.setText("已播放"+playedMin+"分钟");
+            }
+        }
+    }else {
+        tvCurrentProgramName.setText("暂无节目信息");
+        if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
+        if(progressProgram != null) {
+            progressProgram.setProgress(0);
+            progressProgram.invalidate();
+        }
+        if(tvRemainingTime != null) tvRemainingTime.setText("");
+    }
+}
+
+/**
+ * 用节目单数据刷新下一档节目UI
+ */
+private void refreshNextProgramUiWithWrapper(Channel.EpgItem nextItem, int currIdx, 
+        List<Channel.EpgItem> todayList) {
+    if(nextItem != null && tvNextProgramName != null && tvNextTimeRange != null){
+        String s = nextItem.time;
+        // 结束时间直接从节目单取
+        String e = mEpgManagerWrapper.getProgramEndTime(nextItem);
+        if (e == null) e = "次日";
+        
+        tvNextTimeRange.setText(s + " - " + e);
+        tvNextProgramName.setText(nextItem.title);
+    }else {
+        if(lastNextItem != null){
+            String s = lastNextItem.time;
+            tvNextTimeRange.setText(s + " - 次日");
+            tvNextProgramName.setText(lastNextItem.title);
+        }else {
+            if(tvNextProgramName != null) tvNextProgramName.setText("暂无下一档节目");
+            if(tvNextTimeRange != null) tvNextTimeRange.setText("");
+        }
+    }
+}
+// ====================================================================
+// 自行获取 EPG 数据（降级方案，节目单没有数据时使用）
+// ====================================================================
+private void updateEpgSelf(String channelName) {
+try {
+    // 第1步：精确匹配
+    List<Channel.EpgItem> epgList = EpgManager.getInstance().getEpg(channelName);
+    boolean isExactMatch = (epgList != null && !epgList.isEmpty());
+    SettingsActivity.logOperation("【EPG匹配】精确匹配结果：" + (isExactMatch ? "✅ 成功，" + epgList.size() + "条" : "❌ 失败"));
+    
+    // 第2步：精确匹配失败，才执行模糊匹配
+    if(!isExactMatch && channelName != null){
+        SettingsActivity.logOperation("【EPG匹配】精确匹配失败，尝试模糊匹配...");
+        String matchedName = fuzzyMatchEpgGetName(channelName);
+        if (matchedName != null) {
+            epgList = EpgManager.getInstance().getEpg(matchedName);
+            SettingsActivity.logOperation("【EPG匹配】✅ 模糊匹配成功：" + channelName + " → " + matchedName 
+                + "（" + epgList.size() + "条）");
+        } else {
+            SettingsActivity.logOperation("【EPG匹配】❌ 模糊匹配也失败");
+        }
+    }
+    
+    // 第3步：完全没有 EPG 数据，复用缓存
+    if(epgList == null || epgList.size() == 0){
+        SettingsActivity.logOperation("【EPG匹配】未获取任何节目，复用缓存");
+        if(lastCurrItem != null){
+            refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<Channel.EpgItem>(), getCurrentTimeStr());
+            refreshNextProgramUi(lastNextItem, 0, new ArrayList<Channel.EpgItem>());
+        }else {
+            setEpgEmptyUi();
+        }
+        return;
+    }
+    
+    // 第4步：筛选今日节目
+    List<Channel.EpgItem> todayEpg = filterTodayEpg(epgList);
+    SettingsActivity.logOperation("【EPG匹配】今日节目数：" + todayEpg.size());
+    
+    if(todayEpg.isEmpty()){
+        SettingsActivity.logOperation("【EPG匹配】今日无节目，复用缓存");
+        if(lastCurrItem != null){
+            refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<Channel.EpgItem>(), getCurrentTimeStr());
+            refreshNextProgramUi(lastNextItem, 0, new ArrayList<Channel.EpgItem>());
+        }else {
+            setEpgEmptyUi();
+        }
+        return;
+    }
+    
+    // 第5步：按时间排序
+    sortEpgByTime(todayEpg);
+    String nowTime = getCurrentTimeStr();
+    SettingsActivity.logOperation("【EPG匹配】当前时间：" + nowTime);
+    
+    // 打印今日节目列表
+    for (int i = 0; i < todayEpg.size(); i++) {
+        Channel.EpgItem item = todayEpg.get(i);
+        SettingsActivity.logOperation("【EPG匹配】节目" + (i+1) + "：" + item.time + " " + item.title);
+    }
+    
+    // 第6步：查找当前播放节目
+    Channel.EpgItem currItem = null;
+    Channel.EpgItem nextItem = null;
+    int currIndex = -1;
+    for(int i=0; i<todayEpg.size(); i++){
+        Channel.EpgItem item = todayEpg.get(i);
+        String start = item.time;
+        String end = (i+1 < todayEpg.size()) ? todayEpg.get(i+1).time : "23:59";
+        
+        if(timeBetween(nowTime, start, end)){
+            currItem = item;
+            currIndex = i;
+            SettingsActivity.logOperation("【EPG匹配】✅ 找到当前节目：" + item.title + "（第" + (i+1) + "个）");
+            
+            if(i+1 < todayEpg.size()){
+                nextItem = todayEpg.get(i+1);
+                SettingsActivity.logOperation("【EPG匹配】下一档节目：" + nextItem.title);
+            } else {
+                SettingsActivity.logOperation("【EPG匹配】当前是今日最后一个节目，尝试跨天查找");
+                nextItem = findTomorrowFirstProgram(epgList);
+                if(nextItem != null){
+                    SettingsActivity.logOperation("【EPG匹配】✅ 跨天找到下一档：" + nextItem.title);
+                }
+            }
+            break;
+        }
+    }
+    
+    if(currIndex == -1){
+        SettingsActivity.logOperation("【EPG匹配】未找到当前播放节目，复用缓存");
+    }
+    
+    if(currItem != null) lastCurrItem = currItem;
+    if(nextItem != null) lastNextItem = nextItem;
+    
+    refreshCurrProgramUi(currItem, currIndex, todayEpg, nowTime);
+    refreshNextProgramUi(nextItem, currIndex, todayEpg);
+    
+} catch (Exception e) {
+    SettingsActivity.logOperation("【EPG自获取异常】" + e.getMessage());
+}
+}
+
+// 模糊匹配（精简版，减少误匹配）
 private String fuzzyMatchEpgGetName(String rawName){
 if(rawName == null || rawName.isEmpty()) return null;
 try {
     String noSpace = rawName.replaceAll("\\s+","").trim();
     
-    // 按相似度从高到低排列，优先尝试更相似的
     String[] variants = {
-        rawName,                    // 1. 原始名称（最高相似度）
-        noSpace,                    // 2. 去掉空格
-        rawName.toLowerCase(),      // 3. 转小写
-        noSpace.toLowerCase(),      // 4. 去空格+转小写
+        rawName,
+        noSpace,
+        rawName.toLowerCase(),
+        noSpace.toLowerCase(),
     };
     
-    // 去掉常见后缀的变体（相似度稍低，放在后面）
     String[] suffixes = {"高清", "HD", "hd", "标清", "SD", "sd", "超清", "4K", "4k"};
     List<String> suffixVariants = new ArrayList<>();
     for (String suffix : suffixes) {
@@ -462,14 +630,12 @@ try {
         }
     }
     
-    // 合并变体列表
     List<String> allVariants = new ArrayList<>();
     for (String v : variants) allVariants.add(v);
     allVariants.addAll(suffixVariants);
     
     SettingsActivity.logOperation("【EPG模糊匹配】共尝试 " + allVariants.size() + " 种变体");
     
-    // 逐一尝试，返回第一个匹配成功的频道名
     for (int i = 0; i < allVariants.size(); i++) {
         String variant = allVariants.get(i);
         if (variant == null || variant.isEmpty()) continue;
@@ -488,9 +654,6 @@ SettingsActivity.logOperation("【EPG模糊匹配异常】" + e.getMessage());
 return null;
 }
 
-/**
- * 模糊匹配 EPG 频道（保留旧接口，兼容外部调用）
- */
 private List<Channel.EpgItem> fuzzyMatchEpg(String rawName){
     String matchedName = fuzzyMatchEpgGetName(rawName);
     if (matchedName != null) {
@@ -499,9 +662,7 @@ private List<Channel.EpgItem> fuzzyMatchEpg(String rawName){
     return null;
 }
 
-// ====================================================================
 // 筛选今日节目
-// ====================================================================
 private List<Channel.EpgItem> filterTodayEpg(List<Channel.EpgItem> source){
 List<Channel.EpgItem> res = new ArrayList<>();
 if (source == null || source.isEmpty()) return res;
@@ -615,13 +776,12 @@ return o1.time.compareTo(o2.time);
 }
 });
 }
-// ===================== 刷新当前节目UI =====================
+// ===================== 刷新当前节目UI（自行获取数据时用） =====================
 private void refreshCurrProgramUi(Channel.EpgItem currItem, int currIdx, List<Channel.EpgItem> todayList, String now){
 if(currItem != null){
 tvCurrentProgramName.setText(currItem.title);
 
 String start = currItem.time;
-// 结束时间：取下一个节目的开始时间（和右侧节目单逻辑一致）
 String end = (currIdx+1 < todayList.size()) ? todayList.get(currIdx+1).time : "23:59";
 
 if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText(start + " - " + end);
@@ -669,29 +829,22 @@ progressProgram.invalidate();
 if(tvRemainingTime != null) tvRemainingTime.setText("");
 }
 }
-// ====================================================================
-// ✅ 2026-07-01 修复：下一档节目时间显示
-// ====================================================================
+// ===================== 刷新下一档节目UI（自行获取数据时用） =====================
 private void refreshNextProgramUi(Channel.EpgItem nextItem, int currIdx, List<Channel.EpgItem> todayList){
 if(nextItem != null && tvNextProgramName != null && tvNextTimeRange != null){
 String s = nextItem.time;
-// 下一档的结束时间：取下下档的开始时间（和右侧节目单逻辑一致）
 String e;
 if (currIdx + 2 < todayList.size()) {
-    // 下下档还在今天
     e = todayList.get(currIdx + 2).time;
 } else if (currIdx + 1 < todayList.size()) {
-    // 下一档是今天最后一个，结束时间默认 23:59
     e = "23:59";
 } else {
-    // 下一档是明天的（跨天），结束时间不明确
     e = "次日";
 }
 
 tvNextTimeRange.setText(s + " - " + e);
 tvNextProgramName.setText(nextItem.title);
 }else {
-// 新数据为空，有缓存就显示缓存
 if(lastNextItem != null){
 String s = lastNextItem.time;
 tvNextTimeRange.setText(s + " - 次日");
@@ -770,6 +923,7 @@ lastCurrItem = null;
 lastNextItem = null;
 lastBitrate = "";
 lastResolution = "";
+mEpgManagerWrapper = null;
 context = null;
 tvChannelNum = null;
 infoBar = null;
@@ -784,4 +938,4 @@ tvRemainingTime = null;
 tvNextProgramName = null;
 tvNextTimeRange = null;
 }
-}
+}    
