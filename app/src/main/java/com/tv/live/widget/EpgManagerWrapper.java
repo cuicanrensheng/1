@@ -276,6 +276,21 @@ public class EpgManagerWrapper {
             notifyDataSetChanged();
         }
 
+        // ========== 新增重写方法 修复ArrayAdapter旧数据问题 ==========
+        @Override
+        public int getCount() {
+            return list.size();
+        }
+
+        @Override
+        public Channel.EpgItem getItem(int position) {
+            if (position < 0 || position >= list.size()) {
+                return null;
+            }
+            return list.get(position);
+        }
+        // ==========================================================
+
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder holder;
@@ -399,10 +414,10 @@ public class EpgManagerWrapper {
                 holder.tv_action.setOnClickListener(v -> {
                     if (bookedSet.contains(key)) {
                         bookedSet.remove(key);
-                        Toast.makeText(ctx, "已取消预约", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(ctx, "已取消预约", Toast.LENGTH_SHORT);
                     } else {
                         bookedSet.add(key);
-                        Toast.makeText(ctx, "已预约：" + item.title, Toast.LENGTH_SHORT);
+                        Toast.makeText(ctx, "已预约：" + item.title, Toast.LENGTH_SHORT).show();
                     }
                     notifyDataSetChanged();
                 });
@@ -419,7 +434,7 @@ public class EpgManagerWrapper {
             TextView tv_action;
         }
     }
-        // ====================================================================
+    // ====================================================================
     // ✅ 2026-07-01 新增：公开方法，供 InfoDisplayManager 联动使用
     // ====================================================================
     /**
@@ -458,4 +473,3 @@ public class EpgManagerWrapper {
         return selectDayIndex;
     }
 }
-
