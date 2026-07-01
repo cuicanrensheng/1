@@ -30,14 +30,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
 /**
  * EPG 节目单包装管理器
  * 样式更新规则
  * 1、焦点选中条目（最高优先级）：蓝色字体+加粗+浅蓝色半透明背景
- * 2、播放中条目（仅今日首位，无焦点）：蓝色字体、不加粗、透明无背景
+ * 2、播放中条目（今日，蓝色文字、不加粗、透明无背景）
  * 3、普通条目：白色常规文字、透明背景
  * 4、非今日完全不渲染播放中蓝色样式
+ * 
+ * 【2026-06-27 修改：取消播放中节目置顶】
+ * 【修改说明】
+ * 原来播放中的节目会被移到列表第一位（置顶），
+ * 现在取消置顶功能，节目严格按时间顺序排列，
+ * 播放中的节目只通过蓝色文字样式标识，不改变位置。
  */
 public class EpgManagerWrapper {
     private final ListView lvEpg;
@@ -49,7 +54,6 @@ public class EpgManagerWrapper {
     private int selectedPosition = 0; // 焦点选中位置
     private int playingIndex = -1;    // 播放中条目位置
     private int selectDayIndex = 0;
-
     public EpgManagerWrapper(Context context, ListView lvEpg) {
         this.context = context;
         this.lvEpg = lvEpg;
@@ -81,7 +85,6 @@ public class EpgManagerWrapper {
         });
         registerReminderReceiver();
     }
-
     /**
      * 刷新指定日期节目单
      */
@@ -161,12 +164,24 @@ public class EpgManagerWrapper {
                             playingIndex = i;
                         }
                     }
-                    // 播放节目置顶
-                    if (playing != null && playingIndex > 0) {
-                        data.remove(playing);
-                        data.add(0, playing);
-                        playingIndex = 0;
-                    }
+                    // ====================================================================
+                    // ✅ 2026-06-27 修改：取消播放中节目置顶
+                    // ====================================================================
+                    // 【原逻辑】
+                    // 播放中的节目会被移到列表第一位（置顶），方便用户快速找到当前播放的节目。
+                    // 
+                    // 【为什么取消？】
+                    // 用户要求节目严格按时间顺序排列，不希望播放中的节目改变位置。
+                    // 播放状态只通过蓝色文字样式标识即可，不需要置顶。
+                    // 
+                    // 【原代码（已注释）】
+                    // if (playing != null && playingIndex > 0) {
+                    //     data.remove(playing);
+                    //     data.add(0, playing);
+                    //     playingIndex = 0;
+                    // }
+                    // ====================================================================
+                    SettingsActivity.log("【EPG包装】✅ 播放中节目位置：第 " + (playingIndex + 1) + " 个（按时间顺序，不置顶）");
                 } else {
                     playingIndex = -1;
                     for (int i = 0; i < data.size(); i++) {
@@ -202,7 +217,6 @@ public class EpgManagerWrapper {
             });
         }).start();
     }
-
     private boolean isTimeBetween(String now, String start, String end) {
         try {
             if (now == null || start == null || end == null) return false;
@@ -212,7 +226,6 @@ public class EpgManagerWrapper {
             return false;
         }
     }
-
     private String addOneHour(String hm) {
         try {
             if (hm == null || !hm.contains(":")) return "23:59";
@@ -230,13 +243,11 @@ public class EpgManagerWrapper {
             return "23:59";
         }
     }
-
     private String getNow() {
         return String.format("%02d:%02d",
                 Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
                 Calendar.getInstance().get(Calendar.MINUTE));
     }
-
     private void registerReminderReceiver() {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
@@ -249,7 +260,6 @@ public class EpgManagerWrapper {
         };
         context.registerReceiver(receiver, new IntentFilter(ACTION_REMINDER));
     }
-
     // EPG适配器
     private class EpgAdapter extends ArrayAdapter<Channel.EpgItem> {
         private final Context ctx;
@@ -258,7 +268,6 @@ public class EpgManagerWrapper {
         private final LayoutInflater inflater;
         private int dayIndex;
         private final SimpleDateFormat sdfFull = new SimpleDateFormat("yyyyMMddHHmmss", Locale.CHINA);
-
         public EpgAdapter(Context ctx, Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
             super(ctx, R.layout.item_epg, list);
             this.ctx = ctx;
@@ -267,7 +276,6 @@ public class EpgManagerWrapper {
             this.inflater = LayoutInflater.from(ctx);
             this.dayIndex = dayIndex;
         }
-
         public void setData(Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
             this.currentChannel = currentChannel;
             this.list.clear();
@@ -275,7 +283,6 @@ public class EpgManagerWrapper {
             this.dayIndex = dayIndex;
             notifyDataSetChanged();
         }
-
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder holder;
@@ -291,18 +298,15 @@ public class EpgManagerWrapper {
             } else {
                 holder = (ViewHolder) convertView.getTag();
             }
-
             // 边界保护
             if (position < 0 || position >= list.size()) {
                 return convertView;
             }
-
             Channel.EpgItem item = list.get(position);
             String endTime = epgEndTimeMap.get(item);
             holder.tv_dayName.setText(item.dayName);
             holder.tv_time.setText(item.time + "-" + endTime);
             holder.tv_title.setText(item.title);
-
             // 1、先重置所有样式（彻底清空缓存）
             holder.tv_dayName.setTextColor(Color.WHITE);
             holder.tv_time.setTextColor(Color.LTGRAY);
@@ -310,12 +314,10 @@ public class EpgManagerWrapper {
             holder.tv_title.setTypeface(null, Typeface.NORMAL);
             convertView.setBackgroundColor(Color.TRANSPARENT);
             convertView.setSelected(false);
-
             // 2、判断当前item是否是焦点选中
             boolean isFocused = (position == selectedPosition) && lvEpg.hasFocus();
             // 3、判断当前item是否是播放中
             boolean isPlaying = item.isPlaying && dayIndex == 0;
-
             // 规则1：焦点选中条目（浅蓝色背景 + 蓝色文字 + 加粗）
             if (isFocused) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
@@ -332,12 +334,10 @@ public class EpgManagerWrapper {
                 holder.tv_title.setTypeface(null, Typeface.NORMAL);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             }
-
             // ========== 按钮逻辑 ==========
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
             try { isPast = item.time.compareTo(getNow()) < 0; } catch (Exception ignored) {}
-
             if (dayIndex == 0) {
                 if (item.isPlaying) {
                     holder.tv_action.setText("播放中");
@@ -407,10 +407,8 @@ public class EpgManagerWrapper {
                     notifyDataSetChanged();
                 });
             }
-
             return convertView;
         }
-
         // 修复1：去掉 static 关键字，内部适配器不允许静态ViewHolder
         private class ViewHolder {
             TextView tv_dayName;
