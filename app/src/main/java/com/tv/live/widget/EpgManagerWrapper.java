@@ -419,4 +419,43 @@ public class EpgManagerWrapper {
             TextView tv_action;
         }
     }
+        // ====================================================================
+    // ✅ 2026-07-01 新增：公开方法，供 InfoDisplayManager 联动使用
+    // ====================================================================
+    /**
+     * 获取当前节目列表
+     * 【用途】供 InfoDisplayManager 复用节目单数据，两边时间完全一致
+     * @return 当前日期的节目列表
+     */
+    public List<Channel.EpgItem> getProgramList() {
+        if (adapter == null) {
+            return new ArrayList<>();
+        }
+        List<Channel.EpgItem> result = new ArrayList<>();
+        for (int i = 0; i < adapter.getCount(); i++) {
+            result.add(adapter.getItem(i));
+        }
+        return result;
+    }
+
+    /**
+     * 获取指定节目的结束时间
+     * 【用途】InfoDisplayManager 直接复用节目单计算好的结束时间
+     * @param item 节目条目
+     * @return 结束时间（HH:mm 格式），没有则返回 null
+     */
+    public String getProgramEndTime(Channel.EpgItem item) {
+        if (item == null) return null;
+        return epgEndTimeMap.get(item);
+    }
+
+    /**
+     * 获取当前选中的日期索引
+     * 【用途】InfoDisplayManager 判断是否显示今日数据
+     * @return 0=今天，1=明天，2=后天...
+     */
+    public int getCurrentDayIndex() {
+        return selectDayIndex;
+    }
+}
 }
