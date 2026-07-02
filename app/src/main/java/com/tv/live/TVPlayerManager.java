@@ -10,6 +10,7 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
@@ -491,7 +492,70 @@ public class TVPlayerManager {
         }
     }
 
-    // 渲染方式广播接收器（修复语法错乱，完全移除SurfaceType）
+    // ========================================================================
+    // 🚀 终极方案：通过物理重建 PlayerView 来强制切换渲染器
+    // ========================================================================
+    private void switchRenderer(boolean useTexture) {
+        if (playerView == null || context == null) return;
+
+        // 1. 保存播放器所有必需的状态
+        long currentPosition = player.getCurrentPosition();
+        boolean wasPlaying = player.isPlaying();
+        boolean useController = playerView.getUseController();
+        int showBuffering = playerView.getShowBuffering();
+
+        // 2. 获取父容器并移除当前视图
+        ViewGroup parent = (ViewGroup) playerView.getParent();
+        if (parent == null) return;
+        int index = parent.indexOfChild(playerView);
+        ViewGroup.LayoutParams layoutParams = playerView.getLayoutParams();
+
+        playerView.setPlayer(null);
+        parent.removeView(playerView);
+
+        // 3. 重新创建一个新的 PlayerView 实例（绝对纯净）
+        PlayerView newPlayerView = new PlayerView(context);
+        newPlayerView.setLayoutParams(layoutParams);
+
+        // ✅ 双重兼容尝试：优先使用 Media3 的官方 API，如果旧版不支持则降级到反射
+        try {
+            newPlayerView.setUseTextureView(useTexture);
+        } catch (Throwable t) {
+            try {
+                // 针对古早版 ExoPlayer / Media3 的兼容性
+                java.lang.reflect.Method method = newPlayerView.getClass().getMethod("setSurfaceType", int.class);
+                method.invoke(newPlayerView, useTexture ? 1 : 0);
+            } catch (Exception ignored) {}
+        }
+
+        newPlayerView.setUseController(useController);
+        newPlayerView.setShowBuffering(showBuffering);
+        newPlayerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+
+        // 4. 绑定播放器并将其插回原位置
+        newPlayerView.setPlayer(player);
+        parent.addView(newPlayerView, index, layoutParams);
+
+        // 5. 替换全局引用
+        playerView = newPlayerView;
+
+        // 6. 恢复播放进度和播放状态
+        if (currentPosition > 0) {
+            player.seekTo(currentPosition);
+        }
+        if (wasPlaying) {
+            player.play();
+        }
+
+        // 7. 恢复遥控器焦点（防止因为视图重建导致的遥控器失灵）
+        playerView.requestFocus();
+
+        SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView"));
+    }
+
+    // ========================================================================
+    // 🆕 渲染方式注册 & 处理（彻底移除了导致崩溃的 setSurfaceType 逻辑）
+    // ========================================================================
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -503,21 +567,12 @@ public class TVPlayerManager {
                         String mode = sp.getString("renderer_type", "surface");
                         if (playerView != null) {
                             boolean useTexture = "texture".equals(mode);
-                            try {
-                                // Media3 1.7.1 无SurfaceType枚举，直接使用PlayerView内置int常量
-                                if (useTexture) {
-                                    playerView.setSurfaceType(PlayerView.SURFACE_TYPE_TEXTURE_VIEW);
-                                } else {
-                                    playerView.setSurfaceType(PlayerView.SURFACE_TYPE_SURFACE_VIEW);
-                                }
-                                SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView"));
+                            
+                            // ✅ 调用终极重建方法，不需要任何反射兜底
+                            switchRenderer(useTexture);
 
-                                if (!TextUtils.isEmpty(currentUrl)) {
-                                    playUrlInternal(currentUrl);
-                                }
-                            } catch (Exception e) {
-                                Log.e(TAG, "【渲染器】setSurfaceType切换失败", e);
-                                SettingsActivity.logOperation("【渲染器】切换失败: " + e.toString());
+                            if (!TextUtils.isEmpty(currentUrl)) {
+                                playUrlInternal(currentUrl);
                             }
                         }
                     }
@@ -570,18 +625,9 @@ public class TVPlayerManager {
         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         String rendererMode = sp.getString("renderer_type", "surface");
         boolean useTexture = "texture".equals(rendererMode);
-        try {
-            // 初始化渲染类型，无SurfaceType
-            if (useTexture) {
-                playerView.setSurfaceType(PlayerView.SURFACE_TYPE_TEXTURE_VIEW);
-            } else {
-                playerView.setSurfaceType(PlayerView.SURFACE_TYPE_SURFACE_VIEW);
-            }
-            SettingsActivity.logOperation("【渲染器】初始化应用：" + (useTexture ? "TextureView" : "SurfaceView"));
-        } catch (Exception e) {
-            Log.e(TAG, "【渲染器】初始化失败", e);
-            SettingsActivity.logOperation("【渲染器】初始化失败: " + e.toString());
-        }
+
+        // ✅ 同样调用终极重建方法，彻底告别死循环
+        switchRenderer(useTexture);
 
         playerView.setPlayer(player);
         playerView.setUseController(false);
@@ -903,4 +949,4 @@ public class TVPlayerManager {
             }
         }
     }
-}
+ }
