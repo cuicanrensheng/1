@@ -493,7 +493,7 @@ public class TVPlayerManager {
     }
 
     // ========================================================================
-    // 🆕 渲染方式注册 & 处理（【修复】增加详细错误日志）
+    // 🆕 渲染方式注册 & 处理（【完美版】直接调用，无反射）
     // ========================================================================
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
@@ -507,20 +507,13 @@ public class TVPlayerManager {
                         if (playerView != null) {
                             boolean useTexture = "texture".equals(mode);
 
-                            // 用反射代替直接调用，确保编译无问题
-                            try {
-                                java.lang.reflect.Method method = playerView.getClass().getMethod("setUseTextureView", boolean.class);
-                                method.invoke(playerView, useTexture);
-                                SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView"));
+                            // ✅【已修复】直接调用原生的 setUseTextureView
+                            playerView.setUseTextureView(useTexture);
+                            SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView"));
 
-                                // 切渲染方式后重新加载当前流
-                                if (!TextUtils.isEmpty(currentUrl)) {
-                                    playUrlInternal(currentUrl);
-                                }
-                            } catch (Exception e) {
-                                Log.e(TAG, "【渲染器】反射调用失败，切换无效", e);
-                                // 👇 修改这里：打印真实的异常原因
-                                SettingsActivity.logOperation("【渲染器】反射切换失败: " + e.toString());
+                            // 切渲染方式后重新加载当前流
+                            if (!TextUtils.isEmpty(currentUrl)) {
+                                playUrlInternal(currentUrl);
                             }
                         }
                     }
@@ -575,16 +568,9 @@ public class TVPlayerManager {
         String rendererMode = sp.getString("renderer_type", "surface");
         boolean useTexture = "texture".equals(rendererMode);
 
-        // 用反射代替直接调用
-        try {
-            java.lang.reflect.Method method = playerView.getClass().getMethod("setUseTextureView", boolean.class);
-            method.invoke(playerView, useTexture);
-            SettingsActivity.logOperation("【渲染器】初始化应用：" + (useTexture ? "TextureView" : "SurfaceView"));
-        } catch (Exception e) {
-            Log.e(TAG, "【渲染器】反射调用失败(attach)，保持默认SurfaceView", e);
-            // 👇 修改这里：打印真实的异常原因
-            SettingsActivity.logOperation("【渲染器】反射初始化失败: " + e.toString());
-        }
+        // ✅【已修复】直接调用原生的 setUseTextureView
+        playerView.setUseTextureView(useTexture);
+        SettingsActivity.logOperation("【渲染器】初始化应用：" + (useTexture ? "TextureView" : "SurfaceView"));
 
         playerView.setPlayer(player);
         playerView.setUseController(false);
