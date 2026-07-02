@@ -104,7 +104,7 @@ public class TVPlayerManager {
     private boolean rendererReceiverRegistered = false;
 
     // ============================================================
-    // ✅ 视图重建回调监听器
+    // ✅ 视图重建回调监听器（核心修复点）
     // ============================================================
     private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
 
