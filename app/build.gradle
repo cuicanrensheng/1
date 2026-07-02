@@ -5,10 +5,6 @@ plugins {
 android {
     namespace "com.tv.live"
 
-    // ====================================================================
-    // ✅ compileSdk 保持 36
-    // ====================================================================
-    // Media3 1.7.1 要求 compileSdk 至少 33，36 完全够用。
     compileSdk 36
 
     compileOptions {
@@ -24,26 +20,7 @@ android {
     defaultConfig {
         applicationId "com.tv.live"
 
-        // ====================================================================
-        // ✅ 2026-06-25 降级：minSdk 23 → 21
-        // ====================================================================
-        // 【为什么降回 21？】
-        // Media3 1.7.1 是最后一个支持 minSdk 21 的版本，
-        // 降回 21 可以兼容 Android 5.0+ 的低端电视设备。
-        //
-        // 【版本历史】
-        // - 1.7.1 及以下：minSdk = 21（支持 Android 5.0+）
-        // - 1.8.0 及以上：minSdk = 23（直接跳到 Android 6.0+）
-        // - 中间没有 minSdk = 22 的版本
-        //
-        // 【影响】
-        // 可以兼容 Android 5.0/5.1（API 21-22）的设备，
-        // 覆盖更多低端电视盒子。
         minSdk 21
-
-        // ====================================================================
-        // ✅ targetSdk 保持 36
-        // ====================================================================
         targetSdk 36
 
         versionCode 20
@@ -80,7 +57,7 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
             shrinkResources false
             crunchPngs false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -108,34 +85,12 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.1'
     implementation 'com.google.code.gson:gson:2.10.1'
 
-    // ====================================================================
-    // ✅ 2026-06-25 降级：Media3 1.10.1 → 1.7.1
-    // ====================================================================
-    // 【为什么用 1.7.1？】
-    // 1.7.1 是最后一个支持 minSdk 21 的 Media3 版本，
-    // 1.8.0 开始 minSdk 直接跳到 23，不支持 Android 5.x。
-    //
-    // 【版本选择理由】
-    // 1. 最后一个支持 minSdk 21 的版本，兼容性最好
-    // 2. 相比 1.5.0，有更多 bug 修复和性能优化
-    // 3. 相比 2.x 版本，API 更稳定，迁移成本更低
-    //
-    // 【2026-06-26 更新：改用系统软解，不再需要 FFmpeg 扩展】
-    // 原来的 FFmpeg 扩展已经移除，改用系统自带的软件解码器。
-    // 优点：无需额外库、不增加 APK 大小、集成简单
-    // 缺点：性能不如 FFmpeg、支持的格式少一些
-
-    // ✅ Media3 核心播放器
+    // Media3 1.7.1 全套
     implementation "androidx.media3:media3-exoplayer:1.7.1"
-    // ✅ Media3 UI 组件（PlayerView 等）
     implementation "androidx.media3:media3-ui:1.7.1"
-    // ✅ Media3 HLS 支持（直播流）
     implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
-    // ✅ Media3 DASH 支持
     implementation "androidx.media3:media3-exoplayer-dash:1.7.1"
-    // ✅ Media3 通用工具
     implementation "androidx.media3:media3-common:1.7.1"
-    // ✅ Media3 数据源
     implementation "androidx.media3:media3-datasource:1.7.1"
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
@@ -147,14 +102,9 @@ dependencies {
 
     implementation "org.apache.commons:commons-lang3:3.14.0"
     implementation "com.blankj:utilcodex:1.31.1"
-    implementation 'org.nanohttpd:nanohttpd:2.3.1'
-    implementation 'com.squareup.okhttp3:okhttp:4.9.3'
+    implementation 'org.nanohttpd:nanohttpd'
 }
 
-// ====================================================================
-// 🛡️ 终极防御：强制所有 Media3 依赖使用 1.7.1 版本
-// 覆盖本地缓存可能存在的旧版本，确保纯净打包
-// ====================================================================
 configurations.all {
     resolutionStrategy {
         force "androidx.media3:media3-exoplayer:1.7.1"
