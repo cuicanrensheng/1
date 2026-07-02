@@ -108,16 +108,16 @@ dependencies {
 
 configurations.all {
     resolutionStrategy {
-        // 锁定全部Media3版本
+        // 仅保留强制锁定版本（兼容Gradle10，无废弃API）
         force "androidx.media3:media3-exoplayer:1.7.1"
         force "androidx.media3:media3-ui:1.7.1"
         force "androidx.media3:media3-exoplayer-hls:1.7.1"
         force "androidx.media3:media3-common:1.7.1"
-        force "androidx.media3:media3-datasource:1.7.1"
-        // 强制统一okhttp，解决版本冲突
+        force "androidx.media3-datasource:1.7.1"
         force "com.squareup.okhttp3:okhttp:4.12.0"
-        // 缩短缓存时效，强制实时拉取依赖
-        cacheChangingModulesFor 0, seconds
-        cacheDynamicVersionsFor 0, minutes
+
+        // ========== 重点删除两行废弃代码 ==========
+        // cacheChangingModulesFor 0, seconds
+        // cacheDynamicVersionsFor 0, minutes
     }
 }
