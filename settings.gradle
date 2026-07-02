@@ -1,7 +1,5 @@
 pluginManagement {
     repositories {
-        // 移除不稳定maven.google镜像，只用公共库
-        maven { url 'maven { url "https://mirrors.aliyun.com/android.google/" }' }
         google()
         mavenCentral()
         gradlePluginPortal()
@@ -10,7 +8,6 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
-        maven { url 'maven { url "https://mirrors.aliyun.com/android.google/" }' }
         google()
         mavenCentral()
     }
