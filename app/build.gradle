@@ -85,6 +85,7 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.1'
     implementation 'com.google.code.gson:gson:2.10.1'
 
+    // Media3 1.7.1 标准三段式依赖
     implementation "androidx.media3:media3-exoplayer:1.7.1"
     implementation "androidx.media3:media3-ui:1.7.1"
     implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
@@ -92,6 +93,7 @@ dependencies {
     implementation "androidx.media3:media3-common:1.7.1"
     implementation "androidx.media3:media3-datasource:1.7.1"
 
+    // Okhttp 单一高版本，无重复依赖
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "com.squareup.retrofit2:retrofit:2.11.0"
     implementation "com.squareup.retrofit2:converter-gson:2.11.0"
@@ -104,13 +106,14 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd'
 }
 
-configurations.all {
-    resolutionStrategy {
-        force "androidx.media3:media3-exoplayer:1.7.1"
-        force "androidx.media3:media3-ui:1.7.1"
-        force "androidx.media3:media3-exoplayer-hls:1.7.1"
-        force "androidx.media3:media3-common:1.7.1"
-        force "androidx.media3:media3-datasource:1.7.1"
-        force "com.squareup.okhttp3:okhttp:4.12.0"
-    }
-}
+// 临时移除强制force锁定，消除传递依赖版本冲突（关键优化）
+// configurations.all {
+//     resolutionStrategy {
+//         force "androidx.media3:media3-exoplayer:1.7.1"
+//         force "androidx.media3:media3-ui:1.7.1"
+//         force "androidx.media3:media3-exoplayer-hls:1.7.1"
+//         force "androidx.media3:media3-common:1.7.1"
+//         force "androidx.media3:media3-datasource:1.7.1"
+//         force "com.squareup.okhttp3:okhttp:4.12.0"
+//     }
+// }
