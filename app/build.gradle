@@ -150,3 +150,17 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'
 }
+
+// ====================================================================
+// 🛡️ 终极防御：强制所有 Media3 依赖使用 1.7.1 版本
+// 覆盖本地缓存可能存在的旧版本，确保纯净打包
+// ====================================================================
+configurations.all {
+    resolutionStrategy {
+        force "androidx.media3:media3-exoplayer:1.7.1"
+        force "androidx.media3:media3-ui:1.7.1"
+        force "androidx.media3:media3-exoplayer-hls:1.7.1"
+        force "androidx.media3:media3-common:1.7.1"
+        force "androidx.media3:media3-datasource:1.7.1"
+    }
+}
