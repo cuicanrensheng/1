@@ -171,29 +171,32 @@ public class TVPlayerManager {
 
         initPlayer();
     }
-
     private void initPlayer() {
-        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
+    mPlayerManager = TVPlayerManager.getInstance(this);
 
-        SoftwareFirstMediaCodecSelector codecSelector =
-                new SoftwareFirstMediaCodecSelector(mDecoderMode);
-        renderersFactory.setMediaCodecSelector(codecSelector);
+    // ✅ 【关键】必须先注册监听器，再调用 attachPlayerView
+    mPlayerManager.setOnPlayerViewRecreatedListener(new TVPlayerManager.OnPlayerViewRecreatedListener() {
+        @Override
+        public void onPlayerViewRecreated(PlayerView newPlayerView) {
+            MainActivity.this.playerView = newPlayerView;
+            
+            // 重新绑定手势
+            gestureManager = new GestureManager(MainActivity.this);
+            final PlayerGestureHelper newGestureHelper = gestureManager.create();
+            newPlayerView.setOnTouchListener((v, event) -> {
+                newGestureHelper.handleTouch(event);
+                return true;
+            });
 
-        switch (mDecoderMode) {
-            case DECODER_MODE_SOFT:
-                Log.d(TAG, "【解码器】软解模式：优先使用系统软件解码器");
-                SettingsActivity.logOperation("【解码器】初始化：系统软解模式（优先）");
-                break;
-            case DECODER_MODE_HARD:
-                Log.d(TAG, "【解码器】硬解模式：只用系统硬解码器");
-                SettingsActivity.logOperation("【解码器】初始化：系统硬解模式（强制）");
-                break;
-            case DECODER_MODE_AUTO:
-            default:
-                Log.d(TAG, "【解码器】自动模式：系统硬解优先");
-                SettingsActivity.logOperation("【解码器】初始化：自动模式（系统硬解优先）");
-                break;
+            // 重新请求焦点
+            newPlayerView.requestFocus();
+            SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
         }
+    });
+
+    mPlayerManager.attachPlayerView(playerView);
+    // ... 后面的其他监听器不用变 ...
+    }
 
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
