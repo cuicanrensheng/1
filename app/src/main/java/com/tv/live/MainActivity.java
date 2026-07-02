@@ -486,6 +486,30 @@ public class MainActivity extends AppCompatActivity {
         // 绑定播放器视图（渲染画面）
         mPlayerManager.attachPlayerView(playerView);
 
+        // ✅ 【新增】监听 PlayerView 重建，重新绑定触摸事件与焦点！
+        mPlayerManager.setOnPlayerViewRecreatedListener(new TVPlayerManager.OnPlayerViewRecreatedListener() {
+            @Override
+            public void onPlayerViewRecreated(PlayerView newPlayerView) {
+                // 1. 更新 MainActivity 自己的引用
+                MainActivity.this.playerView = newPlayerView;
+
+                // 2. 重新创建手势管理器并重新绑定触摸监听
+                gestureManager = new GestureManager(MainActivity.this);
+                final PlayerGestureHelper newGestureHelper = gestureManager.create();
+                newPlayerView.setOnTouchListener(new View.OnTouchListener() {
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        newGestureHelper.handleTouch(event);
+                        return true;
+                    }
+                });
+
+                // 3. 强制重新获取焦点（确保遥控器上下键/切台彻底恢复）
+                newPlayerView.requestFocus();
+                SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
+            }
+        });
+
         // 初始化播放器状态监听器
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
@@ -1048,4 +1072,4 @@ public class MainActivity extends AppCompatActivity {
         mInstance = null;
         SettingsActivity.logOperation("【系统】APP退出");
     }
-}
+ }
