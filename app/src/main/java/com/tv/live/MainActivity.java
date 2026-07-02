@@ -150,8 +150,12 @@ public class MainActivity extends AppCompatActivity {
 
         // 初始化播放器核心
         initPlayer();
-        // 注册解码器模式广播接收器（监听解码器切换）
+
+        // =====================================================================
+        // 【核心修正】：注册 解码器 和 渲染方式 的广播接收器
+        // =====================================================================
         mPlayerManager.registerDecoderModeReceiver();
+        mPlayerManager.registerRendererModeReceiver();  // 🆕 必须加上这一行，否则设置里的“渲染方式”无法生效
 
         // 初始化屏幕比例管理器并应用配置
         screenRatioManager = new ScreenRatioManager(mPlayerManager, appConfig);
