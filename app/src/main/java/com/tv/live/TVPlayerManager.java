@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -20,7 +19,6 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
-import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -65,7 +63,7 @@ public class TVPlayerManager {
     private int currentChannelNumber = 0;
     private TextView channelNumberTextView;
 
-    // ===== 【新增】当前播放的频道名称（用于底层日志） =====
+    // ===== 当前播放的频道名称（用于底层日志） =====
     private String currentChannelName = "";
 
     private int mDecoderMode = DECODER_MODE_AUTO;
@@ -557,19 +555,36 @@ public class TVPlayerManager {
         return headers;
     }
 
+    // ====================================================================
+    // ✅ 播放接口升级（支持直接传入频道名）
+    // ====================================================================
+    public void play(String url, String channelName) {
+        playUrl(url, channelName);
+    }
     public void play(String url) {
-        playUrl(url);
+        playUrl(url, null);
     }
 
     public void playUrl(String url) {
+        playUrl(url, null);
+    }
+
+    public void playUrl(String url, String channelName) {
+        if (!TextUtils.isEmpty(channelName)) {
+            this.currentChannelName = channelName;
+        }
         cancelRetry();
         retryCount = 0;
         isRetrying = false;
         hasSwitchedDecoder = false;
         initialPlayStartTime = 0;
         resetPerformanceStats();
-        SettingsActivity.logOperation("【播放器】开始加载新频道");
+        SettingsActivity.logOperation("【播放器】开始加载新频道: " + (TextUtils.isEmpty(this.currentChannelName) ? "未知" : this.currentChannelName));
         playUrlInternal(url);
+    }
+
+    public void setCurrentChannelName(String name) {
+        this.currentChannelName = (name != null) ? name : "";
     }
 
     private void resetPerformanceStats() {
@@ -579,23 +594,20 @@ public class TVPlayerManager {
         lastStallStartTime = 0;
     }
 
-    // ===== 【新增】供外层调用，设置当前频道名称 =====
-    public void setCurrentChannelName(String name) {
-        this.currentChannelName = (name != null) ? name : "";
-    }
-
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
 
+            // 日志验证：确保这里看得到频道名
+            SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
+
             RedirectLoggingHttpDataSource.Factory httpFactory =
                     new RedirectLoggingHttpDataSource.Factory();
             httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
             httpFactory.setAllowCrossProtocolRedirects(true);
-
-            // ===== 【关键修改】将频道名注入数据源工厂，实现日志显示 =====
+            // 注入频道名
             httpFactory.setChannelName(currentChannelName);
 
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
