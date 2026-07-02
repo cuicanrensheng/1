@@ -6,48 +6,13 @@
 【结构】FrameLayout（全屏透明）
 ├── view_outside（左侧空白区域，点击关闭）
 └── ScrollView（右侧设置面板，包含所有设置项）
-【2026-06-19 修改：改成四个角圆角 + 右侧滑出菜单样式】
-1. 根布局改成 FrameLayout，背景透明
-2. 内容区域靠右对齐，固定宽度 240dp
-3. 离右边 20dp 距离，让右侧圆角能看到
-4. 上下各 20dp 边距
-5. 背景：settings_panel_bg（四个角圆角，半透明深色）
-6. 和频道面板风格完全统一，一个在左一个在右，对称
-【2026-06-20 修改：添加点击空白区域关闭功能】
-新增 view_outside（左侧空白区域），点击它就关闭设置页面。
-和频道面板的交互方式一致：点击面板外的区域就退出。
-【2026-06-20 修改：背景改成和频道面板一样的 panel_bg】
-【修改原因】
-原来用的是 settings_panel_bg，和频道面板的 panel_bg 可能颜色/透明度不一样。
-现在统一用 panel_bg，两个面板的背景颜色、透明度、圆角完全一致。
-【2026-06-22 新增：画中画设置项】
-新增画中画开关、画中画设置项。
-【2026-06-25 新增：解码器选择设置项】
-新增解码器选择（自动/硬解/软解），方便用户手动切换解码器测试卡顿问题。
-【2026-06-26 修改：改用系统自带软解，替代 FFmpeg 方案】
-更新解码器选择的注释说明，把 FFmpeg 改成系统软解。
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/transparent">
-    <!-- ================================================================ -->
-    <!-- 左侧空白区域（点击关闭设置）                                    -->
-    <!-- ================================================================ -->
-    <!--
-    【作用】
-    1. 占满左侧空间，让后面的播放界面能透过来（因为背景是透明的）
-    2. 点击这个区域就关闭设置页面（类似点击弹窗外部关闭）
-    【为什么放在 ScrollView 前面？】
-    FrameLayout 的特点是：后面的子 View 会盖在前面的子 View 上面。
-    把 view_outside 放在前面，ScrollView 放在后面，
-    这样：
-    - 点击左侧空白区域 → 触发 view_outside 的点击事件 → 关闭设置
-    - 点击右侧面板区域 → 点击的是 ScrollView（盖在上面）→ 不触发关闭
-    【为什么不用 setFinishOnTouchOutside(true)？】
-    因为那是 Dialog 的方法，Activity 没有这个方法。
-    用透明 View 模拟是最通用的方案。
-    -->
+
+    <!-- 左侧空白区域（点击关闭设置） -->
     <View
         android:id="@+id/view_outside"
         android:layout_width="match_parent"
@@ -55,20 +20,8 @@
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true" />
-    <!-- ================================================================ -->
-    <!-- 设置面板：靠右显示，离右边有 20dp 距离，四个角圆角半透明背景  -->
-    <!-- ================================================================ -->
-    <!--
-    【样式说明】
-    - layout_gravity="end"：靠右显示
-    - layout_marginEnd="20dp"：离右边 20dp，让右侧圆角能看到
-    - layout_marginTop/Bottom="20dp"：上下各 20dp 边距
-    - background="@drawable/panel_bg"：✅ 改成和频道面板一样的背景
-    - 和频道面板（左侧）完全对称，一个左一个右
-    【为什么用 ScrollView？】
-    因为设置项比较多，小屏幕可能显示不下，
-    用 ScrollView 可以上下滚动查看所有设置项。
-    -->
+
+    <!-- 设置面板：靠右显示，离右边有 20dp 距离，四个角圆角半透明背景 -->
     <ScrollView
         android:id="@+id/settings_content"
         android:layout_width="240dp"
@@ -82,18 +35,15 @@
         android:paddingBottom="20dp"
         android:paddingStart="16dp"
         android:paddingEnd="16dp">
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
+
             <!-- ============================================================ -->
             <!-- 开机自启（两行布局：文字+开关 + 状态文本）                  -->
             <!-- ============================================================ -->
-            <!--
-            【特殊说明】
-            开机自启是两行布局，因为下面还有状态文本（显示"未开启"/"已开启"等）
-            其他开关项都是单行布局（55dp 固定高度）
-            -->
             <LinearLayout
                 android:id="@+id/item_boot"
                 android:layout_width="match_parent"
@@ -125,7 +75,6 @@
                         android:focusable="false"
                         android:clickable="false" />
                 </LinearLayout>
-                <!-- 开机自启状态文本（显示在开关下面） -->
                 <TextView
                     android:id="@+id/tv_boot_status"
                     android:layout_width="match_parent"
@@ -135,6 +84,7 @@
                     android:textColor="#80FFFFFF"
                     android:textSize="12sp" />
             </LinearLayout>
+
             <!-- ============================================================ -->
             <!-- 节目单开关                                                  -->
             <!-- ============================================================ -->
@@ -162,6 +112,7 @@
                     android:focusable="false"
                     android:clickable="false" />
             </LinearLayout>
+
             <!-- ============================================================ -->
             <!-- 自动更新源                                                  -->
             <!-- ============================================================ -->
@@ -189,6 +140,7 @@
                     android:focusable="false"
                     android:clickable="false" />
             </LinearLayout>
+
             <!-- ============================================================ -->
             <!-- 换台反转                                                    -->
             <!-- ============================================================ -->
@@ -216,6 +168,7 @@
                     android:focusable="false"
                     android:clickable="false" />
             </LinearLayout>
+
             <!-- ============================================================ -->
             <!-- 数字选台                                                    -->
             <!-- ============================================================ -->
@@ -243,8 +196,9 @@
                     android:focusable="false"
                     android:clickable="false" />
             </LinearLayout>
+
             <!-- ============================================================ -->
-            <!-- 🆕 画中画开关（新增）                                      -->
+            <!-- 画中画开关                                                  -->
             <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_pip"
@@ -270,23 +224,10 @@
                     android:focusable="false"
                     android:clickable="false" />
             </LinearLayout>
+
             <!-- ============================================================ -->
-            <!-- ✅ 解码器选择（2026-06-25 新增，2026-06-26 修改：改用系统软解） -->
+            <!-- 解码器选择                                                  -->
             <!-- ============================================================ -->
-            <!--
-            【功能说明】
-            选择播放器使用的解码器模式：
-            - 自动（推荐）：硬解优先，卡顿自动切换到系统软解
-            - 硬解：强制使用系统硬解码器
-            - 软解：优先使用系统软件解码器
-            【位置说明】
-            放在画中画之后，分隔线之前，属于播放相关设置。
-            【布局结构】
-            和其他带开关的项类似，都是 LinearLayout 包裹，
-            左边是标题，右边是当前值（TextView 而不是 Switch）。
-            【2026-06-26 修改说明】
-            原来用的是 FFmpeg 软解，现在改用系统自带的软解。
-            -->
             <LinearLayout
                 android:id="@+id/item_decoder"
                 android:layout_width="match_parent"
@@ -312,6 +253,36 @@
                     android:textColor="#999999"
                     android:textSize="14sp" />
             </LinearLayout>
+
+            <!-- ============================================================ -->
+            <!-- 🆕 渲染方式选择（2026-07-02 新增）                          -->
+            <!-- ============================================================ -->
+            <LinearLayout
+                android:id="@+id/item_renderer"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:background="@drawable/setting_item_bg"
+                android:focusable="true"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="渲染方式"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+                <TextView
+                    android:id="@+id/tv_renderer_type"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SurfaceView"
+                    android:textColor="#999999"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
             <!-- ============================================================ -->
             <!-- 分隔线                                                      -->
             <!-- ============================================================ -->
@@ -321,6 +292,7 @@
                 android:background="#33FFFFFF"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp" />
+
             <!-- ============================================================ -->
             <!-- 屏幕比例                                                    -->
             <!-- ============================================================ -->
@@ -337,6 +309,7 @@
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
                 android:clickable="true" />
+
             <!-- ============================================================ -->
             <!-- 自定义订阅源                                                -->
             <!-- ============================================================ -->
@@ -353,6 +326,7 @@
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
                 android:clickable="true" />
+
             <!-- ============================================================ -->
             <!-- 自定义节目单                                                -->
             <!-- ============================================================ -->
@@ -369,6 +343,7 @@
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
                 android:clickable="true" />
+
             <!-- ============================================================ -->
             <!-- 多订阅源                                                    -->
             <!-- ============================================================ -->
@@ -385,6 +360,7 @@
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
                 android:clickable="true" />
+
             <!-- ============================================================ -->
             <!-- 多节目单                                                    -->
             <!-- ============================================================ -->
@@ -401,6 +377,7 @@
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
                 android:clickable="true" />
+
             <!-- ============================================================ -->
             <!-- 扫码添加                                                    -->
             <!-- ============================================================ -->
@@ -417,6 +394,7 @@
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
                 android:clickable="true" />
+
             <!-- ============================================================ -->
             <!-- 分隔线                                                      -->
             <!-- ============================================================ -->
@@ -426,6 +404,7 @@
                 android:background="#33FFFFFF"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp" />
+
             <!-- ============================================================ -->
             <!-- 查看解析日志                                                -->
             <!-- ============================================================ -->
@@ -442,6 +421,7 @@
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
                 android:clickable="true" />
+
             <!-- ============================================================ -->
             <!-- 操作崩溃日志                                                -->
             <!-- ============================================================ -->
@@ -458,6 +438,7 @@
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
                 android:clickable="true" />
+
             <!-- ============================================================ -->
             <!-- 检查更新                                                    -->
             <!-- ============================================================ -->
@@ -486,6 +467,7 @@
                     android:focusable="false"
                     android:clickable="false" />
             </LinearLayout>
+
             <!-- ============================================================ -->
             <!-- 网页设置提示                                                -->
             <!-- ============================================================ -->
@@ -497,6 +479,7 @@
                 android:text="网页设置：http://设备IP:10481"
                 android:textColor="#80FFFFFF"
                 android:textSize="12sp" />
+
         </LinearLayout>
     </ScrollView>
 </FrameLayout>
