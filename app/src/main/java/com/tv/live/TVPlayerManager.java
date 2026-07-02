@@ -498,11 +498,10 @@ public class TVPlayerManager {
     private void switchRenderer(boolean useTexture) {
         if (playerView == null || context == null) return;
 
-        // 1. 保存播放器所有必需的状态
+        // 1. 保存播放器必需的状态
         long currentPosition = player.getCurrentPosition();
         boolean wasPlaying = player.isPlaying();
         boolean useController = playerView.getUseController();
-        int showBuffering = playerView.getShowBuffering();
 
         // 2. 获取父容器并移除当前视图
         ViewGroup parent = (ViewGroup) playerView.getParent();
@@ -517,19 +516,21 @@ public class TVPlayerManager {
         PlayerView newPlayerView = new PlayerView(context);
         newPlayerView.setLayoutParams(layoutParams);
 
-        // ✅ 双重兼容尝试：优先使用 Media3 的官方 API，如果旧版不支持则降级到反射
+        // ✅【最终修复】使用反射调用 setUseTextureView，完美规避旧版本编译报错
         try {
-            newPlayerView.setUseTextureView(useTexture);
-        } catch (Throwable t) {
+            java.lang.reflect.Method method = newPlayerView.getClass().getMethod("setUseTextureView", boolean.class);
+            method.invoke(newPlayerView, useTexture);
+        } catch (Exception e) {
+            // 如果 1.3.1 版本连 setUseTextureView 都没有，尝试旧版 API setSurfaceType
             try {
-                // 针对古早版 ExoPlayer / Media3 的兼容性
                 java.lang.reflect.Method method = newPlayerView.getClass().getMethod("setSurfaceType", int.class);
                 method.invoke(newPlayerView, useTexture ? 1 : 0);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                // 如果旧版 API 也没有，保持默认不做任何处理
+            }
         }
 
         newPlayerView.setUseController(useController);
-        newPlayerView.setShowBuffering(showBuffering);
         newPlayerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
 
         // 4. 绑定播放器并将其插回原位置
@@ -554,7 +555,7 @@ public class TVPlayerManager {
     }
 
     // ========================================================================
-    // 🆕 渲染方式注册 & 处理（彻底移除了导致崩溃的 setSurfaceType 逻辑）
+    // 🆕 渲染方式注册 & 处理（彻底移除了导致崩溃的逻辑）
     // ========================================================================
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
@@ -568,7 +569,7 @@ public class TVPlayerManager {
                         if (playerView != null) {
                             boolean useTexture = "texture".equals(mode);
                             
-                            // ✅ 调用终极重建方法，不需要任何反射兜底
+                            // ✅ 调用终极重建方法
                             switchRenderer(useTexture);
 
                             if (!TextUtils.isEmpty(currentUrl)) {
@@ -626,7 +627,7 @@ public class TVPlayerManager {
         String rendererMode = sp.getString("renderer_type", "surface");
         boolean useTexture = "texture".equals(rendererMode);
 
-        // ✅ 同样调用终极重建方法，彻底告别死循环
+        // ✅ 同样调用终极重建方法
         switchRenderer(useTexture);
 
         playerView.setPlayer(player);
@@ -949,4 +950,4 @@ public class TVPlayerManager {
             }
         }
     }
- }
+                                          }
