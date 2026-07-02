@@ -1,6 +1,6 @@
 pluginManagement {
     repositories {
-        maven { url 'https://maven.aliyun.com/repository/google' }
+        // 移除不稳定maven.google镜像，只用公共库
         maven { url 'https://maven.aliyun.com/repository/public' }
         google()
         mavenCentral()
@@ -10,7 +10,6 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
-        maven { url 'https://maven.aliyun.com/repository/google' }
         maven { url 'https://maven.aliyun.com/repository/public' }
         google()
         mavenCentral()
