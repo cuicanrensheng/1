@@ -10,7 +10,6 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
@@ -102,19 +101,6 @@ public class TVPlayerManager {
 
     private BroadcastReceiver rendererModeReceiver;
     private boolean rendererReceiverRegistered = false;
-
-    // ============================================================
-    // ✅ 【新增】PlayerView 重建监听器，让 MainActivity 重新绑定
-    // ============================================================
-    private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
-
-    public interface OnPlayerViewRecreatedListener {
-        void onPlayerViewRecreated(PlayerView newPlayerView);
-    }
-
-    public void setOnPlayerViewRecreatedListener(OnPlayerViewRecreatedListener listener) {
-        this.onPlayerViewRecreatedListener = listener;
-    }
 
     public static TVPlayerManager getInstance(Context context) {
         if (instance == null) {
@@ -506,75 +492,22 @@ public class TVPlayerManager {
     }
 
     // ========================================================================
-    // 🚀 终极方案：通过物理重建 PlayerView 来强制切换渲染器
+    // ✅ 终极回退：使用反射直接调用官方 setUseTextureView
+    // 既然依赖已经锁定为 1.7.1，这个方法 100% 存在，从此告别黑屏！
     // ========================================================================
-    private void switchRenderer(boolean useTexture) {
-        if (playerView == null || context == null) return;
-
-        // 1. 保存播放器必需的状态
-        long currentPosition = player.getCurrentPosition();
-        boolean wasPlaying = player.isPlaying();
-        boolean useController = playerView.getUseController();
-
-        // 2. 获取父容器并移除当前视图
-        ViewGroup parent = (ViewGroup) playerView.getParent();
-        if (parent == null) return;
-        int index = parent.indexOfChild(playerView);
-        ViewGroup.LayoutParams layoutParams = playerView.getLayoutParams();
-
-        playerView.setPlayer(null);
-        parent.removeView(playerView);
-
-        // 3. 重新创建一个新的 PlayerView 实例（绝对纯净）
-        PlayerView newPlayerView = new PlayerView(context);
-        newPlayerView.setLayoutParams(layoutParams);
-
-        // ✅【最终修复】使用反射调用 setUseTextureView，完美规避旧版本编译报错
+    private void applyRenderer(boolean useTexture) {
+        if (playerView == null) return;
         try {
-            java.lang.reflect.Method method = newPlayerView.getClass().getMethod("setUseTextureView", boolean.class);
-            method.invoke(newPlayerView, useTexture);
+            java.lang.reflect.Method method = playerView.getClass().getMethod("setUseTextureView", boolean.class);
+            method.invoke(playerView, useTexture);
+            SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView"));
         } catch (Exception e) {
-            // 如果 1.3.1 版本连 setUseTextureView 都没有，尝试旧版 API setSurfaceType
-            try {
-                java.lang.reflect.Method method = newPlayerView.getClass().getMethod("setSurfaceType", int.class);
-                method.invoke(newPlayerView, useTexture ? 1 : 0);
-            } catch (Exception ignored) {
-                // 如果旧版 API 也没有，保持默认不做任何处理
-            }
+            // 这里即使报错也不会黑屏，因为不会销毁重建视图！
+            Log.e(TAG, "【渲染器】applyRenderer失败", e);
+            SettingsActivity.logOperation("【渲染器】切换失败: " + e.toString());
         }
-
-        newPlayerView.setUseController(useController);
-        newPlayerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
-
-        // 4. 绑定播放器并将其插回原位置
-        newPlayerView.setPlayer(player);
-        parent.addView(newPlayerView, index, layoutParams);
-
-        // 5. 替换全局引用
-        playerView = newPlayerView;
-
-        // ✅ 【新增】触发回调，通知 MainActivity 视图已重建！
-        if (onPlayerViewRecreatedListener != null) {
-            onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
-        }
-
-        // 6. 恢复播放进度和播放状态
-        if (currentPosition > 0) {
-            player.seekTo(currentPosition);
-        }
-        if (wasPlaying) {
-            player.play();
-        }
-
-        // 7. 恢复遥控器焦点（防止因为视图重建导致的遥控器失灵）
-        playerView.requestFocus();
-
-        SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView"));
     }
 
-    // ========================================================================
-    // 🆕 渲染方式注册 & 处理（彻底移除了导致崩溃的逻辑）
-    // ========================================================================
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -586,10 +519,8 @@ public class TVPlayerManager {
                         String mode = sp.getString("renderer_type", "surface");
                         if (playerView != null) {
                             boolean useTexture = "texture".equals(mode);
-                            
-                            // ✅ 调用终极重建方法
-                            switchRenderer(useTexture);
-
+                            // ✅ 直接应用渲染方式
+                            applyRenderer(useTexture);
                             if (!TextUtils.isEmpty(currentUrl)) {
                                 playUrlInternal(currentUrl);
                             }
@@ -645,8 +576,8 @@ public class TVPlayerManager {
         String rendererMode = sp.getString("renderer_type", "surface");
         boolean useTexture = "texture".equals(rendererMode);
 
-        // ✅ 同样调用终极重建方法
-        switchRenderer(useTexture);
+        // ✅ 应用初始渲染方式，无黑屏副作用
+        applyRenderer(useTexture);
 
         playerView.setPlayer(player);
         playerView.setUseController(false);
@@ -968,4 +899,4 @@ public class TVPlayerManager {
             }
         }
     }
- }
+}
