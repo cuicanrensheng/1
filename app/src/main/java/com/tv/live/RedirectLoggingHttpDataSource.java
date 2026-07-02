@@ -21,17 +21,15 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 /**
- * 带重定向日志的 HTTP 数据源（带频道名 + 无重定向精简版）
+ * 带重定向日志的 HTTP 数据源（带频道名 + 核心分片降噪版）
  * 日志格式：
- * 有重定向时：
- * [HH:mm:ss] 开始播放（江西卫视）: http://xxx
+ * 仅对 m3u8 主播放列表/发生重定向时打印：
+ * [HH:mm:ss] 开始播放（江西都市）: http://xxx
  * [HH:mm:ss] 第1次重定向到: http://yyy
  * [HH:mm:ss] ✅ 解析完成，共1次跳转
  * [HH:mm:ss] ✅ 最终响应: HTTP 200
- *
- * 无重定向时（精简版）：
- * [HH:mm:ss] 开始播放（江西卫视）: http://xxx
- * [HH:mm:ss] ✅ 最终响应: HTTP 200
+ * 
+ * 对于无重定向的 .ts 分片请求，完全静默（避免刷屏）
  */
 public class RedirectLoggingHttpDataSource extends BaseDataSource implements HttpDataSource {
 
@@ -121,9 +119,20 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
 
     private HttpURLConnection openConnection(DataSpec dataSpec) throws IOException {
         String currentUrl = dataSpec.uri.toString();
+        String urlLower = currentUrl.toLowerCase();
+
+        // ===== 判断是否为 HLS 的 .ts 分片 =====
+        // 绝大多数 m3u8 播放列表会请求 .ts 分片，每集都会触发 open，必须屏蔽无重定向时的刷屏日志！
+        boolean isTsSegment = urlLower.contains(".ts") && !urlLower.contains(".m3u8");
+        boolean isM3u8Manifest = urlLower.contains(".m3u8");
 
         String channelInfo = (!currentChannelName.isEmpty()) ? "（" + currentChannelName + "）" : "";
-        SettingsActivity.log("[" + getTimeStr() + "] 开始播放" + channelInfo + ": " + currentUrl);
+
+        // 【核心优化】：仅当是 .m3u8 主列表，或者可能发生重定向时，才打印开始日志。
+        // 正常的 .ts 分片直接跳过日志打印，避免刷屏。
+        if (isM3u8Manifest || !isTsSegment) {
+            SettingsActivity.log("[" + getTimeStr() + "] 开始播放" + channelInfo + ": " + currentUrl);
+        }
 
         int redirectCount = 0;
 
@@ -160,12 +169,13 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             if (!isRedirect) {
                 String time = getTimeStr();
 
-                // 💡 【核心优化】：只有当确实发生过重定向（跳转次数 > 0）时，才打印“解析完成”
-                if (redirectCount > 0) {
-                    SettingsActivity.log("[" + time + "] ✅ 解析完成，共" + redirectCount + "次跳转");
+                // 【核心优化】：仅当是 m3u8 或发生重定向时才打印结束日志，.ts 分片直接静默退出。
+                if (isM3u8Manifest || !isTsSegment || redirectCount > 0) {
+                    if (redirectCount > 0) {
+                        SettingsActivity.log("[" + time + "] ✅ 解析完成，共" + redirectCount + "次跳转");
+                    }
+                    SettingsActivity.log("[" + time + "] ✅ 最终响应: HTTP " + respCode);
                 }
-
-                SettingsActivity.log("[" + time + "] ✅ 最终响应: HTTP " + respCode);
                 return conn;
             }
 
@@ -189,6 +199,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             }
 
             String time = getTimeStr();
+            // 无论是不是分片，发生重定向时必定打印（保证重定向追踪）
             SettingsActivity.log("[" + time + "] 第" + redirectCount + "次重定向到: " + redirectUrl);
 
             conn.disconnect();
@@ -327,12 +338,12 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     }
 
     // ====================================================================
-    // Factory 工厂类（新增 setChannelName 支持）
+    // Factory 工厂类
     // ====================================================================
     public static final class Factory implements HttpDataSource.Factory {
         private final Map<String, String> defaultRequestProperties;
         private boolean allowCrossProtocolRedirects;
-        private String channelName = ""; // 【新增】工厂内保存频道名
+        private String channelName = "";
 
         public Factory() {
             this.defaultRequestProperties = new HashMap<>();
@@ -352,7 +363,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             return this;
         }
 
-        // 【新增】由 TVPlayerManager 调用注入频道名
         public Factory setChannelName(String name) {
             this.channelName = (name != null) ? name : "";
             return this;
@@ -363,7 +373,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             RedirectLoggingHttpDataSource dataSource = new RedirectLoggingHttpDataSource(
                     defaultRequestProperties,
                     allowCrossProtocolRedirects);
-            // 【关键】把工厂存的频道名交给新创建的数据源
             dataSource.setChannelName(this.channelName);
             return dataSource;
         }
