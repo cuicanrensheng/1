@@ -96,18 +96,6 @@ android {
             pickFirsts += ['META-INF/com.android.tools/proguard/coroutines.pro']
         }
     }
-
-    // ====================================================================
-    // ✅ 配置 libs 目录为 AAR 仓库
-    // ====================================================================
-    // 【2026-06-26 说明】
-    // 原来放 FFmpeg AAR 的，现在改用系统软解，不需要了。
-    // 保留这个配置是为了以后可能需要其他 AAR 时方便。
-    repositories {
-        flatDir {
-            dirs 'libs'
-        }
-    }
 }
 
 dependencies {
