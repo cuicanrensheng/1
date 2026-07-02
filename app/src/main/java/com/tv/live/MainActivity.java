@@ -277,8 +277,35 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // ============================================================
+    // ✅ 【关键修复】必须在 attachPlayerView 之前注册监听器！
+    // ============================================================
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
+
+        mPlayerManager.setOnPlayerViewRecreatedListener(new TVPlayerManager.OnPlayerViewRecreatedListener() {
+            @Override
+            public void onPlayerViewRecreated(PlayerView newPlayerView) {
+                // 1. 更新 MainActivity 自己的引用
+                MainActivity.this.playerView = newPlayerView;
+
+                // 2. 重新创建手势管理器并重新绑定触摸监听（解决手势失效）
+                gestureManager = new GestureManager(MainActivity.this);
+                final PlayerGestureHelper newGestureHelper = gestureManager.create();
+                newPlayerView.setOnTouchListener(new View.OnTouchListener() {
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        newGestureHelper.handleTouch(event);
+                        return true;
+                    }
+                });
+
+                // 3. 强制重新获取焦点（解决遥控器切台失效）
+                newPlayerView.requestFocus();
+                SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
+            }
+        });
+
         mPlayerManager.attachPlayerView(playerView);
 
         playerStateListener = new PlayerStateListenerImpl(this);
