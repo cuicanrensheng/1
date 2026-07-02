@@ -30,7 +30,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
-import androidx.media3.ui.SurfaceType;
+import androidx.media3.common.SurfaceType;
 
 import com.tv.live.RedirectLoggingHttpDataSource;
 
