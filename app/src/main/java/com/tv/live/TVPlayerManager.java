@@ -492,7 +492,7 @@ public class TVPlayerManager {
     }
 
     // ========================================================================
-    // 🆕 渲染方式注册 & 处理（使用反射编译必过版）
+    // 🆕 渲染方式注册 & 处理（使用 setSurfaceType 万能解）
     // ========================================================================
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
@@ -506,18 +506,22 @@ public class TVPlayerManager {
                         if (playerView != null) {
                             boolean useTexture = "texture".equals(mode);
 
-                            // ✅ 使用反射替换直接调用，彻底杜绝编译错误！
+                            // ✅【关键修复】改为 setSurfaceType，兼容所有旧版本
                             try {
-                                java.lang.reflect.Method method = playerView.getClass().getMethod("setUseTextureView", boolean.class);
-                                method.invoke(playerView, useTexture);
+                                // 0 = SurfaceView, 1 = TextureView
+                                int surfaceType = useTexture ? 1 : 0;
+                                java.lang.reflect.Method method = playerView.getClass().getMethod("setSurfaceType", int.class);
+                                method.invoke(playerView, surfaceType);
+
                                 SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView"));
 
                                 if (!TextUtils.isEmpty(currentUrl)) {
                                     playUrlInternal(currentUrl);
                                 }
                             } catch (Exception e) {
-                                Log.e(TAG, "【渲染器】反射切换失败", e);
-                                SettingsActivity.logOperation("【渲染器】切换失败，保持当前渲染");
+                                Log.e(TAG, "【渲染器】setSurfaceType 反射失败", e);
+                                // ✅ 打印具体错误到操作日志
+                                SettingsActivity.logOperation("【渲染器】切换失败: " + e.toString());
                             }
                         }
                     }
@@ -571,14 +575,18 @@ public class TVPlayerManager {
         String rendererMode = sp.getString("renderer_type", "surface");
         boolean useTexture = "texture".equals(rendererMode);
 
-        // ✅ 使用反射替换直接调用，彻底杜绝编译错误！
+        // ✅【关键修复】改为 setSurfaceType，兼容所有旧版本
         try {
-            java.lang.reflect.Method method = playerView.getClass().getMethod("setUseTextureView", boolean.class);
-            method.invoke(playerView, useTexture);
+            // 0 = SurfaceView, 1 = TextureView
+            int surfaceType = useTexture ? 1 : 0;
+            java.lang.reflect.Method method = playerView.getClass().getMethod("setSurfaceType", int.class);
+            method.invoke(playerView, surfaceType);
+
             SettingsActivity.logOperation("【渲染器】初始化应用：" + (useTexture ? "TextureView" : "SurfaceView"));
         } catch (Exception e) {
-            Log.e(TAG, "【渲染器】反射初始化失败，保持默认SurfaceView", e);
-            SettingsActivity.logOperation("【渲染器】反射初始化失败，保持默认SurfaceView");
+            Log.e(TAG, "【渲染器】setSurfaceType 反射初始化失败", e);
+            // ✅ 打印具体错误到操作日志
+            SettingsActivity.logOperation("【渲染器】初始化失败: " + e.toString());
         }
 
         playerView.setPlayer(player);
