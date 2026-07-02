@@ -758,8 +758,12 @@ public class MainActivity extends AppCompatActivity {
         playerStateListener.setCurrentChannelName(channel.getName());
         // 保存最后播放的索引
         appConfig.setLastPlayIndex(index);
-        // 调用播放器播放指定URL
-        mPlayerManager.playUrl(channel.getPlayUrl());
+
+        // =====================================================================
+        // 【核心改动】：将原来的 `playUrl(URL)` 改为 `playUrl(URL, 频道名)`
+        // 只有这里传入了频道名，底层的 DataSource 才能在日志里打印出（江西都市）
+        // =====================================================================
+        mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName());
 
         // 更新UI显示（频道信息、码率、EPG等）
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
