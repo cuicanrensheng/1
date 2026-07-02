@@ -106,7 +106,7 @@ public class TVPlayerManager {
     private boolean rendererReceiverRegistered = false;
 
     // ============================================================
-    // ✅ 【新增】PlayerView 重建监听器，MainActivity 用来重新绑定手势和焦点
+    // ✅ 【新增】PlayerView 重建监听器
     // ============================================================
     private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
 
@@ -524,8 +524,6 @@ public class TVPlayerManager {
         playerView.setPlayer(null);
         parent.removeView(playerView);
 
-        // ✅ 核心修复：使用 ContextThemeWrapper 将 Style 注入到 View 的上下文中
-        // 完美解决 new PlayerView(...) 找不到 4 参数构造方法的编译错误！
         int styleRes = useTexture ? R.style.PlayerView_Texture : R.style.PlayerView_Surface;
         ContextThemeWrapper themedContext = new ContextThemeWrapper(context, styleRes);
 
@@ -542,7 +540,6 @@ public class TVPlayerManager {
         if (currentPosition > 0) player.seekTo(currentPosition);
         if (wasPlaying) player.play();
 
-        // ✅ 触发回调，让 MainActivity 能够拿到新视图并重绑手势和焦点
         if (onPlayerViewRecreatedListener != null) {
             onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
         }
@@ -567,9 +564,12 @@ public class TVPlayerManager {
                             boolean useTexture = "texture".equals(mode);
                             switchRenderer(useTexture);
 
-                            if (!TextUtils.isEmpty(currentUrl)) {
-                                playUrlInternal(currentUrl);
-                            }
+                            // 🛑 【重点修改】删掉下面这行被注释掉的代码！
+                            // 因为 switchRenderer 内部已经完美恢复了播放进度和状态，
+                            // 强制加载流反而会导致刚刚重建的播放器发生底层资源竞争，引发切台黑屏！
+                            // if (!TextUtils.isEmpty(currentUrl)) {
+                            //     playUrlInternal(currentUrl);
+                            // }
                         }
                     }
                 }
@@ -944,4 +944,4 @@ public class TVPlayerManager {
             }
         }
     }
-}
+    }
