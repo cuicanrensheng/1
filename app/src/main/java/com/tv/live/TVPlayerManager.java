@@ -62,8 +62,6 @@ public class TVPlayerManager {
     private String currentUrl;
     private int currentChannelNumber = 0;
     private TextView channelNumberTextView;
-
-    // ===== 当前播放的频道名称（用于底层日志） =====
     private String currentChannelName = "";
 
     private int mDecoderMode = DECODER_MODE_AUTO;
@@ -100,6 +98,10 @@ public class TVPlayerManager {
 
     private BroadcastReceiver decoderModeReceiver;
     private boolean decoderReceiverRegistered = false;
+
+    // 🆕 渲染方式广播相关
+    private BroadcastReceiver rendererModeReceiver;
+    private boolean rendererReceiverRegistered = false;
 
     public static TVPlayerManager getInstance(Context context) {
         if (instance == null) {
@@ -490,6 +492,51 @@ public class TVPlayerManager {
         }
     }
 
+    // ========================================================================
+    // 🆕 渲染方式注册 & 处理
+    // ========================================================================
+    public void registerRendererModeReceiver() {
+        if (rendererReceiverRegistered) return;
+        try {
+            rendererModeReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if ("com.tv.live.RENDERER_TYPE_CHANGED".equals(intent.getAction())) {
+                        SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+                        String mode = sp.getString("renderer_type", "surface");
+                        if (playerView != null) {
+                            boolean useTexture = "texture".equals(mode);
+                            playerView.setUseTextureView(useTexture);
+                            SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView"));
+                            // 切渲染方式后，为了让ExoPlayer重新走一遍初始化，重新加载当前流
+                            if (!TextUtils.isEmpty(currentUrl)) {
+                                playUrlInternal(currentUrl);
+                            }
+                        }
+                    }
+                }
+            };
+            IntentFilter filter = new IntentFilter("com.tv.live.RENDERER_TYPE_CHANGED");
+            context.registerReceiver(rendererModeReceiver, filter);
+            rendererReceiverRegistered = true;
+        } catch (Exception e) {
+            Log.e(TAG, "注册渲染方式广播接收器失败：" + e.getMessage());
+        }
+    }
+
+    public void unregisterRendererModeReceiver() {
+        if (!rendererReceiverRegistered) return;
+        try {
+            if (rendererModeReceiver != null) {
+                context.unregisterReceiver(rendererModeReceiver);
+                rendererModeReceiver = null;
+            }
+            rendererReceiverRegistered = false;
+        } catch (Exception e) {
+            Log.e(TAG, "注销渲染方式广播接收器失败：" + e.getMessage());
+        }
+    }
+
     public void onForeground() {
         try {
             if (player != null && playerView != null) {
@@ -513,6 +560,13 @@ public class TVPlayerManager {
 
     public void attachPlayerView(PlayerView view) {
         playerView = view;
+        // 🆕 初始化时，加载保存的渲染方式配置
+        SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        String rendererMode = sp.getString("renderer_type", "surface");
+        boolean useTexture = "texture".equals(rendererMode);
+        playerView.setUseTextureView(useTexture);
+        SettingsActivity.logOperation("【渲染器】初始化应用：" + (useTexture ? "TextureView" : "SurfaceView"));
+
         playerView.setPlayer(player);
         playerView.setUseController(false);
     }
@@ -555,9 +609,6 @@ public class TVPlayerManager {
         return headers;
     }
 
-    // ====================================================================
-    // ✅ 播放接口升级（支持直接传入频道名）
-    // ====================================================================
     public void play(String url, String channelName) {
         playUrl(url, channelName);
     }
@@ -600,14 +651,12 @@ public class TVPlayerManager {
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
 
-            // 日志验证：确保这里看得到频道名
             SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
 
             RedirectLoggingHttpDataSource.Factory httpFactory =
                     new RedirectLoggingHttpDataSource.Factory();
             httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
             httpFactory.setAllowCrossProtocolRedirects(true);
-            // 注入频道名
             httpFactory.setChannelName(currentChannelName);
 
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
@@ -771,6 +820,7 @@ public class TVPlayerManager {
             updateWakeLock(false);
 
             unregisterDecoderModeReceiver();
+            unregisterRendererModeReceiver(); // 🆕 注销渲染方式广播
 
             if (player != null) {
                 if (playerListener != null) {
