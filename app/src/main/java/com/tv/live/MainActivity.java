@@ -483,17 +483,18 @@ public class MainActivity extends AppCompatActivity {
     private void initPlayer() {
         // 获取播放器管理器单例
         mPlayerManager = TVPlayerManager.getInstance(this);
-        // 绑定播放器视图（渲染画面）
-        mPlayerManager.attachPlayerView(playerView);
 
-        // ✅ 【新增】监听 PlayerView 重建，重新绑定触摸事件与焦点！
+        // ============================================================
+        // ✅【关键修正】必须在 attachPlayerView 之前注册监听器！
+        // 保证第一次初始化重建视图时，MainActivity 能立刻拿到新视图并重新绑定
+        // ============================================================
         mPlayerManager.setOnPlayerViewRecreatedListener(new TVPlayerManager.OnPlayerViewRecreatedListener() {
             @Override
             public void onPlayerViewRecreated(PlayerView newPlayerView) {
                 // 1. 更新 MainActivity 自己的引用
                 MainActivity.this.playerView = newPlayerView;
 
-                // 2. 重新创建手势管理器并重新绑定触摸监听
+                // 2. 重新创建手势管理器并重新绑定触摸监听（恢复手势切台）
                 gestureManager = new GestureManager(MainActivity.this);
                 final PlayerGestureHelper newGestureHelper = gestureManager.create();
                 newPlayerView.setOnTouchListener(new View.OnTouchListener() {
@@ -504,11 +505,19 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
-                // 3. 强制重新获取焦点（确保遥控器上下键/切台彻底恢复）
+                // 3. 强制重新获取焦点（彻底恢复遥控器）
                 newPlayerView.requestFocus();
                 SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
             }
         });
+
+        // ✅ 绑定播放器视图（渲染画面）
+        // 这会立即触发 switchRenderer 并立刻调用上面的 onPlayerViewRecreated
+        mPlayerManager.attachPlayerView(playerView);
+
+        // ------------------------------------------------------------
+        // 下面是你原来的代码，保持不变
+        // ------------------------------------------------------------
 
         // 初始化播放器状态监听器
         playerStateListener = new PlayerStateListenerImpl(this);
@@ -1072,4 +1081,4 @@ public class MainActivity extends AppCompatActivity {
         mInstance = null;
         SettingsActivity.logOperation("【系统】APP退出");
     }
- }
+            }
