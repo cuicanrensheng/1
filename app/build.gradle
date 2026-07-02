@@ -85,14 +85,13 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.1'
     implementation 'com.google.code.gson:gson:2.10.1'
 
-    // Media3 1.7.1 全套统一版本
     implementation "androidx.media3:media3-exoplayer:1.7.1"
     implementation "androidx.media3:media3-ui:1.7.1"
     implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
     implementation "androidx.media3:media3-exoplayer-dash:1.7.1"
     implementation "androidx.media3:media3-common:1.7.1"
     implementation "androidx.media3:media3-datasource:1.7.1"
-    // 仅保留高版本okhttp，删除4.9.3重复依赖
+
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "com.squareup.retrofit2:retrofit:2.11.0"
     implementation "com.squareup.retrofit2:converter-gson:2.11.0"
@@ -104,19 +103,14 @@ dependencies {
     implementation "com.blankj:utilcodex:1.31.1"
     implementation 'org.nanohttpd:nanohttpd'
 }
+
 configurations.all {
     resolutionStrategy {
-        // 全部Media3补全 group:artifact:version 三段格式
         force "androidx.media3:media3-exoplayer:1.7.1"
         force "androidx.media3:media3-ui:1.7.1"
         force "androidx.media3:media3-exoplayer-hls:1.7.1"
         force "androidx.media3:media3-common:1.7.1"
         force "androidx.media3:media3-datasource:1.7.1"
         force "com.squareup.okhttp3:okhttp:4.12.0"
-    }
-}
-        // ========== 重点删除两行废弃代码 ==========
-        // cacheChangingModulesFor 0, seconds
-        // cacheDynamicVersionsFor 0, minutes
     }
 }
