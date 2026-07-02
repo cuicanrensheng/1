@@ -103,6 +103,19 @@ public class TVPlayerManager {
     private BroadcastReceiver rendererModeReceiver;
     private boolean rendererReceiverRegistered = false;
 
+    // ============================================================
+    // ✅ 【新增】PlayerView 重建监听器，让 MainActivity 重新绑定
+    // ============================================================
+    private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
+
+    public interface OnPlayerViewRecreatedListener {
+        void onPlayerViewRecreated(PlayerView newPlayerView);
+    }
+
+    public void setOnPlayerViewRecreatedListener(OnPlayerViewRecreatedListener listener) {
+        this.onPlayerViewRecreatedListener = listener;
+    }
+
     public static TVPlayerManager getInstance(Context context) {
         if (instance == null) {
             synchronized (TVPlayerManager.class) {
@@ -540,6 +553,11 @@ public class TVPlayerManager {
         // 5. 替换全局引用
         playerView = newPlayerView;
 
+        // ✅ 【新增】触发回调，通知 MainActivity 视图已重建！
+        if (onPlayerViewRecreatedListener != null) {
+            onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
+        }
+
         // 6. 恢复播放进度和播放状态
         if (currentPosition > 0) {
             player.seekTo(currentPosition);
@@ -950,4 +968,4 @@ public class TVPlayerManager {
             }
         }
     }
-                                          }
+ }
