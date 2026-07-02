@@ -38,9 +38,9 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # 优化构建命令，只在必要时刷新依赖
+      # ✅【终极修改】强制忽略 CI 缓存，重新拉取 1.7.1 纯净依赖
       - name: 编译 Release 签名版 APK
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleRelease --no-build-cache --stacktrace
 
       - name: 生成 update.json
         run: |
