@@ -21,15 +21,11 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 /**
- * 带重定向日志的 HTTP 数据源（带频道名 + 核心分片降噪版）
- * 日志格式：
- * 仅对 m3u8 主播放列表/发生重定向时打印：
- * [HH:mm:ss] 开始播放（江西都市）: http://xxx
- * [HH:mm:ss] 第1次重定向到: http://yyy
- * [HH:mm:ss] ✅ 解析完成，共1次跳转
- * [HH:mm:ss] ✅ 最终响应: HTTP 200
- * 
- * 对于无重定向的 .ts 分片请求，完全静默（避免刷屏）
+ * 带重定向日志的 HTTP 数据源（极致降噪 + 轻量频道名显示）
+ * 日志规则：
+ * 1. 有重定向：完整打印（含频道名）
+ * 2. 无重定向 + .ts 分片：完全静默
+ * 3. 无重定向 + .m3u8 主列表：仅打印一行轻量级 "开始播放（频道名）: url"
  */
 public class RedirectLoggingHttpDataSource extends BaseDataSource implements HttpDataSource {
 
@@ -48,7 +44,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     private long bytesRead;
     private int responseCode = -1;
 
-    // ===== 当前播放的频道名称 =====
     private String currentChannelName = "";
 
     private String getTimeStr() {
@@ -118,22 +113,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     }
 
     private HttpURLConnection openConnection(DataSpec dataSpec) throws IOException {
-        String currentUrl = dataSpec.uri.toString();
-        String urlLower = currentUrl.toLowerCase();
-
-        // ===== 判断是否为 HLS 的 .ts 分片 =====
-        // 绝大多数 m3u8 播放列表会请求 .ts 分片，每集都会触发 open，必须屏蔽无重定向时的刷屏日志！
-        boolean isTsSegment = urlLower.contains(".ts") && !urlLower.contains(".m3u8");
-        boolean isM3u8Manifest = urlLower.contains(".m3u8");
-
-        String channelInfo = (!currentChannelName.isEmpty()) ? "（" + currentChannelName + "）" : "";
-
-        // 【核心优化】：仅当是 .m3u8 主列表，或者可能发生重定向时，才打印开始日志。
-        // 正常的 .ts 分片直接跳过日志打印，避免刷屏。
-        if (isM3u8Manifest || !isTsSegment) {
-            SettingsActivity.log("[" + getTimeStr() + "] 开始播放" + channelInfo + ": " + currentUrl);
-        }
-
+        String originalUrl = dataSpec.uri.toString();
+        String currentUrl = originalUrl;
         int redirectCount = 0;
 
         while (true) {
@@ -168,17 +149,23 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
 
             if (!isRedirect) {
                 String time = getTimeStr();
+                String channelInfo = (!currentChannelName.isEmpty()) ? "（" + currentChannelName + "）" : "";
+                String urlLower = currentUrl.toLowerCase();
 
-                // 【核心优化】：仅当是 m3u8 或发生重定向时才打印结束日志，.ts 分片直接静默退出。
-                if (isM3u8Manifest || !isTsSegment || redirectCount > 0) {
-                    if (redirectCount > 0) {
-                        SettingsActivity.log("[" + time + "] ✅ 解析完成，共" + redirectCount + "次跳转");
-                    }
+                if (redirectCount > 0) {
+                    // 【重定向追踪】完整打印
+                    SettingsActivity.log("[" + time + "] 开始播放" + channelInfo + ": " + originalUrl);
+                    SettingsActivity.log("[" + time + "] ✅ 解析完成，共" + redirectCount + "次跳转");
                     SettingsActivity.log("[" + time + "] ✅ 最终响应: HTTP " + respCode);
+                } else if (urlLower.contains(".m3u8")) {
+                    // 【无重定向 + 主列表】只打印一行，既能看见频道名，又不会刷屏
+                    SettingsActivity.log("[" + time + "] 开始播放" + channelInfo + ": " + currentUrl);
                 }
+                // 【无重定向 + .ts分片】完全静默，一行都不打印
                 return conn;
             }
 
+            // ===== 处理重定向 =====
             redirectCount++;
             String location = conn.getHeaderField("Location");
 
@@ -199,7 +186,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             }
 
             String time = getTimeStr();
-            // 无论是不是分片，发生重定向时必定打印（保证重定向追踪）
             SettingsActivity.log("[" + time + "] 第" + redirectCount + "次重定向到: " + redirectUrl);
 
             conn.disconnect();
@@ -337,9 +323,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         }
     }
 
-    // ====================================================================
-    // Factory 工厂类
-    // ====================================================================
     public static final class Factory implements HttpDataSource.Factory {
         private final Map<String, String> defaultRequestProperties;
         private boolean allowCrossProtocolRedirects;
