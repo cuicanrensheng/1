@@ -493,7 +493,7 @@ public class TVPlayerManager {
     }
 
     // ========================================================================
-    // 🆕 渲染方式注册 & 处理（【关键修复】已改为反射调用）
+    // 🆕 渲染方式注册 & 处理（【修复】增加详细错误日志）
     // ========================================================================
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
@@ -507,7 +507,7 @@ public class TVPlayerManager {
                         if (playerView != null) {
                             boolean useTexture = "texture".equals(mode);
 
-                            // ✅【已修复】用反射代替直接调用
+                            // 用反射代替直接调用，确保编译无问题
                             try {
                                 java.lang.reflect.Method method = playerView.getClass().getMethod("setUseTextureView", boolean.class);
                                 method.invoke(playerView, useTexture);
@@ -519,7 +519,8 @@ public class TVPlayerManager {
                                 }
                             } catch (Exception e) {
                                 Log.e(TAG, "【渲染器】反射调用失败，切换无效", e);
-                                SettingsActivity.logOperation("【渲染器】反射切换失败，保持当前渲染");
+                                // 👇 修改这里：打印真实的异常原因
+                                SettingsActivity.logOperation("【渲染器】反射切换失败: " + e.toString());
                             }
                         }
                     }
@@ -574,13 +575,15 @@ public class TVPlayerManager {
         String rendererMode = sp.getString("renderer_type", "surface");
         boolean useTexture = "texture".equals(rendererMode);
 
-        // ✅【已修复】用反射代替直接调用
+        // 用反射代替直接调用
         try {
             java.lang.reflect.Method method = playerView.getClass().getMethod("setUseTextureView", boolean.class);
             method.invoke(playerView, useTexture);
             SettingsActivity.logOperation("【渲染器】初始化应用：" + (useTexture ? "TextureView" : "SurfaceView"));
         } catch (Exception e) {
             Log.e(TAG, "【渲染器】反射调用失败(attach)，保持默认SurfaceView", e);
+            // 👇 修改这里：打印真实的异常原因
+            SettingsActivity.logOperation("【渲染器】反射初始化失败: " + e.toString());
         }
 
         playerView.setPlayer(player);
