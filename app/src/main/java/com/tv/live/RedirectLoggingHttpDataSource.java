@@ -21,12 +21,16 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 /**
- * 带重定向日志的 HTTP 数据源（带频道名显示版）
+ * 带重定向日志的 HTTP 数据源（带频道名 + 无重定向精简版）
  * 日志格式：
+ * 有重定向时：
  * [HH:mm:ss] 开始播放（江西卫视）: http://xxx
  * [HH:mm:ss] 第1次重定向到: http://yyy
- * [HH:mm:ss] 第2次重定向到: http://zzz
- * [HH:mm:ss] ✅ 解析完成，共2次跳转
+ * [HH:mm:ss] ✅ 解析完成，共1次跳转
+ * [HH:mm:ss] ✅ 最终响应: HTTP 200
+ *
+ * 无重定向时（精简版）：
+ * [HH:mm:ss] 开始播放（江西卫视）: http://xxx
  * [HH:mm:ss] ✅ 最终响应: HTTP 200
  */
 public class RedirectLoggingHttpDataSource extends BaseDataSource implements HttpDataSource {
@@ -155,7 +159,12 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
 
             if (!isRedirect) {
                 String time = getTimeStr();
-                SettingsActivity.log("[" + time + "] ✅ 解析完成，共" + redirectCount + "次跳转");
+
+                // 💡 【核心优化】：只有当确实发生过重定向（跳转次数 > 0）时，才打印“解析完成”
+                if (redirectCount > 0) {
+                    SettingsActivity.log("[" + time + "] ✅ 解析完成，共" + redirectCount + "次跳转");
+                }
+
                 SettingsActivity.log("[" + time + "] ✅ 最终响应: HTTP " + respCode);
                 return conn;
             }
