@@ -30,6 +30,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
+import androidx.media3.ui.SurfaceType;
 
 import com.tv.live.RedirectLoggingHttpDataSource;
 
@@ -492,7 +493,7 @@ public class TVPlayerManager {
     }
 
     // ========================================================================
-    // ✅ 渲染方式注册 & 处理（已换回 Media3 正确的 setUseTextureView）
+    // 渲染方式注册 & 处理（修复：移除反射setUseTextureView，使用Media3标准setSurfaceType）
     // ========================================================================
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
@@ -505,19 +506,17 @@ public class TVPlayerManager {
                         String mode = sp.getString("renderer_type", "surface");
                         if (playerView != null) {
                             boolean useTexture = "texture".equals(mode);
-
-                            // ✅【最终修正】Media3 1.7.1 支持的标准 API 是 setUseTextureView
                             try {
-                                java.lang.reflect.Method method = playerView.getClass().getMethod("setUseTextureView", boolean.class);
-                                method.invoke(playerView, useTexture);
+                                // Media3 标准API替代废弃setUseTextureView
+                                SurfaceType targetType = useTexture ? SurfaceType.TEXTURE_VIEW : SurfaceType.SURFACE_VIEW;
+                                playerView.setSurfaceType(targetType);
                                 SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView"));
 
                                 if (!TextUtils.isEmpty(currentUrl)) {
                                     playUrlInternal(currentUrl);
                                 }
                             } catch (Exception e) {
-                                Log.e(TAG, "【渲染器】setUseTextureView 反射失败", e);
-                                // ✅ 打印具体错误到操作日志
+                                Log.e(TAG, "【渲染器】setSurfaceType切换失败", e);
                                 SettingsActivity.logOperation("【渲染器】切换失败: " + e.toString());
                             }
                         }
@@ -572,14 +571,13 @@ public class TVPlayerManager {
         String rendererMode = sp.getString("renderer_type", "surface");
         boolean useTexture = "texture".equals(rendererMode);
 
-        // ✅【最终修正】Media3 1.7.1 支持的标准 API 是 setUseTextureView
         try {
-            java.lang.reflect.Method method = playerView.getClass().getMethod("setUseTextureView", boolean.class);
-            method.invoke(playerView, useTexture);
+            // Media3 标准API初始化渲染类型
+            SurfaceType targetType = useTexture ? SurfaceType.TEXTURE_VIEW : SurfaceType.SURFACE_VIEW;
+            playerView.setSurfaceType(targetType);
             SettingsActivity.logOperation("【渲染器】初始化应用：" + (useTexture ? "TextureView" : "SurfaceView"));
         } catch (Exception e) {
-            Log.e(TAG, "【渲染器】setUseTextureView 反射初始化失败", e);
-            // ✅ 打印具体错误到操作日志
+            Log.e(TAG, "【渲染器】setSurfaceType初始化失败", e);
             SettingsActivity.logOperation("【渲染器】初始化失败: " + e.toString());
         }
 
