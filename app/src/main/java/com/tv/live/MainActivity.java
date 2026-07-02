@@ -646,4 +646,4 @@ public class MainActivity extends AppCompatActivity {
         mInstance = null;
         SettingsActivity.logOperation("【系统】APP退出");
     }
- }
+}
