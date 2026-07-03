@@ -406,5 +406,6 @@ public static final class Factory implements DataSource.Factory<DataSource> {
         );
         source.setChannelName(channelName);
         return source;
-    }
+      }
+   }
 }
