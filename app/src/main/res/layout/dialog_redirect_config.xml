@@ -40,7 +40,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"/>
-    </Relative>
+    </RelativeLayout>
 
     <!-- 允许HTTP/HTTPS跨协议跳转 -->
     <RelativeLayout
@@ -56,7 +56,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"/>
-    </Relative>
+    </RelativeLayout>
 
     <!-- 跳转携带请求头（防盗链必备） -->
     <RelativeLayout
@@ -72,7 +72,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"/>
-    </Relative>
+    </RelativeLayout>
 
     <!-- 忽略HTTPS跳转证书错误 -->
     <RelativeLayout
@@ -87,5 +87,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"/>
-    </Relative>
+    </RelativeLayout>
+
 </LinearLayout>
