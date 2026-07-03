@@ -243,11 +243,11 @@ public class MainActivity extends AppCompatActivity {
     });
 }
     // ============================================================
-    // ✅ 【核心修改】移除截图遮罩相关回调
+    // ✅ 【核心修改】恢复截图遮罩相关回调逻辑
     // ============================================================
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
-        // 注册重建监听器，删除截图相关两个回调
+        // 注册重建监听器，恢复截图遮罩相关两个回调
         mPlayerManager.setOnPlayerViewRecreatedListener(new TVPlayerManager.OnPlayerViewRecreatedListener() {
             @Override
             public void onPlayerViewRecreated(PlayerView newPlayerView) {
@@ -261,7 +261,24 @@ public class MainActivity extends AppCompatActivity {
                 newPlayerView.requestFocus();
                 SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
             }
-            // 移除 onDecoderSwitchFreezeFrame、onDecoderSwitchUnfreezeFrame
+
+            // 恢复：解码器切换时冻结帧（截图遮罩用）
+            @Override
+            public void onDecoderSwitchFreezeFrame(Bitmap freezeFrame) {
+                if (freezeFrame != null) {
+                    // 显示截图遮罩（根据实际业务逻辑补充，示例：通过DisplayManager显示遮罩）
+                    displayManager.showScreenshotMask(freezeFrame);
+                    log("【截图遮罩】解码器切换 - 显示冻结帧遮罩");
+                }
+            }
+
+            // 恢复：解码器切换完成后取消冻结帧（隐藏遮罩）
+            @Override
+            public void onDecoderSwitchUnfreezeFrame() {
+                // 隐藏截图遮罩
+                displayManager.hideScreenshotMask();
+                log("【截图遮罩】解码器切换 - 隐藏冻结帧遮罩");
+            }
         });
         mPlayerManager.attachPlayerView(playerView);
         playerStateListener = new PlayerStateListenerImpl(this);
