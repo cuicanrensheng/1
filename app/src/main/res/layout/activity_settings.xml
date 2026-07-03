@@ -284,33 +284,35 @@
             </LinearLayout>
 
             <!-- ============================================================ -->
-            <!-- 🆕 HTTP重定向网络配置（新增条目） -->
-            <!-- ============================================================ -->
-            <RelativeLayout
-                android:id="@+id/item_redirect"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="HTTP重定向网络配置"
-                    android:textColor="#FFFFFF"
-                    android:textSize="16sp"/>
-                <TextView
-                    android:id="@+id/tv_redirect_setting"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
-                    android:text="最大5 | 跨域开 | 跨协议开"
-                    android:textColor="#999999"
-                    android:textSize="12sp"/>
-            </RelativeLayout>
+<!-- 🆕 HTTP重定向网络配置（新增条目） -->
+<!-- ============================================================ -->
+<RelativeLayout
+    android:id="@+id/item_redirect"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="55dp"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:background="@drawable/setting_item_bg"
+    android:focusable="true"
+    android:clickable="true">
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:text="HTTP重定向网络配置"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"/>
+    <TextView
+        android:id="@+id/tv_redirect_setting"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:text="最大5 | 跨域开 | 跨协议开"
+        android:textColor="#999999"
+        android:textSize="12sp"/>
+</RelativeLayout>
 
             <!-- ============================================================ -->
             <!-- 分隔线                                                      -->
