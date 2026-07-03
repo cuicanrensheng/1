@@ -1,6 +1,7 @@
 package com.tv.live.manager;
 
 import android.app.Activity;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Build;
 import android.view.Gravity;
@@ -8,6 +9,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -21,9 +23,10 @@ import com.tv.live.SettingsActivity;
  * 统一管理所有和显示相关的功能，包括：
  * 1. 全面屏适配（刘海屏、沉浸式、系统栏隐藏）
  * 2. 加载动画（动态创建、显示、隐藏）
+ * 3. 截图遮罩（显示、隐藏位图遮罩）
  *
  * 【为什么合并成一个文件？】
- * 这两个功能都是和"界面显示"相关的基础功能，
+ * 这些功能都是和"界面显示"相关的基础功能，
  * 合并在一起方便统一管理，也减少 MainActivity 的代码量。
  *
  * 【电视兼容说明】
@@ -34,7 +37,8 @@ import com.tv.live.SettingsActivity;
  * 1. 在 onCreate 中创建实例：displayManager = new DisplayManager(this)
  * 2. 调用 applyFullScreen() 应用全面屏适配
  * 3. 调用 showLoading() / hideLoading() 控制加载动画
- * 4. 在 onDestroy 中调用 release() 释放资源
+ * 4. 调用 showScreenshotMask() / hideScreenshotMask() 控制截图遮罩
+ * 5. 在 onDestroy 中调用 release() 释放资源
  */
 public class DisplayManager {
 
@@ -47,6 +51,10 @@ public class DisplayManager {
     private TextView tvLoadingText;
     /** 是否已初始化加载视图 */
     private boolean loadingViewInitialized = false;
+    /** 截图遮罩视图 */
+    private ImageView screenshotMaskView;
+    /** 是否已初始化遮罩视图 */
+    private boolean maskViewInitialized = false;
 
     // ====================== 构造函数 ======================
     /**
@@ -324,6 +332,77 @@ public class DisplayManager {
     }
 
     // ====================================================================
+    // ✅ 功能三：截图遮罩
+    // ====================================================================
+
+    /**
+     * 初始化截图遮罩视图（动态创建）
+     */
+    private void initScreenshotMaskView() {
+        if (maskViewInitialized) return;
+
+        try {
+            // 获取 Activity 的根布局
+            FrameLayout rootLayout = activity.findViewById(android.R.id.content);
+
+            // 创建遮罩 ImageView（全屏显示）
+            screenshotMaskView = new ImageView(activity);
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT);
+            // 遮罩置于最顶层
+            params.gravity = Gravity.CENTER;
+            screenshotMaskView.setLayoutParams(params);
+            // 设置缩放模式为全屏适配
+            screenshotMaskView.setScaleType(ImageView.ScaleType.FIT_XY);
+            // 默认隐藏
+            screenshotMaskView.setVisibility(View.GONE);
+
+            // 添加到根布局
+            rootLayout.addView(screenshotMaskView);
+
+            maskViewInitialized = true;
+            SettingsActivity.logOperation("【遮罩】截图遮罩视图初始化完成");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            SettingsActivity.logOperation("【遮罩】截图遮罩视图初始化失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 显示截图遮罩
+     *
+     * @param maskBitmap 遮罩位图
+     */
+    public void showScreenshotMask(Bitmap maskBitmap) {
+        // 第一次调用时初始化
+        if (!maskViewInitialized) {
+            initScreenshotMaskView();
+        }
+
+        if (screenshotMaskView != null && maskBitmap != null) {
+            screenshotMaskView.setImageBitmap(maskBitmap);
+            screenshotMaskView.setVisibility(View.VISIBLE);
+            SettingsActivity.logOperation("【遮罩】显示截图遮罩");
+        } else if (maskBitmap == null) {
+            SettingsActivity.logOperation("【遮罩】截图遮罩位图为空，显示失败");
+        }
+    }
+
+    /**
+     * 隐藏截图遮罩
+     */
+    public void hideScreenshotMask() {
+        if (screenshotMaskView != null) {
+            screenshotMaskView.setVisibility(View.GONE);
+            // 可选：清空位图释放内存
+            screenshotMaskView.setImageBitmap(null);
+            SettingsActivity.logOperation("【遮罩】隐藏截图遮罩");
+        }
+    }
+
+    // ====================================================================
     // 资源释放
     // ====================================================================
 
@@ -342,8 +421,20 @@ public class DisplayManager {
                 // 忽略移除失败
             }
         }
+        // 移除遮罩视图
+        if (screenshotMaskView != null && screenshotMaskView.getParent() != null) {
+            try {
+                ((ViewGroup) screenshotMaskView.getParent()).removeView(screenshotMaskView);
+            } catch (Exception e) {
+                // 忽略移除失败
+            }
+        }
+        
+        // 清空所有引用
         loadingView = null;
         tvLoadingText = null;
+        screenshotMaskView = null;
         loadingViewInitialized = false;
+        maskViewInitialized = false;
     }
 }
