@@ -693,13 +693,13 @@ public class TVPlayerManager {
 MediaSource mediaSource;
 if (currentUrl.toLowerCase().contains("m3u8")) {
     Log.d(TAG, "流格式：HLS (m3u8)");
-    // 修复1：传入工厂实例，变量是httpFactory.createDataSource()
-    HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(httpFactory.createDataSource());
+    // ✅ 正确：直接传入 httpFactory（它是 DataSource.Factory 的实例）
+    HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(httpFactory);
     mediaSource = hlsFactory.createMediaSource(mediaItem);
 } else {
     Log.d(TAG, "流格式：普通流 (Progressive)");
-    // 修复2：括号正确，构造参数只传工厂，createMediaSource在外层
-    ProgressiveMediaSource.Factory progFactory = new ProgressiveMediaSource.Factory(httpFactory.createDataSource());
+    // ✅ 正确：直接传入 httpFactory
+    ProgressiveMediaSource.Factory progFactory = new ProgressiveMediaSource.Factory(httpFactory);
     mediaSource = progFactory.createMediaSource(mediaItem);
 }
 player.setMediaSource(mediaSource, true);
