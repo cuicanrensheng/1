@@ -49,6 +49,13 @@ public class TVPlayerManager {
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 10000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
+    // ====================== 新增：重定向SP存储Key（与Settings完全对齐） ======================
+    private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
+    private static final String KEY_REDIRECT_CROSS_DOMAIN = "redirect_cross_domain";
+    private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
+    private static final String KEY_REDIRECT_FOLLOW_HEADERS = "redirect_follow_headers";
+    private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
+
     private static TVPlayerManager instance;
     private Context context;
     private ExoPlayer player;
@@ -181,7 +188,6 @@ public class TVPlayerManager {
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
                 .build();
-
         try {
             List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos(
                     "video/avc", false, false);
@@ -505,7 +511,6 @@ public class TVPlayerManager {
         newPlayerView.setKeepContentOnPlayerReset(true);
         newPlayerView.setPlayer(player);
         parent.addView(newPlayerView, index, layoutParams);
-
         playerView.setPlayer(null);
         parent.removeView(playerView);
         playerView = newPlayerView;
@@ -601,7 +606,7 @@ public class TVPlayerManager {
     private Map<String, String> getHeaders(String url) {
         Map<String, String> headers = new HashMap<>();
         headers.put("User-Agent", "ExoPlayer");
-        headers.put("Accept", "*/*");
+        headers.put("Accept", "*");
         headers.put("Connection", "keep-alive");
         headers.put("Icy-MetaData", "1");
         boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
@@ -654,7 +659,7 @@ public class TVPlayerManager {
         isStalled = false;
         lastStallStartTime = 0;
     }
-    // ====================== 完整修复重定向配置 ======================
+    // ====================== 完整修复重定向配置（从SP读取全部参数） ======================
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
@@ -667,24 +672,30 @@ public class TVPlayerManager {
             httpFactory.setDefaultRequestProperties(globalHeaders);
             httpFactory.setChannelName(currentChannelName);
 
-            // 全套重定向参数补齐
-            httpFactory.setAllowCrossProtocolRedirects(true);
-            httpFactory.setAllowCrossDomainRedirects(true);
-            httpFactory.setMaxRedirects(5);
-            httpFactory.setConnectTimeoutMs(10000);
-            httpFactory.setReadTimeoutMs(15000);
-            httpFactory.setFollowRedirectsWithHeaders(true);
-            // 读取SSL忽略开关
+            // 读取设置持久化的全部重定向配置
             SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-            boolean ignoreSsl = sp.getBoolean("redirect_ignore_ssl", false);
-            httpFactory.setIgnoreSslErrorRedirect(ignoreSsl);
+            int maxRedirect = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
+            boolean crossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN,true);
+            boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
+            boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
+            boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
+
+            // 链式传入所有配置
+            httpFactory.setMaxRedirects(maxRedirect)
+                    .setAllowCrossDomainRedirects(crossDomain)
+                    .setAllowCrossProtocolRedirects(crossProto)
+                    .setFollowRedirectsWithHeaders(followHeader)
+                    .setIgnoreSslErrorRedirect(ignoreSsl)
+                    .setConnectTimeoutMs(10000)
+                    .setReadTimeoutMs(15000);
 
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
                 HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(httpFactory);
-                hlsFactory.setMaxMediaSegmentRedirects(5);
+                // HLS分片重定向上限与全局配置保持统一
+                hlsFactory.setMaxMediaSegmentRedirects(maxRedirect);
                 mediaSource = hlsFactory.createMediaSource(mediaItem);
             } else {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
