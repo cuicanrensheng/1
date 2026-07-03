@@ -33,7 +33,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
-import com.tv.live.RedirectLoggingHttpDataSource;
+import com.tv.live.exception.RedirectFailedException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -91,7 +91,6 @@ public class TVPlayerManager {
     private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
     public interface OnPlayerViewRecreatedListener {
         void onPlayerViewRecreated(PlayerView newPlayerView);
-        // 移除截图相关回调，不再使用
     }
     public void setOnPlayerViewRecreatedListener(OnPlayerViewRecreatedListener listener) {
         this.onPlayerViewRecreatedListener = listener;
@@ -182,7 +181,7 @@ public class TVPlayerManager {
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
                 .build();
-    
+
         try {
             List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos(
                     "video/avc", false, false);
@@ -234,10 +233,27 @@ public class TVPlayerManager {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
+                // 区分重定向异常，禁止重试、禁止判定源失效
+                Throwable rootCause = error.getCause();
+                boolean isRedirectError = false;
+                while (rootCause != null) {
+                    if (rootCause instanceof RedirectFailedException) {
+                        isRedirectError = true;
+                        RedirectFailedException redirectErr = (RedirectFailedException) rootCause;
+                        SettingsActivity.logOperation("【播放器】重定向拦截失败：" + redirectErr.getMessage()
+                                + " Location=" + redirectErr.getLocation());
+                        break;
+                    }
+                    rootCause = rootCause.getCause();
+                }
                 if (listener != null) {
                     listener.onPlayError(error.getMessage());
                 }
-                autoRetry("播放错误：" + error.getMessage());
+                if (!isRedirectError) {
+                    autoRetry("播放错误：" + error.getMessage());
+                } else {
+                    SettingsActivity.logOperation("【播放器】检测为重定向失败，跳过自动重试");
+                }
             }
             @Override
             public void onPlaybackStateChanged(int state) {
@@ -325,6 +341,11 @@ public class TVPlayerManager {
         isRetrying = false;
     }
     private void autoRetry(String reason) {
+        // 重定向错误直接终止重试
+        if (reason.contains("RedirectFailedException") || reason.contains("重定向")) {
+            SettingsActivity.logOperation("【播放器】重定向类错误，不执行重试");
+            return;
+        }
         if (isRetrying) return;
         if (retryCount >= MAX_RETRY_COUNT) {
             Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT + "，判定为失效源");
@@ -371,11 +392,9 @@ public class TVPlayerManager {
         Log.d(TAG, "切换解码器模式：" + decoderType);
         SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
         if (player != null) {
-            // 彻底删除PixelCopy截图全部逻辑，直接重建播放器
             performDecoderSwitch();
         }
     }
-    // 执行实际的重建
     private void performDecoderSwitch() {
         try {
             stopStuckDetection();
@@ -398,7 +417,6 @@ public class TVPlayerManager {
             hasSwitchedDecoder = true;
             playUrlInternal(currentUrl);
         }
-        // 截图回调全部删除，无需通知移除遮罩
     }
     public int getDecoderMode() {
         return mDecoderMode;
@@ -467,9 +485,6 @@ public class TVPlayerManager {
             Log.e(TAG, "注销解码器广播接收器失败：" + e.getMessage());
         }
     }
-    // ========================================================================
-    // ✅ 使用 XML 属性 (ContextThemeWrapper) 重建 PlayerView（双缓冲消除黑屏）
-    // ========================================================================
     private void switchRenderer(boolean useTexture) {
         if (playerView == null || context == null) return;
         isRenderingSwitching = true;
@@ -488,10 +503,9 @@ public class TVPlayerManager {
         newPlayerView.setUseController(useController);
         newPlayerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
         newPlayerView.setKeepContentOnPlayerReset(true);
-        // ✅【切换渲染器抗黑屏】核心逻辑：先 addView 新视图，再 removeView 旧视图
         newPlayerView.setPlayer(player);
-        parent.addView(newPlayerView, index, layoutParams); 
-        
+        parent.addView(newPlayerView, index, layoutParams);
+
         playerView.setPlayer(null);
         parent.removeView(playerView);
         playerView = newPlayerView;
@@ -592,15 +606,17 @@ public class TVPlayerManager {
         headers.put("Icy-MetaData", "1");
         boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
         boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
+        String referer = "";
         if (isHuya) {
-            headers.put("Referer", "https://www.huya.com/");
+            referer = "https://www.huya.com/";
             Log.d(TAG, "虎牙直播，设置虎牙Referer");
         } else if (isDouyu) {
-            headers.put("Referer", "https://www.douyu.com/");
+            referer = "https://www.douyu.com/";
             Log.d(TAG, "斗鱼直播，设置斗鱼Referer");
         } else {
-            headers.put("Referer", "https://www.huya.com/");
+            referer = "https://www.huya.com/";
         }
+        headers.put("Referer", referer);
         String cookies = CookieManager.getInstance().getCookie(url);
         if (cookies != null) {
             headers.put("Cookie", cookies);
@@ -638,33 +654,56 @@ public class TVPlayerManager {
         isStalled = false;
         lastStallStartTime = 0;
     }
+    // ====================== 完整修复重定向配置 ======================
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
             SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
-            RedirectLoggingHttpDataSource.Factory httpFactory =
-                    new RedirectLoggingHttpDataSource.Factory();
-            httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
-            httpFactory.setAllowCrossProtocolRedirects(true);
+
+            RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
+            Map<String, String> globalHeaders = getHeaders(currentUrl);
+            httpFactory.setDefaultRequestProperties(globalHeaders);
             httpFactory.setChannelName(currentChannelName);
+
+            // 全套重定向参数补齐
+            httpFactory.setAllowCrossProtocolRedirects(true);
+            httpFactory.setAllowCrossDomainRedirects(true);
+            httpFactory.setMaxRedirects(5);
+            httpFactory.setConnectTimeoutMs(10000);
+            httpFactory.setReadTimeoutMs(15000);
+            httpFactory.setFollowRedirectsWithHeaders(true);
+            // 读取SSL忽略开关
+            SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+            boolean ignoreSsl = sp.getBoolean("redirect_ignore_ssl", false);
+            httpFactory.setIgnoreSslErrorRedirect(ignoreSsl);
+
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
-                mediaSource = new HlsMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
+                HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(httpFactory);
+                hlsFactory.setMaxMediaSegmentRedirects(5);
+                mediaSource = hlsFactory.createMediaSource(mediaItem);
             } else {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
-            // ✅【切台黑屏消除】保持 true，但配合 player.setKeepContentOnPlayerReset(true) 冻结最后一帧
             player.setMediaSource(mediaSource, true);
             player.prepare();
             player.play();
             startStuckDetection();
         } catch (Exception e) {
             Log.e(TAG, "播放异常", e);
+            if (e instanceof RedirectFailedException) {
+                RedirectFailedException redirectErr = (RedirectFailedException) e;
+                SettingsActivity.logOperation("【播放器重定向失败】码：" + redirectErr.getCode()
+                        + " 原地址：" + redirectErr.getOriginUrl()
+                        + " 跳转地址：" + redirectErr.getLocation());
+                if (listener != null) listener.onPlayError("源跳转失败：" + e.getMessage());
+                return;
+            }
             autoRetry("播放异常：" + e.getMessage());
         }
     }
