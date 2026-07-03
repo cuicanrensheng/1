@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -41,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
     public static final int DECODER_MODE_AUTO = 0;
@@ -91,7 +93,6 @@ public class TVPlayerManager {
     private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
     public interface OnPlayerViewRecreatedListener {
         void onPlayerViewRecreated(PlayerView newPlayerView);
-        // 移除截图相关回调，不再使用
     }
     public void setOnPlayerViewRecreatedListener(OnPlayerViewRecreatedListener listener) {
         this.onPlayerViewRecreatedListener = listener;
@@ -100,6 +101,7 @@ public class TVPlayerManager {
     // 渲染器切换锁定状态，防止自动解码器切换误触发
     // ============================================================
     private boolean isRenderingSwitching = false;
+
     public static TVPlayerManager getInstance(Context context) {
         if (instance == null) {
             synchronized (TVPlayerManager.class) {
@@ -110,6 +112,7 @@ public class TVPlayerManager {
         }
         return instance;
     }
+
     private TVPlayerManager(Context context) {
         this.context = context;
         mHandler = new Handler(Looper.getMainLooper());
@@ -149,6 +152,7 @@ public class TVPlayerManager {
         };
         initPlayer();
     }
+
     private void initPlayer() {
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
         SoftwareFirstMediaCodecSelector codecSelector =
@@ -182,7 +186,7 @@ public class TVPlayerManager {
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
                 .build();
-    
+
         try {
             List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos(
                     "video/avc", false, false);
@@ -223,12 +227,14 @@ public class TVPlayerManager {
         CookieSyncManager.createInstance(context);
         CookieManager.getInstance().setAcceptCookie(true);
     }
+
     private static boolean isSoftwareDecoder(String codecName) {
         if (codecName == null) return false;
         String lowerName = codecName.toLowerCase();
         return lowerName.startsWith("omx.google.")
                 || lowerName.startsWith("c2.android.");
     }
+
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
             @Override
@@ -239,6 +245,7 @@ public class TVPlayerManager {
                 }
                 autoRetry("播放错误：" + error.getMessage());
             }
+
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_READY) {
@@ -286,6 +293,7 @@ public class TVPlayerManager {
                     updateWakeLock(false);
                 }
             }
+
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
                 if (isPlaying) {
@@ -298,6 +306,7 @@ public class TVPlayerManager {
                     }
                 }
             }
+
             @Override
             public void onVideoSizeChanged(VideoSize videoSize) {
                 int width = videoSize.width;
@@ -308,15 +317,18 @@ public class TVPlayerManager {
         };
         player.addListener(playerListener);
     }
+
     private void startStuckDetection() {
         stuckHandler.removeCallbacks(stuckCheckRunnable);
         lastPositionUpdateTime = System.currentTimeMillis();
         lastPosition = 0;
         stuckHandler.postDelayed(stuckCheckRunnable, 2000);
     }
+
     private void stopStuckDetection() {
         stuckHandler.removeCallbacks(stuckCheckRunnable);
     }
+
     private void cancelRetry() {
         if (retryRunnable != null) {
             mHandler.removeCallbacks(retryRunnable);
@@ -324,6 +336,7 @@ public class TVPlayerManager {
         }
         isRetrying = false;
     }
+
     private void autoRetry(String reason) {
         if (isRetrying) return;
         if (retryCount >= MAX_RETRY_COUNT) {
@@ -351,6 +364,7 @@ public class TVPlayerManager {
         };
         mHandler.postDelayed(retryRunnable, 1000);
     }
+
     public void setDecoderMode(int mode) {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
@@ -371,10 +385,10 @@ public class TVPlayerManager {
         Log.d(TAG, "切换解码器模式：" + decoderType);
         SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
         if (player != null) {
-            // 彻底删除PixelCopy截图全部逻辑，直接重建播放器
             performDecoderSwitch();
         }
     }
+
     // 执行实际的重建
     private void performDecoderSwitch() {
         try {
@@ -398,11 +412,12 @@ public class TVPlayerManager {
             hasSwitchedDecoder = true;
             playUrlInternal(currentUrl);
         }
-        // 截图回调全部删除，无需通知移除遮罩
     }
+
     public int getDecoderMode() {
         return mDecoderMode;
     }
+
     @Deprecated
     public void setSoftwareDecoder(boolean useSoftware) {
         if (useSoftware) {
@@ -411,6 +426,7 @@ public class TVPlayerManager {
             setDecoderMode(DECODER_MODE_AUTO);
         }
     }
+
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
         try {
@@ -454,6 +470,7 @@ public class TVPlayerManager {
             SettingsActivity.logOperation("【解码器】广播注册失败：" + e.getMessage());
         }
     }
+
     public void unregisterDecoderModeReceiver() {
         if (!decoderReceiverRegistered) return;
         try {
@@ -467,6 +484,7 @@ public class TVPlayerManager {
             Log.e(TAG, "注销解码器广播接收器失败：" + e.getMessage());
         }
     }
+
     // ========================================================================
     // ✅ 使用 XML 属性 (ContextThemeWrapper) 重建 PlayerView（双缓冲消除黑屏）
     // ========================================================================
@@ -490,8 +508,8 @@ public class TVPlayerManager {
         newPlayerView.setKeepContentOnPlayerReset(true);
         // ✅【切换渲染器抗黑屏】核心逻辑：先 addView 新视图，再 removeView 旧视图
         newPlayerView.setPlayer(player);
-        parent.addView(newPlayerView, index, layoutParams); 
-        
+        parent.addView(newPlayerView, index, layoutParams);
+
         playerView.setPlayer(null);
         parent.removeView(playerView);
         playerView = newPlayerView;
@@ -512,6 +530,7 @@ public class TVPlayerManager {
         isRenderingSwitching = false;
         SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView") + "（双缓冲无黑屏）");
     }
+
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -535,6 +554,7 @@ public class TVPlayerManager {
             Log.e(TAG, "注册渲染方式广播接收器失败：" + e.getMessage());
         }
     }
+
     public void unregisterRendererModeReceiver() {
         if (!rendererReceiverRegistered) return;
         try {
@@ -547,6 +567,7 @@ public class TVPlayerManager {
             Log.e(TAG, "注销渲染方式广播接收器失败：" + e.getMessage());
         }
     }
+
     public void onForeground() {
         try {
             if (player != null && playerView != null) {
@@ -557,6 +578,7 @@ public class TVPlayerManager {
             Log.e(TAG, "切前台异常", e);
         }
     }
+
     public void onBackground() {
         try {
             if (player != null) {
@@ -566,6 +588,7 @@ public class TVPlayerManager {
             Log.e(TAG, "切后台异常", e);
         }
     }
+
     public void attachPlayerView(PlayerView view) {
         playerView = view;
         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
@@ -575,15 +598,18 @@ public class TVPlayerManager {
         playerView.setPlayer(player);
         playerView.setUseController(false);
     }
+
     private void updateWakeLock(boolean enable) {
         isPlaying = enable;
         if (playerView != null) {
             playerView.setKeepScreenOn(enable);
         }
     }
+
     private String getLogTime() {
         return "[" + logSdf.format(new Date()) + "]";
     }
+
     private Map<String, String> getHeaders(String url) {
         Map<String, String> headers = new HashMap<>();
         headers.put("User-Agent", "ExoPlayer");
@@ -607,15 +633,19 @@ public class TVPlayerManager {
         }
         return headers;
     }
+
     public void play(String url, String channelName) {
         playUrl(url, channelName);
     }
+
     public void play(String url) {
         playUrl(url, null);
     }
+
     public void playUrl(String url) {
         playUrl(url, null);
     }
+
     public void playUrl(String url, String channelName) {
         if (!TextUtils.isEmpty(channelName)) {
             this.currentChannelName = channelName;
@@ -629,15 +659,18 @@ public class TVPlayerManager {
         SettingsActivity.logOperation("【播放器】开始加载新频道: " + (TextUtils.isEmpty(this.currentChannelName) ? "未知" : this.currentChannelName));
         playUrlInternal(url);
     }
+
     public void setCurrentChannelName(String name) {
         this.currentChannelName = (name != null) ? name : "";
     }
+
     private void resetPerformanceStats() {
         bufferCount = 0;
         totalStallTime = 0;
         isStalled = false;
         lastStallStartTime = 0;
     }
+
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
@@ -668,11 +701,13 @@ public class TVPlayerManager {
             autoRetry("播放异常：" + e.getMessage());
         }
     }
+
     public enum ScaleMode {
         FIT,
         FILL,
         ZOOM
     }
+
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
@@ -691,12 +726,15 @@ public class TVPlayerManager {
             Log.e(TAG, "设置缩放模式异常", e);
         }
     }
+
     public void setCurrentChannelNumber(int num) {
         currentChannelNumber = num;
     }
+
     public void bindChannelText(TextView textView) {
         channelNumberTextView = textView;
     }
+
     private void showChannelAndAutoHide() {
         if (channelNumberTextView != null && currentChannelNumber > 0) {
             channelNumberTextView.setText(String.valueOf(currentChannelNumber));
@@ -705,17 +743,20 @@ public class TVPlayerManager {
             mHandler.postDelayed(hideChannelRunnable, CHANNEL_NUM_HIDE_DELAY);
         }
     }
+
     private void hideChannelNum() {
         if (channelNumberTextView != null) {
             channelNumberTextView.setVisibility(View.GONE);
         }
     }
+
     public static class LiveInfo {
         public String resolution = "未知";
         public String bitrate = "0";
         public String audio = "未知";
         public String format = "未知";
     }
+
     public LiveInfo getLiveInfo() {
         LiveInfo info = new LiveInfo();
         try {
@@ -746,11 +787,13 @@ public class TVPlayerManager {
         }
         return info;
     }
+
     private void notifyLiveInfoUpdate() {
         if (liveInfoUpdateListener != null) {
             liveInfoUpdateListener.onLiveInfoUpdate(getLiveInfo());
         }
     }
+
     public interface OnPlayStateListener {
         void onIdle();
         void onBuffering();
@@ -758,31 +801,39 @@ public class TVPlayerManager {
         void onPlayEnd();
         void onPlayError(String msg);
     }
+
     public void setOnPlayStateListener(OnPlayStateListener l) {
         listener = l;
     }
+
     public interface OnSourceFailedListener {
         void onSourceFailed();
     }
+
     public void setOnSourceFailedListener(OnSourceFailedListener listener) {
         sourceFailedListener = listener;
     }
+
     public interface OnLiveInfoUpdateListener {
         void onLiveInfoUpdate(LiveInfo info);
     }
+
     public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) {
         liveInfoUpdateListener = listener;
     }
+
     public void pause() {
         try { if (player != null) player.pause(); } catch (Exception e) {
             Log.e(TAG, "暂停异常", e);
         }
     }
+
     public void resume() {
         try { if (player != null) player.play(); } catch (Exception e) {
             Log.e(TAG, "恢复异常", e);
         }
     }
+
     public void release() {
         try {
             stopStuckDetection();
@@ -803,11 +854,83 @@ public class TVPlayerManager {
             Log.e(TAG, "释放异常", e);
         }
     }
+
+    // ============================================================
+    // 新增：通用抓取画面方法（替代 PixelCopy）
+    // ============================================================
+    /**
+     * 抓取当前播放画面
+     * @return 画面Bitmap，失败返回null
+     */
+    public Bitmap captureCurrentFrame() {
+        if (playerView == null || player == null) {
+            Log.w(TAG, "抓取画面失败：PlayerView或Player未初始化");
+            return null;
+        }
+
+        try {
+            // 获取PlayerView的可视区域
+            View videoView = playerView.getVideoSurfaceView();
+            if (videoView == null) {
+                videoView = playerView;
+            }
+
+            // 创建与视图大小一致的Bitmap
+            Bitmap bitmap = Bitmap.createBitmap(
+                    videoView.getWidth(),
+                    videoView.getHeight(),
+                    Bitmap.Config.ARGB_8888
+            );
+            Canvas canvas = new Canvas(bitmap);
+            videoView.draw(canvas);
+            
+            Log.d(TAG, "抓取画面成功，尺寸：" + bitmap.getWidth() + "×" + bitmap.getHeight());
+            return bitmap;
+        } catch (Exception e) {
+            Log.e(TAG, "抓取画面异常", e);
+            return null;
+        }
+    }
+
+    /**
+     * 带自定义尺寸的画面抓取
+     * @param width 目标宽度
+     * @param height 目标高度
+     * @return 缩放后的Bitmap，失败返回null
+     */
+    public Bitmap captureCurrentFrame(int width, int height) {
+        Bitmap originalBitmap = captureCurrentFrame();
+        if (originalBitmap == null) {
+            return null;
+        }
+
+        try {
+            // 缩放Bitmap到指定尺寸
+            Bitmap scaledBitmap = Bitmap.createScaledBitmap(
+                    originalBitmap,
+                    width,
+                    height,
+                    true
+            );
+            // 释放原始Bitmap避免内存泄漏
+            if (scaledBitmap != originalBitmap) {
+                originalBitmap.recycle();
+            }
+            return scaledBitmap;
+        } catch (Exception e) {
+            Log.e(TAG, "缩放画面异常", e);
+            originalBitmap.recycle();
+            return null;
+        }
+    }
+
     private static class SoftwareFirstMediaCodecSelector implements MediaCodecSelector {
         private final int decoderMode;
+
         public SoftwareFirstMediaCodecSelector(int mode) {
             this.decoderMode = mode;
         }
+
         @Override
         public List<MediaCodecInfo> getDecoderInfos(
                 String mimeType,
