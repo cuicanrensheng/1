@@ -181,7 +181,7 @@
                 android:layout_width="50dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
-                android:text="节\\n目\\n单"
+                android:text="节\n目\n单"
                 android:textColor="#ffffff"
                 android:textSize="14sp"
                 android:focusable="true"
