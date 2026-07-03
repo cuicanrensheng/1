@@ -38,13 +38,6 @@ import com.tv.live.widget.GroupListManager;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 主活动类：直播APP的核心页面，负责直播播放、频道管理、交互控制等核心功能
- * 包含播放器初始化、频道面板控制、遥控器适配、画中画、EPG节目指南等核心逻辑
- *
- * @author 开发者
- * @version 1.0
- */
 public class MainActivity extends AppCompatActivity {
 
     public static MainActivity mInstance;
@@ -278,34 +271,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ============================================================
-    // ✅ 【关键修复】必须在 attachPlayerView 之前注册监听器！
+    // ✅ 最新版 TVPlayerManager 采用复用 PlayerView 的方式进行渲染切换，
+    //    不再销毁重建 PlayerView，因此不再需要 setOnPlayerViewRecreatedListener！
+    //    直接 attachPlayerView 即可，手势和遥控器焦点不会丢失。
     // ============================================================
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
-
-        mPlayerManager.setOnPlayerViewRecreatedListener(new TVPlayerManager.OnPlayerViewRecreatedListener() {
-            @Override
-            public void onPlayerViewRecreated(PlayerView newPlayerView) {
-                // 1. 更新 MainActivity 自己的引用
-                MainActivity.this.playerView = newPlayerView;
-
-                // 2. 重新创建手势管理器并重新绑定触摸监听（解决手势失效）
-                gestureManager = new GestureManager(MainActivity.this);
-                final PlayerGestureHelper newGestureHelper = gestureManager.create();
-                newPlayerView.setOnTouchListener(new View.OnTouchListener() {
-                    @Override
-                    public boolean onTouch(View v, MotionEvent event) {
-                        newGestureHelper.handleTouch(event);
-                        return true;
-                    }
-                });
-
-                // 3. 强制重新获取焦点（解决遥控器切台失效）
-                newPlayerView.requestFocus();
-                SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
-            }
-        });
-
+        
+        // 注意：这里删除了 setOnPlayerViewRecreatedListener
         mPlayerManager.attachPlayerView(playerView);
 
         playerStateListener = new PlayerStateListenerImpl(this);
