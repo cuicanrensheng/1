@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.graphics.Bitmap;
+import android.graphics.PixelCopy; // ✅ 新增
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,6 +21,8 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.FrameLayout; // ✅ 新增
+import android.widget.ImageView;  // ✅ 新增
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -278,8 +282,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ============================================================
-    // ✅ 【核心修正】在 attachPlayerView 之前注册重建监听器！
-    // 确保切换渲染方式后，手势和遥控器焦点能立刻重新绑定到新视图上
+    // ✅ 【核心修改】整合了“解码器切换截图冻结画面”功能的 initPlayer
     // ============================================================
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
@@ -288,30 +291,58 @@ public class MainActivity extends AppCompatActivity {
         mPlayerManager.setOnPlayerViewRecreatedListener(new TVPlayerManager.OnPlayerViewRecreatedListener() {
             @Override
             public void onPlayerViewRecreated(PlayerView newPlayerView) {
-                // 1. 更新 MainActivity 持有的 playerView 引用
                 MainActivity.this.playerView = newPlayerView;
-
-                // 2. 重新创建手势管理器并重新绑定触摸监听
                 gestureManager = new GestureManager(MainActivity.this);
                 final PlayerGestureHelper newGestureHelper = gestureManager.create();
-                newPlayerView.setOnTouchListener(new View.OnTouchListener() {
-                    @Override
-                    public boolean onTouch(View v, MotionEvent event) {
-                        newGestureHelper.handleTouch(event);
-                        return true;
-                    }
+                newPlayerView.setOnTouchListener((v, event) -> {
+                    newGestureHelper.handleTouch(event);
+                    return true;
                 });
-
-                // 3. 强制重新获取焦点（让遥控器恢复）
                 newPlayerView.requestFocus();
                 SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
             }
+
+            // ✅【新增】解码器切换时的冻结帧覆盖显示
+            @Override
+            public void onDecoderSwitchFreezeFrame(Bitmap bitmap) {
+                // ⚠️ 注意：请确保你的 activity_main.xml 根布局是 FrameLayout，且添加了 android:id="@+id/main_root"
+                FrameLayout root = findViewById(R.id.main_root); 
+                if (root == null) return; // 安全兜底，防止布局没改导致闪退
+
+                ImageView freezeView = new ImageView(MainActivity.this);
+                freezeView.setId(R.id.freeze_overlay);
+                freezeView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                freezeView.setImageBitmap(bitmap);
+
+                // 移除可能残留的旧覆盖层
+                View oldOverlay = root.findViewById(R.id.freeze_overlay);
+                if (oldOverlay != null) {
+                    root.removeView(oldOverlay);
+                }
+
+                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                );
+                root.addView(freezeView, params);
+            }
+
+            // ✅【新增】解码器重新初始化完毕，移除冻结帧覆盖层
+            @Override
+            public void onDecoderSwitchUnfreezeFrame() {
+                FrameLayout root = findViewById(R.id.main_root);
+                if (root == null) return;
+
+                View overlay = root.findViewById(R.id.freeze_overlay);
+                if (overlay != null) {
+                    root.removeView(overlay);
+                    SettingsActivity.logOperation("【解码器】移除冻结画面覆盖层，恢复播放");
+                }
+            }
         });
 
-        // 绑定播放器视图
         mPlayerManager.attachPlayerView(playerView);
 
-        // 下面是你原本的监听器绑定逻辑，保持完全不变
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
 
