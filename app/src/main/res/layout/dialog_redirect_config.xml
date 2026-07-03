@@ -5,16 +5,15 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <!-- 最大重定向次数 -->
+    <!-- 最大重定向次数输入 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:gravity="center_vertical">
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="最大重定向次数(1-20)："/>
+            android:text="最大重定向次数(1~20)："/>
         <EditText
             android:id="@+id/et_redirect_max"
             android:layout_width="80dp"
@@ -43,7 +42,7 @@
             android:layout_alignParentEnd="true"/>
     </Relative>
 
-    <!-- 允许跨协议跳转 -->
+    <!-- 允许HTTP/HTTPS跨协议跳转 -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -59,7 +58,7 @@
             android:layout_alignParentEnd="true"/>
     </Relative>
 
-    <!-- 跳转携带请求头 -->
+    <!-- 跳转携带请求头（防盗链必备） -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -67,7 +66,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="跳转携带Referer/Cookie(防盗链必备)"/>
+            android:text="跳转携带Referer/Cookie（防盗链必备）"/>
         <Switch
             android:id="@+id/sw_follow_header"
             android:layout_width="wrap_content"
@@ -75,15 +74,14 @@
             android:layout_alignParentEnd="true"/>
     </Relative>
 
-    <!-- 忽略SSL证书错误 -->
+    <!-- 忽略HTTPS跳转证书错误 -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp">
         <TextView
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="忽略HTTPS跳转证书错误(不安全)"/>
+            android:text="忽略HTTPS跳转证书错误（不安全）"/>
         <Switch
             android:id="@+id/sw_ignore_ssl"
             android:layout_width="wrap_content"
