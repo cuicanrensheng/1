@@ -1,5 +1,5 @@
 package com.tv.live;
-import android.view.ContextThemeWrapper;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -9,6 +9,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
@@ -524,6 +525,9 @@ public class TVPlayerManager {
 
         // 1. 设置切换锁定状态，防止自动解码器切换误触发
         isRenderingSwitching = true;
+        
+        // ✅ 关键修复：重置缓冲次数，防止重建视图后触发的缓冲被误判为硬解卡顿
+        bufferCount = 0;
 
         // 2. 保存当前播放状态
         long currentPosition = player.getCurrentPosition();
@@ -969,4 +973,4 @@ public class TVPlayerManager {
             }
         }
     }
-                        }
+}
