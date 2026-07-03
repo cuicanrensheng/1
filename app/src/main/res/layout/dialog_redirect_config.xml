@@ -18,6 +18,8 @@
             android:id="@+id/et_redirect_max"
             android:layout_width="80dp"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:gravity="center"
             android:inputType="number"/>
     </LinearLayout>
 
@@ -34,12 +36,15 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
             android:text="允许跨域名重定向"/>
         <Switch
             android:id="@+id/sw_cross_domain"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"/>
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"/>
     </RelativeLayout>
 
     <!-- 允许HTTP/HTTPS跨协议跳转 -->
@@ -50,12 +55,15 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
             android:text="允许HTTP/HTTPS跨协议跳转"/>
         <Switch
             android:id="@+id/sw_cross_proto"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"/>
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"/>
     </RelativeLayout>
 
     <!-- 跳转携带请求头（防盗链必备） -->
@@ -63,15 +71,21 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp">
+        <!-- 核心防重叠：layout_toStartOf 保证文字过长换行时，依然排在开关左侧，不覆盖开关 -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_toStartOf="@id/sw_follow_header"
+            android:layout_marginEnd="8dp"
+            android:layout_centerVertical="true"
             android:text="跳转携带Referer/Cookie（防盗链必备）"/>
         <Switch
             android:id="@+id/sw_follow_header"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"/>
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"/>
     </RelativeLayout>
 
     <!-- 忽略HTTPS跳转证书错误 -->
@@ -79,14 +93,21 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp">
+        <!-- 核心防重叠：layout_toStartOf 保证文字过长换行时，依然排在开关左侧 -->
         <TextView
             android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_toStartOf="@id/sw_ignore_ssl"
+            android:layout_marginEnd="8dp"
+            android:layout_centerVertical="true"
             android:text="忽略HTTPS跳转证书错误（不安全）"/>
         <Switch
             android:id="@+id/sw_ignore_ssl"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"/>
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"/>
     </RelativeLayout>
 
 </LinearLayout>
