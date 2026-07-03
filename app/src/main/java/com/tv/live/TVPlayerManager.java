@@ -730,7 +730,7 @@ public class TVPlayerManager {
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
 
-            player.setMediaSource(mediaSource, true);
+            player.setMediaSource(mediaSource, false);
             player.prepare();
             player.play();
             startStuckDetection();
