@@ -70,6 +70,10 @@
   【2026-06-24 修改：频道面板新增右上角/右下角信息区】
   1. 右上角：显示频道号、日期、周几、当前时间，与频道面板联动显示/隐藏
   2. 右下角：新增信息栏，补充频道扩展信息，与频道面板联动
+
+  【2026-XX-XX 修改：新增遮罩 ImageView】
+  1. 根布局保持 FrameLayout（原有结构）
+  2. 新增遮罩层 ImageView，默认透明隐藏，可通过代码控制显示/隐藏及透明度
 ====================================================================
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -91,6 +95,21 @@
         app:resize_mode="fit"
         app:keep_content_on_player_reset="true"
         app:surface_type="surface_view" />
+
+    <!-- ==================================================================== -->
+    <!-- 新增：全局遮罩层 ImageView                                           -->
+    <!-- 用途：可用于加载遮罩、黑屏遮罩、半透明遮罩等场景                     -->
+    <!-- 默认状态：透明、隐藏，可通过代码动态控制                             -->
+    <!-- ==================================================================== -->
+    <ImageView
+        android:id="@+id/iv_mask_layer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:background="@android:color/black"
+        android:alpha="0.0"
+        android:visibility="gone"
+        android:scaleType="fitXY" />
 
     <!-- ==================================================================== -->
     <!-- 频道号显示（右上角大数字，切台时显示）                              -->
@@ -237,7 +256,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="16dp" />
         </LinearLayout>
-      </FrameLayout>
+    </FrameLayout>
       
     <!-- ==================================================================== -->
     <!-- 底部信息栏（切台时显示，5 秒后自动隐藏）背景改为完全透明 -->
