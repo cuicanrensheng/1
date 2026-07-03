@@ -659,6 +659,7 @@ public class TVPlayerManager {
         isStalled = false;
         lastStallStartTime = 0;
     }
+    
     // ====================== 完整修复重定向配置（从SP读取全部参数） ======================
     private void playUrlInternal(String url) {
         try {
@@ -666,12 +667,10 @@ public class TVPlayerManager {
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
             SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
-
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
             Map<String, String> globalHeaders = getHeaders(currentUrl);
             httpFactory.setDefaultRequestProperties(globalHeaders);
             httpFactory.setChannelName(currentChannelName);
-
             // 读取设置持久化的全部重定向配置
             SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
             int maxRedirect = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
@@ -679,7 +678,6 @@ public class TVPlayerManager {
             boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
             boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
             boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
-
             // 链式传入所有配置
             httpFactory.setMaxRedirects(maxRedirect)
                     .setAllowCrossDomainRedirects(crossDomain)
@@ -688,14 +686,12 @@ public class TVPlayerManager {
                     .setIgnoreSslErrorRedirect(ignoreSsl)
                     .setConnectTimeoutMs(10000)
                     .setReadTimeoutMs(15000);
-
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
                 HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(httpFactory);
-                // HLS分片重定向上限与全局配置保持统一
-                hlsFactory.setMaxMediaSegmentRedirects(maxRedirect);
+                // 已删除不存在的 hlsFactory.setMaxMediaSegmentRedirects(maxRedirect);
                 mediaSource = hlsFactory.createMediaSource(mediaItem);
             } else {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
