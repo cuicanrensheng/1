@@ -284,35 +284,42 @@
             </LinearLayout>
 
             <!-- ============================================================ -->
-<!-- 🆕 HTTP重定向网络配置（新增条目） -->
-<!-- ============================================================ -->
-<RelativeLayout
-    android:id="@+id/item_redirect"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:minHeight="55dp"
-    android:paddingStart="8dp"
-    android:paddingEnd="8dp"
-    android:background="@drawable/setting_item_bg"
-    android:focusable="true"
-    android:clickable="true">
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerVertical="true"
-        android:text="HTTP重定向网络配置"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"/>
-    <TextView
-        android:id="@+id/tv_redirect_setting"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentEnd="true"
-        android:layout_centerVertical="true"
-        android:text="最大5 | 跨域开 | 跨协议开"
-        android:textColor="#999999"
-        android:textSize="12sp"/>
-</RelativeLayout>
+            <!-- 🆕 HTTP重定向网络配置（新增条目） -->
+            <!-- ============================================================ -->
+            <!-- 重点修复：改用 LinearLayout 和 layout_weight，防止左右重叠 -->
+            <LinearLayout
+                android:id="@+id/item_redirect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="55dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:background="@drawable/setting_item_bg"
+                android:focusable="true"
+                android:clickable="true">
+
+                <!-- 左侧标题：layout_weight="1"，自动占据剩余空间，绝对不再被挤压 -->
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="HTTP重定向网络配置"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+
+                <!-- 右侧状态：加上 maxLines="2" 防止文字过长时条目把界面撑得太高 -->
+                <TextView
+                    android:id="@+id/tv_redirect_setting"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxLines="2"
+                    android:gravity="end"
+                    android:text="最大5 | 跨域开 | 跨协议开"
+                    android:textColor="#999999"
+                    android:textSize="12sp" />
+            </LinearLayout>
 
             <!-- ============================================================ -->
             <!-- 分隔线                                                      -->
