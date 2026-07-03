@@ -1,6 +1,8 @@
 package com.tv.live.exception;
 
-public class RedirectFailedException extends Exception {
+import java.io.IOException;
+
+public class RedirectFailedException extends IOException {
     private final int code;
     private final String location;
     private final String originUrl;
