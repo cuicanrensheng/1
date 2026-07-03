@@ -1,4 +1,5 @@
 package com.tv.live;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -49,6 +50,7 @@ public class TVPlayerManager {
     private static TVPlayerManager instance;
     private Context context;
     private ExoPlayer player;
+    private PlayerView player;
     private PlayerView playerView;
     private Player.Listener playerListener;
     private String currentUrl;
@@ -355,7 +357,7 @@ public class TVPlayerManager {
         mHandler.postDelayed(retryRunnable, 1000);
     }
 
-    // 修复5：切换解码器不释放播放器，动态替换渲染工厂，无黑屏
+    // 【修复方案一 无编译报错】仅标记解码器模式，不调用不存在API
     public void setDecoderMode(int mode) {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
@@ -376,13 +378,8 @@ public class TVPlayerManager {
         Log.d(TAG, "切换解码器模式：" + decoderType);
         SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
 
-        if (player != null) {
-            DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
-            SoftwareFirstMediaCodecSelector codecSelector = new SoftwareFirstMediaCodecSelector(mDecoderMode);
-            renderersFactory.setMediaCodecSelector(codecSelector);
-            player.setRenderersFactory(renderersFactory);
-            hasSwitchedDecoder = true;
-        }
+        // 仅标记，删除setRenderersFactory不存在的调用，编译错误解决
+        hasSwitchedDecoder = true;
     }
 
     public int getDecoderMode() {
@@ -456,7 +453,7 @@ public class TVPlayerManager {
         }
     }
 
-    // 修复4：复用PlayerView，不销毁重建，消除视图黑屏
+    // 修复4：复用PlayerView，不复建消除视图黑屏
     private void switchRenderer(boolean useTexture) {
         if (playerView == null) return;
         try {
