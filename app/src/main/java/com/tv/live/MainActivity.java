@@ -277,10 +277,41 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // ============================================================
+    // ✅ 【核心修正】在 attachPlayerView 之前注册重建监听器！
+    // 确保切换渲染方式后，手势和遥控器焦点能立刻重新绑定到新视图上
+    // ============================================================
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
+
+        // 注册重建监听器（必须放在 attachPlayerView 之前）
+        mPlayerManager.setOnPlayerViewRecreatedListener(new TVPlayerManager.OnPlayerViewRecreatedListener() {
+            @Override
+            public void onPlayerViewRecreated(PlayerView newPlayerView) {
+                // 1. 更新 MainActivity 持有的 playerView 引用
+                MainActivity.this.playerView = newPlayerView;
+
+                // 2. 重新创建手势管理器并重新绑定触摸监听
+                gestureManager = new GestureManager(MainActivity.this);
+                final PlayerGestureHelper newGestureHelper = gestureManager.create();
+                newPlayerView.setOnTouchListener(new View.OnTouchListener() {
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        newGestureHelper.handleTouch(event);
+                        return true;
+                    }
+                });
+
+                // 3. 强制重新获取焦点（让遥控器恢复）
+                newPlayerView.requestFocus();
+                SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
+            }
+        });
+
+        // 绑定播放器视图
         mPlayerManager.attachPlayerView(playerView);
 
+        // 下面是你原本的监听器绑定逻辑，保持完全不变
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
 
