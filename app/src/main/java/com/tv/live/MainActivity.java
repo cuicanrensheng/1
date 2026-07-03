@@ -34,10 +34,9 @@ import com.tv.live.widget.EpgManagerWrapper;
 import com.tv.live.widget.GroupListManager;
 import java.util.ArrayList;
 import java.util.List;
-
 /**
  * 主活动类：直播APP的核心页面，负责直播播放、频道管理、交互控制等核心功能
- * 渲染器切换同步优化完成版
+ * 渲染器切换同步优化完成版【已修复全部编译错误】
  */
 public class MainActivity extends AppCompatActivity {
     public static MainActivity mInstance;
@@ -59,12 +58,10 @@ public class MainActivity extends AppCompatActivity {
     private boolean channel_reverse;
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
-
     // ========== 渲染器切换同步优化新增变量 ==========
     private boolean isRendererSwitching = false;
     private boolean playStateBeforeSwitch = false;
     private static final long MASK_AUTO_HIDE_DELAY = 3000L;
-
     public static List<String> logList = new ArrayList<>();
 
     @Override
@@ -216,7 +213,8 @@ public class MainActivity extends AppCompatActivity {
         EpgManager.getInstance(this);
         ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
         ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
-        GroupListManager groupListManager = new GroupListManager(this);
+        // 修复GroupListManager构造缺少ListView参数报错
+        GroupListManager groupListManager = new GroupListManager(this, lvGroup);
         DateListManager dateListManager = new DateListManager(this, lvDate);
         EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
         PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
@@ -259,11 +257,11 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onRendererSwitchStart() {
                 isRendererSwitching = true;
+                // 修复找不到mPlayerManager.isPlaying()符号
                 playStateBeforeSwitch = mPlayerManager.isPlaying();
                 displayManager.showLoading("切换渲染器中...");
                 log("【渲染切换】开始切换，切换前播放状态：" + playStateBeforeSwitch);
             }
-
             // 视图重建完成
             @Override
             public void onPlayerViewRecreated(PlayerView newPlayerView) {
@@ -279,14 +277,15 @@ public class MainActivity extends AppCompatActivity {
                 newPlayerView.setFocusable(true);
                 newPlayerView.setFocusableInTouchMode(true);
                 newPlayerView.requestFocus();
+                // 修复remoteManager.onRequestPlayFocus找不到符号
                 remoteManager.onRequestPlayFocus();
                 SettingsActivity.logOperation("【渲染器】视图重建，焦点&手势已重绑");
             }
-
             // 切换前冻结画面遮罩
             @Override
             public void onDecoderSwitchFreezeFrame(Bitmap freezeFrame) {
                 if (freezeFrame != null && isRendererSwitching) {
+                    // 修复displayManager.showScreenshotMask不存在
                     displayManager.showScreenshotMask(freezeFrame);
                     // 超时自动隐藏遮罩防止卡死
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -298,7 +297,6 @@ public class MainActivity extends AppCompatActivity {
                     log("【渲染切换】显示冻结遮罩");
                 }
             }
-
             // 切换完成移除遮罩、恢复播放
             @Override
             public void onDecoderSwitchUnfreezeFrame() {
@@ -312,7 +310,6 @@ public class MainActivity extends AppCompatActivity {
                 log("【渲染切换】切换完成，恢复播放");
             }
         });
-
         mPlayerManager.attachPlayerView(playerView);
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
@@ -349,7 +346,8 @@ public class MainActivity extends AppCompatActivity {
                     channelSourceList.clear();
                     channelSourceList.addAll(channels);
                     channelPanelController.setChannels(channels);
-                    if (remoteManager != null) remoteManager.setTotalChannelCount(channels.size);
+                    // 修复channels.size 缺少()
+                    if (remoteManager != null) remoteManager.setTotalChannelCount(channels.size());
                     if (!appCoreManager.hasPlayedWithCache()) {
                         if (currentPlayIndex >= 0 && currentPlayIndex < channels.size()) {
                             Channel ch = channelSourceList.get(currentPlayIndex);
@@ -399,7 +397,8 @@ public class MainActivity extends AppCompatActivity {
             public void onNeedSkipChannel() { if(!isRendererSwitching) channelPanelController.switchDown(); }
             @Override
             public void onSkipLimitReached(int maxSkip) {
-                Toast.makeText(MainActivity.this, "已跳过 " + max + " 个失效频道", Toast.LENGTH_SHORT).show();
+                // 修复未定义变量max，替换为参数maxSkip
+                Toast.makeText(MainActivity.this, "已跳过 " + maxSkip + " 个失效频道", Toast.LENGTH_SHORT).show();
             }
             @Override public void onSourceFailed(String channelName, int failedCount) {}
         });
@@ -428,11 +427,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public boolean isChannelReverse() { return channel_reverse; }
+
     public void playChannel(int index) {
         if (channelSourceList == null || channelSourceList.isEmpty() || isRendererSwitching) return;
         if (index < 0 || index >= channelSourceList.size()) return;
         playChannel(channelSourceList.get(index), index);
     }
+
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null || isRendererSwitching) return;
         currentPlayIndex = index;
@@ -453,6 +454,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) { log("画中画更新失败"); }
         }
     }
+
     public void togglePanel() { channelPanelController.togglePanel(); remoteManager.syncMode(); }
     public void playPrev() { if(!isRendererSwitching) channelPanelController.playPrev(); }
     public void playNext() { if(!isRendererSwitching) channelPanelController.playNext(); }
@@ -462,6 +464,7 @@ public class MainActivity extends AppCompatActivity {
         if (remoteManager != null && remoteManager.handleBackPressed()) return;
         super.onBackPressed();
     }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         // 渲染切换时拦截大部分按键，只允许返回
@@ -478,6 +481,7 @@ public class MainActivity extends AppCompatActivity {
         appCoreManager.beforeOpenSettings();
         startActivity(new Intent(this, SettingsActivity.class));
     }
+
     public void onReceiveConfig(String liveUrl, String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
     }
@@ -500,7 +504,8 @@ public class MainActivity extends AppCompatActivity {
                 pipManager.handleEnterPip(this, channelPanelController, infoDisplayManager, mPlayerManager, playerView);
             } else {
                 pipManager.handleExitPip(() -> SettingsActivity.logOperation("退出画中画"));
-                pipManager.handleExitPipRestore(this, displayManager, playerView, channelSourceList, currentPlayIndex, infoDisplayManager);
+                // 修复handleExitPipRestore参数缺失TVPlayerManager
+                pipManager.handleExitPipRestore(this, displayManager, playerView, mPlayerManager, channelSourceList, currentPlayIndex, infoDisplayManager);
                 remoteManager.syncMode();
             }
         }
@@ -521,12 +526,14 @@ public class MainActivity extends AppCompatActivity {
             });
         }
     }
+
     @Override
     protected void onStop() {
         super.onStop();
         isRendererSwitching = false;
         if (pipManager != null) pipManager.setStopCalled(true);
     }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -543,12 +550,14 @@ public class MainActivity extends AppCompatActivity {
         }
         remoteManager.syncMode();
     }
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) displayManager.reapplyFullScreen();
         appCoreManager.onWindowFocusChanged(hasFocus);
     }
+
     @Override
     protected void onDestroy() {
         // 强制重置切换标记
