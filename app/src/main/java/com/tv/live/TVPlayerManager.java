@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.PixelCopy;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -12,6 +14,8 @@ import android.util.Log;
 import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
@@ -105,7 +109,7 @@ public class TVPlayerManager {
     private boolean rendererReceiverRegistered = false;
 
     // ============================================================
-    // 新增：PlayerView 重建监听器，用于重新绑定手势和焦点
+    // PlayerView 重建监听器，用于重新绑定手势和焦点
     // ============================================================
     private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
 
@@ -118,7 +122,7 @@ public class TVPlayerManager {
     }
 
     // ============================================================
-    // 新增：渲染器切换锁定状态，防止自动解码器切换误触发
+    // 渲染器切换锁定状态，防止自动解码器切换误触发
     // ============================================================
     private boolean isRenderingSwitching = false;
 
@@ -214,6 +218,9 @@ public class TVPlayerManager {
                 .setLoadControl(loadControl)
                 .build();
 
+        // ✅【切台抗黑屏】直接对 ExoPlayer 启用保留最后一帧
+        player.setKeepContentOnPlayerReset(true);
+
         try {
             List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos(
                     "video/avc", false, false);
@@ -290,9 +297,9 @@ public class TVPlayerManager {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
 
-                    // ✅ 修复：切台加载中禁止自动切换解码器，避免两种操作叠加导致黑屏
+                    // 切台加载中禁止自动切换解码器
                     if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
-                            && !isRenderingSwitching // 新增：切换渲染器期间严禁触发自动解码器切换
+                            && !isRenderingSwitching
                             && initialPlayStartTime > 0
                             && System.currentTimeMillis() - initialPlayStartTime < 15000
                             && bufferCount > 1) {
@@ -398,7 +405,6 @@ public class TVPlayerManager {
         mHandler.postDelayed(retryRunnable, 1000);
     }
 
-    // 保持原样的解码器切换：重建播放器
     public void setDecoderMode(int mode) {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
@@ -421,17 +427,39 @@ public class TVPlayerManager {
         SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
 
         if (player != null) {
+            // ✅【解码器切换抗黑屏】截取当前画面作为覆盖图
             try {
-                stopStuckDetection();
-                cancelRetry();
-                if (playerListener != null) {
-                    player.removeListener(playerListener);
+                if (playerView != null && playerView.getWidth() > 0 && playerView.getHeight() > 0) {
+                    Bitmap bitmap = Bitmap.createBitmap(playerView.getWidth(), playerView.getHeight(), Bitmap.Config.ARGB_8888);
+                    PixelCopy.request(playerView, bitmap, copyResult -> {
+                        // 回调返回后，将 bitmap 传给 MainActivity 显示覆盖层
+                        if (onPlayerViewRecreatedListener != null) {
+                            onPlayerViewRecreatedListener.onDecoderSwitchFreezeFrame(bitmap);
+                        }
+                        // 释放并重建播放器
+                        performDecoderSwitch();
+                    }, new Handler(Looper.getMainLooper()));
+                    return; // 等截图回调
                 }
-                player.release();
-                player = null;
             } catch (Exception e) {
-                Log.e(TAG, "释放播放器异常", e);
+                Log.e(TAG, "解码器切换截图失败，直接释放", e);
             }
+            performDecoderSwitch();
+        }
+    }
+
+    // 执行实际的重建
+    private void performDecoderSwitch() {
+        try {
+            stopStuckDetection();
+            cancelRetry();
+            if (playerListener != null) {
+                player.removeListener(playerListener);
+            }
+            player.release();
+            player = null;
+        } catch (Exception e) {
+            Log.e(TAG, "释放播放器异常", e);
         }
         initPlayer();
         if (playerView != null) {
@@ -442,6 +470,10 @@ public class TVPlayerManager {
             isRetrying = false;
             hasSwitchedDecoder = true;
             playUrlInternal(currentUrl);
+        }
+        // 通知 MainActivity 移除覆盖层
+        if (onPlayerViewRecreatedListener != null) {
+            onPlayerViewRecreatedListener.onDecoderSwitchUnfreezeFrame();
         }
     }
 
@@ -518,18 +550,14 @@ public class TVPlayerManager {
     }
 
     // ========================================================================
-    // ✅ 改变：使用 XML 属性 (ContextThemeWrapper) 重建 PlayerView
+    // ✅ 使用 XML 属性 (ContextThemeWrapper) 重建 PlayerView（双缓冲消除黑屏）
     // ========================================================================
     private void switchRenderer(boolean useTexture) {
         if (playerView == null || context == null) return;
 
-        // 1. 设置切换锁定状态，防止自动解码器切换误触发
         isRenderingSwitching = true;
-        
-        // ✅ 关键修复：重置缓冲次数，防止重建视图后触发的缓冲被误判为硬解卡顿
         bufferCount = 0;
 
-        // 2. 保存当前播放状态
         long currentPosition = player.getCurrentPosition();
         boolean wasPlaying = player.isPlaying();
         boolean useController = playerView.getUseController();
@@ -538,32 +566,28 @@ public class TVPlayerManager {
         if (parent == null) return;
         int index = parent.indexOfChild(playerView);
 
-        // 3. 移除旧视图
-        playerView.setPlayer(null);
-        parent.removeView(playerView);
-
-        // 4. 根据目标类型选择对应的 Style 资源
         int styleRes = useTexture ? R.style.PlayerView_Texture : R.style.PlayerView_Surface;
         ContextThemeWrapper themedContext = new ContextThemeWrapper(context, styleRes);
 
-        // 5. 使用带有 XML 属性的上下文创建新视图
         PlayerView newPlayerView = new PlayerView(themedContext);
         newPlayerView.setLayoutParams(layoutParams);
         newPlayerView.setUseController(useController);
         newPlayerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+        newPlayerView.setKeepContentOnPlayerReset(true);
 
-        // 6. 重新绑定播放器并插回原位
+        // ✅【切换渲染器抗黑屏】核心逻辑：先 addView 新视图，再 removeView 旧视图
         newPlayerView.setPlayer(player);
-        parent.addView(newPlayerView, index, layoutParams);
+        parent.addView(newPlayerView, index, layoutParams); 
+        
+        playerView.setPlayer(null);
+        parent.removeView(playerView);
 
-        // 7. 更新引用并恢复播放状态
         playerView = newPlayerView;
 
         if (currentPosition > 0) {
             player.seekTo(currentPosition);
         }
 
-        // ✅ 【关键优化】延迟 200ms 再恢复播放，避免刚重建完 Surface 立刻切台导致的 0.5 秒黑屏延长
         if (wasPlaying) {
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 if (player != null && !player.isPlaying()) {
@@ -572,23 +596,16 @@ public class TVPlayerManager {
             }, 200);
         }
 
-        // 8. 触发回调，通知 MainActivity 重新绑定手势和焦点！
         if (onPlayerViewRecreatedListener != null) {
             onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
         }
 
-        // 9. 重新请求焦点
         playerView.requestFocus();
-
-        // 10. 解锁切换状态
         isRenderingSwitching = false;
 
-        SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView") + "（通过 XML 重建视图）");
+        SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView") + "（双缓冲无黑屏）");
     }
 
-    // ========================================================================
-    // 渲染方式注册逻辑
-    // ========================================================================
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -600,9 +617,7 @@ public class TVPlayerManager {
                         String mode = sp.getString("renderer_type", "surface");
                         if (playerView != null) {
                             boolean useTexture = "texture".equals(mode);
-                            // ✅ 调用重建逻辑
                             switchRenderer(useTexture);
-                            // 不重新播放，保留切换时的状态
                         }
                     }
                 }
@@ -655,7 +670,6 @@ public class TVPlayerManager {
         String rendererMode = sp.getString("renderer_type", "surface");
         boolean useTexture = "texture".equals(rendererMode);
 
-        // ✅ 应用初始渲染方式
         switchRenderer(useTexture);
 
         playerView.setPlayer(player);
@@ -761,7 +775,7 @@ public class TVPlayerManager {
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
 
-            // 保持原样的核心逻辑（切台会有0.5秒黑屏）
+            // ✅【切台黑屏消除】保持 true，但配合 player.setKeepContentOnPlayerReset(true) 冻结最后一帧
             player.setMediaSource(mediaSource, true);
             player.prepare();
             player.play();
