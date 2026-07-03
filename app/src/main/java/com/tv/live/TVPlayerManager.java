@@ -689,22 +689,23 @@ public class TVPlayerManager {
                     .setConnectTimeoutMs(10000)
                     .setReadTimeoutMs(15000);
 
-            MediaItem mediaItem = MediaItem.fromUri(currentUrl);
-            MediaSource mediaSource;
-            if (currentUrl.toLowerCase().contains("m3u8")) {
-                Log.d(TAG, "流格式：HLS (m3u8)");
-                // 修复：取出标准DataSource.Factory传入Hls
-                HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(http);
-                mediaSource = hlsFactory.createMediaSource(mediaItem);
-            } else {
-                Log.d(TAG, "流格式：普通流 (Progressive)");
-                // 修复：取出标准DataSource.Factory
-                mediaSource = new ProgressiveMediaSource.Factory(httpFactory.createDataSource()).createMediaSource(mediaItem);
-            }
-            player.setMediaSource(mediaSource, true);
-            player.prepare();
-            player.play();
-            startStuckDetection();
+             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
+MediaSource mediaSource;
+if (currentUrl.toLowerCase().contains("m3u8")) {
+    Log.d(TAG, "流格式：HLS (m3u8)");
+    // 修复1：传入工厂实例，变量是httpFactory.createDataSource()
+    HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(httpFactory.createDataSource());
+    mediaSource = hlsFactory.createMediaSource(mediaItem);
+} else {
+    Log.d(TAG, "流格式：普通流 (Progressive)");
+    // 修复2：括号正确，构造参数只传工厂，createMediaSource在外层
+    ProgressiveMediaSource.Factory progFactory = new ProgressiveMediaSource.Factory(httpFactory.createDataSource());
+    mediaSource = progFactory.createMediaSource(mediaItem);
+}
+player.setMediaSource(mediaSource, true);
+player.prepare();
+player.play();
+startStuckDetection();
         } catch (Exception e) {
             Log.e(TAG, "播放异常", e);
             if (e instanceof RedirectFailedException) {
