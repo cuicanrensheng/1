@@ -562,8 +562,14 @@ public class TVPlayerManager {
         if (currentPosition > 0) {
             player.seekTo(currentPosition);
         }
+
+        // ✅ 【关键优化】延迟 200ms 再恢复播放，避免刚重建完 Surface 立刻切台导致的 0.5 秒黑屏延长
         if (wasPlaying) {
-            player.play();
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (player != null && !player.isPlaying()) {
+                    player.play();
+                }
+            }, 200);
         }
 
         // 8. 触发回调，通知 MainActivity 重新绑定手势和焦点！
@@ -973,4 +979,4 @@ public class TVPlayerManager {
             }
         }
     }
-}
+ }
