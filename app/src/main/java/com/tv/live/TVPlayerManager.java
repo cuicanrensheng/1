@@ -182,8 +182,7 @@ public class TVPlayerManager {
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
                 .build();
-        // ✅【切台抗黑屏】直接对 ExoPlayer 启用保留最后一帧
-        player.setKeepContentOnPlayerReset(true);
+    
         try {
             List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos(
                     "video/avc", false, false);
