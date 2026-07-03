@@ -14,6 +14,7 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
+
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
@@ -30,7 +31,9 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
+
 import com.tv.live.RedirectLoggingHttpDataSource;
+
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -40,15 +43,20 @@ import java.util.Locale;
 import java.util.Map;
 
 public class TVPlayerManager {
+
     private static final String TAG = "TVPlayerManager";
+
     public static final int DECODER_MODE_AUTO = 0;
     public static final int DECODER_MODE_HARD = 1;
     public static final int DECODER_MODE_SOFT = 2;
+
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 10000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
+
     private static TVPlayerManager instance;
     private Context context;
+
     private ExoPlayer player;
     private PlayerView playerView;
     private Player.Listener playerListener;
@@ -56,43 +64,44 @@ public class TVPlayerManager {
     private int currentChannelNumber = 0;
     private TextView channelNumberTextView;
     private String currentChannelName = "";
+
     private int mDecoderMode = DECODER_MODE_AUTO;
+
     @Deprecated
     private boolean useSoftwareDecoder = false;
+
     private boolean hasSwitchedDecoder = false;
     private long initialPlayStartTime = 0;
+
     private int bufferCount = 0;
     private long totalStallTime = 0;
     private boolean isStalled = false;
     private long lastStallStartTime = 0;
+
     private int retryCount = 0;
     private boolean isRetrying = false;
     private Runnable retryRunnable;
+
     private Handler stuckHandler;
     private long lastPositionUpdateTime = 0;
     private long lastPosition = 0;
     private Runnable stuckCheckRunnable;
+
     private Handler mHandler;
     private Runnable hideChannelRunnable;
+
     private OnPlayStateListener listener;
     private OnSourceFailedListener sourceFailedListener;
     private OnLiveInfoUpdateListener liveInfoUpdateListener;
+
     private boolean isPlaying = false;
     private SimpleDateFormat logSdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+
     private BroadcastReceiver decoderModeReceiver;
     private boolean decoderReceiverRegistered = false;
+
     private BroadcastReceiver rendererModeReceiver;
     private boolean rendererReceiverRegistered = false;
-
-    public interface OnPlayerViewRecreatedListener {
-        void onPlayerViewRecreated(PlayerView newPlayerView);
-    }
-
-    public void setOnPlayerViewRecreatedListener(OnPlayerViewRecreatedListener listener) {
-        this.onPlayerViewRecreatedListener = listener;
-    }
-
-    private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
 
     public static TVPlayerManager getInstance(Context context) {
         if (instance == null) {
@@ -109,12 +118,14 @@ public class TVPlayerManager {
         this.context = context;
         mHandler = new Handler(Looper.getMainLooper());
         stuckHandler = new Handler(Looper.getMainLooper());
+
         hideChannelRunnable = new Runnable() {
             @Override
             public void run() {
                 hideChannelNum();
             }
         };
+
         stuckCheckRunnable = new Runnable() {
             @Override
             public void run() {
@@ -142,14 +153,16 @@ public class TVPlayerManager {
                 stuckHandler.postDelayed(this, 2000);
             }
         };
+
         initPlayer();
     }
 
     private void initPlayer() {
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
-        SoftwareFirstMediaCodecSelector codecSelector =
-                new SoftwareFirstMediaCodecSelector(mDecoderMode);
+
+        SoftwareFirstMediaCodecSelector codecSelector = new SoftwareFirstMediaCodecSelector(mDecoderMode);
         renderersFactory.setMediaCodecSelector(codecSelector);
+
         switch (mDecoderMode) {
             case DECODER_MODE_SOFT:
                 Log.d(TAG, "【解码器】软解模式：优先使用系统软件解码器");
@@ -165,7 +178,8 @@ public class TVPlayerManager {
                 SettingsActivity.logOperation("【解码器】初始化：自动模式（系统硬解优先）");
                 break;
         }
-        // 修复3：直播调低最小缓冲 2000ms → 300ms，快速出首帧
+
+        // ✅ 优化：缓冲设置改为 300ms，让直播流更快出画面
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
                         300,
@@ -175,10 +189,12 @@ public class TVPlayerManager {
                 )
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
+
         player = new ExoPlayer.Builder(context)
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
                 .build();
+
         try {
             List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos(
                     "video/avc", false, false);
@@ -215,7 +231,9 @@ public class TVPlayerManager {
         } catch (Exception e) {
             Log.e(TAG, "【解码器】检测系统解码器失败：" + e.getMessage());
         }
+
         initPlayerListener();
+
         CookieSyncManager.createInstance(context);
         CookieManager.getInstance().setAcceptCookie(true);
     }
@@ -248,10 +266,12 @@ public class TVPlayerManager {
                     retryCount = 0;
                     isRetrying = false;
                     startStuckDetection();
+
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
-                    // 修复6：切台加载中禁止自动切换解码器，避免叠加黑屏
+
+                    // ✅ 优化：切台加载中禁止自动切换解码器，避免两种操作叠加导致黑屏
                     if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
                             && initialPlayStartTime > 0
                             && System.currentTimeMillis() - initialPlayStartTime < 15000
@@ -339,10 +359,12 @@ public class TVPlayerManager {
             }
             return;
         }
+
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
         SettingsActivity.logOperation("【播放器】自动重试（第" + retryCount + "次），原因：" + reason);
+
         retryRunnable = new Runnable() {
             @Override
             public void run() {
@@ -356,11 +378,12 @@ public class TVPlayerManager {
         mHandler.postDelayed(retryRunnable, 1000);
     }
 
-    // 【修复方案一 无编译报错】仅标记解码器模式，不调用不存在API
+    // ✅ 修复：保证安全的前提下切换解码器。沿用原版 release() 重建法。
     public void setDecoderMode(int mode) {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
         useSoftwareDecoder = (mode == DECODER_MODE_SOFT);
+
         String decoderType;
         switch (mode) {
             case DECODER_MODE_HARD:
@@ -377,8 +400,29 @@ public class TVPlayerManager {
         Log.d(TAG, "切换解码器模式：" + decoderType);
         SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
 
-        // 仅标记，删除setRenderersFactory不存在的调用，编译错误解决
-        hasSwitchedDecoder = true;
+        if (player != null) {
+            try {
+                stopStuckDetection();
+                cancelRetry();
+                if (playerListener != null) {
+                    player.removeListener(playerListener);
+                }
+                player.release();
+                player = null;
+            } catch (Exception e) {
+                Log.e(TAG, "释放播放器异常", e);
+            }
+        }
+        initPlayer();
+        if (playerView != null) {
+            playerView.setPlayer(player);
+        }
+        if (!TextUtils.isEmpty(currentUrl)) {
+            retryCount = 0;
+            isRetrying = false;
+            hasSwitchedDecoder = true;
+            playUrlInternal(currentUrl);
+        }
     }
 
     public int getDecoderMode() {
@@ -411,6 +455,7 @@ public class TVPlayerManager {
                             mode = DECODER_MODE_SOFT;
                         }
                         setDecoderMode(mode);
+
                         String modeName;
                         switch (mode) {
                             case DECODER_MODE_HARD:
@@ -452,7 +497,7 @@ public class TVPlayerManager {
         }
     }
 
-    // 修复4：复用PlayerView，不复建消除视图黑屏
+    // ✅ 修复：核心优化，复用 PlayerView，不销毁重建，消除视图黑屏
     private void switchRenderer(boolean useTexture) {
         if (playerView == null) return;
         try {
@@ -554,8 +599,10 @@ public class TVPlayerManager {
         headers.put("Accept", "*/*");
         headers.put("Connection", "keep-alive");
         headers.put("Icy-MetaData", "1");
+
         boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
         boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
+
         if (isHuya) {
             headers.put("Referer", "https://www.huya.com/");
             Log.d(TAG, "虎牙直播，设置虎牙Referer");
@@ -565,6 +612,7 @@ public class TVPlayerManager {
         } else {
             headers.put("Referer", "https://www.huya.com/");
         }
+
         String cookies = CookieManager.getInstance().getCookie(url);
         if (cookies != null) {
             headers.put("Cookie", cookies);
@@ -575,7 +623,6 @@ public class TVPlayerManager {
     public void play(String url, String channelName) {
         playUrl(url, channelName);
     }
-
     public void play(String url) {
         playUrl(url, null);
     }
@@ -614,17 +661,21 @@ public class TVPlayerManager {
             if (player == null || url == null || url.trim().isEmpty()) return;
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
+
             SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
+
             RedirectLoggingHttpDataSource.Factory httpFactory =
                     new RedirectLoggingHttpDataSource.Factory();
             httpFactory.setDefaultRequestProperties(getHeaders(currentUrl));
             httpFactory.setAllowCrossProtocolRedirects(true);
             httpFactory.setChannelName(currentChannelName);
+
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
+
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
                 Log.d(TAG, "流格式：HLS (m3u8)");
-                // 修复2：开启HLS低延迟，无需完整分片即可解码
+                // ✅ 优化：开启HLS低延迟，无需完整分片即可解码
                 mediaSource = new HlsMediaSource.Factory(httpFactory)
                         .setAllowChunklessPreparation(true)
                         .createMediaSource(mediaItem);
@@ -632,7 +683,8 @@ public class TVPlayerManager {
                 Log.d(TAG, "流格式：普通流 (Progressive)");
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
-            // 修复1：核心改动 reset=false，保留旧画面、不解绑Surface
+
+            // ✅ 核心改动：reset=false，保留旧画面、不解绑Surface
             player.setMediaSource(mediaSource, false);
             player.prepare();
             player.play();
@@ -764,17 +816,13 @@ public class TVPlayerManager {
     }
 
     public void pause() {
-        try {
-            if (player != null) player.pause();
-        } catch (Exception e) {
+        try { if (player != null) player.pause(); } catch (Exception e) {
             Log.e(TAG, "暂停异常", e);
         }
     }
 
     public void resume() {
-        try {
-            if (player != null) player.play();
-        } catch (Exception e) {
+        try { if (player != null) player.play(); } catch (Exception e) {
             Log.e(TAG, "恢复异常", e);
         }
     }
@@ -785,8 +833,10 @@ public class TVPlayerManager {
             cancelRetry();
             mHandler.removeCallbacks(hideChannelRunnable);
             updateWakeLock(false);
+
             unregisterDecoderModeReceiver();
             unregisterRendererModeReceiver();
+
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -813,11 +863,14 @@ public class TVPlayerManager {
                 boolean requiresSecureDecoder,
                 boolean requiresTunnelingDecoder)
                 throws MediaCodecUtil.DecoderQueryException {
+
             List<MediaCodecInfo> allCodecs = MediaCodecUtil.getDecoderInfos(
                     mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
+
             if (allCodecs == null || allCodecs.isEmpty()) {
                 return allCodecs;
             }
+
             switch (decoderMode) {
                 case DECODER_MODE_HARD:
                     List<MediaCodecInfo> hardCodecs = new ArrayList<>();
@@ -827,6 +880,7 @@ public class TVPlayerManager {
                         }
                     }
                     return hardCodecs;
+
                 case DECODER_MODE_SOFT:
                     List<MediaCodecInfo> softCodecs = new ArrayList<>();
                     List<MediaCodecInfo> hardCodecs2 = new ArrayList<>();
@@ -841,6 +895,7 @@ public class TVPlayerManager {
                     result.addAll(softCodecs);
                     result.addAll(hardCodecs2);
                     return result;
+
                 case DECODER_MODE_AUTO:
                 default:
                     return allCodecs;
