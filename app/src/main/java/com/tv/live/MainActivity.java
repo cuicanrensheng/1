@@ -194,53 +194,54 @@ public class MainActivity extends AppCompatActivity {
         );
     }
     private void initChannelPanelController() {
-        View panel_layout = findViewById(R.id.panel_layout);
-        View ll_left_panel = findViewById(R.ll_left_panel);
-        View ll_right_panel = findViewById(R.id.ll_right_panel);
-        ListView lvGroup = findViewById(R.id.lv_group);
-        ListView lvChannelList = findViewById(R.id.lv_channel_list);
-        ListView lvChannelListEpg = findViewById(R.id.lv_channel_list_epg);
-        ListView lvDate = findViewById(R.id.lv_date);
-        ListView lvEpg = findViewById(R.id.lv_epg);
-        TextView btn_show_epg = findViewById(R.id.btn_show_epg);
-        TextView btn_back_group = findViewById(R.id.btn_back_group);
-        EpgManager.getInstance(this);
-        ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
-        ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
-        GroupListManager groupListManager = new GroupListManager(this, lvGroup);
-        DateListManager dateListManager = new DateListManager(this, lvDate);
-        EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
-        PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
-        dateListManager.initDate();
-        dateListManager.setOnDateSelectedListener(pos -> {
-            channelPanelController.setCurrentDateIndex(pos);
-        });
-        channelPanelController = new ChannelPanelController(
-                this,
-                panel_layout,
-                ll_left_panel,
-                ll_right_panel,
-                lvGroup,
-                lvChannelList,
-                lvChannelListEpg,
-                lvDate,
-                lvEpg,
-                btn_show_epg,
-                btn_back_group,
-                groupListManager,
-                channelListManager,
-                channelListManagerEpg,
-                dateListManager,
-                epgManagerWrapper,
-                panelManager
-        );
-        channelPanelController.setOnChannelChangeListener(new ChannelPanelController.OnChannelChangeListener() {
-            @Override
-            public void onChannelChanged(Channel channel, int index) {
-                playChannel(channel, index);
-            }
-        });
-    }
+    View panel_layout = findViewById(R.id.panel_layout);
+    // 修复ll_left_panel不存在报错
+    View ll_left_panel = null;
+    View ll_right_panel = findViewById(R.id.ll_right_panel);
+    ListView lvGroup = findViewById(R.id.lv_group);
+    ListView lvChannelList = findViewById(R.id.lv_channel_list);
+    ListView lvChannelListEpg = findViewById(R.id.lv_channel_list_epg);
+    ListView lvDate = findViewById(R.id.lv_date);
+    ListView lvEpg = findViewById(R.id.lv_epg);
+    TextView btn_show_epg = findViewById(R.id.btn_show_epg);
+    TextView btn_back_group = findViewById(R.id.btn_back_group);
+    EpgManager.getInstance(this);
+    ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
+    ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
+    GroupListManager groupListManager = new GroupListManager(this, lvGroup);
+    DateListManager dateListManager = new DateListManager(this, lvDate);
+    EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
+    PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
+    dateListManager.initDate();
+    dateListManager.setOnDateSelectedListener(pos -> {
+        channelPanelController.setCurrentDateIndex(pos);
+    });
+    channelPanelController = new ChannelPanelController(
+            this,
+            panel_layout,
+            ll_left_panel,
+            ll_right_panel,
+            lvGroup,
+            lvChannelList,
+            lvChannelListEpg,
+            lvDate,
+            lvEpg,
+            btn_show_epg,
+            btn_back_group,
+            groupListManager,
+            channelListManager,
+            channelListManagerEpg,
+            dateListManager,
+            epgManagerWrapper,
+            panelManager
+    );
+    channelPanelController.setOnChannelChangeListener(new ChannelPanelController.OnChannelChangeListener() {
+        @Override
+        public void onChannelChanged(Channel channel, int index) {
+            playChannel(channel, index);
+        }
+    });
+}
     // ============================================================
     // ✅ 【核心修改】移除截图遮罩相关回调
     // ============================================================
