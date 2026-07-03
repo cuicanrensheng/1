@@ -1,5 +1,4 @@
 package com.tv.live;
-
 import android.app.PictureInPictureParams;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -8,7 +7,6 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Bitmap;
-import android.graphics.PixelCopy; // ✅ 新增
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,16 +19,14 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.widget.FrameLayout; // ✅ 新增
-import android.widget.ImageView;  // ✅ 新增
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.media3.ui.PlayerView;
-
 import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
 import com.tv.live.manager.*;
@@ -38,10 +34,8 @@ import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
 import com.tv.live.widget.GroupListManager;
-
 import java.util.ArrayList;
 import java.util.List;
-
 /**
  * 主活动类：直播APP的核心页面，负责直播播放、频道管理、交互控制等核心功能
  * 包含播放器初始化、频道面板控制、遥控器适配、画中画、EPG节目指南等核心逻辑
@@ -50,11 +44,9 @@ import java.util.List;
  * @version 1.0
  */
 public class MainActivity extends AppCompatActivity {
-
     public static MainActivity mInstance;
     public List<Channel> channelSourceList = new ArrayList<>();
     public int currentPlayIndex = 0;
-
     private PlayerView playerView;
     public TVPlayerManager mPlayerManager;
     private AppConfig appConfig;
@@ -67,57 +59,44 @@ public class MainActivity extends AppCompatActivity {
     private AppCoreManager appCoreManager;
     private TvRemoteManager remoteManager;
     private PictureInPictureManager pipManager;
-
     private boolean pipEnable = false;
     private boolean channel_reverse;
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
-
     public static List<String> logList = new ArrayList<>();
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         SettingsActivity.logOperation("【主页】onCreate -> 页面创建");
         SettingsActivity.logOperation("【系统】APP启动");
         mInstance = this;
-
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         displayManager = new DisplayManager(this);
         setContentView(R.layout.activity_main);
         displayManager.applyFullScreen();
         SettingsActivity.logOperation("【主页】全面屏适配已应用");
-
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
         initInfoDisplayManager();
         appConfig = AppConfig.getInstance(this);
         loadSettings();
-
         String customLive = appConfig.getCustomLiveUrl();
         String customEpg = appConfig.getCustomEpgUrl();
         if (customLive != null) UrlConfig.LIVE_URL = customLive;
         if (customEpg != null) UrlConfig.EPG_URL = customEpg;
         log("【配置】直播源地址：" + UrlConfig.LIVE_URL);
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
-
         playerView = findViewById(R.id.player_view);
         playerView.setUseController(false);
         playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
-
         initChannelPanelController();
         initRemoteManager();
         initPictureInPicture();
         channelPanelController.handleFirstLaunch();
-
         initPlayer();
-
         mPlayerManager.registerDecoderModeReceiver();
         mPlayerManager.registerRendererModeReceiver();
-
         screenRatioManager = new ScreenRatioManager(mPlayerManager, appConfig);
         screenRatioManager.apply();
-
         gestureManager = new GestureManager(this);
         final PlayerGestureHelper gestureHelper = gestureManager.create();
         playerView.setOnTouchListener(new View.OnTouchListener() {
@@ -127,19 +106,14 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
-
         currentPlayIndex = appConfig.getLastPlayIndex();
         channelPanelController.setCurrentPlayIndex(currentPlayIndex);
         SettingsActivity.logOperation("【播放】记录上次播放索引：" + currentPlayIndex);
-
         remoteManager.setNumberChannelEnable(number_channel_enable);
-
         initAppCoreManager();
-
         displayManager.showLoading("正在加载直播源...");
         appCoreManager.loadLiveAndEpg();
     }
-
     private void initPictureInPicture() {
         try {
             pipManager = PictureInPictureManager.getInstance(this);
@@ -158,19 +132,16 @@ public class MainActivity extends AppCompatActivity {
             pipManager = null;
         }
     }
-
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
         remoteManager.setChannelPanelController(channelPanelController);
-
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
             @Override public void onPlayChannelUp() { channelPanelController.switchUp(); }
             @Override public void onPlayChannelDown() { channelPanelController.switchDown(); }
             @Override public void onPlayTogglePanel() { togglePanel(); remoteManager.syncMode(); }
             @Override public void onPlayOpenSettings() { openSettings(); }
             @Override public boolean onPlayBack() { return false; }
-
             @Override public void onPanelMoveUp() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_UP); }
             @Override public void onPanelMoveDown() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_DOWN); }
             @Override public void onPanelMoveLeft() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_LEFT); }
@@ -180,23 +151,19 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onPanelMenu() { boolean isFavorite = channelPanelController.toggleCurrentFavorite(); SettingsActivity.logOperation("【遥控】菜单键 → " + (isFavorite ? "已添加收藏" : "已取消收藏")); }
             @Override public void onPanelNumber(int number) {}
             @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) { SettingsActivity.logOperation("【遥控】面板焦点切换：" + newFocus); }
-
             @Override public void onSettingsMoveUp() {}
             @Override public void onSettingsMoveDown() {}
             @Override public void onSettingsConfirm() {}
             @Override public boolean onSettingsBack() { return false; }
             @Override public void onSettingsMenu() {}
             @Override public void onSettingsFocusChanged(int position) {}
-
             @Override public boolean onPipBack() { moveTaskToBack(false); return true; }
             @Override public void onRequestPlayFocus() { playerView.requestFocus(); }
-
             @Override public void onChannelNumberSelected(int channelIndex) { channelPanelController.playChannel(channelIndex); }
             @Override public void onShowChannelNumber(String number) { try { infoDisplayManager.showChannelNum(Integer.parseInt(number)); } catch (Exception e) {} }
             @Override public void onHideChannelNumber() { infoDisplayManager.hideChannelNum(); }
         });
     }
-
     private void initInfoDisplayManager() {
         TextView tv_channel_num = findViewById(R.id.tv_channel_num);
         View info_bar = findViewById(R.id.info_bar);
@@ -210,7 +177,6 @@ public class MainActivity extends AppCompatActivity {
         TextView tv_remaining_time = findViewById(R.id.tv_remaining_time);
         TextView tv_next_program_name = findViewById(R.id.tv_next_program_name);
         TextView tv_next_time_range = findViewById(R.id.tv_next_time_range);
-
         infoDisplayManager = new InfoDisplayManager(
                 this,
                 tv_channel_num,
@@ -227,10 +193,9 @@ public class MainActivity extends AppCompatActivity {
                 tv_next_time_range
         );
     }
-
     private void initChannelPanelController() {
         View panel_layout = findViewById(R.id.panel_layout);
-        View ll_left_panel = findViewById(R.id.ll_left_panel);
+        View ll_left_panel = findViewById(R.ll_left_panel);
         View ll_right_panel = findViewById(R.id.ll_right_panel);
         ListView lvGroup = findViewById(R.id.lv_group);
         ListView lvChannelList = findViewById(R.id.lv_channel_list);
@@ -239,7 +204,6 @@ public class MainActivity extends AppCompatActivity {
         ListView lvEpg = findViewById(R.id.lv_epg);
         TextView btn_show_epg = findViewById(R.id.btn_show_epg);
         TextView btn_back_group = findViewById(R.id.btn_back_group);
-
         EpgManager.getInstance(this);
         ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
         ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
@@ -247,12 +211,10 @@ public class MainActivity extends AppCompatActivity {
         DateListManager dateListManager = new DateListManager(this, lvDate);
         EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
         PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
-
         dateListManager.initDate();
         dateListManager.setOnDateSelectedListener(pos -> {
             channelPanelController.setCurrentDateIndex(pos);
         });
-
         channelPanelController = new ChannelPanelController(
                 this,
                 panel_layout,
@@ -272,7 +234,6 @@ public class MainActivity extends AppCompatActivity {
                 epgManagerWrapper,
                 panelManager
         );
-
         channelPanelController.setOnChannelChangeListener(new ChannelPanelController.OnChannelChangeListener() {
             @Override
             public void onChannelChanged(Channel channel, int index) {
@@ -280,14 +241,12 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-
     // ============================================================
-    // ✅ 【核心修改】整合了“解码器切换截图冻结画面”功能的 initPlayer
+    // ✅ 【核心修改】移除截图遮罩相关回调
     // ============================================================
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
-
-        // 注册重建监听器（必须放在 attachPlayerView 之前）
+        // 注册重建监听器，删除截图相关两个回调
         mPlayerManager.setOnPlayerViewRecreatedListener(new TVPlayerManager.OnPlayerViewRecreatedListener() {
             @Override
             public void onPlayerViewRecreated(PlayerView newPlayerView) {
@@ -301,51 +260,11 @@ public class MainActivity extends AppCompatActivity {
                 newPlayerView.requestFocus();
                 SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
             }
-
-            // ✅【新增】解码器切换时的冻结帧覆盖显示
-            @Override
-            public void onDecoderSwitchFreezeFrame(Bitmap bitmap) {
-                // ⚠️ 注意：请确保你的 activity_main.xml 根布局是 FrameLayout，且添加了 android:id="@+id/main_root"
-                FrameLayout root = findViewById(R.id.main_root); 
-                if (root == null) return; // 安全兜底，防止布局没改导致闪退
-
-                ImageView freezeView = new ImageView(MainActivity.this);
-                freezeView.setId(R.id.freeze_overlay);
-                freezeView.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                freezeView.setImageBitmap(bitmap);
-
-                // 移除可能残留的旧覆盖层
-                View oldOverlay = root.findViewById(R.id.freeze_overlay);
-                if (oldOverlay != null) {
-                    root.removeView(oldOverlay);
-                }
-
-                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                );
-                root.addView(freezeView, params);
-            }
-
-            // ✅【新增】解码器重新初始化完毕，移除冻结帧覆盖层
-            @Override
-            public void onDecoderSwitchUnfreezeFrame() {
-                FrameLayout root = findViewById(R.id.main_root);
-                if (root == null) return;
-
-                View overlay = root.findViewById(R.id.freeze_overlay);
-                if (overlay != null) {
-                    root.removeView(overlay);
-                    SettingsActivity.logOperation("【解码器】移除冻结画面覆盖层，恢复播放");
-                }
-            }
+            // 移除 onDecoderSwitchFreezeFrame、onDecoderSwitchUnfreezeFrame
         });
-
         mPlayerManager.attachPlayerView(playerView);
-
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
-
         mPlayerManager.setOnLiveInfoUpdateListener(new TVPlayerManager.OnLiveInfoUpdateListener() {
             @Override
             public void onLiveInfoUpdate(TVPlayerManager.LiveInfo info) {
@@ -355,7 +274,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-
         mPlayerManager.setOnSourceFailedListener(new TVPlayerManager.OnSourceFailedListener() {
             @Override
             public void onSourceFailed() {
@@ -375,10 +293,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-
     private void initAppCoreManager() {
         appCoreManager = new AppCoreManager(this, mPlayerManager, appConfig);
-
         appCoreManager.setOnDataLoadListener(new AppCoreManager.OnDataLoadListener() {
             @Override
             public void onLiveSourceLoaded(List<Channel> channels, boolean fromCache) {
@@ -403,7 +319,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
-
             @Override
             public void onLiveSourceFailed(String errorMsg) {
                 runOnUiThread(new Runnable() {
@@ -419,7 +334,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
-
             @Override
             public void onEpgLoaded() {
                 runOnUiThread(new Runnable() {
@@ -432,7 +346,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
-
             @Override
             public void onLoadTimeout(boolean hasData) {
                 runOnUiThread(new Runnable() {
@@ -448,7 +361,6 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
-
         appCoreManager.setOnSourceSkipListener(new AppCoreManager.OnSourceSkipListener() {
             @Override
             public void onNeedSkipChannel() {
@@ -461,10 +373,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onSourceFailed(String channelName, int failedCount) {}
         });
-
         appCoreManager.registerReceivers();
     }
-
     private void loadSettings() {
         SharedPreferences sp = getSharedPreferences("app_settings", MODE_PRIVATE);
         boolean epg_enable = sp.getBoolean("epg_enable", true);
@@ -472,7 +382,6 @@ public class MainActivity extends AppCompatActivity {
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
-
         String decoderMode = sp.getString("decoder_mode", "auto");
         int mode = TVPlayerManager.DECODER_MODE_AUTO;
         if ("hard".equals(decoderMode)) {
@@ -483,7 +392,6 @@ public class MainActivity extends AppCompatActivity {
         if (mPlayerManager != null) {
             mPlayerManager.setDecoderMode(mode);
         }
-
         if (remoteManager != null) {
             remoteManager.setNumberChannelEnable(number_channel_enable);
         }
@@ -494,49 +402,39 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) {
             pipManager.setPipEnabled(pipEnable);
         }
-
         SettingsActivity.logOperation("【设置】EPG开关：" + epg_enable);
         SettingsActivity.logOperation("【设置】切台反转：" + channel_reverse);
         SettingsActivity.logOperation("【设置】数字选台：" + number_channel_enable);
         SettingsActivity.logOperation("【设置】自动更新源：" + auto_update_source);
         SettingsActivity.logOperation("【设置】画中画开关：" + pipEnable);
     }
-
     public boolean isChannelReverse() {
         return channel_reverse;
     }
-
     public void playChannel(int index) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
         if (index < 0 || index >= channelSourceList.size()) return;
         Channel channel = channelSourceList.get(index);
         playChannel(channel, index);
     }
-
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
-
         log("========================================");
         log("【播放】频道名称：" + channel.getName());
         log("【播放】播放地址：" + channel.getPlayUrl());
         log("【播放】当前索引：" + index);
         log("========================================");
-
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
         mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName());
-
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         infoDisplayManager.showInfoBar(channel, live);
         infoDisplayManager.showChannelNum(index + 1);
-
         try {
             appConfig.addRecentChannel(channel.getName());
         } catch (Exception e) {}
-
         appCoreManager.resetSourceFailedCount();
-
         if (pipManager != null && pipManager.isInPipMode() && channel != null) {
             try {
                 pipManager.updateChannelInfo(index + 1,
@@ -547,20 +445,16 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
     public void togglePanel() {
         channelPanelController.togglePanel();
         remoteManager.syncMode();
     }
-
     public void playPrev() {
         channelPanelController.playPrev();
     }
-
     public void playNext() {
         channelPanelController.playNext();
     }
-
     @Override
     public void onBackPressed() {
         if (remoteManager != null && remoteManager.handleBackPressed()) {
@@ -568,7 +462,6 @@ public class MainActivity extends AppCompatActivity {
         }
         super.onBackPressed();
     }
-
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
@@ -576,17 +469,14 @@ public class MainActivity extends AppCompatActivity {
         }
         return super.onKeyDown(keyCode, event);
     }
-
     public void openSettings() {
         isOpeningSettings = true;
         appCoreManager.beforeOpenSettings();
         startActivity(new Intent(this, SettingsActivity.class));
     }
-
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
     }
-
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
@@ -597,12 +487,10 @@ public class MainActivity extends AppCompatActivity {
             pipManager.enterPip(this, mPlayerManager, pipEnable);
         }
     }
-
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode);
         SettingsActivity.logOperation("【画中画】模式变化 → " + (isInPictureInPictureMode ? "进入" : "退出"));
-
         if (remoteManager != null) {
             remoteManager.setInPipMode(isInPictureInPictureMode);
         }
@@ -613,7 +501,6 @@ public class MainActivity extends AppCompatActivity {
                 SettingsActivity.logOperation("【画中画】模式变化回调失败：" + e.getMessage());
             }
         }
-
         if (pipManager != null) {
             if (isInPictureInPictureMode) {
                 pipManager.handleEnterPip(this, channelPanelController, infoDisplayManager, mPlayerManager, playerView);
@@ -629,12 +516,10 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
     private void log(String msg) {
         logList.add(msg);
         Log.d("MainActivity", msg);
     }
-
     @Override
     protected void onPause() {
         super.onPause();
@@ -651,7 +536,6 @@ public class MainActivity extends AppCompatActivity {
             });
         }
     }
-
     @Override
     protected void onStop() {
         super.onStop();
@@ -660,7 +544,6 @@ public class MainActivity extends AppCompatActivity {
             SettingsActivity.logOperation("【画中画】onStop 被调用");
         }
     }
-
     @Override
     protected void onResume() {
         super.onResume();
@@ -672,7 +555,6 @@ public class MainActivity extends AppCompatActivity {
         loadSettings();
         screenRatioManager.apply();
         displayManager.reapplyFullScreen();
-
         if (pipManager == null || !pipManager.isInPipMode()) {
             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                 @Override
@@ -685,7 +567,6 @@ public class MainActivity extends AppCompatActivity {
         }
         remoteManager.syncMode();
     }
-
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -694,7 +575,6 @@ public class MainActivity extends AppCompatActivity {
         }
         appCoreManager.onWindowFocusChanged(hasFocus);
     }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
