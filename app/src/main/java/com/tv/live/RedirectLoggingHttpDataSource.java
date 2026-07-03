@@ -1,8 +1,8 @@
 package com.tv.live;
+
 import android.net.Uri;
 import android.text.TextUtils;
 import android.webkit.CookieManager;
-import android.webkit.CookieSyncManager;
 import androidx.media3.common.C;
 import androidx.media3.datasource.BaseDataSource;
 import androidx.media3.datasource.DataSource;
@@ -21,6 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.zip.GZIPInputStream;
+
 /**
  * 【升级完整版】带重定向日志HTTP数据源
  * 升级新增：
@@ -52,10 +53,12 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     private long bytesRead;
     private int responseCode = -1;
     private String currentChannelName = "";
+
     private String getTimeStr() {
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
         return sdf.format(new Date());
     }
+
     protected RedirectLoggingHttpDataSource(
             Map<String, String> defaultRequestProperties,
             boolean allowCrossProtocolRedirects,
@@ -78,9 +81,11 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         this.connectTimeout = connectTimeout;
         this.readTimeout = readTimeout;
     }
+
     public void setChannelName(String channelName) {
         this.currentChannelName = (channelName != null) ? channelName : "";
     }
+
     @Override
     public long open(DataSpec dataSpec) throws HttpDataSource.HttpDataSourceException {
         try {
@@ -125,6 +130,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             throw new HttpDataSource.HttpDataSourceException(e, dataSpec, HttpDataSource.HttpDataSourceException.TYPE_OPEN);
         }
     }
+
     /** 同步响应Set-Cookie到全局CookieManager */
     private void syncResponseCookies(HttpURLConnection conn, String requestUrl) {
         Map<String, List<String>> headerMap = conn.getHeaderFields();
@@ -134,8 +140,9 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         for (String cookieStr : cookieList) {
             cookieManager.setCookie(requestUrl, cookieStr);
         }
-        CookieSyncManager.getInstance().sync();
+        // CookieSyncManager 在 API 21+ 已废弃，且 CookieManager 会自动同步，此处不再调用
     }
+
     private HttpURLConnection openConnection(DataSpec dataSpec) throws IOException {
         String originalUrl = dataSpec.uri.toString();
         String currentUrl = originalUrl;
@@ -224,6 +231,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             currentUrl = redirectUrl;
         }
     }
+
     /** 判断是否内网IP，自动豁免跨域限制 */
     private boolean isInnerIp(String host) {
         if (host == null) return false;
@@ -232,6 +240,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                 || host.startsWith("10.")
                 || host.equals("localhost");
     }
+
     /** 自动拼接相对路径跳转地址 */
     private String resolveRedirectUrl(String baseUrl, String location) throws IOException {
         if (location.startsWith("http://") || location.startsWith("https://")) {
@@ -259,6 +268,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         }
         return sb.toString();
     }
+
     private long getContentLength(HttpURLConnection connection) {
         String contentLength = connection.getHeaderField("Content-Length");
         if (!TextUtils.isEmpty(contentLength)) {
@@ -268,6 +278,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         }
         return C.LENGTH_UNSET;
     }
+
     @Override
     public int read(byte[] buffer, int offset, int readLength) throws HttpDataSource.HttpDataSourceException {
         if (readLength == 0) return 0;
@@ -294,30 +305,37 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                     HttpDataSource.HttpDataSourceException.TYPE_READ);
         }
     }
+
     @Override
     public Uri getUri() {
         return connection == null ? null : Uri.parse(connection.getURL().toString());
     }
+
     @Override
     public int getResponseCode() {
         return responseCode;
     }
+
     @Override
     public Map<String, List<String>> getResponseHeaders() {
         return connection == null ? null : connection.getHeaderFields();
     }
+
     @Override
     public void setRequestProperty(String name, String value) {
         defaultRequestProperties.put(name, value);
     }
+
     @Override
     public void clearRequestProperty(String name) {
         defaultRequestProperties.remove(name);
     }
+
     @Override
     public void clearAllRequestProperties() {
         defaultRequestProperties.clear();
     }
+
     @Override
     public void close() throws HttpDataSource.HttpDataSourceException {
         if (opened) {
@@ -326,6 +344,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             closeConnectionQuietly();
         }
     }
+
     private void closeConnectionQuietly() {
         try {
             if (inputStream != null) inputStream.close();
@@ -336,76 +355,87 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             connection = null;
         }
     }
-    // ====================== 完整工厂类【修复：实现DataSource.Factory<HttpDataSource>】 ======================
-    // 原错误：public static final class Factory implements DataSource.Factory<HttpDataSource>
-// 正确Exo规范写法：
-public static final class Factory implements DataSource.Factory<DataSource> {
-    private final Map<String, String> defaultRequestProperties = new HashMap<>();
-    private boolean allowCrossProtocolRedirects = true;
-    private boolean allowCrossDomainRedirects = true;
-    private boolean followRedirectsWithHeaders = true;
-    private boolean ignoreSslErrorRedirect = false;
-    private int maxRedirects = 5;
-    private int connectTimeoutMs = 10000;
-    private int readTimeoutMs = 15000;
-    private String channelName = "";
-    public Factory() {}
-    // 基础请求头
-    public Factory setDefaultRequestProperties(Map<String, String> map) {
-        defaultRequestProperties.clear();
-        if (map != null) defaultRequestProperties.putAll(map);
-        return this;
+
+    // ====================== 完整工厂类【修复：实现DataSource.Factory，去掉泛型】 ======================
+    // AndroidX Media3 中 DataSource.Factory 不是泛型接口，去掉类型参数以避免编译错误
+    public static final class Factory implements DataSource.Factory {
+        private final Map<String, String> defaultRequestProperties = new HashMap<>();
+        private boolean allowCrossProtocolRedirects = true;
+        private boolean allowCrossDomainRedirects = true;
+        private boolean followRedirectsWithHeaders = true;
+        private boolean ignoreSslErrorRedirect = false;
+        private int maxRedirects = 5;
+        private int connectTimeoutMs = 10000;
+        private int readTimeoutMs = 15000;
+        private String channelName = "";
+
+        public Factory() {}
+
+        // 基础请求头
+        public Factory setDefaultRequestProperties(Map<String, String> map) {
+            defaultRequestProperties.clear();
+            if (map != null) defaultRequestProperties.putAll(map);
+            return this;
+        }
+
+        // 重定向总控
+        public Factory setMaxRedirects(int count) {
+            this.maxRedirects = count;
+            return this;
+        }
+
+        public Factory setAllowCrossProtocolRedirects(boolean enable) {
+            this.allowCrossProtocolRedirects = enable;
+            return this;
+        }
+
+        public Factory setAllowCrossDomainRedirects(boolean enable) {
+            this.allowCrossDomainRedirects = enable;
+            return this;
+        }
+
+        public Factory setFollowRedirectsWithHeaders(boolean enable) {
+            this.followRedirectsWithHeaders = enable;
+            return this;
+        }
+
+        public Factory setIgnoreSslErrorRedirect(boolean ignore) {
+            this.ignoreSslErrorRedirect = ignore;
+            return this;
+        }
+
+        // 超时配置
+        public Factory setConnectTimeoutMs(int ms) {
+            this.connectTimeoutMs = ms;
+            return this;
+        }
+
+        public Factory setReadTimeoutMs(int ms) {
+            this.readTimeoutMs = ms;
+            return this;
+        }
+
+        // 日志频道名
+        public Factory setChannelName(String name) {
+            this.channelName = name;
+            return this;
+        }
+
+        // 覆盖接口方法，返回 DataSource
+        @Override
+        public DataSource createDataSource() {
+            RedirectLoggingHttpDataSource source = new RedirectLoggingHttpDataSource(
+                    defaultRequestProperties,
+                    allowCrossProtocolRedirects,
+                    allowCrossDomainRedirects,
+                    followRedirectsWithHeaders,
+                    ignoreSslErrorRedirect,
+                    maxRedirects,
+                    connectTimeoutMs,
+                    readTimeoutMs
+            );
+            source.setChannelName(channelName);
+            return source;
+        }
     }
-    // 重定向总控
-    public Factory setMaxRedirects(int count) {
-        this.maxRedirects = count;
-        return this;
-    }
-    public Factory setAllowCrossProtocolRedirects(boolean enable) {
-        this.allowCrossProtocolRedirects = enable;
-        return this;
-    }
-    public Factory setAllowCrossDomainRedirects(boolean enable) {
-        this.allowCrossDomainRedirects = enable;
-        return this;
-    }
-    public Factory setFollowRedirectsWithHeaders(boolean enable) {
-        this.followRedirectsWithHeaders = enable;
-        return this;
-    }
-    public Factory setIgnoreSslErrorRedirect(boolean ignore) {
-        this.ignoreSslErrorRedirect = ignore;
-        return this;
-    }
-    // 超时配置
-    public Factory setConnectTimeoutMs(int ms) {
-        this.connectTimeoutMs = ms;
-        return this;
-    }
-    public Factory setReadTimeoutMs(int ms) {
-        this.readTimeoutMs = ms;
-        return this;
-    }
-    // 日志频道名
-    public Factory setChannelName(String name) {
-        this.channelName = name;
-        return this;
-    }
-    // 修复返回值为DataSource，匹配接口泛型，消除@Override报错
-    @Override
-    public DataSource createDataSource() {
-        RedirectLoggingHttpDataSource source = new RedirectLoggingHttpDataSource(
-                defaultRequestProperties,
-                allowCrossProtocolRedirects,
-                allowCrossDomainRedirects,
-                followRedirectsWithHeaders,
-                ignoreSslErrorRedirect,
-                maxRedirects,
-                connectTimeoutMs,
-                readTimeoutMs
-        );
-        source.setChannelName(channelName);
-        return source;
-      }
-   }
-}
+ }
