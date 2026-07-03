@@ -93,7 +93,7 @@ public class SettingsActivity extends AppCompatActivity {
     public static void log(String msg) {
         LogManager.log(msg);
         if (PLAY_LOG == null) {
-            PLAY = new StringBuilder();
+            PLAY_LOG = new StringBuilder(); // 原错误 PLAY → PLAY_LOG
         }
         PLAY_LOG.append(msg).append("\n");
     }
@@ -474,20 +474,20 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
     }
-    private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
-    item.setBackgroundColor(bgColor);
-    if (item instanceof TextView) {
-        TextView tv = (TextView) item;
-        tv.setTextColor(Color.parseColor(text));
-        tv.setTypeface(null, typefaceStyle);
-    } else if (item instanceof ViewGroup) {
-        TextView tv = findFirstTextView((ViewGroup) item);
-        if (tv != null) {
-            tv.setTextColor(Color.parseColor(text));
+        private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
+        item.setBackgroundColor(bgColor);
+        if (item instanceof TextView) {
+            TextView tv = (TextView) item;
+            tv.setTextColor(Color.parseColor(textColor)); // 修复 text → textColor
             tv.setTypeface(null, typefaceStyle);
+        } else if (item instanceof ViewGroup) {
+            TextView tv = findFirstTextView((ViewGroup) item);
+            if (tv != null) {
+                tv.setTextColor(Color.parseColor(textColor)); // 修复 text → textColor
+                tv.setTypeface(null, typefaceStyle);
+            }
         }
     }
-}
 
     private TextView findFirstTextView(ViewGroup viewGroup) {
         if (viewGroup == null) return null;
@@ -620,24 +620,16 @@ public class SettingsActivity extends AppCompatActivity {
         boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
         boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
         boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
-
         // 构建弹窗布局
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
-        Edit etMax = dialogView.findViewById(R.id.et_redirect_max);
+        EditText etMax = dialogView.findViewById(R.id.et_redirect_max); // 修复：编辑 → EditText
         Switch swCrossDomain = dialogView.findViewById(R.id.sw_cross_domain);
         Switch swCrossProto = dialogView.findViewById(R.id.sw_cross_proto);
         Switch swFollowHeader = dialogView.findViewById(R.id.sw_follow_header);
         Switch swIgnoreSsl = dialogView.findViewById(R.id.sw_ignore_ssl);
-
         // 限制输入数字1-20
         etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
         etMax.setText(String.valueOf(currentMax));
-
-        swCrossDomain.setChecked(crossDomain);
-        swCrossProto.setChecked(crossProto);
-        swFollowHeader.setChecked(followHeader);
-        swIgnoreSsl.setChecked(ignoreSsl);
-
         new AlertDialog.Builder(this)
                 .setTitle("HTTP重定向网络配置")
                 .setView(dialogView)
@@ -670,7 +662,6 @@ public class SettingsActivity extends AppCompatActivity {
                 .setNegativeButton("取消", null)
                 .show();
     }
-
     private void showInputDialog(String title, String hint, String key) {
         EditText ed = new EditText(this);
         ed.setHint(hint);
