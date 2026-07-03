@@ -337,73 +337,74 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         }
     }
     // ====================== 完整工厂类【修复：实现DataSource.Factory<HttpDataSource>】 ======================
-    public static final class Factory implements DataSource.Factory<HttpDataSource> {
-        private final Map<String, String> defaultRequestProperties = new HashMap<>();
-        private boolean allowCrossProtocolRedirects = true;
-        private boolean allowCrossDomainRedirects = true;
-        private boolean followRedirectsWithHeaders = true;
-        private boolean ignoreSslErrorRedirect = false;
-        private int maxRedirects = 5;
-        private int connectTimeoutMs = 10000;
-        private int readTimeoutMs = 15000;
-        private String channelName = "";
-        public Factory() {}
-        // 基础请求头
-        public Factory setDefaultRequestProperties(Map<String, String> map) {
-            defaultRequestProperties.clear();
-            if (map != null) defaultRequestProperties.putAll(map);
-            return this;
-        }
-        // 重定向总控
-        public Factory setMaxRedirects(int count) {
-            this.maxRedirects = count;
-            return this;
-        }
-        public Factory setAllowCrossProtocolRedirects(boolean enable) {
-            this.allowCrossProtocolRedirects = enable;
-            return this;
-        }
-        public Factory setAllowCrossDomainRedirects(boolean enable) {
-            this.allowCrossDomainRedirects = enable;
-            return this;
-        }
-        public Factory setFollowRedirectsWithHeaders(boolean enable) {
-            this.followRedirectsWithHeaders = enable;
-            return this;
-        }
-        public Factory setIgnoreSslErrorRedirect(boolean ignore) {
-            this.ignoreSslErrorRedirect = ignore;
-            return this;
-        }
-        // 超时配置
-        public Factory setConnectTimeoutMs(int ms) {
-            this.connectTimeoutMs = ms;
-            return this;
-        }
-        public Factory setReadTimeoutMs(int ms) {
-            this.readTimeoutMs = ms;
-            return this;
-        }
-        // 日志频道名
-        public Factory setChannelName(String name) {
-            this.channelName = name;
-            return this;
-        }
-        // 修复@Override 签名匹配父接口
-        @Override
-        public HttpDataSource createDataSource() {
-            RedirectLoggingHttpDataSource source = new RedirectLoggingHttpDataSource(
-                    defaultRequestProperties,
-                    allowCrossProtocolRedirects,
-                    allowCrossDomainRedirects,
-                    followRedirectsWithHeaders,
-                    ignoreSslErrorRedirect,
-                    maxRedirects,
-                    connectTimeoutMs,
-                    readTimeoutMs
-            );
-            source.setChannelName(channelName);
-            return source;
-        }
+    // 原错误：public static final class Factory implements DataSource.Factory<HttpDataSource>
+// 正确Exo规范写法：
+public static final class Factory implements DataSource.Factory<DataSource> {
+    private final Map<String, String> defaultRequestProperties = new HashMap<>();
+    private boolean allowCrossProtocolRedirects = true;
+    private boolean allowCrossDomainRedirects = true;
+    private boolean followRedirectsWithHeaders = true;
+    private boolean ignoreSslErrorRedirect = false;
+    private int maxRedirects = 5;
+    private int connectTimeoutMs = 10000;
+    private int readTimeoutMs = 15000;
+    private String channelName = "";
+    public Factory() {}
+    // 基础请求头
+    public Factory setDefaultRequestProperties(Map<String, String> map) {
+        defaultRequestProperties.clear();
+        if (map != null) defaultRequestProperties.putAll(map);
+        return this;
+    }
+    // 重定向总控
+    public Factory setMaxRedirects(int count) {
+        this.maxRedirects = count;
+        return this;
+    }
+    public Factory setAllowCrossProtocolRedirects(boolean enable) {
+        this.allowCrossProtocolRedirects = enable;
+        return this;
+    }
+    public Factory setAllowCrossDomainRedirects(boolean enable) {
+        this.allowCrossDomainRedirects = enable;
+        return this;
+    }
+    public Factory setFollowRedirectsWithHeaders(boolean enable) {
+        this.followRedirectsWithHeaders = enable;
+        return this;
+    }
+    public Factory setIgnoreSslErrorRedirect(boolean ignore) {
+        this.ignoreSslErrorRedirect = ignore;
+        return this;
+    }
+    // 超时配置
+    public Factory setConnectTimeoutMs(int ms) {
+        this.connectTimeoutMs = ms;
+        return this;
+    }
+    public Factory setReadTimeoutMs(int ms) {
+        this.readTimeoutMs = ms;
+        return this;
+    }
+    // 日志频道名
+    public Factory setChannelName(String name) {
+        this.channelName = name;
+        return this;
+    }
+    // 修复返回值为DataSource，匹配接口泛型，消除@Override报错
+    @Override
+    public DataSource createDataSource() {
+        RedirectLoggingHttpDataSource source = new RedirectLoggingHttpDataSource(
+                defaultRequestProperties,
+                allowCrossProtocolRedirects,
+                allowCrossDomainRedirects,
+                followRedirectsWithHeaders,
+                ignoreSslErrorRedirect,
+                maxRedirects,
+                connectTimeoutMs,
+                readTimeoutMs
+        );
+        source.setChannelName(channelName);
+        return source;
     }
 }
