@@ -50,7 +50,6 @@ public class TVPlayerManager {
     private static TVPlayerManager instance;
     private Context context;
     private ExoPlayer player;
-    private PlayerView player;
     private PlayerView playerView;
     private Player.Listener playerListener;
     private String currentUrl;
