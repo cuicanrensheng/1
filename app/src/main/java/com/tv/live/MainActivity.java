@@ -195,8 +195,8 @@ public class MainActivity extends AppCompatActivity {
     }
     private void initChannelPanelController() {
     View panel_layout = findViewById(R.id.panel_layout);
-    // 修复ll_left_panel不存在报错
-    View ll_left_panel = null;
+    // 修复：正确获取 ll_left_panel 控件（之前错误赋值为null）
+    View ll_left_panel = findViewById(R.id.ll_left_panel); // 关键修复
     View ll_right_panel = findViewById(R.id.ll_right_panel);
     ListView lvGroup = findViewById(R.id.lv_group);
     ListView lvChannelList = findViewById(R.id.lv_channel_list);
