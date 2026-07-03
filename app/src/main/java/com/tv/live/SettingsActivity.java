@@ -474,21 +474,20 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
     }
-
-    private void setItemStyle(View item, String textColor, int typeface, int bgColor) {
-        item.setBackgroundColor(bgColor);
-        if (item instanceof TextView) {
-            TextView tv = (TextView) item;
+    private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
+    item.setBackgroundColor(bgColor);
+    if (item instanceof TextView) {
+        TextView tv = (TextView) item;
+        tv.setTextColor(Color.parseColor(text));
+        tv.setTypeface(null, typefaceStyle);
+    } else if (item instanceof ViewGroup) {
+        TextView tv = findFirstTextView((ViewGroup) item);
+        if (tv != null) {
             tv.setTextColor(Color.parseColor(text));
-            tv.setTypeface(null, typeface);
-        } else if (item instanceof ViewGroup) {
-            TextView tv = findFirstTextView((ViewGroup) item);
-            if (tv != null) {
-                tv.setTextColor(Color.parseColor(text));
-                tv.setTypeface(null, typeface);
-            }
+            tv.setTypeface(null, typefaceStyle);
         }
     }
+}
 
     private TextView findFirstTextView(ViewGroup viewGroup) {
         if (viewGroup == null) return null;
