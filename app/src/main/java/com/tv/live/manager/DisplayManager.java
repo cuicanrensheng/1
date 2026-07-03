@@ -1,440 +1,626 @@
 package com.tv.live.manager;
 
-import android.app.Activity;
-import android.graphics.Bitmap;
-import android.graphics.Color;
-import android.os.Build;
-import android.view.Gravity;
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.WindowManager;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.TextView;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.KeyEvent;
 
 import com.tv.live.SettingsActivity;
 
-/**
- * 显示管理器
- *
- * 【功能说明】
- * 统一管理所有和显示相关的功能，包括：
- * 1. 全面屏适配（刘海屏、沉浸式、系统栏隐藏）
- * 2. 加载动画（动态创建、显示、隐藏）
- * 3. 截图遮罩（显示、隐藏位图遮罩）
- *
- * 【为什么合并成一个文件？】
- * 这些功能都是和"界面显示"相关的基础功能，
- * 合并在一起方便统一管理，也减少 MainActivity 的代码量。
- *
- * 【电视兼容说明】
- * 所有全面屏适配代码都加了 try-catch，
- * 即使电视不支持这些 API，也不会崩溃，只是不显示全屏效果而已。
- *
- * 【使用方式】
- * 1. 在 onCreate 中创建实例：displayManager = new DisplayManager(this)
- * 2. 调用 applyFullScreen() 应用全面屏适配
- * 3. 调用 showLoading() / hideLoading() 控制加载动画
- * 4. 调用 showScreenshotMask() / hideScreenshotMask() 控制截图遮罩
- * 5. 在 onDestroy 中调用 release() 释放资源
- */
-public class DisplayManager {
+public class TvRemoteManager {
 
-    // ====================== 成员变量 ======================
-    /** 宿主 Activity */
-    private final Activity activity;
-    /** 加载动画根视图 */
-    private View loadingView;
-    /** 加载文字提示 */
-    private TextView tvLoadingText;
-    /** 是否已初始化加载视图 */
-    private boolean loadingViewInitialized = false;
-    /** 截图遮罩视图 */
-    private ImageView screenshotMaskView;
-    /** 是否已初始化遮罩视图 */
-    private boolean maskViewInitialized = false;
-
-    // ====================== 构造函数 ======================
-    /**
-     * 构造函数
-     *
-     * @param activity 宿主 Activity
-     */
-    public DisplayManager(Activity activity) {
-        this.activity = activity;
+    public enum Mode {
+        PLAY_MODE,
+        CHANNEL_PANEL_MODE,
+        SETTINGS_MODE
     }
 
-    // ====================================================================
-    // ✅ 功能一：全面屏适配
-    // ====================================================================
+    public enum PanelFocus {
+        LEFT_GROUP,
+        LEFT_CHANNEL,
+        LEFT_EPG_BTN,
+        RIGHT_BACK_BTN,
+        RIGHT_CHANNEL,
+        RIGHT_DATE,
+        RIGHT_EPG
+    }
 
-    /**
-     * 应用全面屏适配
-     *
-     * 【包含内容】
-     * 1. 刘海屏适配（Android P 及以上）
-     * 2. 全屏标志
-     * 3. 沉浸式模式（隐藏状态栏和导航栏）
-     * 4. Android 11+ 的 WindowInsetsController 新方式
-     *
-     * 【调用时机】
-     * 在 onCreate 中调用，setContentView 之前或之后都可以。
-     *
-     * 【为什么分这么多方式？】
-     * 不同 Android 版本的全面屏 API 不一样：
-     * - Android 9 以下：用 setSystemUiVisibility（旧方式）
-     * - Android 9-10：用 layoutInDisplayCutoutMode + setSystemUiVisibility
-     * - Android 11+：用 WindowInsetsController（新方式）
-     * 我们全部都支持，保证在各个版本上都有最好的效果。
-     */
-    public void applyFullScreen() {
-        try {
-            // ================================================
-            // 第一部分：刘海屏适配 + 全屏标志 + 旧版沉浸式
-            // ================================================
+    public interface OnRemoteActionListener {
+        void onPlayChannelUp();
+        void onPlayChannelDown();
+        void onPlayTogglePanel();
+        void onPlayOpenSettings();
+        boolean onPlayBack();
 
-            // 1. 刘海屏适配（Android P 及以上）
-            // 【为什么需要这个？】
-            // 默认情况下，内容不会布局到刘海区域，会有一条黑边。
-            // 设置 LAYOUT_IN_DISPLAY_CUTOUT_MODE 后，内容可以延伸到刘海区域，
-            // 真正实现全屏效果。
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                WindowManager.LayoutParams lp = activity.getWindow().getAttributes();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    // Android 12+：always 模式，所有边都允许布局到刘海区域
-                    // 【为什么用 always？】
-                    // shortEdges 只在短边（上下）允许，左右两边的挖孔屏不生效。
-                    // always 模式所有边都允许，适配各种异形屏。
-                    lp.layoutInDisplayCutoutMode =
-                            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
-                } else {
-                    // Android 9-11：shortEdges 模式，只在短边（上下）允许布局到刘海区域
-                    // 【为什么不用 always？】
-                    // Android 9-11 的 always 模式有 bug，某些机型上会导致内容被刘海挡住。
-                    // shortEdges 更稳定，上下有刘海的机型也够用了。
-                    lp.layoutInDisplayCutoutMode =
-                            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        void onPanelMoveUp();
+        void onPanelMoveDown();
+        void onPanelMoveLeft();
+        void onPanelMoveRight();
+        void onPanelConfirm();
+        boolean onPanelBack();
+        void onPanelMenu();
+        void onPanelNumber(int number);
+        void onPanelFocusChanged(PanelFocus newFocus);
+
+        void onSettingsMoveUp();
+        void onSettingsMoveDown();
+        void onSettingsConfirm();
+        boolean onSettingsBack();
+        void onSettingsMenu();
+        void onSettingsFocusChanged(int position);
+
+        boolean onPipBack();
+        void onRequestPlayFocus();
+
+        void onChannelNumberSelected(int channelIndex);
+        void onShowChannelNumber(String number);
+        void onHideChannelNumber();
+    }
+
+    private static final long CHANNEL_NUM_TIMEOUT = 2000;
+
+    private Mode currentMode = Mode.PLAY_MODE;
+    private OnRemoteActionListener listener;
+
+    private PanelFocus currentPanelFocus = PanelFocus.LEFT_CHANNEL;
+    private boolean isRightPanelOpen = false;
+
+    private int settingsItemCount = 0;
+    private int settingsFocusPosition = 0;
+
+    private boolean isInPipMode = false;
+    private ChannelPanelController channelPanelController;
+
+    private final StringBuilder channelNumInput = new StringBuilder();
+    private final Handler channelNumHandler = new Handler(Looper.getMainLooper());
+    private boolean numberChannelEnable = true;
+    private int totalChannelCount = 0;
+
+    private final Runnable channelNumConfirmRunnable = new Runnable() {
+        @Override
+        public void run() {
+            confirmChannelNum();
+        }
+    };
+
+    public TvRemoteManager() {
+    }
+
+    // 新增的空实现方法
+    public void onRequestPlayFocus() {
+        // 空实现，仅解决编译找不到符号
+    }
+
+    public void setMode(Mode mode) {
+        this.currentMode = mode;
+        SettingsActivity.logOperation("【遥控】切换模式：" + mode);
+        switch (mode) {
+            case CHANNEL_PANEL_MODE:
+                resetPanelFocus();
+                break;
+            case SETTINGS_MODE:
+                resetSettingsFocus();
+                break;
+            case PLAY_MODE:
+            default:
+                break;
+        }
+    }
+
+    public Mode getCurrentMode() {
+        return currentMode;
+    }
+
+    public void setOnRemoteActionListener(OnRemoteActionListener listener) {
+        this.listener = listener;
+    }
+
+    public void setInPipMode(boolean inPipMode) {
+        this.isInPipMode = inPipMode;
+        SettingsActivity.logOperation("【遥控】画中画模式：" + (inPipMode ? "进入" : "退出"));
+    }
+
+    public void setChannelPanelController(ChannelPanelController controller) {
+        this.channelPanelController = controller;
+    }
+
+    public void setNumberChannelEnable(boolean enable) {
+        this.numberChannelEnable = enable;
+        if (!enable && isNumberInputting()) {
+            cancelNumberInput();
+        }
+    }
+
+    public void setTotalChannelCount(int count) {
+        this.totalChannelCount = count;
+    }
+
+    public boolean isNumberInputting() {
+        return channelNumInput.length() > 0;
+    }
+
+    public boolean dispatchKeyEvent(int keyCode) {
+        if (isInPipMode) {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                SettingsActivity.logOperation("【遥控-画中画】返回键 → 退到后台");
+                if (listener != null) {
+                    return listener.onPipBack();
                 }
-                activity.getWindow().setAttributes(lp);
+                return false;
             }
+            return false;
+        }
 
-            // 2. 全屏标志
-            // 【作用】告诉 WindowManager 我们要全屏显示，
-            // 这样系统会自动隐藏状态栏的一些元素。
-            activity.getWindow().setFlags(
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN
-            );
+        if (channelPanelController != null) {
+            channelPanelController.resetAutoHide();
+        }
 
-            // 3. Android 10 及以下的沉浸式（旧方式）
-            // 【为什么 Android 10 及以下才用？】
-            // Android 11+ 推荐用 WindowInsetsController，
-            // 但旧版本没有这个 API，只能用 setSystemUiVisibility。
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                activity.getWindow().getDecorView().setSystemUiVisibility(
-                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                );
+        boolean handled = false;
+        switch (currentMode) {
+            case CHANNEL_PANEL_MODE:
+                handled = dispatchChannelPanelKey(keyCode);
+                break;
+            case SETTINGS_MODE:
+                handled = dispatchSettingsKey(keyCode);
+                break;
+            case PLAY_MODE:
+            default:
+                handled = dispatchPlayKey(keyCode);
+                break;
+        }
+        if (handled) {
+            return true;
+        }
+
+        if (handleNumberKey(keyCode)) {
+            return true;
+        }
+
+        if (channelPanelController != null) {
+            if (channelPanelController.dispatchKeyEvent(keyCode)) {
+                return true;
             }
+        }
 
-            // ================================================
-            // 第二部分：Android 11+ 的 WindowInsetsController（新方式）
-            // ================================================
+        return false;
+    }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                android.view.WindowInsetsController controller =
-                        activity.getWindow().getInsetsController();
-                if (controller != null) {
-                    // 隐藏系统栏（状态栏 + 导航栏）
-                    controller.hide(android.view.WindowInsets.Type.systemBars());
+    public boolean handleBackPressed() {
+        if (isInPipMode) {
+            SettingsActivity.logOperation("【遥控-返回】画中画模式 → 退到后台");
+            if (listener != null) {
+                return listener.onPipBack();
+            }
+            return false;
+        }
 
-                    // 临时显示行为：滑动显示，过一会自动隐藏
-                    // 【为什么用这个？】
-                    // 用户从顶部往下滑或者从底部往上滑，系统栏会临时显示出来，
-                    // 过几秒自动隐藏，不影响观看体验。
-                    controller.setSystemBarsBehavior(
-                            android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                    );
+        if (isNumberInputting()) {
+            SettingsActivity.logOperation("【遥控-返回】数字选台输入中 → 取消输入");
+            cancelNumberInput();
+            return true;
+        }
+
+        boolean handled = false;
+        switch (currentMode) {
+            case CHANNEL_PANEL_MODE:
+                SettingsActivity.logOperation("【遥控-返回】面板模式 → 调用 onPanelBack()");
+                if (listener != null) {
+                    handled = listener.onPanelBack();
                 }
+                break;
+            case SETTINGS_MODE:
+                SettingsActivity.logOperation("【遥控-返回】设置模式 → 调用 onSettingsBack()");
+                if (listener != null) {
+                    handled = listener.onSettingsBack();
+                }
+                break;
+            case PLAY_MODE:
+            default:
+                SettingsActivity.logOperation("【遥控-返回】播放模式 → 调用 onPlayBack()");
+                if (listener != null) {
+                    handled = listener.onPlayBack();
+                }
+                break;
+        }
+        if (handled) {
+            syncMode();
+            return true;
+        }
 
-                // 让内容布局到系统栏下面（沉浸式）
-                // 【为什么设为 false？】
-                // 默认是 true，内容不会布局到系统栏区域，
-                // 设为 false 后，内容可以延伸到状态栏和导航栏下面，
-                // 真正实现全屏沉浸式效果。
-                activity.getWindow().setDecorFitsSystemWindows(false);
+        if (channelPanelController != null) {
+            if (channelPanelController.handleBackPressed()) {
+                SettingsActivity.logOperation("【遥控-返回】面板返回兜底 → handleBackPressed()");
+                syncMode();
+                if (listener != null) {
+                    listener.onRequestPlayFocus();
+                }
+                return true;
             }
+        }
 
-            SettingsActivity.logOperation("【适配】全面屏适配成功");
+        return false;
+    }
 
-        } catch (Exception e) {
-            // ✅ 全面屏适配失败不影响正常使用
-            // 【为什么要 try-catch？】
-            // 有些电视盒子的 Android 系统是定制的，不支持这些 API，
-            // 直接调用会崩溃。加个 try-catch，失败了就不用全屏效果，
-            // 至少保证应用能正常运行。
-            e.printStackTrace();
-            SettingsActivity.logOperation("【适配】全面屏适配失败：" + e.getMessage());
+    public void syncMode() {
+        if (channelPanelController == null) return;
+        if (channelPanelController.isPanelOpen()) {
+            if (currentMode != Mode.CHANNEL_PANEL_MODE) {
+                setMode(Mode.CHANNEL_PANEL_MODE);
+            }
+            setRightPanelOpen(channelPanelController.isRightPanelOpen());
+        } else {
+            if (currentMode != Mode.PLAY_MODE) {
+                setMode(Mode.PLAY_MODE);
+            }
         }
     }
 
-    /**
-     * 重新应用全面屏（页面获得焦点时调用）
-     *
-     * 【为什么需要这个？】
-     * 有些情况下系统栏会重新显示出来（比如弹出对话框后），
-     * 在 onWindowFocusChanged 里重新调用一下，保证一直是全屏状态。
-     */
-    public void reapplyFullScreen() {
-        // 简单起见，直接重新调用 applyFullScreen
-        applyFullScreen();
+    private boolean dispatchPlayKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                SettingsActivity.logOperation("【遥控-播放】上键 → 上一台");
+                if (listener != null) {
+                    listener.onPlayChannelUp();
+                }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                SettingsActivity.logOperation("【遥控-播放】下键 → 下一台");
+                if (listener != null) {
+                    listener.onPlayChannelDown();
+                }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                if (isNumberInputting()) {
+                    SettingsActivity.logOperation("【遥控-播放】OK键 → 确认数字选台");
+                    confirmChannelNum();
+                    return true;
+                }
+                SettingsActivity.logOperation("【遥控-播放】OK键 → 切换面板");
+                if (listener != null) {
+                    listener.onPlayTogglePanel();
+                }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                SettingsActivity.logOperation("【遥控-播放】左右键 → 切换面板");
+                if (listener != null) {
+                    listener.onPlayTogglePanel();
+                }
+                return true;
+            case KeyEvent.KEYCODE_MENU:
+                SettingsActivity.logOperation("【遥控-播放】菜单键 → 打开设置");
+                if (listener != null) {
+                    listener.onPlayOpenSettings();
+                }
+                return true;
+            case KeyEvent.KEYCODE_BACK:
+                SettingsActivity.logOperation("【遥控-播放】返回键");
+                if (listener != null) {
+                    return listener.onPlayBack();
+                }
+                return false;
+            case KeyEvent.KEYCODE_0:
+            case KeyEvent.KEYCODE_1:
+            case KeyEvent.KEYCODE_2:
+            case KeyEvent.KEYCODE_3:
+            case KeyEvent.KEYCODE_4:
+            case KeyEvent.KEYCODE_5:
+            case KeyEvent.KEYCODE_6:
+            case KeyEvent.KEYCODE_7:
+            case KeyEvent.KEYCODE_8:
+            case KeyEvent.KEYCODE_9:
+                int number = keyCode - KeyEvent.KEYCODE_0;
+                SettingsActivity.logOperation("【遥控-播放】数字键 → " + number);
+                if (listener != null) {
+                    listener.onPanelNumber(number);
+                }
+                return true;
+            default:
+                return false;
+        }
     }
 
-    // ====================================================================
-    // ✅ 功能二：加载动画
-    // ====================================================================
+    private boolean dispatchChannelPanelKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                SettingsActivity.logOperation("【遥控-面板】上键 → 当前焦点：" + currentPanelFocus);
+                if (listener != null) {
+                    listener.onPanelMoveUp();
+                }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                SettingsActivity.logOperation("【遥控-面板】下键 → 当前焦点：" + currentPanelFocus);
+                if (listener != null) {
+                    listener.onPanelMoveDown();
+                }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                return handlePanelLeftKey();
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                return handlePanelRightKey();
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                SettingsActivity.logOperation("【遥控-面板】OK键 → 当前焦点：" + currentPanelFocus);
+                if (listener != null) {
+                    listener.onPanelConfirm();
+                }
+                return true;
+            case KeyEvent.KEYCODE_BACK:
+                SettingsActivity.logOperation("【遥控-面板】返回键");
+                if (listener != null) {
+                    return listener.onPanelBack();
+                }
+                return false;
+            case KeyEvent.KEYCODE_MENU:
+                SettingsActivity.logOperation("【遥控-面板】菜单键 → 关闭面板");
+                if (listener != null) {
+                    listener.onPanelMenu();
+                }
+                return true;
+            case KeyEvent.KEYCODE_0:
+            case KeyEvent.KEYCODE_1:
+            case KeyEvent.KEYCODE_2:
+            case KeyEvent.KEYCODE_3:
+            case KeyEvent.KEYCODE_4:
+            case KeyEvent.KEYCODE_5:
+            case KeyEvent.KEYCODE_6:
+            case KeyEvent.KEYCODE_7:
+            case KeyEvent.KEYCODE_8:
+            case KeyEvent.KEYCODE_9:
+                int number = keyCode - KeyEvent.KEYCODE_0;
+                SettingsActivity.logOperation("【遥控-面板】数字键 → " + number);
+                if (listener != null) {
+                    listener.onPanelNumber(number);
+                }
+                return true;
+            default:
+                return false;
+        }
+    }
 
-    /**
-     * 初始化加载视图（动态创建）
-     *
-     * 【为什么动态创建而不是 XML 布局？】
-     * 1. 不需要修改 XML 布局文件，侵入性小
-     * 2. 可以在任何 Activity 里复用
-     * 3. 加载视图比较简单，动态创建代码量也不大
-     *
-     * 【视图结构】
-     * - 根布局：FrameLayout（黑色半透明背景，全屏）
-     *   - 垂直布局：LinearLayout（居中）
-     *     - ProgressBar（圆形进度条）
-     *     - TextView（加载文字提示）
-     */
-    private void initLoadingView() {
-        if (loadingViewInitialized) return;
+    private boolean handlePanelLeftKey() {
+        PanelFocus oldFocus = currentPanelFocus;
+        switch (currentPanelFocus) {
+            case LEFT_EPG_BTN:
+                currentPanelFocus = PanelFocus.LEFT_CHANNEL;
+                break;
+            case LEFT_CHANNEL:
+                currentPanelFocus = PanelFocus.LEFT_GROUP;
+                break;
+            case RIGHT_EPG:
+                currentPanelFocus = PanelFocus.RIGHT_DATE;
+                break;
+            case RIGHT_DATE:
+                currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
+                break;
+            case RIGHT_CHANNEL:
+                currentPanelFocus = PanelFocus.RIGHT_BACK_BTN;
+                break;
+            default:
+                SettingsActivity.logOperation("【遥控-面板】左键 → 已在最左侧，无法左移");
+                return false;
+        }
+        SettingsActivity.logOperation("【遥控-面板】左键 → " + oldFocus + " → " + currentPanelFocus);
+        if (listener != null) {
+            listener.onPanelMoveLeft();
+            listener.onPanelFocusChanged(currentPanelFocus);
+        }
+        return true;
+    }
 
+    private boolean handlePanelRightKey() {
+        PanelFocus oldFocus = currentPanelFocus;
+        switch (currentPanelFocus) {
+            case LEFT_GROUP:
+                currentPanelFocus = PanelFocus.LEFT_CHANNEL;
+                break;
+            case LEFT_CHANNEL:
+                currentPanelFocus = PanelFocus.LEFT_EPG_BTN;
+                break;
+            case RIGHT_BACK_BTN:
+                currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
+                break;
+            case RIGHT_CHANNEL:
+                currentPanelFocus = PanelFocus.RIGHT_DATE;
+                break;
+            case RIGHT_DATE:
+                currentPanelFocus = PanelFocus.RIGHT_EPG;
+                break;
+            default:
+                SettingsActivity.logOperation("【遥控-面板】右键 → 已在最右侧，无法右移");
+                return false;
+        }
+        SettingsActivity.logOperation("【遥控-面板】右键 → " + oldFocus + " → " + currentPanelFocus);
+        if (listener != null) {
+            listener.onPanelMoveRight();
+            listener.onPanelFocusChanged(currentPanelFocus);
+        }
+        return true;
+    }
+
+    private boolean dispatchSettingsKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                return handleSettingsMoveUp();
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                return handleSettingsMoveDown();
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                SettingsActivity.logOperation("【遥控-设置】OK键 → 第 " + settingsFocusPosition + " 项");
+                if (listener != null) {
+                    listener.onSettingsConfirm();
+                }
+                return true;
+            case KeyEvent.KEYCODE_BACK:
+                SettingsActivity.logOperation("【遥控-设置】返回键 → 关闭设置");
+                if (listener != null) {
+                    return listener.onSettingsBack();
+                }
+                return false;
+            case KeyEvent.KEYCODE_MENU:
+                SettingsActivity.logOperation("【遥控-设置】菜单键 → 关闭设置");
+                if (listener != null) {
+                    listener.onSettingsMenu();
+                }
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean handleSettingsMoveUp() {
+        if (settingsFocusPosition > 0) {
+            settingsFocusPosition--;
+            SettingsActivity.logOperation("【遥控-设置】上移 → 第 " + settingsFocusPosition + " 项");
+            if (listener != null) {
+                listener.onSettingsMoveUp();
+                listener.onSettingsFocusChanged(settingsFocusPosition);
+            }
+            return true;
+        } else {
+            SettingsActivity.logOperation("【遥控-设置】上移 → 已在顶部");
+            return false;
+        }
+    }
+
+    private boolean handleSettingsMoveDown() {
+        if (settingsFocusPosition < settingsItemCount - 1) {
+            settingsFocusPosition++;
+            SettingsActivity.logOperation("【遥控-设置】下移 → 第 " + settingsFocusPosition + " 项");
+            if (listener != null) {
+                listener.onSettingsMoveDown();
+                listener.onSettingsFocusChanged(settingsFocusPosition);
+            }
+            return true;
+        } else {
+            SettingsActivity.logOperation("【遥控-设置】下移 → 已在底部");
+            return false;
+        }
+    }
+
+    public boolean handleNumberKey(int keyCode) {
+        if (!numberChannelEnable) return false;
+        int num = keyCodeToNumber(keyCode);
+        if (num == -1) return false;
+        channelNumInput.append(num);
+        if (listener != null) {
+            listener.onShowChannelNumber(channelNumInput.toString());
+        }
+        channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
+        channelNumHandler.postDelayed(channelNumConfirmRunnable, CHANNEL_NUM_TIMEOUT);
+        SettingsActivity.logOperation("【数字选台】输入：" + channelNumInput);
+        return true;
+    }
+
+    public void confirmChannelNum() {
+        if (channelNumInput.length() == 0) return;
         try {
-            // 获取 Activity 的根布局（android.R.id.content 是 FrameLayout）
-            FrameLayout rootLayout = activity.findViewById(android.R.id.content);
+            int channelNum = Integer.parseInt(channelNumInput.toString());
+            if (channelNum >= 1 && channelNum <= totalChannelCount) {
+                int index = channelNum - 1;
+                SettingsActivity.logOperation("【数字选台】切换到第 " + channelNum + " 频道");
+                if (listener != null) {
+                    listener.onChannelNumberSelected(index);
+                }
+            } else {
+                SettingsActivity.logOperation("【数字选台】频道号不存在：" + channelNum);
+            }
+        } catch (NumberFormatException e) {
+            SettingsActivity.logOperation("【数字选台】数字解析失败：" + channelNumInput);
+        }
+        channelNumInput.setLength(0);
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (listener != null) {
+                    listener.onHideChannelNumber();
+                }
+            }
+        }, 1000);
+    }
 
-            // ===== 加载容器（黑色半透明背景，全屏） =====
-            FrameLayout loadingLayout = new FrameLayout(activity);
-            loadingLayout.setBackgroundColor(0xEE000000);  // 93% 不透明度的黑色
-            loadingLayout.setLayoutParams(new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT));
-            // 默认隐藏
-            loadingLayout.setVisibility(View.GONE);
-
-            // ===== 垂直布局（进度条 + 文字，居中） =====
-            LinearLayout linearLayout = new LinearLayout(activity);
-            linearLayout.setOrientation(LinearLayout.VERTICAL);
-            linearLayout.setGravity(Gravity.CENTER);
-            FrameLayout.LayoutParams llParams = new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT);
-            llParams.gravity = Gravity.CENTER;
-            linearLayout.setLayoutParams(llParams);
-
-            // ===== 圆形进度条 =====
-            ProgressBar progressBar = new ProgressBar(activity);
-            linearLayout.addView(progressBar);
-
-            // ===== 加载文字 =====
-            tvLoadingText = new TextView(activity);
-            tvLoadingText.setText("加载中...");
-            tvLoadingText.setTextColor(Color.WHITE);
-            tvLoadingText.setTextSize(16);
-            LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT);
-            textParams.setMargins(0, 20, 0, 0);  // 上边距 20px
-            tvLoadingText.setLayoutParams(textParams);
-            linearLayout.addView(tvLoadingText);
-
-            // 把垂直布局加到加载容器里
-            loadingLayout.addView(linearLayout);
-
-            // 把加载容器加到根布局
-            rootLayout.addView(loadingLayout);
-
-            loadingView = loadingLayout;
-            loadingViewInitialized = true;
-
-            SettingsActivity.logOperation("【加载】加载视图初始化完成");
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            SettingsActivity.logOperation("【加载】加载视图初始化失败：" + e.getMessage());
+    public void cancelNumberInput() {
+        if (channelNumInput.length() > 0) {
+            channelNumInput.setLength(0);
+            channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
+            if (listener != null) {
+                listener.onHideChannelNumber();
+            }
+            SettingsActivity.logOperation("【数字选台】取消输入");
         }
     }
 
-    /**
-     * 显示加载动画
-     *
-     * @param text 加载提示文字，为 null 则不修改文字
-     */
-    public void showLoading(String text) {
-        // 第一次调用时初始化
-        if (!loadingViewInitialized) {
-            initLoadingView();
-        }
-
-        if (loadingView != null) {
-            loadingView.setVisibility(View.VISIBLE);
-        }
-        if (tvLoadingText != null && text != null) {
-            tvLoadingText.setText(text);
-        }
-
-        SettingsActivity.logOperation("【加载】显示加载动画：" + text);
-    }
-
-    /**
-     * 显示加载动画（使用默认文字）
-     */
-    public void showLoading() {
-        showLoading("加载中...");
-    }
-
-    /**
-     * 更新加载文字
-     *
-     * @param text 新的加载提示文字
-     */
-    public void updateLoadingText(String text) {
-        if (tvLoadingText != null && text != null) {
-            tvLoadingText.setText(text);
+    private int keyCodeToNumber(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_0: return 0;
+            case KeyEvent.KEYCODE_1: return 1;
+            case KeyEvent.KEYCODE_2: return 2;
+            case KeyEvent.KEYCODE_3: return 3;
+            case KeyEvent.KEYCODE_4: return 4;
+            case KeyEvent.KEYCODE_5: return 5;
+            case KeyEvent.KEYCODE_6: return 6;
+            case KeyEvent.KEYCODE_7: return 7;
+            case KeyEvent.KEYCODE_8: return 8;
+            case KeyEvent.KEYCODE_9: return 9;
+            default: return -1;
         }
     }
 
-    /**
-     * 隐藏加载动画
-     */
-    public void hideLoading() {
-        if (loadingView != null) {
-            loadingView.setVisibility(View.GONE);
+    public void setRightPanelOpen(boolean open) {
+        this.isRightPanelOpen = open;
+        resetPanelFocus();
+    }
+
+    public PanelFocus getCurrentPanelFocus() {
+        return currentPanelFocus;
+    }
+
+    public void setCurrentPanelFocus(PanelFocus focus) {
+        this.currentPanelFocus = focus;
+        SettingsActivity.logOperation("【遥控-面板】设置焦点：" + focus);
+    }
+
+    public void resetPanelFocus() {
+        if (isRightPanelOpen) {
+            currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
+        } else {
+            currentPanelFocus = PanelFocus.LEFT_CHANNEL;
         }
-        SettingsActivity.logOperation("【加载】隐藏加载动画");
+        SettingsActivity.logOperation("【遥控-面板】重置焦点：" + currentPanelFocus);
     }
 
-    /**
-     * 加载动画是否正在显示
-     *
-     * @return true=显示中，false=已隐藏
-     */
-    public boolean isLoadingShowing() {
-        return loadingView != null && loadingView.getVisibility() == View.VISIBLE;
-    }
-
-    // ====================================================================
-    // ✅ 功能三：截图遮罩
-    // ====================================================================
-
-    /**
-     * 初始化截图遮罩视图（动态创建）
-     */
-    private void initScreenshotMaskView() {
-        if (maskViewInitialized) return;
-
-        try {
-            // 获取 Activity 的根布局
-            FrameLayout rootLayout = activity.findViewById(android.R.id.content);
-
-            // 创建遮罩 ImageView（全屏显示）
-            screenshotMaskView = new ImageView(activity);
-            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT);
-            // 遮罩置于最顶层
-            params.gravity = Gravity.CENTER;
-            screenshotMaskView.setLayoutParams(params);
-            // 设置缩放模式为全屏适配
-            screenshotMaskView.setScaleType(ImageView.ScaleType.FIT_XY);
-            // 默认隐藏
-            screenshotMaskView.setVisibility(View.GONE);
-
-            // 添加到根布局
-            rootLayout.addView(screenshotMaskView);
-
-            maskViewInitialized = true;
-            SettingsActivity.logOperation("【遮罩】截图遮罩视图初始化完成");
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            SettingsActivity.logOperation("【遮罩】截图遮罩视图初始化失败：" + e.getMessage());
+    public void setSettingsItemCount(int count) {
+        this.settingsItemCount = count;
+        if (settingsFocusPosition >= count) {
+            settingsFocusPosition = count - 1;
+        }
+        if (settingsFocusPosition < 0) {
+            settingsFocusPosition = 0;
         }
     }
 
-    /**
-     * 显示截图遮罩
-     *
-     * @param maskBitmap 遮罩位图
-     */
-    public void showScreenshotMask(Bitmap maskBitmap) {
-        // 第一次调用时初始化
-        if (!maskViewInitialized) {
-            initScreenshotMaskView();
-        }
+    public int getSettingsItemCount() {
+        return settingsItemCount;
+    }
 
-        if (screenshotMaskView != null && maskBitmap != null) {
-            screenshotMaskView.setImageBitmap(maskBitmap);
-            screenshotMaskView.setVisibility(View.VISIBLE);
-            SettingsActivity.logOperation("【遮罩】显示截图遮罩");
-        } else if (maskBitmap == null) {
-            SettingsActivity.logOperation("【遮罩】截图遮罩位图为空，显示失败");
+    public int getSettingsFocusPosition() {
+        return settingsFocusPosition;
+    }
+
+    public void setSettingsFocusPosition(int position) {
+        if (position >= 0 && position < settingsItemCount) {
+            this.settingsFocusPosition = position;
+            SettingsActivity.logOperation("【遥控-设置】设置焦点：第 " + position + " 项");
         }
     }
 
-    /**
-     * 隐藏截图遮罩
-     */
-    public void hideScreenshotMask() {
-        if (screenshotMaskView != null) {
-            screenshotMaskView.setVisibility(View.GONE);
-            // 可选：清空位图释放内存
-            screenshotMaskView.setImageBitmap(null);
-            SettingsActivity.logOperation("【遮罩】隐藏截图遮罩");
-        }
+    public void resetSettingsFocus() {
+        settingsFocusPosition = 0;
+        SettingsActivity.logOperation("【遥控-设置】重置焦点到第一项");
     }
 
-    // ====================================================================
-    // 资源释放
-    // ====================================================================
-
-    /**
-     * 释放资源
-     *
-     * 【调用时机】
-     * Activity 销毁时调用，防止内存泄漏。
-     */
     public void release() {
-        // 移除加载视图
-        if (loadingView != null && loadingView.getParent() != null) {
-            try {
-                ((ViewGroup) loadingView.getParent()).removeView(loadingView);
-            } catch (Exception e) {
-                // 忽略移除失败
-            }
-        }
-        // 移除遮罩视图
-        if (screenshotMaskView != null && screenshotMaskView.getParent() != null) {
-            try {
-                ((ViewGroup) screenshotMaskView.getParent()).removeView(screenshotMaskView);
-            } catch (Exception e) {
-                // 忽略移除失败
-            }
-        }
-        
-        // 清空所有引用
-        loadingView = null;
-        tvLoadingText = null;
-        screenshotMaskView = null;
-        loadingViewInitialized = false;
-        maskViewInitialized = false;
+        channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
+        channelNumInput.setLength(0);
     }
 }
