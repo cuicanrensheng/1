@@ -611,32 +611,28 @@ public class AppCoreManager {
      * @return true=继续切台，false=已达到上限停止
      */
     public boolean handleSourceFailed(String currentChannelName) {
-        // 计数 +1
-        consecutiveFailedCount++;
-        int count = consecutiveFailedCount;
-        // 回调通知外部源失效（用于日志）
-        if (sourceSkipListener != null) {
-            sourceSkipListener.onSourceFailed(currentChannelName, count);
-        }
-        SettingsActivity.logOperation("【自动切台】频道「" + currentChannelName
-                + "」源失效，连续失效第 " + count + " 个");
-        // 判断是否达到最大跳过数
-        if (count >= MAX_CONSECUTIVE_SKIP) {
-            SettingsActivity.logOperation("【自动切台】已连续跳过 "
-                    + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过");
-            // 回调通知外部达到上限
-            if (sourceSkipListener != null) {
-                sourceSkipListener.onSkipLimitReached(MAX_CONSECUTIVE_SKIP);
-            }
-            return false;
-        }
-        // 回调通知外部需要切台
-        SettingsActivity.logOperation("【自动切台】自动切换到下一个频道");
-        if (sourceSkipListener != null) {
-            sourceSkipListener.onNeedSkipChannel();
-        }
-        return true;
+    consecutiveFailedCount++;
+    int count = consecutiveFailedCount;
+    if (sourceSkipListener != null) {
+        sourceSkipListener.onSourceFailed(currentChannelName, count);
     }
+    SettingsActivity.logOperation("【自动切台】频道「" + currentChannelName
+            + "」源链接无法连接/解析（非重定向拦截），连续失效第 " + count + " 个");
+    if (count >= MAX_CONSECUTIVE_SKIP) {
+        SettingsActivity.logOperation("【自动切台】已连续跳过 "
+                + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过");
+        if (sourceSkipListener != null) {
+            sourceSkipListener.onSkipLimitReached(MAX_CONSECUTIVE_SKIP);
+        }
+        return false;
+    }
+    SettingsActivity.logOperation("【自动切台】自动切换到下一个频道");
+    if (sourceSkipListener != null) {
+        sourceSkipListener.onNeedSkipChannel();
+    }
+    return true;
+}
+   
     /**
      * 重置连续失效计数
      *
