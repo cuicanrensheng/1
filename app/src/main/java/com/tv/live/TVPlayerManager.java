@@ -712,7 +712,7 @@ public class TVPlayerManager {
 
             // 🚀 【核心修复】把 true 改成 false！
             // 不重置播放器，不会清空当前画面，完美解决切台黑屏！
-            player.setMediaSource(mediaSource, false);
+            player.setMediaSource(mediaSource, true);
             player.prepare();
             player.play();
             startStuckDetection();
