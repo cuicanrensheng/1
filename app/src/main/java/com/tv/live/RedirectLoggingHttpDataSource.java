@@ -5,6 +5,7 @@ import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
 import androidx.media3.common.C;
 import androidx.media3.datasource.BaseDataSource;
+import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.HttpDataSource;
 import com.tv.live.exception.RedirectFailedException;
@@ -90,7 +91,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             syncResponseCookies(connection, dataSpec.uri.toString());
             if (responseCode < 200 || responseCode > 299) {
                 String responseMessage = connection.getResponseMessage();
-                SettingsActivity.log("[" + getTimeStr() + "] ❌ 失败: HTTP " + responseCode + " " + responseMessage);
+                SettingsActivity.log("[" + getTimeStr() + "] ❌ 失败: HTTP " + responseMessage);
                 throw new HttpDataSource.HttpDataSourceException(
                         "HTTP " + responseCode + " " + responseMessage,
                         dataSpec,
@@ -194,7 +195,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                 throw new RedirectFailedException("重定向Location为空", respCode, originalUrl, currentUrl);
             }
             String redirectUrl = resolveRedirectUrl(currentUrl, location);
-            // 修复错误：URI → Uri
+            // 修复大小写错误 URI → Uri
             Uri baseUri = Uri.parse(currentUrl);
             Uri targetUri = Uri.parse(redirectUrl);
             // 跨协议校验
@@ -335,8 +336,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             connection = null;
         }
     }
-    // ====================== 完整工厂类（全部链式Setter） ======================
-    public static final class Factory {
+    // ====================== 完整工厂类【修复：实现DataSource.Factory<HttpDataSource>】 ======================
+    public static final class Factory implements DataSource.Factory<HttpDataSource> {
         private final Map<String, String> defaultRequestProperties = new HashMap<>();
         private boolean allowCrossProtocolRedirects = true;
         private boolean allowCrossDomainRedirects = true;
@@ -388,6 +389,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             this.channelName = name;
             return this;
         }
+        // 修复@Override 签名匹配父接口
         @Override
         public HttpDataSource createDataSource() {
             RedirectLoggingHttpDataSource source = new RedirectLoggingHttpDataSource(
