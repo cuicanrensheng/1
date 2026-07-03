@@ -8,7 +8,7 @@ import androidx.media3.common.C;
 import androidx.media3.datasource.BaseDataSource;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.HttpDataSource;
-import com.tv.live.exception.RedirectFailed;
+import com.tv.live.exception.RedirectFailedException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
