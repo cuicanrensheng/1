@@ -12,7 +12,7 @@
     android:layout_height="match_parent"
     android:background="@android:color/transparent">
 
-    <!-- 左侧空白区域（点击关闭设置） -->
+    <!-- 左侧空白区域（点击关闭） -->
     <View
         android:id="@+id/view_outside"
         android:layout_width="match_parent"
@@ -284,14 +284,43 @@
             </LinearLayout>
 
             <!-- ============================================================ -->
+            <!-- 🆕 HTTP重定向网络配置（新增条目） -->
+            <!-- ============================================================ -->
+            <RelativeLayout
+                android:id="@+id/item_redirect"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:background="@drawable/setting_item_bg"
+                android:focusable="true"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="HTTP重定向网络配置"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"/>
+                <TextView
+                    android:id="@+id/tv_redirect_setting"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:text="最大5 | 跨域开 | 跨协议开"
+                    android:textColor="#999999"
+                    android:textSize="12sp"/>
+            </RelativeLayout>
+
+            <!-- ============================================================ -->
             <!-- 分隔线                                                      -->
             <!-- ============================================================ -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="#33FFFFFF"
                 android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="8dp"
+                android:background="#33FFFFFF"/>
 
             <!-- ============================================================ -->
             <!-- 屏幕比例                                                    -->
@@ -308,7 +337,7 @@
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"/>
 
             <!-- ============================================================ -->
             <!-- 自定义订阅源                                                -->
@@ -325,7 +354,7 @@
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"/>
 
             <!-- ============================================================ -->
             <!-- 自定义节目单                                                -->
@@ -342,7 +371,7 @@
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"/>
 
             <!-- ============================================================ -->
             <!-- 多订阅源                                                    -->
@@ -359,7 +388,7 @@
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"/>
 
             <!-- ============================================================ -->
             <!-- 多节目单                                                    -->
@@ -376,7 +405,7 @@
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"/>
 
             <!-- ============================================================ -->
             <!-- 扫码添加                                                    -->
@@ -393,7 +422,7 @@
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"/>
 
             <!-- ============================================================ -->
             <!-- 分隔线                                                      -->
@@ -401,9 +430,9 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="#33FFFFFF"
                 android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="8dp"
+                android:background="#33FFFFFF"/>
 
             <!-- ============================================================ -->
             <!-- 查看解析日志                                                -->
@@ -420,7 +449,7 @@
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"/>
 
             <!-- ============================================================ -->
             <!-- 操作崩溃日志                                                -->
@@ -437,7 +466,7 @@
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"/>
 
             <!-- ============================================================ -->
             <!-- 检查更新                                                    -->
@@ -458,14 +487,14 @@
                     android:layout_height="wrap_content"
                     android:text="检查更新"
                     android:textColor="#FFFFFF"
-                    android:textSize="16sp" />
+                    android:textSize="16sp"/>
                 <Button
                     android:id="@+id/btn_check_update"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="检查更新"
                     android:focusable="false"
-                    android:clickable="false" />
+                    android:clickable="false"/>
             </LinearLayout>
 
             <!-- ============================================================ -->
@@ -478,7 +507,7 @@
                 android:gravity="center"
                 android:text="网页设置：http://设备IP:10481"
                 android:textColor="#80FFFFFF"
-                android:textSize="12sp" />
+                android:textSize="12sp"/>
 
         </LinearLayout>
     </ScrollView>
