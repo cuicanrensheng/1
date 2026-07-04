@@ -644,8 +644,9 @@ public class SettingsActivity extends AppCompatActivity {
         boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
         boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
         boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
-        // 🟢【新增】读取 UA 模式
-        String currentUaMode = sp.getString(KEY_USER_AGENT_MODE, "exo");
+        
+        // 🟢【修复核心】将局部变量改为 final 的单元素数组，从而允许在 Lambda 中修改它的值
+        final String[] currentUaMode = { sp.getString(KEY_USER_AGENT_MODE, "exo") };
         
         // 构建弹窗布局
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
@@ -655,10 +656,10 @@ public class SettingsActivity extends AppCompatActivity {
         Switch swFollowHeader = dialogView.findViewById(R.id.sw_follow_header);
         Switch swIgnoreSsl = dialogView.findViewById(R.id.sw_ignore_ssl);
         Switch swSendCookie = dialogView.findViewById(R.id.sw_send_cookie);
-        // 🟢【新增】绑定 UA 切换控件
+        // 🟢 绑定 UA 切换控件
         LinearLayout llUserAgent = dialogView.findViewById(R.id.ll_user_agent);
         TextView tvUserAgentStatus = dialogView.findViewById(R.id.tv_user_agent_status);
-        tvUserAgentStatus.setText("exo".equals(currentUaMode) ? "ExoPlayer默认" : "浏览器");
+        tvUserAgentStatus.setText("exo".equals(currentUaMode[0]) ? "ExoPlayer默认" : "浏览器");
         
         // 限制输入数字1-20
         etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
@@ -670,13 +671,14 @@ public class SettingsActivity extends AppCompatActivity {
         swIgnoreSsl.setChecked(ignoreSsl);
         swSendCookie.setChecked(sendCookie);
 
-        // 🟢【新增】UA 切换点击弹窗事件
+        // 🟢 UA 切换点击弹窗事件
         llUserAgent.setOnClickListener(v -> {
             final String[] uaOptions = {"ExoPlayer默认", "浏览器"};
             final String[] uaValues = {"exo", "browser"};
             int checkedItem = 0;
             for (int i = 0; i < uaValues.length; i++) {
-                if (uaValues[i].equals(currentUaMode)) {
+                // ✅ 修复：使用数组下标读取
+                if (uaValues[i].equals(currentUaMode[0])) {
                     checkedItem = i;
                     break;
                 }
@@ -684,7 +686,8 @@ public class SettingsActivity extends AppCompatActivity {
             new AlertDialog.Builder(this)
                 .setTitle("UA切换")
                 .setSingleChoiceItems(uaOptions, checkedItem, (d, which) -> {
-                    currentUaMode = uaValues[which];
+                    // ✅ 修复：通过数组下标写入
+                    currentUaMode[0] = uaValues[which];
                     tvUserAgentStatus.setText(uaOptions[which]);
                     d.dismiss();
                 }).show();
@@ -699,7 +702,6 @@ public class SettingsActivity extends AppCompatActivity {
                     if (!TextUtils.isEmpty(maxStr)) {
                         try {
                             newMax = Integer.parseInt(maxStr);
-                            // 限制范围1~20
                             if(newMax < 1) newMax = 1;
                             if(newMax > 20) newMax = 20;
                         }catch (Exception ignored){
@@ -714,8 +716,8 @@ public class SettingsActivity extends AppCompatActivity {
                     editor.putBoolean(KEY_REDIRECT_FOLLOW_HEADERS, swFollowHeader.isChecked());
                     editor.putBoolean(KEY_REDIRECT_IGNORE_SSL, swIgnoreSsl.isChecked());
                     editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked());
-                    // 🟢【新增】保存 UA 状态
-                    editor.putString(KEY_USER_AGENT_MODE, currentUaMode);
+                    // ✅ 修复：使用数组下标读取
+                    editor.putString(KEY_USER_AGENT_MODE, currentUaMode[0]);
                     editor.apply();
                     // 更新界面摘要
                     updateRedirectSettingText();
