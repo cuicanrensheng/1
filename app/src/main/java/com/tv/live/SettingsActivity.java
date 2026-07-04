@@ -729,69 +729,94 @@ public class SettingsActivity extends AppCompatActivity {
         });
         builder.show();
     }
-
+    
     private void showLogDialog() {
-        ScrollView scrollView = new ScrollView(this);
-        TextView tv = new TextView(this);
-        if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
-            tv.setText("暂无日志内容，请先播放一个频道再查看。");
-        } else {
-            String originalLog = PLAY_LOG.toString();
-            String[] lines = originalLog.split("\n");
-            StringBuilder reversedLog = new StringBuilder();
-            StringBuilder lagSummary = new StringBuilder();
-            lagSummary.append("========== 卡顿原因分析汇总 ==========\n");
-            boolean existLagLog = false;
-            for (int i = lines.length - 1; i >= 0; i--) {
-                String line = lines[i].trim();
-                if (line.isEmpty()) continue;
-                boolean isLagLine = line.contains("缓冲") || line.contains("卡顿")
-                        || line.contains("超时") || line.contains("解码失败")
-                        || line.contains("帧率下降") || line.contains("网络延迟")
-                        || line.contains("丢包") || line.contains("buffer underflow")
-                        || line.contains("frame drop") || line.contains("硬解切换");
-                if (isLagLine) {
-                    existLagLog = true;
-                    lagSummary.append(line).append("\n");
-                }
-                reversedLog.append(line).append("\n");
-            }
-            StringBuilder fullContent = new StringBuilder();
-            if (existLagLog) {
-                fullContent.append(lagSummary).append("\n========== 完整播放日志 ==========\n");
-            } else {
-                fullContent.append("========== 卡顿原因分析汇总 ==========\n未检测到卡顿相关日志\n\n========== 完整播放日志 ==========\n");
-            }
-            fullContent.append(reversedLog);
-            SpannableString spLog = new SpannableString(fullContent.toString());
-            String[] lagKeys = {"缓冲", "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包"};
-            for (String key : lagKeys) {
-                int pos = fullContent.indexOf(key);
-                while (pos != -1) {
-                    spLog.setSpan(new ForegroundColorSpan(Color.RED), pos, pos + key.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    pos = fullContent.indexOf(key, pos + key.length());
+    ScrollView scrollView = new ScrollView(this);
+    TextView tv = new TextView(this);
+    if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
+        tv.setText("暂无日志内容，请先播放一个频道再查看。");
+    } else {
+        String originalLog = PLAY_LOG.toString();
+        String[] lines = originalLog.split("\n");
+        // 存储卡顿日志，自动去重
+        List<String> lagLines = new ArrayList<>();
+        // 完整倒序日志
+        StringBuilder fullReverseLog = new StringBuilder();
+        // 中英文卡顿关键字全覆盖
+        String[] lagKeywords = {
+                "缓冲", "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
+                "buffer underflow", "frame drop", "硬解切换",
+                "buffering", "stall", "delay", "timeout", "decoder error"
+        };
+
+        // 从最新日志往旧日志遍历
+        for (int i = lines.length - 1; i >= 0; i--) {
+            String line = lines[i].trim();
+            if (line.isEmpty()) continue;
+            boolean hitLag = false;
+            // 匹配任意卡顿关键词
+            for (String kw : lagKeywords) {
+                if (line.contains(kw)) {
+                    hitLag = true;
+                    break;
                 }
             }
-            tv.setText(spLog);
+            // 去重存入卡顿列表
+            if (hitLag && !lagLines.contains(line)) {
+                lagLines.add(line);
+            }
+            fullReverseLog.append(line).append("\n");
         }
-        tv.setTextSize(12);
-        tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.BLACK);
-        scrollView.addView(tv);
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("📄 解析 & 播放日志（卡顿分析）");
-        builder.setView(scrollView);
-        builder.setPositiveButton("关闭", null);
-        builder.setNeutralButton("清空日志", (dialog, which) -> {
-            LogManager.clearPlayLog();
-            if (PLAY_LOG != null) {
-                PLAY_LOG.setLength(0);
+
+        // 组装页面文本：汇总区在前，完整日志在后
+        StringBuilder fullContent = new StringBuilder();
+        fullContent.append("========== 卡顿原因分析汇总 ==========\n");
+        if (!lagLines.isEmpty()) {
+            // 遍历结果已经是新日志在前，直接输出
+            for (String lagItem : lagLines) {
+                fullContent.append(lagItem).append("\n");
             }
-            logOperation("【设置】解析日志已清空");
-            Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
-        });
-        builder.show();
+        } else {
+            fullContent.append("未检测到卡顿相关日志\n");
+        }
+        fullContent.append("\n========== 完整播放日志 ==========\n");
+        fullContent.append(fullReverseLog);
+
+        // 全局所有卡顿关键字标红修复（解决只标第一个的BUG）
+        SpannableString spLog = new SpannableString(fullContent.toString());
+        String totalText = fullContent.toString();
+        for (String key : lagKeywords) {
+            int searchIndex = 0;
+            while ((searchIndex = totalText.indexOf(key, searchIndex)) != -1) {
+                spLog.setSpan(
+                        new ForegroundColorSpan(Color.RED),
+                        searchIndex,
+                        searchIndex + key.length(),
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+                searchIndex += key.length();
+            }
+        }
+        tv.setText(spLog);
     }
+    tv.setTextSize(12);
+    tv.setPadding(40, 40, 40, 40);
+    tv.setTextColor(Color.BLACK);
+    scrollView.addView(tv);
+    AlertDialog.Builder builder = new AlertDialog.Builder(this);
+    builder.setTitle("📄 解析 & 播放日志（卡顿分析）");
+    builder.setView(scrollView);
+    builder.setPositiveButton("关闭", null);
+    builder.setNeutralButton("清空日志", (dialog, which) -> {
+        LogManager.clearPlayLog();
+        if (PLAY_LOG != null) {
+            PLAY_LOG.setLength(0);
+        }
+        logOperation("【设置】解析日志已清空");
+        Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
+    });
+    builder.show();
+}
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
