@@ -38,14 +38,31 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # ✅【终极修改】强制忽略 CI 缓存，重新拉取 1.7.1 纯净依赖
+      # 🟢【新增关键步骤1】从 Secrets 还原 release.keystore 到 app 目录下
+      - name: 还原 release.keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
+
+      # 🟢【优化版本读取】动态获取 build.gradle 中的 versionCode 和 versionName
+      - name: 获取版本号
+        id: version
+        run: |
+          VERCODE=$(grep -oP 'versionCode \K\d+' app/build.gradle | head -n 1)
+          VERNAME=$(grep -oP 'versionName "\K[^"]+' app/build.gradle | head -n 1)
+          echo "versionCode=$VERCODE" >> $GITHUB_OUTPUT
+          echo "versionName=$VERNAME" >> $GITHUB_OUTPUT
+
+      # 🟢【新增关键步骤2】编译时注入 Secrets 里的密码和别名环境变量
       - name: 编译 Release 签名版 APK
         run: ./gradlew assembleRelease --no-build-cache --stacktrace
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: 生成 update.json
         run: |
-          VERSION_CODE=${{ github.run_number }}
-          VERSION_NAME="1.0.$VERSION_CODE"
+          VERSION_CODE=${{ steps.version.outputs.versionCode }}
+          VERSION_NAME=${{ steps.version.outputs.versionName }}
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION_CODE/app-release.apk"
           cat > update.json << EOF
           {
@@ -71,8 +88,8 @@ jobs:
       - name: 创建发布
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: 自动发布 v${{ github.run_number }}
+          tag_name: v${{ steps.version.outputs.versionCode }}
+          name: 自动发布 v${{ steps.version.outputs.versionCode }}
           files: |
             app/build/outputs/apk/release/app-release.apk
             update.json
