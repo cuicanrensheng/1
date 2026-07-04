@@ -64,8 +64,8 @@ public class NetUtil {
         headerMap.put("User-Agent", PC_USER_AGENT);
         headerMap.put("Accept", "*");
         headerMap.put("Connection", "keep-alive");
-        // 我们之前已经注释掉了可能触犯 CDN 防线的 Icy-MetaData
-        // headerMap.put("Icy-MetaData", "1"); 
+        // 🟢【终极修复】恢复 Icy-MetaData: 1！能正常播放的App都带了它！
+        headerMap.put("Icy-MetaData", "1"); 
         headerMap.put("Accept-Language", "zh-CN,zh;q=0.9");
 
         String referer, origin;
