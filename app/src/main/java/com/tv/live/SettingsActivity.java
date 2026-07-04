@@ -740,16 +740,16 @@ public class SettingsActivity extends AppCompatActivity {
         String[] lines = originalLog.split("\n");
         List<String> lagLines = new ArrayList<>();
         StringBuilder fullReverseLog = new StringBuilder();
-        // 【修复：扩充网络/HTTP异常关键字，覆盖403、Forbidden、重定向报错】
+        // 扩充网络/HTTP异常关键字，覆盖403、Forbidden、各类HTTP报错与卡顿场景
         String[] lagKeywords = {
-                // 原有播放卡顿关键词
-                "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
-                "buffer underflow", "frame drop", "404""
-                "buffering", "stall", "delay", "timeout", "decoder error",
-                // 新增网络/HTTP异常关键词（解决403、Forbidden抓不到问题）
-                "403", "Forbidden", "访问拒绝",  "跳转失败","402"",405"
-                "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
-        };
+        // 播放卡顿、缓冲、解码类关键词
+        "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
+        "buffer underflow", "frame drop", "404",
+        "buffering", "stall", "delay", "timeout", "decoder error",
+        // HTTP网络异常错误码&提示词
+        "403", "Forbidden", "访问拒绝", "跳转失败", "402", "405",
+        "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
+};
 
         // 倒序遍历全部日志
         for (int i = lines.length - 1; i >= 0; i--) {
