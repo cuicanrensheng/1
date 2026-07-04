@@ -1,4 +1,5 @@
 package com.tv.live;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -406,7 +407,7 @@ public class TVPlayerManager {
             stopStuckDetection();
             cancelRetry();
             if (playerListener != null) {
-                player.removeListener(playerListener);
+                player.removeListener(playerListener); // 🔴 修复1：传入 playerListener
             }
             player.release();
             player = null;
@@ -644,8 +645,9 @@ public class TVPlayerManager {
             // ========== 修复完成核心代码 ==========
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             Map<String, String> headerMap = new HashMap<>();
-            for (okhttp3.Header h : globalHeaders) {
-                headerMap.put(h.name(), h.value());
+            // 🔴 修复2：OkHttp中没有 Header 类，改用 Map.Entry 遍历
+            for (Map.Entry<String, String> h : globalHeaders) {
+                headerMap.put(h.getKey(), h.getValue());
             }
             // 保留Cookie逻辑
             String cookies = CookieManager.getInstance().getCookie(currentUrl);
@@ -822,7 +824,7 @@ public class TVPlayerManager {
             unregisterRendererModeReceiver();
             if (player != null) {
                 if (playerListener != null) {
-                    player.removeListener(player);
+                    player.removeListener(playerListener); // 🔴 修复3：这里也传入 playerListener
                 }
                 player.release();
                 player = null;
