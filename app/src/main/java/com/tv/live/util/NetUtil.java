@@ -1,5 +1,4 @@
 package com.tv.live.util;
-
 import okhttp3.Call;
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
@@ -10,26 +9,21 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 统一网络工具（合并HttpUtil + RequestHeaderUtil）
- * 全局OkHttp单例，统一PC浏览器UA，解析器、播放器共用一套请求指纹，降低403拦截
- */
 public class NetUtil {
     private static volatile NetUtil sInstance;
     private final OkHttpClient mClient;
-    
-    // 🟢 修复核心：改为 OkHttp 的默认 UA。因为签名生成往往基于这个 UA，强制改为 Chrome UA 会导致 403 拦截！
-    private static final String PC_USER_AGENT = "okhttp/4.9.3"; 
-    
+    // OkHttp原生UA（公网虎牙/斗鱼专用）
+    private static final String OKHTTP_UA = "okhttp/4.9.3";
+    // 移动IPTV机顶盒标准UA（内网PLTV源专用，运营商白名单）
+    private static final String IPTV_STB_UA = "Mozilla/5.0 (Linux; Android 9; STB-HW-IPTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36 STB/IPTV-JX-CM";
+
     private static final long CONNECT_TIMEOUT = 10000L;
     private static final long READ_TIMEOUT = 15000L;
-    private static final long WRITE_TIMEOUT = 10000L;
 
     private NetUtil() {
         mClient = new OkHttpClient.Builder()
                 .connectTimeout(CONNECT_TIMEOUT, TimeUnit.MILLISECONDS)
                 .readTimeout(READ_TIMEOUT, TimeUnit.MILLISECONDS)
-                .writeTimeout(WRITE_TIMEOUT, TimeUnit.MILLISECONDS)
                 .retryOnConnectionFailure(true)
                 .build();
     }
@@ -37,45 +31,87 @@ public class NetUtil {
     public static NetUtil getInstance() {
         if (sInstance == null) {
             synchronized (NetUtil.class) {
-                if (sInstance == null) {
-                    sInstance = new NetUtil();
-                }
+                if (sInstance == null) sInstance = new NetUtil();
             }
         }
         return sInstance;
     }
 
-    /** 根据URL自动生成虎牙/斗鱼适配请求头 */
+    /**
+     * 统一生成请求头，自动区分公网/移动内网机顶盒UA
+     */
     public Headers createCommonHeaders(String url) {
         Map<String, String> headerMap = new HashMap<>();
-        headerMap.put("User-Agent", PC_USER_AGENT);
-        headerMap.put("Accept", "*");
+        String targetUA;
+        // 判断是否为移动内网PLTV直播源，切换机顶盒UA
+        if (isMobileInnerPltvUrl(url)) {
+            targetUA = IPTV_STB_UA;
+        } else {
+            targetUA = OKHTTP_UA;
+        }
+
+        // 基础通用加固请求头（所有域名必带）
+        headerMap.put("User-Agent", targetUA);
+        headerMap.put("Accept", "*/*");
         headerMap.put("Connection", "keep-alive");
         headerMap.put("Icy-MetaData", "1");
         headerMap.put("Accept-Language", "zh-CN,zh;q=0.9");
+        headerMap.put("Cache-Control", "no-cache");
 
-        String referer, origin;
-        if (url.contains("huya.com") || url.contains("huya.cn")) {
-            referer = "https://www.huya.com/";
-            origin = "https://www.huya.com";
-        } else if (url.contains("douyu.com") || url.contains("douyucdn.cn")) {
-            referer = "https://www.douyu.com";
-            origin = "https://www.douyu.com";
-        } else {
-            referer = "https://www.huya.com/";
-            origin = "https://www.huya.com";
+        // 提取Host字段，移动内网源必备校验头，缺失极易403
+        String host = extractHostFromUrl(url);
+        if (host != null) {
+            headerMap.put("Host", host);
         }
-        headerMap.put("Referer", referer);
-        headerMap.put("Origin", origin);
+
+        // 虎牙/斗鱼公网域名补充防盗链 Referer、Origin
+        if (url.contains("huya.com")) {
+            headerMap.put("Referer", "https://www.huya.com/");
+            headerMap.put("Origin", "https://www.huya.com");
+        } else if (url.contains("douyu.com")) {
+            headerMap.put("Referer", "https://www.douyu.com/");
+            headerMap.put("Origin", "https://www.douyu.com");
+        }
+
         return Headers.of(headerMap);
     }
 
-    /** 虎牙专用固定请求头，HuyaParser直接调用 */
-    public Headers createHuyaFixedHeaders() {
-        return createCommonHeaders("https://www.huya.com");
+    /**
+     * 判断是否江西移动内网PLTV源（适配117内网IP、hwrr.jx.chinamobile.com域名）
+     */
+    private boolean isMobileInnerPltvUrl(String url) {
+        if (url == null) return false;
+        return url.startsWith("http://117.")
+                || url.contains("hwrr.jx.chinamobile.com")
+                || url.contains(".chinamobile.com") && url.contains("PLTV");
     }
 
-    /** 同步GET，返回原始Response对象 */
+    /**
+     * 从URL自动提取Host，填充Host请求头（移动内网关键校验字段）
+     */
+    private String extractHostFromUrl(String url) {
+        try {
+            int start = url.indexOf("://") + 3;
+            int end = url.indexOf("/", start);
+            if (end == -1) end = url.indexOf("?", start);
+            if (end == -1) end = url.length();
+            return url.substring(start, end);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // 虎牙专用固定头（解析接口调用）
+    public Headers createHuyaFixedHeaders() {
+        Map<String, String> map = new HashMap<>();
+        map.put("User-Agent", OKHTTP_UA);
+        map.put("Referer", "https://www.huya.com/");
+        map.put("Origin", "https://www.huya.com");
+        map.put("Accept-Language", "zh-CN,zh;q=0.9");
+        return Headers.of(map);
+    }
+
+    // 同步GET请求方法（原有逻辑不变）
     public Response syncGet(String url) throws IOException {
         Headers headers = createCommonHeaders(url);
         Request request = new Request.Builder()
@@ -83,25 +119,18 @@ public class NetUtil {
                 .headers(headers)
                 .get()
                 .build();
-        Call call = mClient.newCall(request);
-        return call.execute();
+        return mClient.newCall(request).execute();
     }
 
-    /** GET请求，自动判断403并抛出拦截异常 */
     public String syncGetText(String url) throws IOException {
         try (Response response = syncGet(url)) {
-            int code = response.code();
-            if (code == 403) {
-                throw new IOException("HTTP 403 防盗链拦截 url=" + url);
-            }
-            if (!response.isSuccessful() || response.body() == null) {
-                throw new IOException("请求失败 code=" + code);
+            if (!response.isSuccessful()) {
+                throw new IOException("HTTP " + response.code() + " 访问拒绝");
             }
             return response.body().string();
         }
     }
 
-    /** 对外暴露全局OkHttpClient，供扩展使用 */
     public OkHttpClient getClient() {
         return mClient;
     }
