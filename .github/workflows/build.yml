@@ -73,6 +73,15 @@ jobs:
           }
           EOF
 
+      # 🟢【新增关键步骤3】将生成的 update.json 推送回 main 分支（实现全自动更新）
+      - name: 推送 update.json 到仓库
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          git commit -m "自动更新 update.json 到 v${{ steps.version.outputs.versionCode }}" || echo "无需提交"
+          git push
+
       - name: 上传成品 APK
         uses: actions/upload-artifact@v4
         with:
