@@ -12,8 +12,6 @@ import android.util.Log;
 import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
@@ -33,6 +31,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
+import com.tv.live.util.NetUtil;
 import com.tv.live.exception.RedirectFailedException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -41,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import okhttp3.Headers;
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
     public static final int DECODER_MODE_AUTO = 0;
@@ -55,7 +55,6 @@ public class TVPlayerManager {
     private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
     private static final String KEY_REDIRECT_FOLLOW_HEADERS = "redirect_follow_headers";
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
-
     private static TVPlayerManager instance;
     private Context context;
     private ExoPlayer player;
@@ -231,8 +230,8 @@ public class TVPlayerManager {
     private static boolean isSoftwareDecoder(String codecName) {
         if (codecName == null) return false;
         String lowerName = codecName.toLowerCase();
-        return lowerName.startsWith("omx.google.")
-                || lowerName.startsWith("c2.android.");
+        return lower.startsWith("omx.google.")
+                || lower.startsWith("c2.android.");
     }
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
@@ -315,7 +314,6 @@ public class TVPlayerManager {
                     if (isStalled) {
                         isStalled = false;
                         long stallDuration = System.currentTimeMillis() - lastStallStartTime;
-                        totalStallTime += stallDuration;
                         Log.d(TAG, "【性能】卡顿结束，时长：" + stallDuration + "ms，总卡顿：" + totalStallTime + "ms");
                     }
                 }
@@ -442,8 +440,7 @@ public class TVPlayerManager {
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     if ("com.tv.live.DECODER_MODE_CHANGED".equals(intent.getAction())) {
-                        SharedPreferences sp = context.getSharedPreferences(
-                                "app_settings", Context.MODE_PRIVATE);
+                        SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
                         String modeStr = sp.getString("decoder_mode", "auto");
                         int mode = DECODER_MODE_AUTO;
                         if ("hard".equals(modeStr)) {
@@ -603,41 +600,6 @@ public class TVPlayerManager {
     private String getLogTime() {
         return "[" + logSdf.format(new Date()) + "]";
     }
-    /** 优化请求头，伪装PC浏览器，降低TV设备识别拦截概率 */
-private Map<String, String> getHeaders(String url) {
-    Map<String, String> headers = new HashMap<>();
-    headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-    headers.put("Accept", "*");
-    headers.put("Connection", "keep-alive");
-    headers.put("Icy-MetaData", "1");
-    headers.put("Accept-Language", "zh-CN,zh;q=0.9");
-
-    boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
-    boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
-    String referer = "";
-    String origin = "";
-    if (isHuya) {
-        referer = "https://www.huya.com/";
-        origin = "https://www.huya.com";
-        Log.d(TAG, "虎牙直播，设置虎牙Referer/Origin");
-    } else if (isDouyu) {
-        referer = "https://www.douyu.com/";
-        origin = "https://www.douyu.com";
-        Log.d(TAG, "斗鱼直播，设置斗鱼Referer/Origin");
-    } else {
-        referer = "https://www.huya.com/";
-        origin = "https://www.huya.com";
-    }
-    headers.put("Referer", referer);
-    headers.put("Origin", origin);
-
-    String cookies = CookieManager.getInstance().getCookie(url);
-    if (cookies != null) {
-        headers.put("Cookie", cookies);
-    }
-    return headers;
-}
-
     public void play(String url, String channelName) {
         playUrl(url, channelName);
     }
@@ -669,19 +631,26 @@ private Map<String, String> getHeaders(String url) {
         isStalled = false;
         lastStallStartTime = 0;
     }
-        // ====================== 完整修复重定向配置（从SP读取全部参数） ======================
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
             SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
-
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
-            Map<String, String> globalHeaders = getHeaders(currentUrl);
-            httpFactory.setDefaultRequestProperties(globalHeaders);
+            // 统一从NetUtil获取全局请求头，不再本地拼接
+            Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
+            Map<String, String> headerMap = new HashMap<>();
+            for (okhttp3.Header h : globalHeaders) {
+                headerMap.put(h.name(), h.value());
+            }
+            // 保留Cookie逻辑
+            String cookies = CookieManager.getInstance().getCookie(currentUrl);
+            if (cookies != null) {
+                headerMap.put("Cookie", cookies);
+            }
+            httpFactory.setDefaultRequestProperties(headerMap);
             httpFactory.setChannelName(currentChannelName);
-
             // 读取设置持久化的全部重定向配置
             SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
             int maxRedirect = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
@@ -689,7 +658,6 @@ private Map<String, String> getHeaders(String url) {
             boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
             boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
             boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
-
             // 链式传入所有配置
             httpFactory.setMaxRedirects(maxRedirect)
                     .setAllowCrossDomainRedirects(crossDomain)
@@ -698,24 +666,21 @@ private Map<String, String> getHeaders(String url) {
                     .setIgnoreSslErrorRedirect(ignoreSsl)
                     .setConnectTimeoutMs(10000)
                     .setReadTimeoutMs(15000);
-
-             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
-MediaSource mediaSource;
-if (currentUrl.toLowerCase().contains("m3u8")) {
-    Log.d(TAG, "流格式：HLS (m3u8)");
-    // ✅ 正确：直接传入 httpFactory（它是 DataSource.Factory 的实例）
-    HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(httpFactory);
-    mediaSource = hlsFactory.createMediaSource(mediaItem);
-} else {
-    Log.d(TAG, "流格式：普通流 (Progressive)");
-    // ✅ 正确：直接传入 httpFactory
-    ProgressiveMediaSource.Factory progFactory = new ProgressiveMediaSource.Factory(httpFactory);
-    mediaSource = progFactory.createMediaSource(mediaItem);
-}
-player.setMediaSource(mediaSource, true);
-player.prepare();
-player.play();
-startStuckDetection();
+            MediaItem mediaItem = MediaItem.fromUri(currentUrl);
+            MediaSource mediaSource;
+            if (currentUrl.toLowerCase().contains("m3u8")) {
+                Log.d(TAG, "流格式：HLS (m3u8)");
+                HlsMediaSource.Factory hlsFactory = new HlsMediaSource.Factory(httpFactory);
+                mediaSource = hlsFactory.createMediaSource(mediaItem);
+            } else {
+                Log.d(TAG, "流格式：普通流 (Progressive)");
+                ProgressiveMediaSource.Factory progFactory = new ProgressiveMediaSource.Factory(httpFactory);
+                mediaSource = progFactory.createMediaSource(mediaItem);
+            }
+            player.setMediaSource(mediaSource, true);
+            player.prepare();
+            player.play();
+            startStuckDetection();
         } catch (Exception e) {
             Log.e(TAG, "播放异常", e);
             if (e instanceof RedirectFailedException) {
@@ -893,7 +858,7 @@ startStuckDetection();
                     List<MediaCodecInfo> softCodecs = new ArrayList<>();
                     List<MediaCodecInfo> hardCodecs2 = new ArrayList<>();
                     for (MediaCodecInfo codec : allCodecs) {
-                        if (isSoftwareDecoder(codec.name)) {
+                        if (isSoftwareDecoder(codec)) {
                             softCodecs.add(codec);
                         } else {
                             hardCodecs2.add(codec);
