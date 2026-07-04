@@ -659,10 +659,10 @@ public class TVPlayerManager {
             // 🟢【最终修复：只清除污染】彻底清除 Cookie 逻辑！
             // 发送任何 Cookie 都会导致某些 CDN 直接返回 HTTP 403
             // 因此这里全部注释掉，避免 Cookie 污染请求头
-            String cookies = CookieManager.getInstance().getCookie(currentUrl);
-            if (cookies != null) {
-                headerMap.put("Cookie", cookies);
-            }
+            //String cookies = CookieManager.getInstance().getCookie(currentUrl);
+            //if (cookies != null) {
+                //headerMap.put("Cookie", cookies);
+            //}
             
             httpFactory.setDefaultRequestProperties(headerMap);
             httpFactory.setChannelName(currentChannelName);
