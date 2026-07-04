@@ -228,11 +228,11 @@ public class TVPlayerManager {
         CookieManager.getInstance().setAcceptCookie(true);
     }
     private static boolean isSoftwareDecoder(String codecName) {
-        if (codecName == null) return false;
-        String lowerName = codecName.toLowerCase();
-        return lower.startsWith("omx.google.")
-                || lower.startsWith("c2.android.");
-    }
+    if (codecName == null) return false;
+    String lowerName = codecName.toLowerCase();
+    return lowerName.startsWith("omx.google.")
+            || lowerName.startsWith("c2.android.");
+}
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
             @Override
