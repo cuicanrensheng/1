@@ -1,4 +1,5 @@
 package com.tv.live;
+
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -8,10 +9,12 @@ import android.content.SharedPreferences;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.Toast;
 import java.util.ArrayList;
+
 /**
  * 多源对话框管理器
  *
@@ -115,6 +118,7 @@ public class SourceDialogManager {
             adapter.setSelectedPosition(selectedIndex);
         }
         final String finalTitle = title + "（共" + displayItems.size() + "个）";
+        
         // 搜索框
         final EditText searchEt = new EditText(context);
         searchEt.setHint("🔍 搜索源名称或地址");
@@ -122,10 +126,23 @@ public class SourceDialogManager {
         searchEt.setSingleLine(true);
         searchEt.setPadding(40, 20, 40, 20);
         searchEt.setBackgroundColor(0xFFEEEEEE);
+        
+        // 🟢【修复1】给搜索框底部增加间距，确保第一项不被遮挡、点击不被截获
+        ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) searchEt.getLayoutParams();
+        if (params == null) {
+            params = new ViewGroup.MarginLayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            searchEt.setLayoutParams(params);
+        }
+        params.bottomMargin = 20; // 拉开间距
+        
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(finalTitle);
         builder.setCustomTitle(searchEt);
         builder.setAdapter(adapter, null);
+        
         // ===== 添加按钮 修复参数 =====
         builder.setPositiveButton("➕ 添加", (dialog, which) -> {
             showAddSourceDialog(title, key, sourceManager, adapter, searchEt.getText().toString());
@@ -252,9 +269,12 @@ public class SourceDialogManager {
             String saveKey = key.contains("live") ? KEY_CUSTOM_LIVE : KEY_CUSTOM_EPG;
             sp.edit().putString(saveKey, item.url).apply();
             int realPos = sourceManager.indexOfUrl(item.url);
-            if (realPos > 0) {
+            
+            // 🟢【修复2】无论是否第一项，都进行 moveToTop，增强界面交互反馈
+            if (realPos >= 0) {
                 sourceManager.moveToTop(realPos);
             }
+            
             context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
             refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
             adapter.setSelectedPosition(0);
