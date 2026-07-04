@@ -407,7 +407,7 @@ public class TVPlayerManager {
             stopStuckDetection();
             cancelRetry();
             if (playerListener != null) {
-                player.removeListener(playerListener); // 🔴 修复1：传入 playerListener
+                player.removeListener(playerListener);
             }
             player.release();
             player = null;
@@ -645,9 +645,9 @@ public class TVPlayerManager {
             // ========== 修复完成核心代码 ==========
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             Map<String, String> headerMap = new HashMap<>();
-            // 🔴 修复2：OkHttp中没有 Header 类，改用 Map.Entry 遍历
-            for (Map.Entry<String, String> h : globalHeaders) {
-                headerMap.put(h.getKey(), h.getValue());
+            // ✅ 修复：OkHttp的Headers不支持 Map.Entry 遍历，使用 names() 获取键集合再取值
+            for (String name : globalHeaders.names()) {
+                headerMap.put(name, globalHeaders.get(name));
             }
             // 保留Cookie逻辑
             String cookies = CookieManager.getInstance().getCookie(currentUrl);
@@ -824,7 +824,7 @@ public class TVPlayerManager {
             unregisterRendererModeReceiver();
             if (player != null) {
                 if (playerListener != null) {
-                    player.removeListener(playerListener); // 🔴 修复3：这里也传入 playerListener
+                    player.removeListener(playerListener);
                 }
                 player.release();
                 player = null;
@@ -875,4 +875,4 @@ public class TVPlayerManager {
             }
         }
     }
-}
+                                      }
