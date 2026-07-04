@@ -12,14 +12,14 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 统一网络工具（合并HttpUtil + RequestHeaderUtil）
- * 全局统一ExoPlayer UA，解析器、播放器共用一套请求指纹，降低403拦截
+ * 全局统一 ExoPlayer UA，解析器、播放器共用一套请求指纹，降低403拦截
  */
 public class NetUtil {
     private static volatile NetUtil sInstance;
     private final OkHttpClient mClient;
     
-    // 全局统一 ExoPlayer UA，所有接口、拉流全部共用
-    private static final String PC_USER_AGENT = "ExoPlayer"; 
+    // 🟢【终极修复】将 "ExoPlayer" 替换为标准的 Windows Chrome 浏览器 User-Agent
+    private static final String PC_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"; 
     
     private static final long CONNECT_TIMEOUT = 10000L;
     private static final long READ_TIMEOUT = 15000L;
