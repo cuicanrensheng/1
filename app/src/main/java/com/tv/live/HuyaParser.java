@@ -150,7 +150,7 @@ public class HuyaParser {
             }
             String hlsUrl = "";
             String flvUrl = "";
-            for (int i = 0; i < streamArray.length; i++) {
+            for (int i = 0; i < streamArray.length(); i++) {
                 JSONObject item = streamArray.getJSONObject(i);
                 String url = item.optString("url", "");
                 if (TextUtils.isEmpty(url)) continue;
