@@ -25,8 +25,7 @@ public class HuyaParser {
     private static final String API_ROOM_INFO = "https://www.huya.com/cache.mini-global-%d.json";
     private static final String API_PLAY_URL = "https://api.huya.com/m_push/%d";
     private static final Map<Integer, CacheItem> SOURCE_CACHE = new HashMap<>();
-    
-    // 🟢【核心修改】从 110 秒缩短为 30 秒，防止 wsSecret 签名过期导致 403
+    // 🟢【核心修改】缓存时间从 110 秒缩短为 30 秒
     private static final long CACHE_VALID_MS = 30 * 1000;
 
     public interface OnParseResultListener {
@@ -124,10 +123,7 @@ public class HuyaParser {
             String flvUrl = "";
             for (int i = 0; i < streamArray.length(); i++) {
                 JSONObject item = streamArray.getJSONObject(i);
-                
-                // 🟢【重要修复】：将 optString("") 改为 optString("url")
                 String url = item.optString("url"); 
-                
                 if (TextUtils.isEmpty(url)) continue;
                 if (url.contains(".m3u8")) {
                     hlsUrl = url;
