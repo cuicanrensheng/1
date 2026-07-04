@@ -178,10 +178,11 @@ public class TVPlayerManager {
                 SettingsActivity.logOperation("【解码器】初始化：自动模式（系统硬解优先）");
                 break;
         }
+        // 🟢【核心优化】将最大缓冲从 50秒 降为 15秒，防止 1GB 内存被视频数据撑爆！
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
                         2000,
-                        50000,
+                        15000,
                         300,
                         500
                 )
@@ -668,13 +669,14 @@ public class TVPlayerManager {
             boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
             boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
             boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
+            // 🟢【配套优化】缩短超时时间，在 2.4G 弱网环境下能更快重试
             httpFactory.setMaxRedirects(maxRedirect)
                     .setAllowCrossDomainRedirects(crossDomain)
                     .setAllowCrossProtocolRedirects(crossProto)
                     .setFollowRedirectsWithHeaders(followHeader)
                     .setIgnoreSslErrorRedirect(ignoreSsl)
-                    .setConnectTimeoutMs(10000)
-                    .setReadTimeoutMs(15000);
+                    .setConnectTimeoutMs(8000)  // 从 10000 改为 8000
+                    .setReadTimeoutMs(10000);   // 从 15000 改为 10000
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
