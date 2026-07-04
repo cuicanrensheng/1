@@ -1,4 +1,5 @@
 package com.tv.live.util;
+
 import okhttp3.Call;
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
@@ -8,6 +9,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
 /**
  * 统一网络工具（合并HttpUtil + RequestHeaderUtil）
  * 全局OkHttp单例，统一PC浏览器UA，解析器、播放器共用一套请求指纹，降低403拦截
@@ -15,7 +17,10 @@ import java.util.concurrent.TimeUnit;
 public class NetUtil {
     private static volatile NetUtil sInstance;
     private final OkHttpClient mClient;
-    private static final String PC_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    
+    // 🟢 修复核心：改为 OkHttp 的默认 UA。因为签名生成往往基于这个 UA，强制改为 Chrome UA 会导致 403 拦截！
+    private static final String PC_USER_AGENT = "okhttp/4.9.3"; 
+    
     private static final long CONNECT_TIMEOUT = 10000L;
     private static final long READ_TIMEOUT = 15000L;
     private static final long WRITE_TIMEOUT = 10000L;
