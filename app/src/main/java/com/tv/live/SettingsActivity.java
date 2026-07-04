@@ -18,6 +18,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -89,6 +90,8 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
     // 🟢【新增】Cookie播放授权令牌 Key
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
+    // 🟢【新增】UA切换 Key
+    private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
     // ====================================================================
     // 全局日志系统
     // ====================================================================
@@ -281,6 +284,8 @@ public class SettingsActivity extends AppCompatActivity {
             editor.putBoolean(KEY_REDIRECT_IGNORE_SSL,false);
             // 🟢【新增】保存 Cookie授权令牌 默认值（默认开）
             editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+            // 🟢【新增】保存 UA 默认值 "exo"
+            editor.putString(KEY_USER_AGENT_MODE, "exo");
             editor.apply();
             logOperation("【设置】初始化重定向默认配置完成");
         }
@@ -293,8 +298,10 @@ public class SettingsActivity extends AppCompatActivity {
         boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
         boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
         boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
-        // 🟢【新增】读取 Cookie授权令牌 状态
         boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+        // 🟢【新增】读取 UA 模式
+        String uaMode = sp.getString(KEY_USER_AGENT_MODE, "exo");
+        String uaLabel = "exo".equals(uaMode) ? "ExoPlayer" : "浏览器";
         
         StringBuilder sb = new StringBuilder();
         sb.append("最大跳转：").append(max).append(" | ");
@@ -303,8 +310,9 @@ public class SettingsActivity extends AppCompatActivity {
         sb.append("跨协议：").append(crossProto?"开":"关").append("\n");
         sb.append("携带请求头：").append(followHeader?"开":"关").append(" | ");
         sb.append("忽略SSL：").append(ignoreSsl?"开":"关").append(" | ");
-        // 🟢【新增】将 Cookie授权令牌状态拼接到 UI
         sb.append("授权令牌：").append(sendCookie?"开":"关");
+        // 🟢【新增】将 UA 状态拼接到 UI
+        sb.append(" | UA：").append(uaLabel);
         
         tv_redirect_setting.setText(sb.toString());
     }
@@ -635,7 +643,9 @@ public class SettingsActivity extends AppCompatActivity {
         boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
         boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
         boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
-        boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true); // 🟢 读取新开关状态
+        boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+        // 🟢【新增】读取 UA 模式
+        String currentUaMode = sp.getString(KEY_USER_AGENT_MODE, "exo");
         
         // 构建弹窗布局
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
@@ -644,8 +654,11 @@ public class SettingsActivity extends AppCompatActivity {
         Switch swCrossProto = dialogView.findViewById(R.id.sw_cross_proto);
         Switch swFollowHeader = dialogView.findViewById(R.id.sw_follow_header);
         Switch swIgnoreSsl = dialogView.findViewById(R.id.sw_ignore_ssl);
-        // 🟢【新增】绑定新开关
         Switch swSendCookie = dialogView.findViewById(R.id.sw_send_cookie);
+        // 🟢【新增】绑定 UA 切换控件
+        LinearLayout llUserAgent = dialogView.findViewById(R.id.ll_user_agent);
+        TextView tvUserAgentStatus = dialogView.findViewById(R.id.tv_user_agent_status);
+        tvUserAgentStatus.setText("exo".equals(currentUaMode) ? "ExoPlayer默认" : "浏览器");
         
         // 限制输入数字1-20
         etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
@@ -655,7 +668,27 @@ public class SettingsActivity extends AppCompatActivity {
         swCrossProto.setChecked(crossProto);
         swFollowHeader.setChecked(followHeader);
         swIgnoreSsl.setChecked(ignoreSsl);
-        swSendCookie.setChecked(sendCookie); // 🟢 设置新开关状态
+        swSendCookie.setChecked(sendCookie);
+
+        // 🟢【新增】UA 切换点击弹窗事件
+        llUserAgent.setOnClickListener(v -> {
+            final String[] uaOptions = {"ExoPlayer默认", "浏览器"};
+            final String[] uaValues = {"exo", "browser"};
+            int checkedItem = 0;
+            for (int i = 0; i < uaValues.length; i++) {
+                if (uaValues[i].equals(currentUaMode)) {
+                    checkedItem = i;
+                    break;
+                }
+            }
+            new AlertDialog.Builder(this)
+                .setTitle("UA切换")
+                .setSingleChoiceItems(uaOptions, checkedItem, (d, which) -> {
+                    currentUaMode = uaValues[which];
+                    tvUserAgentStatus.setText(uaOptions[which]);
+                    d.dismiss();
+                }).show();
+        });
 
         new AlertDialog.Builder(this)
                 .setTitle("HTTP重定向网络配置")
@@ -680,7 +713,9 @@ public class SettingsActivity extends AppCompatActivity {
                     editor.putBoolean(KEY_REDIRECT_CROSS_PROTOCOL, swCrossProto.isChecked());
                     editor.putBoolean(KEY_REDIRECT_FOLLOW_HEADERS, swFollowHeader.isChecked());
                     editor.putBoolean(KEY_REDIRECT_IGNORE_SSL, swIgnoreSsl.isChecked());
-                    editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked()); // 🟢 保存新开关状态
+                    editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked());
+                    // 🟢【新增】保存 UA 状态
+                    editor.putString(KEY_USER_AGENT_MODE, currentUaMode);
                     editor.apply();
                     // 更新界面摘要
                     updateRedirectSettingText();
