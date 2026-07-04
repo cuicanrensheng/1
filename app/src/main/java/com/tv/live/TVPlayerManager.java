@@ -649,18 +649,20 @@ public class TVPlayerManager {
             Log.d(TAG, "开始播放：" + currentUrl);
             SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
-            // ========== 修复完成核心代码 ==========
+            // ========== 核心逻辑 ==========
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             Map<String, String> headerMap = new HashMap<>();
             for (String name : globalHeaders.names()) {
                 headerMap.put(name, globalHeaders.get(name));
             }
             
-            // 🟢【关键修复】保留Cookie逻辑，但是排除虎牙 CDN 域名，防止过期的Cookie干扰防盗链！
-            String cookies = CookieManager.getInstance().getCookie(currentUrl);
-            if (cookies != null && !currentUrl.contains("huya") && !currentUrl.contains("mobgslb") && !currentUrl.contains("al.flv")) {
-                headerMap.put("Cookie", cookies);
-            }
+            // 🟢【最终修复：只清除污染】彻底清除 Cookie 逻辑！
+            // 发送任何 Cookie 都会导致某些 CDN 直接返回 HTTP 403
+            // 因此这里全部注释掉，避免 Cookie 污染请求头
+            // String cookies = CookieManager.getInstance().getCookie(currentUrl);
+            // if (cookies != null) {
+            //     headerMap.put("Cookie", cookies);
+            // }
             
             httpFactory.setDefaultRequestProperties(headerMap);
             httpFactory.setChannelName(currentChannelName);
@@ -885,4 +887,4 @@ public class TVPlayerManager {
             }
         }
     }
- }
+}
