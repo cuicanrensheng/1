@@ -77,7 +77,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp">
-            <!-- 核心防重叠：layout_toStartOf 保证文字过长换行时，依然排在开关左侧，不覆盖开关 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -120,7 +119,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp">
-            <!-- 核心防重叠：layout_toStartOf 保证文字过长换行时，依然排在开关左侧 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -136,6 +134,33 @@
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"/>
         </RelativeLayout>
+
+        <!-- 🟢 新增：UA切换 -->
+        <LinearLayout
+            android:id="@+id/ll_user_agent"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:background="@drawable/setting_item_bg"
+            android:focusable="true"
+            android:clickable="true">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="UA切换"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+            <TextView
+                android:id="@+id/tv_user_agent_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ExoPlayer默认"
+                android:textColor="#999999"
+                android:textSize="14sp" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>
