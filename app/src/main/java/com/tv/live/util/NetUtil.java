@@ -10,22 +10,17 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 /**
  * 统一网络工具（合并HttpUtil + RequestHeaderUtil）
- * 全局OkHttp单例，统一PC浏览器UA，自动匹配各平台Referer/Origin
- * 解析器(HuyaParser)、播放器(TVPlayerManager)共用一套请求指纹，降低403拦截概率
+ * 全局OkHttp单例，统一PC浏览器UA，解析器、播放器共用一套请求指纹，降低403拦截
  */
 public class NetUtil {
-    // 单例实例
     private static volatile NetUtil sInstance;
     private final OkHttpClient mClient;
-    // PC浏览器固定UA，全局统一，一处修改全部生效
     private static final String PC_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-    // 超时配置
     private static final long CONNECT_TIMEOUT = 10000L;
     private static final long READ_TIMEOUT = 15000L;
     private static final long WRITE_TIMEOUT = 10000L;
 
     private NetUtil() {
-        // 全局唯一OkHttpClient，避免多实例占用内存
         mClient = new OkHttpClient.Builder()
                 .connectTimeout(CONNECT_TIMEOUT, TimeUnit.MILLISECONDS)
                 .readTimeout(READ_TIMEOUT, TimeUnit.MILLISECONDS)
@@ -45,10 +40,7 @@ public class NetUtil {
         return sInstance;
     }
 
-    // ===================== 请求头统一生成（原RequestHeaderUtil能力） =====================
-    /**
-     * 根据url自动匹配对应平台Referer/Origin，全项目统一
-     */
+    /** 根据URL自动生成虎牙/斗鱼适配请求头 */
     public Headers createCommonHeaders(String url) {
         Map<String, String> headerMap = new HashMap<>();
         headerMap.put("User-Agent", PC_USER_AGENT);
@@ -57,8 +49,7 @@ public class NetUtil {
         headerMap.put("Icy-MetaData", "1");
         headerMap.put("Accept-Language", "zh-CN,zh;q=0.9");
 
-        String referer;
-        String origin;
+        String referer, origin;
         if (url.contains("huya.com") || url.contains("huya.cn")) {
             referer = "https://www.huya.com/";
             origin = "https://www.huya.com";
@@ -66,7 +57,6 @@ public class NetUtil {
             referer = "https://www.douyu.com";
             origin = "https://www.douyu.com";
         } else {
-            // 默认虎牙兜底
             referer = "https://www.huya.com/";
             origin = "https://www.huya.com";
         }
@@ -75,17 +65,12 @@ public class NetUtil {
         return Headers.of(headerMap);
     }
 
-    /**
-     * 虎牙专用固定请求头（HuyaParser专用，不用传url）
-     */
+    /** 虎牙专用固定请求头，HuyaParser直接调用 */
     public Headers createHuyaFixedHeaders() {
         return createCommonHeaders("https://www.huya.com");
     }
 
-    // ===================== 通用GET请求（原HttpUtil能力） =====================
-    /**
-     * 通用同步GET，返回原始Response，外部判断403等状态码
-     */
+    /** 同步GET，返回原始Response对象 */
     public Response syncGet(String url) throws IOException {
         Headers headers = createCommonHeaders(url);
         Request request = new Request.Builder()
@@ -97,9 +82,7 @@ public class NetUtil {
         return call.execute();
     }
 
-    /**
-     * GET并直接返回字符串，自动关闭流，捕获403抛异常
-     */
+    /** GET请求，自动判断403并抛出拦截异常 */
     public String syncGetText(String url) throws IOException {
         try (Response response = syncGet(url)) {
             int code = response.code();
@@ -107,15 +90,13 @@ public class NetUtil {
                 throw new IOException("HTTP 403 防盗链拦截 url=" + url);
             }
             if (!response.isSuccessful() || response.body() == null) {
-                throw new IOException("请求失败，响应码：" + code);
+                throw new IOException("请求失败 code=" + code);
             }
             return response.body().string();
         }
     }
 
-    /**
-     * 对外暴露OkHttpClient，播放器底层拉流使用
-     */
+    /** 对外暴露全局OkHttpClient，供扩展使用 */
     public OkHttpClient getClient() {
         return mClient;
     }
