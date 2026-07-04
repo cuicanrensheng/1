@@ -51,7 +51,8 @@ public class NetUtil {
         headerMap.put("User-Agent", PC_USER_AGENT);
         headerMap.put("Accept", "*");
         headerMap.put("Connection", "keep-alive");
-        headerMap.put("Icy-MetaData", "1");
+        // 🟢 关键修复：注释掉 Icy-MetaData，防止虎牙 CDN 403 拦截
+        // headerMap.put("Icy-MetaData", "1"); 
         headerMap.put("Accept-Language", "zh-CN,zh;q=0.9");
 
         String referer, origin;
