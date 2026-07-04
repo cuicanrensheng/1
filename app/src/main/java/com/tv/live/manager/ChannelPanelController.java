@@ -205,6 +205,8 @@ public class ChannelPanelController {
                 }
             }
         });
+        
+        // 🟢【修复点1】防止焦点意外跳到节目单按钮上（如果右侧面板没打开，强制回正）
         btnShowEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
@@ -212,9 +214,15 @@ public class ChannelPanelController {
                     currentFocusPanel = "left";
                     leftFocusView = "epgBtn";
                     syncFocusStyle();
+                    // 如果右侧面板未打开，焦点却跑到了按钮，立刻把焦点抢回给频道列表！
+                    if (!rightPanelOpen) {
+                        lvChannelList.requestFocus();
+                        return;
+                    }
                 }
             }
         });
+        
         lvChannelListEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
@@ -974,7 +982,45 @@ public class ChannelPanelController {
         return isReverse;
     }
 
+    // 🟢【修复点2】重写 dispatchKeyEvent，强制拦截底部的焦点溢出！
     public boolean dispatchKeyEvent(int keyCode) {
+        View currentFocus = panelLayout.findFocus();
+        if (currentFocus == null) return false;
+
+        // 如果右侧面板打开，让右侧逻辑自己处理，避免干扰
+        if (rightPanelOpen) return false;
+
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                // 如果焦点在分组列表，且选择到了最后一项
+                if (currentFocus == lvGroup) {
+                    int selectedPos = lvGroup.getSelectedItemPosition();
+                    if (selectedPos == lvGroup.getAdapter().getCount() - 1) {
+                        // 强制把焦点切回频道列表，拦截系统跳转到节目单按钮！
+                        lvChannelList.requestFocus();
+                        return true;
+                    }
+                }
+                break;
+            case KeyEvent.KEYCODE_DPAD_UP:
+                // 如果焦点在频道列表，且选择到了第一项
+                if (currentFocus == lvChannelList) {
+                    int selectedPos = lvChannelList.getSelectedItemPosition();
+                    if (selectedPos == 0) {
+                        // 强制把焦点切回分组
+                        lvGroup.requestFocus();
+                        return true;
+                    }
+                }
+                break;
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                // 如果焦点在按钮上按左，强制回到频道列表
+                if (currentFocus == btnShowEpg) {
+                    lvChannelList.requestFocus();
+                    return true;
+                }
+                break;
+        }
         return false;
     }
 
