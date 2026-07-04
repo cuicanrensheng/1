@@ -603,31 +603,41 @@ public class TVPlayerManager {
     private String getLogTime() {
         return "[" + logSdf.format(new Date()) + "]";
     }
-    private Map<String, String> getHeaders(String url) {
-        Map<String, String> headers = new HashMap<>();
-        headers.put("User-Agent", "ExoPlayer");
-        headers.put("Accept", "*");
-        headers.put("Connection", "keep-alive");
-        headers.put("Icy-MetaData", "1");
-        boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
-        boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
-        String referer = "";
-        if (isHuya) {
-            referer = "https://www.huya.com/";
-            Log.d(TAG, "虎牙直播，设置虎牙Referer");
-        } else if (isDouyu) {
-            referer = "https://www.douyu.com/";
-            Log.d(TAG, "斗鱼直播，设置斗鱼Referer");
-        } else {
-            referer = "https://www.huya.com/";
-        }
-        headers.put("Referer", referer);
-        String cookies = CookieManager.getInstance().getCookie(url);
-        if (cookies != null) {
-            headers.put("Cookie", cookies);
-        }
-        return headers;
+    /** 优化请求头，伪装PC浏览器，降低TV设备识别拦截概率 */
+private Map<String, String> getHeaders(String url) {
+    Map<String, String> headers = new HashMap<>();
+    headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    headers.put("Accept", "*");
+    headers.put("Connection", "keep-alive");
+    headers.put("Icy-MetaData", "1");
+    headers.put("Accept-Language", "zh-CN,zh;q=0.9");
+
+    boolean isHuya = url.contains("huya.com") || url.contains("huya.cn");
+    boolean isDouyu = url.contains("douyu.com") || url.contains("douyucdn.cn");
+    String referer = "";
+    String origin = "";
+    if (isHuya) {
+        referer = "https://www.huya.com/";
+        origin = "https://www.huya.com";
+        Log.d(TAG, "虎牙直播，设置虎牙Referer/Origin");
+    } else if (isDouyu) {
+        referer = "https://www.douyu.com/";
+        origin = "https://www.douyu.com";
+        Log.d(TAG, "斗鱼直播，设置斗鱼Referer/Origin");
+    } else {
+        referer = "https://www.huya.com/";
+        origin = "https://www.huya.com";
     }
+    headers.put("Referer", referer);
+    headers.put("Origin", origin);
+
+    String cookies = CookieManager.getInstance().getCookie(url);
+    if (cookies != null) {
+        headers.put("Cookie", cookies);
+    }
+    return headers;
+}
+
     public void play(String url, String channelName) {
         playUrl(url, channelName);
     }
