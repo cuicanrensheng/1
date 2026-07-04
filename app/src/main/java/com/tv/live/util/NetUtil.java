@@ -13,13 +13,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+// 🟢 新增：需要引入 SettingsActivity 以便打印日志
+import com.tv.live.SettingsActivity;
+
 /**
  * 统一网络工具（合并HttpUtil + RequestHeaderUtil）
  * 全局统一ExoPlayer UA，解析器、播放器共用一套请求指纹，降低403拦截
  */
 public class NetUtil {
     private static volatile NetUtil sInstance;
-    // 🟢 新增：用于读取 SharedPreferences 的全局上下文
+    // 🟢 用于读取 SharedPreferences 的全局上下文
     private static Context sAppContext;
     private final OkHttpClient mClient;
     
@@ -27,7 +30,7 @@ public class NetUtil {
     private static final long READ_TIMEOUT = 15000L;
     private static final long WRITE_TIMEOUT = 10000L;
 
-    // 🟢 新增：静态初始化方法，在 Application 中调用
+    // 🟢 静态初始化方法，在 Application 中调用
     public static void init(Context context) {
         sAppContext = context.getApplicationContext();
     }
@@ -77,6 +80,10 @@ public class NetUtil {
                 userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
             }
         }
+        
+        // 🟢【新增】将实际使用的 UA 打印到解析日志中，方便你确认切换是否生效
+        SettingsActivity.log("【UA检测】当前正在使用的请求头 User-Agent: " + userAgent);
+
         headerMap.put("User-Agent", userAgent);
         headerMap.put("Accept", "*");
         headerMap.put("Connection", "keep-alive");
