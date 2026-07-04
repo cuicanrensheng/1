@@ -120,7 +120,7 @@ public class HuyaParser {
             String flvUrl = "";
             for (int i = 0; i < streamArray.length(); i++) {
                 JSONObject item = streamArray.getJSONObject(i);
-                String url = item.optString("url", "");
+                String url = item.optString("");
                 if (TextUtils.isEmpty(url)) continue;
                 if (url.contains(".m3u8")) {
                     hlsUrl = url;
@@ -130,7 +130,8 @@ public class HuyaParser {
             }
             long expire = System.currentTimeMillis() + CACHE_VALID_MS;
             SOURCE_CACHE.put(roomId, new CacheItem(hlsUrl, flvUrl, isTogetherWatch, expire));
-            postSuccess(listener, hlsUrl, flvUrl);
+            // 修复报错：补齐第三个布尔参数 isTogetherWatch
+            postSuccess(listener, hlsUrl, flvUrl, isTogetherWatch);
         } catch (IOException e) {
             postFailed(listener, "网络请求异常：" + e.getMessage());
         } catch (Exception e) {
