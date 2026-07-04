@@ -181,10 +181,10 @@ public class TVPlayerManager {
         // 🟢【核心优化】将最大缓冲从 50秒 降为 15秒，防止 1GB 内存被视频数据撑爆！
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                        2000,
-                        15000,
-                        300,
-                        500
+                        8000,
+                        30000,
+                        1500,
+                        2000
                 )
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
