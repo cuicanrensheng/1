@@ -70,7 +70,11 @@ public class SourceDialogManager {
             new AlertDialog.Builder(context)
                     .setTitle(title)
                     .setMessage("暂无记录，是否添加一个？")
-                    .setPositiveButton("添加", (d, w) -> showAddSourceDialog(title, key))
+                    .setPositiveButton("添加", (d, w) -> {
+                        SourceManager tempManager = new SourceManager(context, key);
+                        SourceAdapter tempAdapter = new SourceAdapter(context, new ArrayList<>());
+                        showAddSourceDialog(title, key, tempManager, tempAdapter, "");
+                    })
                     .setNegativeButton("取消", null)
                     .show();
             return;
@@ -246,7 +250,7 @@ public class SourceDialogManager {
         });
     }
     /**
-     * 核心修复：每次刷新重新从SP读取完整数据，新建列表，不复用旧集合
+     * 核心刷新方法：每次重新查询数据，新建过滤列表，不污染原始内存集合
      */
     private void refreshAllSource(SourceManager sourceManager, SourceAdapter adapter, String keyword) {
         List<SourceManager.SourceItem> filterResult = sourceManager.search(keyword);
@@ -254,7 +258,7 @@ public class SourceDialogManager {
         adapter.addAll(filterResult);
         adapter.notifyDataSetChanged();
     }
-    // 添加弹窗（新增后自动刷新全量列表）
+    // 添加源弹窗
     private void showAddSourceDialog(String title, final String key, SourceManager sourceManager, SourceAdapter adapter, String searchKey) {
         android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
         layout.setOrientation(android.widget.LinearLayout.VERTICAL);
@@ -292,14 +296,13 @@ public class SourceDialogManager {
                     String saveKey = key.contains("live") ? KEY_CUSTOM_LIVE : KEY_CUSTOM_EPG;
                     sp.edit().putString(saveKey, url).apply();
                     context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                    // 新增后强制全量刷新，加载全部新旧源
                     refreshAllSource(sourceManager, adapter, searchKey);
                     Toast.makeText(context, "添加成功", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
-    // 编辑弹窗
+    // 编辑源弹窗
     private void showEditSourceDialog(String title, final String key, int position, SourceManager.SourceItem oldItem, SourceManager sourceManager, SourceAdapter adapter, String searchKey) {
         android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
         layout.setOrientation(android.widget.LinearLayout.VERTICAL);
@@ -324,7 +327,7 @@ public class SourceDialogManager {
                 .setView(layout)
                 .setPositiveButton("保存", (dialog, which) -> {
                     String name = nameEt.getText().toString().trim();
-                    String url = urlEt.getText().toString().trim();
+                    String url = urlEt.getText().trim();
                     if (url.isEmpty()) {
                         Toast.makeText(context, "地址不能为空", Toast.LENGTH_SHORT).show();
                         return;
@@ -346,11 +349,11 @@ public class SourceDialogManager {
     // 导入弹窗
     private void showImportDialog(String title, final String key, SourceManager sourceManager, SourceAdapter adapter, EditText searchEt) {
         ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-        if (!cm.hasPrimaryClip() || cm.getPrimaryClip().getItemAt(0).getText() == null) {
+        if (!cm.hasPrimaryClip() || cm.getPrimaryClip().getText() == null || cm.getPrimaryClip().getText().toString().trim().isEmpty()) {
             Toast.makeText(context, "剪贴板为空", Toast.LENGTH_SHORT).show();
             return;
         }
-        String text = cm.getPrimaryClip().getItemAt(0).getText().toString().trim();
+        String text = cm.getPrimaryClip().getText().toString().trim();
         String[] lines = text.split("\n");
         int count = 0;
         for (String line : lines) {
