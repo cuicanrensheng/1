@@ -10,8 +10,6 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
-import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONObject;
@@ -49,9 +47,9 @@ public class UpdateManager {
     // ====================== 常量 ======================
     /**
      * 版本配置文件地址
-     * 【修改为你自己的地址】
+     * 【已修正为您的真实仓库地址】
      */
-    private static final String UPDATE_JSON_URL = "https://raw.githubusercontent.com/cuicanrensheng/AH/main/update.json";
+    private static final String UPDATE_JSON_URL = "https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json";
 
     /** 下载文件名称 */
     private static final String APK_FILE_NAME = "tv_live_update.apk";
