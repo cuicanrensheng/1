@@ -1,4 +1,5 @@
 package com.tv.live;
+import okhttp3.Headers;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -858,7 +859,7 @@ public class TVPlayerManager {
                     List<MediaCodecInfo> softCodecs = new ArrayList<>();
                     List<MediaCodecInfo> hardCodecs2 = new ArrayList<>();
                     for (MediaCodecInfo codec : allCodecs) {
-                        if (isSoftwareDecoder(codec)) {
+                        if (isSoftwareDecoder(codec.name))
                             softCodecs.add(codec);
                         } else {
                             hardCodecs2.add(codec);
