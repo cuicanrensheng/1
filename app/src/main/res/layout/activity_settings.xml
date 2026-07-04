@@ -284,9 +284,8 @@
             </LinearLayout>
 
             <!-- ============================================================ -->
-            <!-- 🆕 HTTP重定向网络配置（新增条目） -->
+            <!-- 🆕 HTTP重定向网络配置（隐藏右侧文字，只保留按钮） -->
             <!-- ============================================================ -->
-            <!-- 重点修复：改用 LinearLayout 和 layout_weight，防止左右重叠 -->
             <LinearLayout
                 android:id="@+id/item_redirect"
                 android:layout_width="match_parent"
@@ -300,25 +299,20 @@
                 android:focusable="true"
                 android:clickable="true">
 
-                <!-- 左侧标题：layout_weight="1"，自动占据剩余空间，绝对不再被挤压 -->
+                <!-- 左侧标题：去掉 weight，采用 wrap_content，绝不被打压 -->
                 <TextView
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     android:text="HTTP重定向网络配置"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
 
-                <!-- 右侧状态：加上 maxLines="2" 防止文字过长时条目把界面撑得太高 -->
+                <!-- 右侧状态：完全隐藏，保留ID防止Java因 findViewById 抛空指针异常 -->
                 <TextView
                     android:id="@+id/tv_redirect_setting"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:maxLines="2"
-                    android:gravity="end"
-                    android:text="最大5 | 跨域开 | 跨协议开"
-                    android:textColor="#999999"
-                    android:textSize="12sp" />
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <!-- ============================================================ -->
