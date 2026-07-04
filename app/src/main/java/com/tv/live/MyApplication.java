@@ -1,6 +1,7 @@
 package com.tv.live;
 
 import android.app.Application;
+import com.tv.live.util.NetUtil; // 🟢 记得导入 NetUtil
 
 /**
  * 自定义 Application 类
@@ -18,5 +19,8 @@ public class MyApplication extends Application {
 
         // 初始化全局崩溃捕获
         CrashHandler.getInstance().init(this);
+
+        // 🟢 新增：给 NetUtil 注入全局上下文，让它能读取 UA 设置
+        NetUtil.init(this);
     }
 }
