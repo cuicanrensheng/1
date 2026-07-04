@@ -1,4 +1,5 @@
 package com.tv.live.util;
+
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -14,6 +15,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import okhttp3.Headers;
 import okhttp3.Response;
+
 /**
  * 虎牙解析工具，全部网络请求统一调用NetUtil，与播放器请求头完全一致
  */
@@ -120,7 +122,10 @@ public class HuyaParser {
             String flvUrl = "";
             for (int i = 0; i < streamArray.length(); i++) {
                 JSONObject item = streamArray.getJSONObject(i);
-                String url = item.optString("");
+                
+                // 🟢【重要修复】：将 optString("") 改为 optString("url")
+                String url = item.optString("url"); 
+                
                 if (TextUtils.isEmpty(url)) continue;
                 if (url.contains(".m3u8")) {
                     hlsUrl = url;
@@ -130,7 +135,6 @@ public class HuyaParser {
             }
             long expire = System.currentTimeMillis() + CACHE_VALID_MS;
             SOURCE_CACHE.put(roomId, new CacheItem(hlsUrl, flvUrl, isTogetherWatch, expire));
-            // 修复报错：补齐第三个布尔参数 isTogetherWatch
             postSuccess(listener, hlsUrl, flvUrl, isTogetherWatch);
         } catch (IOException e) {
             postFailed(listener, "网络请求异常：" + e.getMessage());
