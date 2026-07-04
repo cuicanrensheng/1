@@ -200,7 +200,8 @@ public class TVPlayerManager {
             StringBuilder hardNames = new StringBuilder();
             for (MediaCodecInfo codec : h264Codecs) {
                 String name = codec.name;
-                if (isSoftwareDecoder(name)) {
+                // 🟢 修复：传入 codec 对象，使用官方 isSoftwareOnly() 代替前缀匹配
+                if (isSoftwareDecoder(codec)) {
                     softCount++;
                     if (softCount <= 3) {
                         if (softCount > 1) softNames.append(", ");
@@ -231,12 +232,12 @@ public class TVPlayerManager {
         CookieSyncManager.createInstance(context);
         CookieManager.getInstance().setAcceptCookie(true);
     }
-    private static boolean isSoftwareDecoder(String codecName) {
-        if (codecName == null) return false;
-        String lowerName = codecName.toLowerCase();
-        return lowerName.startsWith("omx.google.")
-                || lowerName.startsWith("c2.android.");
+
+    // 🟢 修复核心：使用 ExoPlayer 官方 API 准确判定是否纯软解
+    private static boolean isSoftwareDecoder(MediaCodecInfo codec) {
+        return codec != null && codec.isSoftwareOnly();
     }
+
     private void initPlayerListener() {
         playerListener = new Player.Listener() {
             @Override
@@ -645,7 +646,6 @@ public class TVPlayerManager {
             // ========== 修复完成核心代码 ==========
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             Map<String, String> headerMap = new HashMap<>();
-            // ✅ 修复：OkHttp的Headers不支持 Map.Entry 遍历，使用 names() 获取键集合再取值
             for (String name : globalHeaders.names()) {
                 headerMap.put(name, globalHeaders.get(name));
             }
@@ -663,7 +663,6 @@ public class TVPlayerManager {
             boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
             boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
             boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
-            // 链式传入所有配置
             httpFactory.setMaxRedirects(maxRedirect)
                     .setAllowCrossDomainRedirects(crossDomain)
                     .setAllowCrossProtocolRedirects(crossProto)
@@ -854,7 +853,8 @@ public class TVPlayerManager {
                 case DECODER_MODE_HARD:
                     List<MediaCodecInfo> hardCodecs = new ArrayList<>();
                     for (MediaCodecInfo codec : allCodecs) {
-                        if (!isSoftwareDecoder(codec.name)) {
+                        // 🟢 修复：传入 codec 对象
+                        if (!isSoftwareDecoder(codec)) {
                             hardCodecs.add(codec);
                         }
                     }
@@ -863,7 +863,8 @@ public class TVPlayerManager {
                     List<MediaCodecInfo> softCodecs = new ArrayList<>();
                     List<MediaCodecInfo> hardCodecs2 = new ArrayList<>();
                     for (MediaCodecInfo codec : allCodecs) {
-                        if (isSoftwareDecoder(codec.name))
+                        // 🟢 修复：传入 codec 对象
+                        if (isSoftwareDecoder(codec))
                             softCodecs.add(codec);
                         else hardCodecs2.add(codec);
                     }
