@@ -747,7 +747,7 @@ public class SettingsActivity extends AppCompatActivity {
                 "buffer underflow", "frame drop", "硬解切换",
                 "buffering", "stall", "delay", "timeout", "decoder error",
                 // 新增网络/HTTP异常关键词（解决403、Forbidden抓不到问题）
-                "HTTP", "403", "Forbidden", "访问拒绝", "重定向", "跳转失败",
+                "403", "Forbidden", "访问拒绝", "重定向", "跳转失败",
                 "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
         };
 
