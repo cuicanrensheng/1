@@ -200,7 +200,7 @@ public class TVPlayerManager {
             StringBuilder hardNames = new StringBuilder();
             for (MediaCodecInfo codec : h264Codecs) {
                 String name = codec.name;
-                // 🟢 修复：传入 codec 对象，使用官方 isSoftwareOnly() 代替前缀匹配
+                // 🟢 修复：使用名称前缀匹配替代 isSoftwareOnly()
                 if (isSoftwareDecoder(codec)) {
                     softCount++;
                     if (softCount <= 3) {
@@ -233,9 +233,14 @@ public class TVPlayerManager {
         CookieManager.getInstance().setAcceptCookie(true);
     }
 
-    // 🟢 修复核心：使用 ExoPlayer 官方 API 准确判定是否纯软解
+    // 🟢 修复核心：使用安卓普遍的软解前缀匹配，兼容所有旧版本 Media3 库编译
     private static boolean isSoftwareDecoder(MediaCodecInfo codec) {
-        return codec != null && codec.isSoftwareOnly();
+        if (codec == null) return false;
+        String name = codec.name;
+        if (name == null) return false;
+        String lowerName = name.toLowerCase();
+        // 谷歌标准的软件解码器总是以这两个前缀开头
+        return lowerName.startsWith("omx.google.") || lowerName.startsWith("c2.android.");
     }
 
     private void initPlayerListener() {
