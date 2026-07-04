@@ -356,8 +356,7 @@ public class TVPlayerManager {
         if (isRetrying) return;
         if (retryCount >= MAX_RETRY_COUNT) {
             Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT + "，判定为失效源");
-            SettingsActivity.logOperation("【播放器】重试" + MAX_RETRY_COUNT
-                    + "次均失败，判定为失效源");
+            SettingsActivity.logOperation("【播放器】重试" + MAX_RETRY_COUNT + "次均失败，判定为失效源");
             if (sourceFailedListener != null) {
                 mHandler.post(() -> sourceFailedListener.onSourceFailed());
             }
@@ -642,10 +641,10 @@ public class TVPlayerManager {
             Log.d(TAG, "开始播放：" + currentUrl);
             SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
-            // 全局NetUtil统一获取请求头，删除本地getHeaders方法
-            Headers globalHeaders = Net.getInstance().createCommonHeaders(currentUrl);
+            // ========== 修复完成核心代码 ==========
+            Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             Map<String, String> headerMap = new HashMap<>();
-            for (Header h : globalHeaders) {
+            for (okhttp3.Header h : globalHeaders) {
                 headerMap.put(h.name(), h.value());
             }
             // 保留Cookie逻辑
@@ -823,7 +822,7 @@ public class TVPlayerManager {
             unregisterRendererModeReceiver();
             if (player != null) {
                 if (playerListener != null) {
-                    player.removeListener(playerListener);
+                    player.removeListener(player);
                 }
                 player.release();
                 player = null;
@@ -862,11 +861,9 @@ public class TVPlayerManager {
                     List<MediaCodecInfo> softCodecs = new ArrayList<>();
                     List<MediaCodecInfo> hardCodecs2 = new ArrayList<>();
                     for (MediaCodecInfo codec : allCodecs) {
-                        if (isSoftwareDecoder(codec.name)) {
+                        if (isSoftwareDecoder(codec.name))
                             softCodecs.add(codec);
-                        } else {
-                            hardCodecs2.add(codec);
-                        }
+                        else hardCodecs2.add(codec);
                     }
                     softCodecs.addAll(hardCodecs2);
                     return softCodecs;
