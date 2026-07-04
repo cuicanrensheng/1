@@ -731,92 +731,100 @@ public class SettingsActivity extends AppCompatActivity {
     }
     
     private void showLogDialog() {
-    ScrollView scrollView = new ScrollView(this);
-    TextView tv = new TextView(this);
-    if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
-        tv.setText("暂无日志内容，请先播放一个频道再查看。");
-    } else {
-        String originalLog = PLAY_LOG.toString();
-        String[] lines = originalLog.split("\n");
-        List<String> lagLines = new ArrayList<>();
-        StringBuilder fullReverseLog = new StringBuilder();
-        // 扩充网络/HTTP异常关键字，覆盖403、Forbidden、各类HTTP报错与卡顿场景
-        String[] lagKeywords = {
-        // 播放卡顿、缓冲、解码类关键词
-        "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
-        "buffer underflow", "frame drop", "404",
-        "buffering", "stall", "delay", "timeout", "decoder error",
-        // HTTP网络异常错误码&提示词
-        "403", "Forbidden", "访问拒绝", "跳转失败", "402", "405",
-        "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
-};
+        ScrollView scrollView = new ScrollView(this);
+        TextView tv = new TextView(this);
+        if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
+            tv.setText("暂无日志内容，请先播放一个频道再查看。");
+        } else {
+            String originalLog = PLAY_LOG.toString();
+            String[] lines = originalLog.split("\n");
+            List<String> lagLines = new ArrayList<>();
+            StringBuilder fullReverseLog = new StringBuilder();
+            // 扩充网络/HTTP异常关键字，覆盖403、Forbidden、各类HTTP报错与卡顿场景
+            String[] lagKeywords = {
+                    // 播放卡顿、缓冲、解码类关键词
+                    "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
+                    "buffer underflow", "frame drop", "404",
+                    "buffering", "stall", "delay", "timeout", "decoder error",
+                    // HTTP网络异常错误码&提示词
+                    "403", "Forbidden", "访问拒绝", "跳转失败", "402", "405",
+                    "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
+            };
 
-        // 倒序遍历全部日志
-        for (int i = lines.length - 1; i >= 0; i--) {
-            String line = lines[i].trim();
-            if (line.isEmpty()) continue;
-            boolean hitLag = false;
-            for (String kw : lagKeywords) {
-                if (line.contains(kw)) {
-                    hitLag = true;
-                    break;
+            // 倒序遍历全部日志
+            for (int i = lines.length - 1; i >= 0; i--) {
+                String line = lines[i].trim();
+                if (line.isEmpty()) continue;
+
+                // 🟢 【新增修复】主动过滤掉正常的播放/重定向日志，防止误判为卡顿
+                if (line.startsWith("开始播放") || (line.startsWith("第") && line.contains("重定向到"))) {
+                    fullReverseLog.append(line).append("\n");
+                    continue;
+                }
+
+                boolean hitLag = false;
+                for (String kw : lagKeywords) {
+                    if (line.contains(kw)) {
+                        hitLag = true;
+                        break;
+                    }
+                }
+                // 去重存入卡顿汇总列表
+                if (hitLag && !lagLines.contains(line)) {
+                    lagLines.add(line);
+                }
+                fullReverseLog.append(line).append("\n");
+            }
+
+            // 拼接展示文本
+            StringBuilder fullContent = new StringBuilder();
+            fullContent.append("========== 卡顿原因分析汇总 ==========\n");
+            if (!lagLines.isEmpty()) {
+                for (String lagItem : lagLines) {
+                    fullContent.append(lagItem).append("\n");
+                }
+            } else {
+                fullContent.append("未检测到卡顿相关日志\n");
+            }
+            fullContent.append("\n========== 完整播放日志 ==========\n");
+            fullContent.append(fullReverseLog);
+
+            // 全局关键字标红
+            SpannableString spLog = new SpannableString(fullContent.toString());
+            String totalText = fullContent.toString();
+            for (String key : lagKeywords) {
+                int searchIndex = 0;
+                while ((searchIndex = totalText.indexOf(key, searchIndex)) != -1) {
+                    spLog.setSpan(
+                            new ForegroundColorSpan(Color.RED),
+                            searchIndex,
+                            searchIndex + key.length(),
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    );
+                    searchIndex += key.length();
                 }
             }
-            // 去重存入卡顿汇总列表
-            if (hitLag && !lagLines.contains(line)) {
-                lagLines.add(line);
-            }
-            fullReverseLog.append(line).append("\n");
+            tv.setText(spLog);
         }
-
-        // 拼接展示文本
-        StringBuilder fullContent = new StringBuilder();
-        fullContent.append("========== 卡顿原因分析汇总 ==========\n");
-        if (!lagLines.isEmpty()) {
-            for (String lagItem : lagLines) {
-                fullContent.append(lagItem).append("\n");
+        tv.setTextSize(12);
+        tv.setPadding(40, 40, 40, 40);
+        tv.setTextColor(Color.BLACK);
+        scrollView.addView(tv);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("📄 解析 & 播放日志（卡顿分析）");
+        builder.setView(scrollView);
+        builder.setPositiveButton("关闭", null);
+        builder.setNeutralButton("清空日志", (dialog, which) -> {
+            LogManager.clearPlayLog();
+            if (PLAY_LOG != null) {
+                PLAY_LOG.setLength(0);
             }
-        } else {
-            fullContent.append("未检测到卡顿相关日志\n");
-        }
-        fullContent.append("\n========== 完整播放日志 ==========\n");
-        fullContent.append(fullReverseLog);
-
-        // 全局关键字标红
-        SpannableString spLog = new SpannableString(fullContent.toString());
-        String totalText = fullContent.toString();
-        for (String key : lagKeywords) {
-            int searchIndex = 0;
-            while ((searchIndex = totalText.indexOf(key, searchIndex)) != -1) {
-                spLog.setSpan(
-                        new ForegroundColorSpan(Color.RED),
-                        searchIndex,
-                        searchIndex + key.length(),
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
-                searchIndex += key.length();
-            }
-        }
-        tv.setText(spLog);
+            logOperation("【设置】解析日志已清空");
+            Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
+        });
+        builder.show();
     }
-    tv.setTextSize(12);
-    tv.setPadding(40, 40, 40, 40);
-    tv.setTextColor(Color.BLACK);
-    scrollView.addView(tv);
-    AlertDialog.Builder builder = new AlertDialog.Builder(this);
-    builder.setTitle("📄 解析 & 播放日志（卡顿分析）");
-    builder.setView(scrollView);
-    builder.setPositiveButton("关闭", null);
-    builder.setNeutralButton("清空日志", (dialog, which) -> {
-        LogManager.clearPlayLog();
-        if (PLAY_LOG != null) {
-            PLAY_LOG.setLength(0);
-        }
-        logOperation("【设置】解析日志已清空");
-        Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
-    });
-    builder.show();
-}
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
