@@ -23,18 +23,14 @@ import java.util.List;
 
 /**
  * 频道面板控制器
- *
- * 【2026-06-26 新增：首次启动面板特殊延迟】
- * 【修改说明】
- * 把 MainActivity 中的首次启动面板延迟逻辑合并到这里，
- * 新增 handleFirstLaunch() 方法，面板控制器自己管理首次启动逻辑。
+ * 
+ * 【2026-07-04 修改：移除收藏和最近观看功能】
  */
 public class ChannelPanelController {
 
     private static final long CHANNEL_COOLDOWN = 300;
     private static final int MAX_AUTO_SKIP = 10;
 
-    // ✅ 2026-06-26 新增：首次启动面板特殊延迟常量
     private static final long FIRST_LAUNCH_HIDE_DELAY_MS = 5000;
     private static final long NORMAL_HIDE_DELAY_MS = 10000;
 
@@ -73,7 +69,6 @@ public class ChannelPanelController {
     private long mAutoHideDelayMs = 5000;
     private boolean mAutoHideEnabled = true;
 
-    // ✅ 2026-06-26 新增：首次启动标记
     private boolean mIsFirstLaunch = true;
 
     private boolean isReverse = false;
@@ -205,8 +200,6 @@ public class ChannelPanelController {
                 }
             }
         });
-        
-        // 🟢【修复点1】防止焦点意外跳到节目单按钮上（如果右侧面板没打开，强制回正）
         btnShowEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
@@ -214,15 +207,12 @@ public class ChannelPanelController {
                     currentFocusPanel = "left";
                     leftFocusView = "epgBtn";
                     syncFocusStyle();
-                    // 如果右侧面板未打开，焦点却跑到了按钮，立刻把焦点抢回给频道列表！
-                    if (!rightPanelOpen) {
-                        lvChannelList.requestFocus();
-                        return;
-                    }
+                }
+                if (!rightPanelOpen) {
+                    lvChannelList.requestFocus();
                 }
             }
         });
-        
         lvChannelListEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
@@ -316,31 +306,8 @@ public class ChannelPanelController {
     public void setChannels(List<Channel> channels) {
         if (channels == null) return;
         this.channelSourceList = channels;
-        int favoriteCount = 0;
-        int recentCount = 0;
-        try {
-            AppConfig appConfig = AppConfig.getInstance(context);
-            List<String> favorites = appConfig.getFavoriteChannels();
-            List<String> recent = appConfig.getRecentChannels();
-            for (String name : favorites) {
-                for (Channel c : channels) {
-                    if (name.equals(c.getName())) {
-                        favoriteCount++;
-                        break;
-                    }
-                }
-            }
-            for (String name : recent) {
-                for (Channel c : channels) {
-                    if (name.equals(c.getName())) {
-                        recentCount++;
-                        break;
-                    }
-                }
-            }
-        } catch (Exception e) {
-        }
-        groupListManager.setGroups(channels, favoriteCount, recentCount);
+        // 🟢 【修改】移除计算 favoriteCount 和 recentCount 的逻辑
+        groupListManager.setGroups(channels, 0, 0);
         channelListManager.setChannels(channels, currentPlayIndex);
         channelListManagerEpg.setChannels(channels, currentPlayIndex);
     }
@@ -351,50 +318,11 @@ public class ChannelPanelController {
         lvGroup.setSelection(position);
         String groupName = groupListManager.getCurrentGroup(position);
         currentGroupName = groupName;
+        // 🟢 【修改】移除 GROUP_FAVORITE 和 GROUP_RECENT 的过滤逻辑，统一按普通分组处理
         if (GroupListManager.GROUP_ALL.equals(groupName)) {
             currentGroupChannelList.clear();
             currentGroupChannelList.addAll(channelSourceList);
             channelListManager.setChannels(channelSourceList, currentPlayIndex);
-        } else if (GroupListManager.GROUP_FAVORITE.equals(groupName)) {
-            currentGroupChannelList.clear();
-            try {
-                AppConfig appConfig = AppConfig.getInstance(context);
-                List<String> favorites = appConfig.getFavoriteChannels();
-                for (String name : favorites) {
-                    for (Channel c : channelSourceList) {
-                        if (name.equals(c.getName())) {
-                            currentGroupChannelList.add(c);
-                            break;
-                        }
-                    }
-                }
-            } catch (Exception e) {
-            }
-            String currentChannelName = "";
-            if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-                currentChannelName = channelSourceList.get(currentPlayIndex).getName();
-            }
-            channelListManager.setFilteredChannels(currentGroupChannelList, currentChannelName);
-        } else if (GroupListManager.GROUP_RECENT.equals(groupName)) {
-            currentGroupChannelList.clear();
-            try {
-                AppConfig appConfig = AppConfig.getInstance(context);
-                List<String> recent = appConfig.getRecentChannels();
-                for (String name : recent) {
-                    for (Channel c : channelSourceList) {
-                        if (name.equals(c.getName())) {
-                            currentGroupChannelList.add(c);
-                            break;
-                        }
-                    }
-                }
-            } catch (Exception e) {
-            }
-            String currentChannelName = "";
-            if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-                currentChannelName = channelSourceList.get(currentPlayIndex).getName();
-            }
-            channelListManager.setFilteredChannels(currentGroupChannelList, currentChannelName);
         } else {
             currentGroupChannelList.clear();
             for (Channel c : channelSourceList) {
@@ -520,11 +448,8 @@ public class ChannelPanelController {
         if (ch == null) return;
         String channelGroup = ch.getGroup();
         if (channelGroup != null && !channelGroup.isEmpty()) {
-            boolean isSpecialGroup = GroupListManager.GROUP_ALL.equals(currentGroupName)
-                    || GroupListManager.GROUP_FAVORITE.equals(currentGroupName)
-                    || GroupListManager.GROUP_RECENT.equals(currentGroupName)
-                    || currentGroupName.isEmpty();
-            if (!isSpecialGroup && !channelGroup.equals(currentGroupName)) {
+            // 🟢 【修改】移除了 GROUP_FAVORITE 和 GROUP_RECENT 的特殊判断
+            if (!channelGroup.equals(currentGroupName)) {
                 currentGroupName = channelGroup;
                 currentGroupChannelList.clear();
                 for (Channel c : channelSourceList) {
@@ -540,9 +465,6 @@ public class ChannelPanelController {
                 || currentGroupName.isEmpty()
                 || currentGroupChannelList.isEmpty()) {
             channelListManager.setChannels(channelSourceList, index);
-        } else if (GroupListManager.GROUP_FAVORITE.equals(currentGroupName)
-                || GroupListManager.GROUP_RECENT.equals(currentGroupName)) {
-            channelListManager.setFilteredChannels(currentGroupChannelList, ch.getName());
         } else {
             channelListManager.setChannelsByGroup(channelSourceList, currentGroupName, index);
         }
@@ -551,133 +473,16 @@ public class ChannelPanelController {
         if (channelChangeListener != null) {
             channelChangeListener.onChannelChanged(ch, index);
         }
-        addToRecent(ch.getName());
-    }
-
-    private void addToRecent(String channelName) {
-        try {
-            AppConfig appConfig = AppConfig.getInstance(context);
-            appConfig.addRecentChannel(channelName);
-            int favoriteCount = 0;
-            int recentCount = 0;
-            List<String> favorites = appConfig.getFavoriteChannels();
-            List<String> recent = appConfig.getRecentChannels();
-            for (String name : favorites) {
-                for (Channel c : channelSourceList) {
-                    if (name.equals(c.getName())) {
-                        favoriteCount++;
-                        break;
-                    }
-                }
-            }
-            for (String name : recent) {
-                for (Channel c : channelSourceList) {
-                    if (name.equals(c.getName())) {
-                        recentCount++;
-                        break;
-                    }
-                }
-            }
-            groupListManager.updateSpecialGroupCount(favoriteCount, recentCount);
-        } catch (Exception e) {
-        }
     }
 
     private boolean handleChannelLongClick(String channelName, boolean isRightPanel) {
-        if (channelName == null || channelName.isEmpty()) {
-            return false;
-        }
-        try {
-            AppConfig appConfig = AppConfig.getInstance(context);
-            boolean isFavorite = appConfig.toggleFavorite(channelName);
-            int favoriteCount = 0;
-            int recentCount = 0;
-            List<String> favorites = appConfig.getFavoriteChannels();
-            List<String> recent = appConfig.getRecentChannels();
-            for (String name : favorites) {
-                for (Channel c : channelSourceList) {
-                    if (name.equals(c.getName())) {
-                        favoriteCount++;
-                        break;
-                    }
-                }
-            }
-            for (String name : recent) {
-                for (Channel c : channelSourceList) {
-                    if (name.equals(c.getName())) {
-                        recentCount++;
-                        break;
-                    }
-                }
-            }
-            groupListManager.updateSpecialGroupCount(favoriteCount, recentCount);
-            if (GroupListManager.GROUP_FAVORITE.equals(currentGroupName)) {
-                currentGroupChannelList.clear();
-                for (String name : favorites) {
-                    for (Channel c : channelSourceList) {
-                        if (name.equals(c.getName())) {
-                            currentGroupChannelList.add(c);
-                            break;
-                        }
-                    }
-                }
-                if (!isRightPanel) {
-                    channelListManager.setFilteredChannels(currentGroupChannelList, channelName);
-                } else {
-                    channelListManagerEpg.setFilteredChannels(currentGroupChannelList, channelName);
-                }
-            }
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        // 🟢 【修改】长按不再处理收藏逻辑，直接返回 false
+        return false;
     }
 
     public boolean toggleCurrentFavorite() {
-        if (channelSourceList == null || channelSourceList.isEmpty()) return false;
-        if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) return false;
-        Channel currentChannel = channelSourceList.get(currentPlayIndex);
-        if (currentChannel == null) return false;
-        try {
-            AppConfig appConfig = AppConfig.getInstance(context);
-            boolean isFavorite = appConfig.toggleFavorite(currentChannel.getName());
-            int favoriteCount = 0;
-            int recentCount = 0;
-            List<String> favorites = appConfig.getFavoriteChannels();
-            List<String> recent = appConfig.getRecentChannels();
-            for (String name : favorites) {
-                for (Channel c : channelSourceList) {
-                    if (name.equals(c.getName())) {
-                        favoriteCount++;
-                        break;
-                    }
-                }
-            }
-            for (String name : recent) {
-                for (Channel c : channelSourceList) {
-                    if (name.equals(c.getName())) {
-                        recentCount++;
-                        break;
-                    }
-                }
-            }
-            groupListManager.updateSpecialGroupCount(favoriteCount, recentCount);
-            if (GroupListManager.GROUP_FAVORITE.equals(currentGroupName)) {
-                currentGroupChannelList.clear();
-                for (String name : favorites) {
-                    for (Channel c : channelSourceList) {
-                        if (name.equals(c.getName())) {
-                            currentGroupChannelList.add(c);
-                            break;
-                        }
-                    }
-                }
-                channelListManager.setFilteredChannels(currentGroupChannelList, currentChannel.getName());
-            }
-            return isFavorite;
-        } catch (Exception e) {
-            return false;
-        }
+        // 🟢 【修改】菜单键不再处理收藏逻辑，直接返回 false
+        return false;
     }
 
     private void onChannelClicked(int position) {
@@ -719,13 +524,6 @@ public class ChannelPanelController {
                 || currentGroupName.isEmpty()
                 || currentGroupChannelList.isEmpty()) {
             channelListManager.setChannels(channelSourceList, currentPlayIndex);
-        } else if (GroupListManager.GROUP_FAVORITE.equals(currentGroupName)
-                || GroupListManager.GROUP_RECENT.equals(currentGroupName)) {
-            String currentChannelName = "";
-            if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-                currentChannelName = channelSourceList.get(currentPlayIndex).getName();
-            }
-            channelListManager.setFilteredChannels(currentGroupChannelList, currentChannelName);
         } else {
             channelListManager.setChannelsByGroup(channelSourceList, currentGroupName, currentPlayIndex);
         }
@@ -797,9 +595,6 @@ public class ChannelPanelController {
         }
     }
 
-    // ====================================================================
-    // ✅ 2026-06-26 新增：首次启动面板特殊延迟处理
-    // ====================================================================
     public void handleFirstLaunch() {
         if (!mIsFirstLaunch) return;
         SettingsActivity.logOperation("【面板】首次启动，设置特殊延迟："
@@ -907,18 +702,6 @@ public class ChannelPanelController {
                 || currentGroupName.isEmpty()
                 || currentGroupChannelList.isEmpty()) {
             return currentPlayIndex;
-        } else if (GroupListManager.GROUP_FAVORITE.equals(currentGroupName)
-                || GroupListManager.GROUP_RECENT.equals(currentGroupName)) {
-            String currentChannelName = "";
-            if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-                currentChannelName = channelSourceList.get(currentPlayIndex).getName();
-            }
-            for (int i = 0; i < currentGroupChannelList.size(); i++) {
-                if (currentGroupChannelList.get(i).getName().equals(currentChannelName)) {
-                    return i;
-                }
-            }
-            return 0;
         } else {
             Channel currentChannel = channelSourceList.get(currentPlayIndex);
             for (int i = 0; i < currentGroupChannelList.size(); i++) {
@@ -982,39 +765,32 @@ public class ChannelPanelController {
         return isReverse;
     }
 
-    // 🟢【修复点2】重写 dispatchKeyEvent，强制拦截底部的焦点溢出！
     public boolean dispatchKeyEvent(int keyCode) {
         View currentFocus = panelLayout.findFocus();
         if (currentFocus == null) return false;
 
-        // 如果右侧面板打开，让右侧逻辑自己处理，避免干扰
         if (rightPanelOpen) return false;
 
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                // 如果焦点在分组列表，且选择到了最后一项
                 if (currentFocus == lvGroup) {
                     int selectedPos = lvGroup.getSelectedItemPosition();
                     if (selectedPos == lvGroup.getAdapter().getCount() - 1) {
-                        // 强制把焦点切回频道列表，拦截系统跳转到节目单按钮！
                         lvChannelList.requestFocus();
                         return true;
                     }
                 }
                 break;
             case KeyEvent.KEYCODE_DPAD_UP:
-                // 如果焦点在频道列表，且选择到了第一项
                 if (currentFocus == lvChannelList) {
                     int selectedPos = lvChannelList.getSelectedItemPosition();
                     if (selectedPos == 0) {
-                        // 强制把焦点切回分组
                         lvGroup.requestFocus();
                         return true;
                     }
                 }
                 break;
             case KeyEvent.KEYCODE_DPAD_LEFT:
-                // 如果焦点在按钮上按左，强制回到频道列表
                 if (currentFocus == btnShowEpg) {
                     lvChannelList.requestFocus();
                     return true;
