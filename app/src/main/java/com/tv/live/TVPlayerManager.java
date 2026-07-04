@@ -655,11 +655,13 @@ public class TVPlayerManager {
             for (String name : globalHeaders.names()) {
                 headerMap.put(name, globalHeaders.get(name));
             }
-            // 保留Cookie逻辑
+            
+            // 🟢【关键修复】保留Cookie逻辑，但是排除虎牙 CDN 域名，防止过期的Cookie干扰防盗链！
             String cookies = CookieManager.getInstance().getCookie(currentUrl);
-            if (cookies != null) {
+            if (cookies != null && !currentUrl.contains("huya") && !currentUrl.contains("mobgslb") && !currentUrl.contains("al.flv")) {
                 headerMap.put("Cookie", cookies);
             }
+            
             httpFactory.setDefaultRequestProperties(headerMap);
             httpFactory.setChannelName(currentChannelName);
             // 读取设置持久化的全部重定向配置
@@ -883,4 +885,4 @@ public class TVPlayerManager {
             }
         }
     }
-}
+ }
