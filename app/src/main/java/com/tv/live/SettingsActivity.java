@@ -743,11 +743,11 @@ public class SettingsActivity extends AppCompatActivity {
         // 【修复：扩充网络/HTTP异常关键字，覆盖403、Forbidden、重定向报错】
         String[] lagKeywords = {
                 // 原有播放卡顿关键词
-                "缓冲", "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
-                "buffer underflow", "frame drop", "硬解切换",
+                "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
+                "buffer underflow", "frame drop", "404""
                 "buffering", "stall", "delay", "timeout", "decoder error",
                 // 新增网络/HTTP异常关键词（解决403、Forbidden抓不到问题）
-                "403", "Forbidden", "访问拒绝", "重定向", "跳转失败",
+                "403", "Forbidden", "访问拒绝",  "跳转失败","402"",405"
                 "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
         };
 
