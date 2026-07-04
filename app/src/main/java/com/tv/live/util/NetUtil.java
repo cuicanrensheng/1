@@ -1,5 +1,7 @@
 package com.tv.live.util;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import okhttp3.Call;
 import okhttp3.Headers;
 import okhttp3.Interceptor;
@@ -17,14 +19,18 @@ import java.util.concurrent.TimeUnit;
  */
 public class NetUtil {
     private static volatile NetUtil sInstance;
+    // 🟢 新增：用于读取 SharedPreferences 的全局上下文
+    private static Context sAppContext;
     private final OkHttpClient mClient;
-    
-    // 🟢 改回 ExoPlayer（已经找到根本问题，和 UA 无关，和 gzip 压缩有关）
-    private static final String PC_USER_AGENT = "ExoPlayer"; 
     
     private static final long CONNECT_TIMEOUT = 10000L;
     private static final long READ_TIMEOUT = 15000L;
     private static final long WRITE_TIMEOUT = 10000L;
+
+    // 🟢 新增：静态初始化方法，在 Application 中调用
+    public static void init(Context context) {
+        sAppContext = context.getApplicationContext();
+    }
 
     private NetUtil() {
         mClient = new OkHttpClient.Builder()
@@ -61,7 +67,17 @@ public class NetUtil {
     /** 根据URL自动生成虎牙/斗鱼适配请求头 */
     public Headers createCommonHeaders(String url) {
         Map<String, String> headerMap = new HashMap<>();
-        headerMap.put("User-Agent", PC_USER_AGENT);
+
+        // 🟢 核心新增：从设置中动态读取 UA，默认 "exo"
+        String userAgent = "ExoPlayer";
+        if (sAppContext != null) {
+            SharedPreferences sp = sAppContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+            String uaMode = sp.getString("user_agent_mode", "exo"); // 和 SettingsActivity 里保存的 KEY 对应
+            if ("browser".equals(uaMode)) {
+                userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+            }
+        }
+        headerMap.put("User-Agent", userAgent);
         headerMap.put("Accept", "*");
         headerMap.put("Connection", "keep-alive");
         // 🟢【终极修复】恢复 Icy-MetaData: 1！能正常播放的App都带了它！
