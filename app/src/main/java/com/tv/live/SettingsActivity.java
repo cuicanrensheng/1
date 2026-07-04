@@ -541,7 +541,9 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void showDecoderModeDialog() {
         final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
-        final String[] modeValues = {"auto", "hard"};
+        // 🟢 修复核心：补齐第三个参数 "soft"，避免选择软解时数组越界崩溃！
+        final String[] modeValues = {"auto", "hard", "soft"}; 
+        
         String currentMode = sp.getString("decoder_mode", "auto");
         int checkedItem = 0;
         for (int i = 0; i < modes.length; i++) {
@@ -747,7 +749,7 @@ public class SettingsActivity extends AppCompatActivity {
                     "buffer underflow", "frame drop", "404",
                     "buffering", "stall", "delay", "timeout", "decoder error",
                     // HTTP网络异常错误码&提示词
-                    "403", "Forbidden", "访问拒绝", "跳转失败", "402", "405",
+                    "Forbidden", "访问拒绝", "跳转失败", 
                     "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
             };
 
@@ -854,4 +856,4 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.clear();
         settingsItemList = null;
     }
-}
+ }
