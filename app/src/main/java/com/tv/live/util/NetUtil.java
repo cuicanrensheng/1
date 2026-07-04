@@ -1,182 +1,122 @@
 package com.tv.live.util;
 
-import android.os.Handler;
-import android.os.Looper;
-import android.text.TextUtils;
-import org.json.JSONArray;
-import org.json.JSONObject;
+import okhttp3.Call;
+import okhttp3.Headers;
+import okhttp3.Interceptor;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import okhttp3.Headers;
-import okhttp3.Response;
+import java.util.concurrent.TimeUnit;
 
 /**
- * 虎牙解析工具，全部网络请求统一调用NetUtil，与播放器请求头完全一致
+ * 统一网络工具（合并HttpUtil + RequestHeaderUtil）
+ * 全局统一ExoPlayer UA，解析器、播放器共用一套请求指纹，降低403拦截
  */
-public class HuyaParser {
-    private static final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
-    private static final Handler mMainHandler = new Handler(Looper.getMainLooper());
-    private static final String API_ROOM_INFO = "https://www.huya.com/cache.mini-global-%d.json";
-    private static final String API_PLAY_URL = "https://api.huya.com/m_push/%d";
-    private static final Map<Integer, CacheItem> SOURCE_CACHE = new HashMap<>();
-    // 🟢【核心修改】缓存时间从 110 秒缩短为 30 秒
-    private static final long CACHE_VALID_MS = 30 * 1000;
+public class NetUtil {
+    private static volatile NetUtil sInstance;
+    private final OkHttpClient mClient;
+    
+    // 🟢 改回 ExoPlayer（已经找到根本问题，和 UA 无关，和 gzip 压缩有关）
+    private static final String PC_USER_AGENT = "ExoPlayer"; 
+    
+    private static final long CONNECT_TIMEOUT = 10000L;
+    private static final long READ_TIMEOUT = 15000L;
+    private static final long WRITE_TIMEOUT = 10000L;
 
-    public interface OnParseResultListener {
-        void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch);
-        void onFailed(String errorMsg);
+    private NetUtil() {
+        mClient = new OkHttpClient.Builder()
+                .connectTimeout(CONNECT_TIMEOUT, TimeUnit.MILLISECONDS)
+                .readTimeout(READ_TIMEOUT, TimeUnit.MILLISECONDS)
+                .writeTimeout(WRITE_TIMEOUT, TimeUnit.MILLISECONDS)
+                .retryOnConnectionFailure(true)
+                // 🟢【保留修复】拦截器强制发送 "Accept-Encoding: identity" 
+                // 防止虎牙 Tengine 因为默认的 gzip 编码而拦截 ExoPlayer 请求
+                .addNetworkInterceptor(new Interceptor() {
+                    @Override
+                    public Response intercept(Chain chain) throws IOException {
+                        Request request = chain.request();
+                        Request newRequest = request.newBuilder()
+                                .header("Accept-Encoding", "identity")
+                                .build();
+                        return chain.proceed(newRequest);
+                    }
+                })
+                .build();
     }
 
-    private static class CacheItem {
-        String hls;
-        String flv;
-        boolean isTogether;
-        long expireTime;
-        CacheItem(String h, String f, boolean t, long exp) {
-            hls = h;
-            flv = f;
-            isTogether = t;
-            expireTime = exp;
-        }
-    }
-
-    public static void parse(int roomId, OnParseResultListener listener) {
-        if (roomId <= 0) {
-            mMainHandler.post(() -> listener.onFailed("房间号不合法"));
-            return;
-        }
-        long now = System.currentTimeMillis();
-        CacheItem cache = SOURCE_CACHE.get(roomId);
-        if (cache != null && now < cache.expireTime) {
-            mMainHandler.post(() -> listener.onSuccess(cache.hls, cache.flv, cache.isTogether));
-            return;
-        }
-        mExecutor.execute(() -> getRoomInfo(roomId, listener));
-    }
-
-    private static void getRoomInfo(int roomId, OnParseResultListener listener) {
-        String url = String.format(API_ROOM_INFO, roomId);
-        Headers headers = NetUtil.getInstance().createHuyaFixedHeaders();
-        try (Response response = NetUtil.getInstance().syncGet(url)) {
-            if (response.code() == 403) {
-                postFailed(listener, "HTTP 403 虎牙房间接口访问被拦截");
-                return;
-            }
-            if (!response.isSuccessful() || response.body() == null) {
-                postFailed(listener, "请求房间信息失败，响应码：" + response.code());
-                return;
-            }
-            String resStr = response.body().string();
-            JSONObject json = new JSONObject(resStr);
-            boolean isTogetherWatch = json.optInt("isVideoRoom", 0) == 1;
-            String streamName = json.optString("stream", "");
-            String uid = json.optString("uid", "");
-            if (TextUtils.isEmpty(streamName) || TextUtils.isEmpty(uid)) {
-                postFailed(listener, "房间未开播或无流信息");
-                return;
-            }
-            long wsTime = System.currentTimeMillis() / 1000;
-            String wsSecret = calcSecret(uid, streamName, wsTime);
-            getPlaySource(roomId, streamName, wsTime, wsSecret, isTogetherWatch, listener);
-        } catch (IOException e) {
-            postFailed(listener, "网络请求异常：" + e.getMessage());
-        } catch (Exception e) {
-            e.printStackTrace();
-            postFailed(listener, "解析房间数据异常：" + e.getMessage());
-        }
-    }
-
-    private static void getPlaySource(int roomId, String streamName, long wsTime, String wsSecret,
-                                      boolean isTogetherWatch, OnParseResultListener listener) {
-        StringBuilder apiUrl = new StringBuilder(String.format(API_PLAY_URL, roomId));
-        apiUrl.append("?m=8&do=hd&uid=").append(streamName)
-                .append("&wsSecret=").append(wsSecret)
-                .append("&wsTime=").append(wsTime)
-                .append("&fm=57&ver=2108191723&tx=").append(System.currentTimeMillis());
-        if (isTogetherWatch) {
-            apiUrl.append("&seqid=").append(System.currentTimeMillis());
-        }
-        Headers headers = NetUtil.getInstance().createHuyaFixedHeaders();
-        try (Response response = NetUtil.getInstance().syncGet(apiUrl.toString())) {
-            if (response.code() == 403) {
-                postFailed(listener, "HTTP 403 播放接口防盗链拦截");
-                return;
-            }
-            if (!response.isSuccessful() || response.body() == null) {
-                postFailed(listener, "获取播放源失败，响应码：" + response.code());
-                return;
-            }
-            String resStr = response.body().string();
-            JSONObject json = new JSONObject(resStr);
-            JSONArray streamArray = json.optJSONArray("data");
-            if (streamArray == null || streamArray.length() == 0) {
-                postFailed(listener, "暂无可用播放流");
-                return;
-            }
-            String hlsUrl = "";
-            String flvUrl = "";
-            for (int i = 0; i < streamArray.length(); i++) {
-                JSONObject item = streamArray.getJSONObject(i);
-                String url = item.optString("url"); 
-                if (TextUtils.isEmpty(url)) continue;
-                if (url.contains(".m3u8")) {
-                    hlsUrl = url;
-                } else if (url.contains(".flv")) {
-                    flvUrl = url;
+    public static NetUtil getInstance() {
+        if (sInstance == null) {
+            synchronized (NetUtil.class) {
+                if (sInstance == null) {
+                    sInstance = new NetUtil();
                 }
             }
-            long expire = System.currentTimeMillis() + CACHE_VALID_MS;
-            SOURCE_CACHE.put(roomId, new CacheItem(hlsUrl, flvUrl, isTogetherWatch, expire));
-            postSuccess(listener, hlsUrl, flvUrl, isTogetherWatch);
-        } catch (IOException e) {
-            postFailed(listener, "网络请求异常：" + e.getMessage());
-        } catch (Exception e) {
-            e.printStackTrace();
-            postFailed(listener, "解析播放流异常：" + e.getMessage());
         }
+        return sInstance;
     }
 
-    private static String calcSecret(String uid, String stream, long time) {
-        String raw = uid + stream + time + "97b64242aa187a74";
-        return md5(raw).toLowerCase();
+    /** 根据URL自动生成虎牙/斗鱼适配请求头 */
+    public Headers createCommonHeaders(String url) {
+        Map<String, String> headerMap = new HashMap<>();
+        headerMap.put("User-Agent", PC_USER_AGENT);
+        headerMap.put("Accept", "*");
+        headerMap.put("Connection", "keep-alive");
+        // 🟢【终极修复】恢复 Icy-MetaData: 1！能正常播放的App都带了它！
+        headerMap.put("Icy-MetaData", "1"); 
+        headerMap.put("Accept-Language", "zh-CN,zh;q=0.9");
+
+        String referer, origin;
+        if (url.contains("huya.com") || url.contains("huya.cn")) {
+            referer = "https://www.huya.com/";
+            origin = "https://www.huya.com";
+        } else if (url.contains("douyu.com") || url.contains("douyucdn.cn")) {
+            referer = "https://www.douyu.com";
+            origin = "https://www.douyu.com";
+        } else {
+            referer = "https://www.huya.com/";
+            origin = "https://www.huya.com";
+        }
+        headerMap.put("Referer", referer);
+        headerMap.put("Origin", origin);
+        return Headers.of(headerMap);
     }
 
-    private static String md5(String str) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] bytes = md.digest(str.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : bytes) {
-                int val = b & 0xff;
-                if (val < 16) sb.append("0");
-                sb.append(Integer.toHexString(val));
+    /** 虎牙专用固定请求头，HuyaParser直接调用 */
+    public Headers createHuyaFixedHeaders() {
+        return createCommonHeaders("https://www.huya.com");
+    }
+
+    /** 同步GET，返回原始Response对象 */
+    public Response syncGet(String url) throws IOException {
+        Headers headers = createCommonHeaders(url);
+        Request request = new Request.Builder()
+                .url(url)
+                .headers(headers)
+                .get()
+                .build();
+        Call call = mClient.newCall(request);
+        return call.execute();
+    }
+
+    /** GET请求，自动判断403并抛出拦截异常 */
+    public String syncGetText(String url) throws IOException {
+        try (Response response = syncGet(url)) {
+            int code = response.code();
+            if (code == 403) {
+                throw new IOException("HTTP 403 防盗链拦截 url=" + url);
             }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            return "";
+            if (!response.isSuccessful() || response.body() == null) {
+                throw new IOException("请求失败 code=" + code);
+            }
+            return response.body().string();
         }
     }
 
-    private static void postSuccess(OnParseResultListener listener, String hls, String flv, boolean isTogether) {
-        mMainHandler.post(() -> listener.onSuccess(hls, flv, isTogether));
-    }
-
-    private static void postFailed(OnParseResultListener listener, String msg) {
-        mMainHandler.post(() -> listener.onFailed(msg));
-    }
-
-    public static void clearCache() {
-        SOURCE_CACHE.clear();
-    }
-
-    public static void release() {
-        mExecutor.shutdownNow();
-        SOURCE_CACHE.clear();
+    /** 对外暴露全局OkHttpClient，供扩展使用 */
+    public OkHttpClient getClient() {
+        return mClient;
     }
 }
