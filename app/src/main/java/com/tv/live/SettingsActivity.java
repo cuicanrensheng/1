@@ -1,4 +1,5 @@
-  package com.tv.live;
+package com.tv.live;
+
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
@@ -26,6 +27,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.tv.live.manager.TvRemoteManager;
 import java.util.ArrayList;
 import java.util.List;
+
 /**
  * 设置页面 Activity
  *
@@ -290,7 +292,8 @@ public class SettingsActivity extends AppCompatActivity {
         StringBuilder sb = new StringBuilder();
         sb.append("最大跳转：").append(max).append(" | ");
         sb.append("跨域：").append(crossDomain?"开":"关").append(" | ");
-        sb.append("跨协议：").append(crossProto?"开":"关").append(" | ");
+        // 🔄 修复：在这里添加换行符，防止文字过长覆盖左侧标题
+        sb.append("跨协议：").append(crossProto?"开":"关").append("\n");
         sb.append("携带请求头：").append(followHeader?"开":"关").append(" | ");
         sb.append("忽略SSL：").append(ignoreSsl?"开":"关");
         tv_redirect_setting.setText(sb.toString());
@@ -630,6 +633,12 @@ public class SettingsActivity extends AppCompatActivity {
         // 限制输入数字1-20
         etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
         etMax.setText(String.valueOf(currentMax));
+        // 🟢 【修复】把从SharedPreferences读取到的实际状态，填入弹窗的开关控件中！
+        swCrossDomain.setChecked(crossDomain);
+        swCrossProto.setChecked(crossProto);
+        swFollowHeader.setChecked(followHeader);
+        swIgnoreSsl.setChecked(ignoreSsl);
+
         new AlertDialog.Builder(this)
                 .setTitle("HTTP重定向网络配置")
                 .setView(dialogView)
@@ -662,6 +671,7 @@ public class SettingsActivity extends AppCompatActivity {
                 .setNegativeButton("取消", null)
                 .show();
     }
+
     private void showInputDialog(String title, String hint, String key) {
         EditText ed = new EditText(this);
         ed.setHint(hint);
