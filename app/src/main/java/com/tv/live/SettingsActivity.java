@@ -738,41 +738,41 @@ public class SettingsActivity extends AppCompatActivity {
     } else {
         String originalLog = PLAY_LOG.toString();
         String[] lines = originalLog.split("\n");
-        // 存储卡顿日志，自动去重
         List<String> lagLines = new ArrayList<>();
-        // 完整倒序日志
         StringBuilder fullReverseLog = new StringBuilder();
-        // 中英文卡顿关键字全覆盖
+        // 【修复：扩充网络/HTTP异常关键字，覆盖403、Forbidden、重定向报错】
         String[] lagKeywords = {
+                // 原有播放卡顿关键词
                 "缓冲", "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
                 "buffer underflow", "frame drop", "硬解切换",
-                "buffering", "stall", "delay", "timeout", "decoder error"
+                "buffering", "stall", "delay", "timeout", "decoder error",
+                // 新增网络/HTTP异常关键词（解决403、Forbidden抓不到问题）
+                "HTTP", "403", "Forbidden", "访问拒绝", "重定向", "跳转失败",
+                "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
         };
 
-        // 从最新日志往旧日志遍历
+        // 倒序遍历全部日志
         for (int i = lines.length - 1; i >= 0; i--) {
             String line = lines[i].trim();
             if (line.isEmpty()) continue;
             boolean hitLag = false;
-            // 匹配任意卡顿关键词
             for (String kw : lagKeywords) {
                 if (line.contains(kw)) {
                     hitLag = true;
                     break;
                 }
             }
-            // 去重存入卡顿列表
+            // 去重存入卡顿汇总列表
             if (hitLag && !lagLines.contains(line)) {
                 lagLines.add(line);
             }
             fullReverseLog.append(line).append("\n");
         }
 
-        // 组装页面文本：汇总区在前，完整日志在后
+        // 拼接展示文本
         StringBuilder fullContent = new StringBuilder();
         fullContent.append("========== 卡顿原因分析汇总 ==========\n");
         if (!lagLines.isEmpty()) {
-            // 遍历结果已经是新日志在前，直接输出
             for (String lagItem : lagLines) {
                 fullContent.append(lagItem).append("\n");
             }
@@ -782,7 +782,7 @@ public class SettingsActivity extends AppCompatActivity {
         fullContent.append("\n========== 完整播放日志 ==========\n");
         fullContent.append(fullReverseLog);
 
-        // 全局所有卡顿关键字标红修复（解决只标第一个的BUG）
+        // 全局关键字标红
         SpannableString spLog = new SpannableString(fullContent.toString());
         String totalText = fullContent.toString();
         for (String key : lagKeywords) {
@@ -817,7 +817,6 @@ public class SettingsActivity extends AppCompatActivity {
     });
     builder.show();
 }
-
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
