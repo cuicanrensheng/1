@@ -23,9 +23,6 @@ android {
     defaultConfig {
         applicationId "com.tv.live"
 
-        // ====================================================================
-        // ✅ 2026-06-25 降级：minSdk 23 → 21
-        // ====================================================================
         minSdk 21
         targetSdk 36
 
@@ -43,37 +40,26 @@ android {
     }
 
     // ====================================================================
-    // ✅ 【核心修改】动态签名配置，安全兼容 GitHub Actions 和 本地编译
+    // ✅ 【纯云端签名】本地彻底不找 release.keystore
     // ====================================================================
     signingConfigs {
         release {
             // 判断是否为 CI 环境（GitHub Actions）
             if (System.getenv('CI') == 'true') {
-                // CI 环境（云端）：读取 GitHub Secrets 注入的环境变量
-                storeFile file('release.keystore') // 注意：路径是相对于 app 目录的
+                // 云端：读取 GitHub Secrets 注入的环境变量
+                storeFile file('release.keystore') 
                 storePassword System.getenv('STORE_PASSWORD')
                 keyAlias System.getenv('KEY_ALIAS')
                 keyPassword System.getenv('KEY_PASSWORD')
+                v1SigningEnabled true
+                v2SigningEnabled true
             } else {
-                // 本地电脑编译：尝试从 local.properties 读取（避免把密码传到 GitHub）
-                def localProps = new Properties()
-                def localPropFile = rootProject.file('local.properties')
-                if (localPropFile.exists()) {
-                    localProps.load(localPropFile.newDataInputStream())
-                    storeFile file(localProps.getProperty('storeFile', '../release.keystore'))
-                    storePassword localProps.getProperty('storePassword', 'admin123')
-                    keyAlias localProps.getProperty('keyAlias', 'myreleasekey')
-                    keyPassword localProps.getProperty('keyPassword', 'admin123')
-                } else {
-                    // 没有 local.properties 时的兜底
-                    storeFile file("../release.keystore")
-                    storePassword "admin123"
-                    keyAlias "myreleasekey"
-                    keyPassword "admin123"
-                }
+                // 本地电脑：全部置空，绝不读取任何 local.properties 或默认文件
+                storeFile = null
+                storePassword = null
+                keyAlias = null
+                keyPassword = null
             }
-            v1SigningEnabled true
-            v2SigningEnabled true
         }
         debug {
             storeFile file("../debug.keystore")
@@ -91,7 +77,10 @@ android {
             shrinkResources false
             crunchPngs false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // 只有找到 release 签名配置时才启用（即仅在云端 CI 生效）
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            }
         }
         debug {
             signingConfig signingConfigs.debug
@@ -121,7 +110,6 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.1'
     implementation 'com.google.code.gson:gson:2.10.1'
 
-    // ✅ Media3 核心播放器
     implementation "androidx.media3:media3-exoplayer:1.7.1"
     implementation "androidx.media3:media3-ui:1.7.1"
     implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
