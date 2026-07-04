@@ -2,6 +2,7 @@ package com.tv.live.util;
 
 import okhttp3.Call;
 import okhttp3.Headers;
+import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -12,14 +13,14 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 统一网络工具（合并HttpUtil + RequestHeaderUtil）
- * 全局统一 ExoPlayer UA，解析器、播放器共用一套请求指纹，降低403拦截
+ * 全局统一ExoPlayer UA，解析器、播放器共用一套请求指纹，降低403拦截
  */
 public class NetUtil {
     private static volatile NetUtil sInstance;
     private final OkHttpClient mClient;
     
-    // 🟢【终极修复】将 "ExoPlayer" 替换为标准的 Windows Chrome 浏览器 User-Agent
-    private static final String PC_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"; 
+    // 🟢 改回 ExoPlayer（已经找到根本问题，和 UA 无关，和 gzip 压缩有关）
+    private static final String PC_USER_AGENT = "ExoPlayer"; 
     
     private static final long CONNECT_TIMEOUT = 10000L;
     private static final long READ_TIMEOUT = 15000L;
@@ -31,6 +32,18 @@ public class NetUtil {
                 .readTimeout(READ_TIMEOUT, TimeUnit.MILLISECONDS)
                 .writeTimeout(WRITE_TIMEOUT, TimeUnit.MILLISECONDS)
                 .retryOnConnectionFailure(true)
+                // 🟢【保留修复】拦截器强制发送 "Accept-Encoding: identity" 
+                // 防止虎牙 Tengine 因为默认的 gzip 编码而拦截 ExoPlayer 请求
+                .addNetworkInterceptor(new Interceptor() {
+                    @Override
+                    public Response intercept(Chain chain) throws IOException {
+                        Request request = chain.request();
+                        Request newRequest = request.newBuilder()
+                                .header("Accept-Encoding", "identity")
+                                .build();
+                        return chain.proceed(newRequest);
+                    }
+                })
                 .build();
     }
 
@@ -51,7 +64,7 @@ public class NetUtil {
         headerMap.put("User-Agent", PC_USER_AGENT);
         headerMap.put("Accept", "*");
         headerMap.put("Connection", "keep-alive");
-        // 🟢 关键修复：注释掉 Icy-MetaData，防止虎牙 CDN 403 拦截
+        // 我们之前已经注释掉了可能触犯 CDN 防线的 Icy-MetaData
         // headerMap.put("Icy-MetaData", "1"); 
         headerMap.put("Accept-Language", "zh-CN,zh;q=0.9");
 
