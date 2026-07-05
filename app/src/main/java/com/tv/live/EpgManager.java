@@ -20,29 +20,6 @@ import java.util.zip.GZIPInputStream;
 
 /**
  * ✅ EPG节目单管理器（带缓存 + 智能匹配 + 内存优化版）
- *
- * 【2026-06-21 内存优化 V2】
- * 【优化原因】
- * V1 版虽然改成了流式读写，但是自己管理文件路径，
- * 没有复用 CacheManager 的缓存有效期逻辑，路径也不统一。
- *
- * 【V2 优化方案】
- * 1. 使用 CacheManager 的流式方法保存和读取缓存
- * 2. 自动复用 CacheManager 的 24 小时有效期逻辑
- * 3. 缓存路径统一，和直播源等其他缓存保持一致
- * 4. 内存占用仍然只有几 KB，彻底解决 OOM
- *
- * 【缓存策略】
- * 1. 加载成功后，自动保存原始XML文本到本地缓存
- * 2. 缓存有效期24小时（由 CacheManager 统一管理）
- * 3. 进入APP时先读缓存快速显示，后台再刷新最新的
- *
- * 【频道匹配策略】
- * 1. 先尝试精确匹配
- * 2. 精确匹配失败，尝试模糊匹配
- * 3. 计算匹配度分数，返回分数最高的
- * 4. 支持去掉 HD/高清/4K/卫视/频道 等干扰字符
- * 5. 支持中文数字转阿拉伯数字
  */
 public class EpgManager {
 
@@ -51,18 +28,11 @@ public class EpgManager {
     private String epgUrl = UrlConfig.EPG_URL;
     private boolean hasPrintedSample = false;
 
-    // 缓存管理器
     private CacheManager cacheManager;
-    // 上下文
     private Context context;
 
-    // 缓存 key
     private static final String CACHE_KEY_EPG = "epg";
 
-    /**
-     * 获取单例（带Context初始化）
-     * 第一次调用时传入Context，后续不用再传
-     */
     public static EpgManager getInstance(Context ctx) {
         if (instance == null) {
             instance = new EpgManager(ctx.getApplicationContext());
@@ -70,10 +40,6 @@ public class EpgManager {
         return instance;
     }
 
-    /**
-     * 兼容旧代码的无参方法
-     * 注意：第一次调用必须用带Context的版本
-     */
     public static EpgManager getInstance() {
         if (instance == null) {
             throw new RuntimeException("EpgManager 未初始化，请先调用 getInstance(Context)");
@@ -90,9 +56,6 @@ public class EpgManager {
         this.epgUrl = url;
     }
 
-    /**
-     * 从M3U直播源中提取EPG地址
-     */
     public void loadEpgFromM3u(String m3uUrl, Runnable callback) {
         new Thread(() -> {
             String extractedEpgUrl = extractEpgUrlFromM3u(m3uUrl);
@@ -103,9 +66,6 @@ public class EpgManager {
         }).start();
     }
 
-    /**
-     * 从M3U中提取x-tvg-url属性
-     */
     private String extractEpgUrlFromM3u(String m3uUrl) {
         HttpURLConnection conn = null;
         BufferedReader reader = null;
@@ -153,34 +113,12 @@ public class EpgManager {
         return null;
     }
 
-    // ====================================================================
-    // ✅ V2 优化版：加载EPG（CacheManager 流式保存 + 流式解析）
-    // ====================================================================
-
-    /**
-     * ✅ 加载EPG节目单（带缓存 + 内存优化版 V2）
-     *
-     * 【V2 优化】
-     * 使用 CacheManager 的流式方法保存缓存，统一管理，自动支持有效期。
-     *
-     * 【流程】
-     * 1. 从网络下载，解压（如果是 gz）
-     * 2. 用 CacheManager 流式保存到缓存文件
-     * 3. 从 CacheManager 流式读取缓存，解析 XML
-     * 4. 回调通知
-     *
-     * 【内存占用】
-     * 峰值只有几 KB（缓冲区大小），彻底解决 OOM
-     */
     public void loadEpg(Runnable callback) {
         new Thread(() -> {
             HttpURLConnection conn = null;
             InputStream in = null;
 
             try {
-                // ================================================================
-                // 第一步：从网络下载
-                // ================================================================
                 URL url = new URL(epgUrl);
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(15000);
@@ -188,22 +126,15 @@ public class EpgManager {
                 conn.connect();
                 in = conn.getInputStream();
 
-                // 处理GZIP压缩
                 if (epgUrl.endsWith(".gz")) {
                     in = new GZIPInputStream(in);
                 }
 
-                // ================================================================
-                // 第二步：用 CacheManager 流式保存到缓存
-                // ================================================================
                 long savedBytes = cacheManager.saveFileCache(CACHE_KEY_EPG, in);
                 if (savedBytes <= 0) {
                     return;
                 }
 
-                // ================================================================
-                // 第三步：从 CacheManager 流式读取缓存，解析 XML
-                // ================================================================
                 hasPrintedSample = false;
                 channelEpgMap.clear();
 
@@ -233,21 +164,11 @@ public class EpgManager {
         }).start();
     }
 
-    // ====================================================================
-    // ✅ V2 优化版：从缓存加载EPG（CacheManager 流式读取）
-    // ====================================================================
-
-    /**
-     * 从缓存加载EPG（内存优化版）
-     * 用于进入APP时快速显示
-     *
-     * @return 是否加载成功
-     */
     public boolean loadEpgFromCache() {
         try {
             InputStream cacheIs = cacheManager.getFileCacheStream(CACHE_KEY_EPG);
             if (cacheIs == null) {
-                return false; // 缓存不存在或已过期
+                return false;
             }
 
             hasPrintedSample = false;
@@ -266,10 +187,6 @@ public class EpgManager {
         }
     }
 
-    // ====================================================================
-    // 解析XML节目单
-    // ====================================================================
-
     private void parseXml(InputStream is) throws Exception {
         XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
         XmlPullParser xml = factory.newPullParser();
@@ -282,7 +199,6 @@ public class EpgManager {
 
         String currentChannelName = null;
         List<Channel.EpgItem> tempPrograms = new ArrayList<>();
-        int programCount = 0;
 
         while (xml.getEventType() != XmlPullParser.END_DOCUMENT) {
             if (xml.getEventType() == XmlPullParser.START_TAG) {
@@ -339,10 +255,6 @@ public class EpgManager {
             xml.next();
         }
     }
-
-    // ====================================================================
-    // 频道匹配相关
-    // ====================================================================
 
     public List<Channel.EpgItem> getEpg(String channelName) {
         if (channelName == null || channelName.isEmpty()) {
@@ -460,9 +372,6 @@ public class EpgManager {
         return 0;
     }
 
-    /**
-     * 用 Calendar 直接比较日期
-     */
     public String getDayName(Calendar itemCal, Calendar todayCal) {
         Calendar itemDay = Calendar.getInstance();
         itemDay.setTime(itemCal.getTime());
@@ -504,9 +413,6 @@ public class EpgManager {
         return weekDays[dayOfWeek];
     }
 
-    // ====================================================================
-    // ✅ 【新增】获取已加载的频道数量，用于判断数据是否就绪
-    // ====================================================================
     public int getChannelEpgMapSize() {
         return channelEpgMap.size();
     }
