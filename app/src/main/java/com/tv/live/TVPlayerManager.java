@@ -53,12 +53,15 @@ public class TVPlayerManager {
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 10000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
-    // ====================== 新增：重定向SP存储Key（与Settings完全对齐） ======================
+    // ====================== 新增：重定向SP存储Key ======================
     private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
     private static final String KEY_REDIRECT_CROSS_DOMAIN = "redirect_cross_domain";
     private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
     private static final String KEY_REDIRECT_FOLLOW_HEADERS = "redirect_follow_headers";
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
+    // 🟢【新增】Cookie播放授权令牌 Key
+    private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
+    
     private static TVPlayerManager instance;
     private Context context;
     private ExoPlayer player;
@@ -109,6 +112,11 @@ public class TVPlayerManager {
     // 渲染器切换锁定状态，防止自动解码器切换误触发
     // ============================================================
     private boolean isRenderingSwitching = false;
+
+    // 🟢【新增】记录当前频道对象和当前播放源索引
+    private Channel currentChannel = null;
+    private int currentSourceIndex = 0;
+
     public static TVPlayerManager getInstance(Context context) {
         if (instance == null) {
             synchronized (TVPlayerManager.class) {
@@ -355,37 +363,47 @@ public class TVPlayerManager {
         }
         isRetrying = false;
     }
+
+    // ============================================================
+    // 🟢【核心修改】重试逻辑：优先切备用源，备用源用尽后切台
+    // ============================================================
     private void autoRetry(String reason) {
         // 重定向错误直接终止重试
         if (reason.contains("RedirectFailedException") || reason.contains("重定向")) {
             SettingsActivity.logOperation("【播放器】重定向类错误，不执行重试");
             return;
         }
-        if (isRetrying) return;
-        if (retryCount >= MAX_RETRY_COUNT) {
-            Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT + "，判定为失效源");
-            SettingsActivity.logOperation("【播放器】重试" + MAX_RETRY_COUNT + "次均失败，判定为失效源");
-            if (sourceFailedListener != null) {
-                mHandler.post(() -> sourceFailedListener.onSourceFailed());
+        if (isRetrying) return; // 防止递归死循环
+
+        // 🟢 1. 优先尝试切换备用源
+        if (currentChannel != null && currentChannel.hasBackupUrl()) {
+            // 如果已经试过备用源，索引递增
+            if (currentSourceIndex >= 0) {
+                currentSourceIndex++;
             }
-            return;
+            List<String> backups = currentChannel.getBackupUrls();
+            // 如果备用源还没试完
+            if (currentSourceIndex <= backups.size()) {
+                String nextBackup = backups.get(currentSourceIndex - 1);
+                SettingsActivity.logOperation("【播放器】当前源失效，切换到备用源" + currentSourceIndex + ": " + nextBackup);
+                isRetrying = true;
+                playUrlInternal(nextBackup); // 切到备用源播放
+                mHandler.postDelayed(() -> isRetrying = false, 1000);
+                return;
+            }
+            // 备用源全部失效，重置索引
+            currentSourceIndex = 0;
         }
-        isRetrying = true;
-        retryCount++;
-        Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
-        SettingsActivity.logOperation("【播放器】自动重试（第" + retryCount + "次），原因：" + reason);
-        retryRunnable = new Runnable() {
-            @Override
-            public void run() {
-                isRetrying = false;
-                if (!TextUtils.isEmpty(currentUrl)) {
-                    playUrlInternal(currentUrl);
-                }
-                retryRunnable = null;
-            }
-        };
-        mHandler.postDelayed(retryRunnable, 1000);
+
+        // 🟢 2. 如果没有备用源，或备用源全部失效，触发切台
+        if (sourceFailedListener != null) {
+            SettingsActivity.logOperation("【播放器】所有备用源均失效，判定频道失效，准备切台");
+            mHandler.post(() -> sourceFailedListener.onSourceFailed());
+        }
     }
+
+    // ============================================================
+
     public void setDecoderMode(int mode) {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
@@ -611,6 +629,35 @@ public class TVPlayerManager {
     private String getLogTime() {
         return "[" + logSdf.format(new Date()) + "]";
     }
+
+    // 🟢【新增】播放频道时传入 Channel 对象，重置源索引
+    public void playChannel(Channel channel) {
+        if (channel == null || channel.getPlayUrl() == null) return;
+        this.currentChannel = channel;
+        this.currentSourceIndex = 0; // 重置为主源
+        if (!TextUtils.isEmpty(channel.getName())) {
+            this.currentChannelName = channel.getName();
+        }
+        cancelRetry();
+        retryCount = 0;
+        isRetrying = false;
+        hasSwitchedDecoder = false;
+        initialPlayStartTime = 0;
+        resetPerformanceStats();
+        SettingsActivity.logOperation("【播放器】开始加载新频道: " + (TextUtils.isEmpty(this.currentChannelName) ? "未知" : this.currentChannelName));
+        playUrlInternal(channel.getPlayUrl());
+    }
+
+    public void setCurrentChannelName(String name) {
+        this.currentChannelName = (name != null) ? name : "";
+    }
+    private void resetPerformanceStats() {
+        bufferCount = 0;
+        totalStallTime = 0;
+        isStalled = false;
+        lastStallStartTime = 0;
+    }
+
     public void play(String url, String channelName) {
         playUrl(url, channelName);
     }
@@ -624,6 +671,9 @@ public class TVPlayerManager {
         if (!TextUtils.isEmpty(channelName)) {
             this.currentChannelName = channelName;
         }
+        // 如果是直接传 URL 播放，重置 Channel 数据
+        this.currentChannel = null; 
+        this.currentSourceIndex = 0;
         cancelRetry();
         retryCount = 0;
         isRetrying = false;
@@ -633,15 +683,7 @@ public class TVPlayerManager {
         SettingsActivity.logOperation("【播放器】开始加载新频道: " + (TextUtils.isEmpty(this.currentChannelName) ? "未知" : this.currentChannelName));
         playUrlInternal(url);
     }
-    public void setCurrentChannelName(String name) {
-        this.currentChannelName = (name != null) ? name : "";
-    }
-    private void resetPerformanceStats() {
-        bufferCount = 0;
-        totalStallTime = 0;
-        isStalled = false;
-        lastStallStartTime = 0;
-    }
+
     private void playUrlInternal(String url) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
@@ -649,34 +691,38 @@ public class TVPlayerManager {
             Log.d(TAG, "开始播放：" + currentUrl);
             SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
-            // ========== 修复完成核心代码 ==========
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             Map<String, String> headerMap = new HashMap<>();
             for (String name : globalHeaders.names()) {
                 headerMap.put(name, globalHeaders.get(name));
             }
-            // 保留Cookie逻辑
-            String cookies = CookieManager.getInstance().getCookie(currentUrl);
-            if (cookies != null) {
-                headerMap.put("Cookie", cookies);
+            
+            // 读取设置持久化的 Cookie 开关
+            SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+            boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+
+            // 🟢 根据开关控制是否发送 Cookie
+            if (sendCookie) {
+                String cookies = CookieManager.getInstance().getCookie(currentUrl);
+                if (cookies != null) {
+                    headerMap.put("Cookie", cookies);
+                }
             }
+            
             httpFactory.setDefaultRequestProperties(headerMap);
             httpFactory.setChannelName(currentChannelName);
-            // 读取设置持久化的全部重定向配置
-            SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
             int maxRedirect = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
             boolean crossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN,true);
             boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
             boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
             boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
-            // 🟢【配套优化】缩短超时时间，在 2.4G 弱网环境下能更快重试
             httpFactory.setMaxRedirects(maxRedirect)
                     .setAllowCrossDomainRedirects(crossDomain)
                     .setAllowCrossProtocolRedirects(crossProto)
                     .setFollowRedirectsWithHeaders(followHeader)
                     .setIgnoreSslErrorRedirect(ignoreSsl)
-                    .setConnectTimeoutMs(8000)  // 从 10000 改为 8000
-                    .setReadTimeoutMs(10000);   // 从 15000 改为 10000
+                    .setConnectTimeoutMs(8000)
+                    .setReadTimeoutMs(10000);
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
