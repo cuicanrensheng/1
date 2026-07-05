@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 🟢 外层改为 ScrollView 并加上深色半透明背景 -->
+<!-- 🟢 外层改为 ScrollView，使弹窗在低端电视上也能上下滚动 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:fillViewport="true"
-    android:background="#CC111111">
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -78,6 +77,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp">
+            <!-- 核心防重叠：layout_toStartOf 保证文字过长换行时，依然排在开关左侧，不覆盖开关 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -94,7 +94,7 @@
                 android:layout_centerVertical="true"/>
         </RelativeLayout>
 
-        <!-- Cookie播放授权令牌 -->
+        <!-- 🟢 恢复：Cookie播放授权令牌 -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -120,6 +120,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp">
+            <!-- 核心防重叠：layout_toStartOf 保证文字过长换行时，依然排在开关左侧 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -136,7 +137,7 @@
                 android:layout_centerVertical="true"/>
         </RelativeLayout>
 
-        <!-- UA切换 -->
+        <!-- 🟢 恢复：UA切换 -->
         <LinearLayout
             android:id="@+id/ll_user_agent"
             android:layout_width="match_parent"
