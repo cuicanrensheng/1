@@ -619,43 +619,57 @@ public class ChannelPanelController {
             return;
         }
         if (!rightPanelOpen) {
-            llLeftPanel.setVisibility(View.GONE);
-            llRightPanel.setVisibility(View.VISIBLE);
+            // 🟢 【修复】在 llLeftPanel 和 llRightPanel 调用前增加空指针判断
+            if (llLeftPanel != null) {
+                llLeftPanel.setVisibility(View.GONE);
+            }
+            if (llRightPanel != null) {
+                llRightPanel.setVisibility(View.VISIBLE);
+            }
             rightPanelOpen = true;
             epgPanelOpen = true;
             channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
-            llRightPanel.post(new Runnable() {
-                @Override
-                public void run() {
-                    clearAllFocusStyles();
-                    currentFocusPanel = "right";
-                    rightFocusView = "channel";
-                    syncFocusStyle();
-                    lvChannelListEpg.requestFocus();
-                    lvChannelListEpg.setSelection(currentPlayIndex);
-                }
-            });
+            if (llRightPanel != null) {
+                llRightPanel.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        clearAllFocusStyles();
+                        currentFocusPanel = "right";
+                        rightFocusView = "channel";
+                        syncFocusStyle();
+                        lvChannelListEpg.requestFocus();
+                        lvChannelListEpg.setSelection(currentPlayIndex);
+                    }
+                });
+            }
             if (!channelSourceList.isEmpty()
                     && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                 Channel curr = channelSourceList.get(currentPlayIndex);
                 epgManagerWrapper.refresh(curr, channelSourceList, currentSelectedDateIndex);
             }
         } else {
-            llRightPanel.setVisibility(View.GONE);
-            llLeftPanel.setVisibility(View.VISIBLE);
+            // 🟢 【修复】在 llRightPanel 和 llLeftPanel 调用前增加空指针判断
+            if (llRightPanel != null) {
+                llRightPanel.setVisibility(View.GONE);
+            }
+            if (llLeftPanel != null) {
+                llLeftPanel.setVisibility(View.VISIBLE);
+            }
             rightPanelOpen = false;
             epgPanelOpen = false;
-            llLeftPanel.post(new Runnable() {
-                @Override
-                public void run() {
-                    clearAllFocusStyles();
-                    currentFocusPanel = "left";
-                    leftFocusView = "channel";
-                    syncFocusStyle();
-                    lvChannelList.requestFocus();
-                    lvChannelList.setSelection(getChannelListSelection());
-                }
-            });
+            if (llLeftPanel != null) {
+                llLeftPanel.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        clearAllFocusStyles();
+                        currentFocusPanel = "left";
+                        leftFocusView = "channel";
+                        syncFocusStyle();
+                        lvChannelList.requestFocus();
+                        lvChannelList.setSelection(getChannelListSelection());
+                    }
+                });
+            }
         }
     }
 
@@ -703,6 +717,10 @@ public class ChannelPanelController {
                 || currentGroupChannelList.isEmpty()) {
             return currentPlayIndex;
         } else {
+            // 🟢 【修复】增加越界保护，避免崩溃
+            if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
+                return 0;
+            }
             Channel currentChannel = channelSourceList.get(currentPlayIndex);
             for (int i = 0; i < currentGroupChannelList.size(); i++) {
                 if (currentGroupChannelList.get(i).getName().equals(currentChannel.getName())) {
