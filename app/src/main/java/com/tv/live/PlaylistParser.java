@@ -7,10 +7,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import android.text.TextUtils; // 🟢 别忘了导入这个
+import android.text.TextUtils;
 
 public class PlaylistParser {
     public static List<Channel> parse(String url) throws Exception {
+        // 🟢 使用 LinkedHashMap 严格保留解析顺序：最先读到的 URL 自动成为主源！
         Map<String, Channel> channelMap = new LinkedHashMap<>();
         
         BufferedReader br = new BufferedReader(new InputStreamReader(new URL(url).openStream()));
@@ -41,11 +42,10 @@ public class PlaylistParser {
                     displayName = line.substring(line.indexOf(",") + 1).trim();
                 }
 
-                // 🟢【核心修复】无论 tvg-id 是否相同，强制以 tvg-name 作为去重合并的唯一 Key！
-                // 解决同一个台 (比如 CCTV5) 出现多个不同 tvg-id 导致无法合并的难题。
-                String uniqueKey = tvgName; 
+                // 🟢【核心逻辑】优先使用 tvg-id 作为唯一合并键，防止不同频道的 tvg-name 撞名！
+                String uniqueKey = tvgId;
                 if (TextUtils.isEmpty(uniqueKey)) {
-                    uniqueKey = tvgId;
+                    uniqueKey = tvgName;
                 }
                 if (TextUtils.isEmpty(uniqueKey)) {
                     uniqueKey = displayName;
@@ -58,10 +58,11 @@ public class PlaylistParser {
                 String uri = br.readLine();
                 if (uri != null && uri.startsWith("http")) {
                     if (channelMap.containsKey(uniqueKey)) {
+                        // 已存在同名频道，将此地址追加为备用源
                         Channel existingChannel = channelMap.get(uniqueKey);
                         existingChannel.addBackupUrl(uri);
                     } else {
-                        // 以 tvgName 作为实际的显示名，如果 tvgName 为空则回退到显示名
+                        // 第一次出现，作为主源创建（保留 map 插入顺序）
                         String finalName = (tvgName != null && !tvgName.isEmpty()) ? tvgName : displayName;
                         Channel newChannel = new Channel(finalName, uri, currentGroup, tvgId);
                         channelMap.put(uniqueKey, newChannel);
