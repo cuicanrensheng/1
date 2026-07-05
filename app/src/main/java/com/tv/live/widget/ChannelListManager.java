@@ -105,9 +105,6 @@ public class ChannelListManager {
      */
     public void setOnChannelLongClickListener(OnChannelLongClickListener listener) {
         this.onChannelLongClickListener = listener;
-        // ✅ 加日志：确认监听器被设置了
-        SettingsActivity.logOperation("【列表】setOnChannelLongClickListener 被调用，listener=" 
-                + (listener != null ? "已设置" : "null"));
     }
 
     /**
@@ -126,14 +123,10 @@ public class ChannelListManager {
             }
         });
 
-        // ✅ 新增：长按事件（加了日志）
+        // 长按事件
         lvChannelList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             @Override
             public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                // ✅ 日志 1：确认长按事件触发了
-                SettingsActivity.logOperation("【列表】长按事件触发，position=" + position 
-                        + ", listener=" + (onChannelLongClickListener != null ? "已设置" : "未设置"));
-                
                 if (onChannelLongClickListener != null) {
                     String channelName = null;
                     if (parent.getAdapter() != null && position < parent.getAdapter().getCount()) {
@@ -142,12 +135,7 @@ public class ChannelListManager {
                             channelName = item.toString();
                         }
                     }
-                    // ✅ 日志 2：回调前
-                    SettingsActivity.logOperation("【列表】长按回调，channelName=" + channelName);
-                    boolean result = onChannelLongClickListener.onChannelLongClick(channelName, position);
-                    // ✅ 日志 3：回调后
-                    SettingsActivity.logOperation("【列表】长按回调结果=" + result);
-                    return result;
+                    return onChannelLongClickListener.onChannelLongClick(channelName, position);
                 }
                 return false;
             }
@@ -377,16 +365,9 @@ public class ChannelListManager {
      * - 无焦点 + 选中：蓝色文字 + 透明背景
      */
     public void setFilteredChannels(List<Channel> filteredChannels, String currentPlayChannelName) {
-        // ✅ 日志 4：确认方法被调用了
-        SettingsActivity.logOperation("【列表】setFilteredChannels 被调用，列表大小=" 
-                + (filteredChannels == null ? "null" : filteredChannels.size())
-                + ", 当前频道=" + currentPlayChannelName);
-        
-        // ✅ 修复：去掉了空列表直接 return 的判断，空列表也要更新
         List<String> names = new ArrayList<>();
         int playIndex = 0;
 
-        // ✅ 加空判断，防止空指针
         if (filteredChannels != null) {
             for (int i = 0; i < filteredChannels.size(); i++) {
                 Channel c = filteredChannels.get(i);
