@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:fillViewport="true"
-    android:background="#CC111111"> <!-- 🟢 把纯白背景改成了半透明深色 -->
+    android:background="#CC111111">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -78,7 +78,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp">
-            <!-- 核心防重叠：layout_toStartOf 保证文字过长换行时，依然排在开关左侧，不覆盖开关 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -121,7 +120,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp">
-            <!-- 核心防重叠：layout_toStartOf 保证文字过长换行时，依然排在开关左侧 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
