@@ -7,10 +7,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import android.text.TextUtils; // 🟢 别忘了导入这个
 
 public class PlaylistParser {
     public static List<Channel> parse(String url) throws Exception {
-        // 🟢 替换原有的 List<Channel> list，改用 Map 去重
         Map<String, Channel> channelMap = new LinkedHashMap<>();
         
         BufferedReader br = new BufferedReader(new InputStreamReader(new URL(url).openStream()));
@@ -27,37 +27,50 @@ public class PlaylistParser {
             }
 
             if (line.startsWith("#EXTINF:")) {
-                String name = "";
                 String tvgId = "";
-                String group = currentGroup;
+                String tvgName = "";
+                String displayName = "";
 
                 if (line.contains("tvg-id=\"")) {
                     tvgId = line.split("tvg-id=\"")[1].split("\"")[0];
                 }
-                if (line.contains("group-title=\"")) {
-                    group = line.split("group-title=\"")[1].split("\"")[0];
+                if (line.contains("tvg-name=\"")) {
+                    tvgName = line.split("tvg-name=\"")[1].split("\"")[0];
                 }
                 if (line.contains(",")) {
-                    name = line.substring(line.indexOf(",") + 1).trim();
+                    displayName = line.substring(line.indexOf(",") + 1).trim();
+                }
+
+                // 🟢【核心修复】无论 tvg-id 是否相同，强制以 tvg-name 作为去重合并的唯一 Key！
+                // 解决同一个台 (比如 CCTV5) 出现多个不同 tvg-id 导致无法合并的难题。
+                String uniqueKey = tvgName; 
+                if (TextUtils.isEmpty(uniqueKey)) {
+                    uniqueKey = tvgId;
+                }
+                if (TextUtils.isEmpty(uniqueKey)) {
+                    uniqueKey = displayName;
+                }
+
+                if (TextUtils.isEmpty(uniqueKey)) {
+                    continue;
                 }
 
                 String uri = br.readLine();
                 if (uri != null && uri.startsWith("http")) {
-                    // 🟢 核心替换：如果已经有同名频道，把当前地址当成备用源加进去
-                    if (channelMap.containsKey(name)) {
-                        Channel existingChannel = channelMap.get(name);
+                    if (channelMap.containsKey(uniqueKey)) {
+                        Channel existingChannel = channelMap.get(uniqueKey);
                         existingChannel.addBackupUrl(uri);
                     } else {
-                        // 如果是新频道，正常创建并放入 Map
-                        Channel newChannel = new Channel(name, uri, group, tvgId);
-                        channelMap.put(name, newChannel);
+                        // 以 tvgName 作为实际的显示名，如果 tvgName 为空则回退到显示名
+                        String finalName = (tvgName != null && !tvgName.isEmpty()) ? tvgName : displayName;
+                        Channel newChannel = new Channel(finalName, uri, currentGroup, tvgId);
+                        channelMap.put(uniqueKey, newChannel);
                     }
                 }
             }
         }
         br.close();
 
-        // 🟢 最后将 Map 中存储的所有频道转回 List 返回
         return new ArrayList<>(channelMap.values());
     }
 }
