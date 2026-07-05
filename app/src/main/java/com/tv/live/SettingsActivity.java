@@ -369,7 +369,8 @@ public class SettingsActivity extends AppCompatActivity {
                         if (currentPos != position) {
                             remoteManager.setSettingsFocusPosition(position);
                             updateSettingsFocus();
-                            logOperation("【设置】焦点移动到第 " + (position + 1) + " 项（点击）");
+                            // 🟢 【已注释】遥控器焦点日志
+                            // logOperation("【设置】焦点移动到第 " + (position + 1) + " 项（点击）");
                         }
                     }
                 });
@@ -399,13 +400,15 @@ public class SettingsActivity extends AppCompatActivity {
             @Override
             public void onSettingsMoveUp() {
                 int newPos = remoteManager.getSettingsFocusPosition();
-                logOperation("【设置遥控】上键 → 移动到第 " + (newPos + 1) + " 项");
+                // 🟢 【已注释】遥控器焦点日志
+                // logOperation("【设置遥控】上键 → 移动到第 " + (newPos + 1) + " 项");
                 updateSettingsFocus();
             }
             @Override
             public void onSettingsMoveDown() {
                 int newPos = remoteManager.getSettingsFocusPosition();
-                logOperation("【设置遥控】下键 → 移动到第 " + (newPos + 1) + " 项");
+                // 🟢 【已注释】遥控器焦点日志
+                // logOperation("【设置遥控】下键 → 移动到第 " + (newPos + 1) + " 项");
                 updateSettingsFocus();
             }
             @Override
@@ -480,7 +483,8 @@ public class SettingsActivity extends AppCompatActivity {
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
-        logOperation("【设置遥控】焦点更新 → 第 " + (selectedPosition + 1) + " 项");
+        // 🟢 【已注释】遥控器焦点日志
+        // logOperation("【设置遥控】焦点更新 → 第 " + (selectedPosition + 1) + " 项");
         for (int i = 0; i < settingsItemList.size(); i++) {
             View item = settingsItemList.get(i);
             if (item == null) continue;
@@ -543,7 +547,8 @@ public class SettingsActivity extends AppCompatActivity {
         View item = settingsItemList.get(position);
         if (item == null) return;
         item.performClick();
-        logOperation("【设置遥控】选中第 " + (position + 1) + " 项");
+        // 🟢 【已注释】遥控器焦点日志
+        // logOperation("【设置遥控】选中第 " + (position + 1) + " 项");
     }
 
     private void showRatioDialog() {
@@ -910,4 +915,4 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.clear();
         settingsItemList = null;
     }
-}
+ }
