@@ -1,12 +1,14 @@
 package com.tv.live.loader;
+
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+
 import com.tv.live.Channel;
 import com.tv.live.PlaylistParser;
-import com.tv.live.SettingsActivity;
 import com.tv.live.UrlConfig;
 import com.tv.live.util.CacheManager;
+
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
+
 /**
  * ✅ 直播源加载器（带缓存 + GitHub 智能加速 + 完整3xx重定向处理）
  *
@@ -89,7 +92,7 @@ public class LiveSourceLoader {
      */
     public void setAccelerateEnabled(boolean enabled) {
         this.accelerateEnabled = enabled;
-        SettingsActivity.log("【直播源加速】" + (enabled ? "已启用" : "已禁用"));
+        // 🟢【已移除】SettingsActivity.log("【直播源加速】" + (enabled ? "已启用" : "已禁用"));
     }
     /**
      * 设置加速源类型
@@ -98,7 +101,7 @@ public class LiveSourceLoader {
      */
     public void setAccelerateType(AccelerateType type) {
         this.accelerateType = type;
-        SettingsActivity.log("【直播源加速】加速源切换为：" + getAccelerateTypeName(type));
+        // 🟢【已移除】SettingsActivity.log("【直播源加速】加速源切换为：" + getAccelerateTypeName(type));
     }
     /**
      * 获取加速源名称
@@ -131,16 +134,16 @@ public class LiveSourceLoader {
                 // ====================================================================
                 String acceleratedUrl = getAcceleratedUrl(originalUrl);
                 if (!originalUrl.equals(acceleratedUrl)) {
-                    SettingsActivity.log("【直播源加速】检测到 GitHub 链接，已自动加速");
-                    SettingsActivity.log("【直播源加速】原地址：" + originalUrl);
-                    SettingsActivity.log("【直播源加速】加速地址：" + acceleratedUrl);
+                    // 🟢【已移除】SettingsActivity.log("【直播源加速】检测到 GitHub 链接，已自动加速");
+                    // 🟢【已移除】SettingsActivity.log("【直播源加速】原地址：" + originalUrl);
+                    // 🟢【已移除】SettingsActivity.log("【直播源加速】加速地址：" + acceleratedUrl);
                 }
                 // 下载原始M3U文本，用于保存缓存（用加速后的地址下载）
                 String rawContent = downloadRawContent(acceleratedUrl);
                 if (rawContent != null && !rawContent.isEmpty()) {
                     // 保存到缓存
                     cacheManager.saveFileCache("live_source", rawContent);
-                    SettingsActivity.log("【直播源】缓存已保存，大小：" + rawContent.length() + " 字节");
+                    // 🟢【已移除】SettingsActivity.log("【直播源】缓存已保存，大小：" + rawContent.length() + " 字节");
                 }
                 // 解析直播源（用加速后的地址解析）
                 List<Channel> channels = PlaylistParser.parse(acceleratedUrl);
@@ -413,9 +416,9 @@ public class LiveSourceLoader {
                 if (responseCode >= 300 && responseCode < 400) {
                     redirectCount++;
                     String location = conn.getHeaderField("Location");
-                    SettingsActivity.log("【直播源下载重定向】第" + redirectCount + "次跳转，原地址：" + currentUrl + " -> Location：" + location);
+                    // 🟢【已移除】SettingsActivity.log("【直播源下载重定向】第" + redirectCount + "次跳转，原地址：" + currentUrl + " -> Location：" + location);
                     if (location == null || location.isEmpty()) {
-                        SettingsActivity.log("【直播源下载】重定向Location为空，终止下载");
+                        // 🟢【已移除】SettingsActivity.log("【直播源下载】重定向Location为空，终止下载");
                         return null;
                     }
                     // 拼接相对路径
@@ -428,14 +431,14 @@ public class LiveSourceLoader {
                     conn.disconnect();
                     conn = null;
                     if (redirectCount >= MAX_REDIRECT) {
-                        SettingsActivity.log("【直播源下载】重定向已达最大次数" + MAX_REDIRECT + "，下载失败");
+                        // 🟢【已移除】SettingsActivity.log("【直播源下载】重定向已达最大次数" + MAX_REDIRECT + "，下载失败");
                         return null;
                     }
                     continue;
                 }
                 // 非200直接失败
                 if (responseCode != 200) {
-                    SettingsActivity.log("【直播源下载】响应码非200：" + responseCode + " url=" + currentUrl);
+                    // 🟢【已移除】SettingsActivity.log("【直播源下载】响应码非200：" + responseCode + " url=" + currentUrl);
                     return null;
                 }
                 // 读取流
@@ -455,7 +458,7 @@ public class LiveSourceLoader {
             return null;
         } catch (Exception e) {
             e.printStackTrace();
-            SettingsActivity.log("【直播源下载】下载异常：" + e.getMessage());
+            // 🟢【已移除】SettingsActivity.log("【直播源下载】下载异常：" + e.getMessage());
             return null;
         } finally {
             try {
