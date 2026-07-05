@@ -68,7 +68,7 @@
                         android:text="开机自启"
                         android:textColor="#FFFFFF"
                         android:textSize="16sp" />
-                    <Switch
+                    <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/sw_boot"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -105,7 +105,7 @@
                     android:text="节目单开关"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_epg"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -133,7 +133,7 @@
                     android:text="自动更新源"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_auto_update"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -161,7 +161,7 @@
                     android:text="换台反转"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_reverse"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -189,7 +189,7 @@
                     android:text="数字选台"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_num_channel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -217,7 +217,7 @@
                     android:text="画中画"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
-                <Switch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_pip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
