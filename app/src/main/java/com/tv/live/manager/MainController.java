@@ -88,8 +88,8 @@ public class MainController {
                 } else {
                     playPrev();
                 }
-                SettingsActivity.logOperation("【切台】上键 → "
-                        + (channelReverse ? "下一台" : "上一台"));
+                // 🟢【已注释】SettingsActivity.logOperation("【切台】上键 → "
+                //         + (channelReverse ? "下一台" : "上一台"));
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (channelReverse) {
@@ -97,8 +97,8 @@ public class MainController {
                 } else {
                     playNext();
                 }
-                SettingsActivity.logOperation("【切台】下键 → "
-                        + (channelReverse ? "上一台" : "下一台"));
+                // 🟢【已注释】SettingsActivity.logOperation("【切台】下键 → "
+                //         + (channelReverse ? "上一台" : "下一台"));
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -151,11 +151,12 @@ public class MainController {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
 
-        log("========================================");
-        log("【播放】频道名称：" + channel.getName());
-        log("【播放】播放地址：" + channel.getPlayUrl());
-        log("【播放】当前索引：" + index);
-        log("========================================");
+        // 🟢【已注释】
+        // log("========================================");
+        // log("【播放】频道名称：" + channel.getName());
+        // log("【播放】播放地址：" + channel.getPlayUrl());
+        // log("【播放】当前索引：" + index);
+        // log("========================================");
 
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
@@ -203,10 +204,11 @@ public class MainController {
             channelPanelController.setEpgEnable(epgEnable);
         }
 
-        log("【设置】EPG开关：" + epgEnable);
-        log("【设置】切台反转：" + channelReverse);
-        log("【设置】数字选台：" + numberChannelEnable);
-        log("【设置】自动更新源：" + autoUpdateSource);
+        // 🟢【已注释】
+        // log("【设置】EPG开关：" + epgEnable);
+        // log("【设置】切台反转：" + channelReverse);
+        // log("【设置】数字选台：" + numberChannelEnable);
+        // log("【设置】自动更新源：" + autoUpdateSource);
     }
 
     public boolean isChannelReverse() {
@@ -230,11 +232,12 @@ public class MainController {
     // ====================================================================
 
     public static void log(String msg) {
-        logList.add(0, msg);
-        while (logList.size() > MAX_LOG_COUNT) {
-            logList.remove(logList.size() - 1);
-        }
-        SettingsActivity.log(msg);
+        // 🟢【已注释】彻底注释日志，避免写入操作日志和播放日志
+        // logList.add(0, msg);
+        // while (logList.size() > MAX_LOG_COUNT) {
+        //     logList.remove(logList.size() - 1);
+        // }
+        // SettingsActivity.log(msg);
     }
 
     public static List<String> getLogList() {
