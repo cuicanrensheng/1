@@ -11,7 +11,7 @@ import android.text.TextUtils;
 
 public class PlaylistParser {
     public static List<Channel> parse(String url) throws Exception {
-        // 🟢 使用 LinkedHashMap 严格保留解析顺序：最先读到的 URL 自动成为主源！
+        // 🟢 使用 LinkedHashMap 保证解析顺序，最先出现的作为主源
         Map<String, Channel> channelMap = new LinkedHashMap<>();
         
         BufferedReader br = new BufferedReader(new InputStreamReader(new URL(url).openStream()));
@@ -32,9 +32,11 @@ public class PlaylistParser {
                 String tvgName = "";
                 String displayName = "";
 
+                // 提取 tvg-id
                 if (line.contains("tvg-id=\"")) {
                     tvgId = line.split("tvg-id=\"")[1].split("\"")[0];
                 }
+                // 提取 tvg-name
                 if (line.contains("tvg-name=\"")) {
                     tvgName = line.split("tvg-name=\"")[1].split("\"")[0];
                 }
@@ -42,7 +44,7 @@ public class PlaylistParser {
                     displayName = line.substring(line.indexOf(",") + 1).trim();
                 }
 
-                // 🟢【核心逻辑】优先使用 tvg-id 作为唯一合并键，防止不同频道的 tvg-name 撞名！
+                // 🟢【去重逻辑】优先使用 tvg-id，其次 tvg-name，最后显示名
                 String uniqueKey = tvgId;
                 if (TextUtils.isEmpty(uniqueKey)) {
                     uniqueKey = tvgName;
@@ -58,11 +60,11 @@ public class PlaylistParser {
                 String uri = br.readLine();
                 if (uri != null && uri.startsWith("http")) {
                     if (channelMap.containsKey(uniqueKey)) {
-                        // 已存在同名频道，将此地址追加为备用源
+                        // 遇到同名（同一频道的不同链接），加入备用源
                         Channel existingChannel = channelMap.get(uniqueKey);
                         existingChannel.addBackupUrl(uri);
                     } else {
-                        // 第一次出现，作为主源创建（保留 map 插入顺序）
+                        // 第一次出现，作为主源创建
                         String finalName = (tvgName != null && !tvgName.isEmpty()) ? tvgName : displayName;
                         Channel newChannel = new Channel(finalName, uri, currentGroup, tvgId);
                         channelMap.put(uniqueKey, newChannel);
