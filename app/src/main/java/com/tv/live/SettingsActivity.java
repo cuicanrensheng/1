@@ -17,8 +17,10 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -547,20 +549,46 @@ public class SettingsActivity extends AppCompatActivity {
         logOperation("【设置遥控】选中第 " + (position + 1) + " 项");
     }
 
+    // ====================================================================
+    // 🟢【统一美化】屏幕比例列表弹窗
+    // ====================================================================
     private void showRatioDialog() {
         final String[] ratios = {"全屏", "填充", "原始"};
-        new AlertDialog.Builder(this)
-                .setTitle("屏幕比例")
-                .setItems(ratios, (d, w) -> {
-                    sp.edit().putString("screen_ratio", ratios[w]).apply();
-                    logOperation("【设置】屏幕比例设为：" + ratios[w]);
-                    Toast.makeText(this, "已设置", Toast.LENGTH_SHORT).show();
-                }).show();
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("屏幕比例");
+        // 🟢 使用自定义 ArrayAdapter 强制文字设为白色
+        builder.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, ratios) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView tv = (TextView) super.getView(position, convertView, parent);
+                tv.setTextColor(Color.WHITE);
+                tv.setTextSize(16);
+                tv.setPadding(20, 20, 20, 20);
+                return tv;
+            }
+        }, (d, w) -> {
+            sp.edit().putString("screen_ratio", ratios[w]).apply();
+            logOperation("【设置】屏幕比例设为：" + ratios[w]);
+            Toast.makeText(this, "已设置", Toast.LENGTH_SHORT).show();
+        });
+        AlertDialog dialog = builder.create();
+
+        // 🟢 去掉白色外框，给列表设置深色半透明背景
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        ListView listView = dialog.getListView();
+        listView.setBackgroundColor(Color.parseColor("#CC111111"));
+        listView.setDivider(null);
+        listView.setDividerHeight(0);
+        dialog.show();
     }
 
+    // ====================================================================
+    // 🟢【统一美化】解码器选择单选弹窗
+    // ====================================================================
     private void showDecoderModeDialog() {
         final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
-        // 🟢 修复核心：补齐第三个参数 "soft"，避免选择软解时数组越界崩溃！
         final String[] modeValues = {"auto", "hard", "soft"}; 
         
         String currentMode = sp.getString("decoder_mode", "auto");
@@ -571,17 +599,38 @@ public class SettingsActivity extends AppCompatActivity {
                 break;
             }
         }
-        new AlertDialog.Builder(this)
-                .setTitle("解码器选择")
-                .setSingleChoiceItems(modes, checkedItem, (d, which) -> {
-                    String selectedMode = modeValues[which];
-                    sp.edit().putString("decoder_mode", selectedMode).apply();
-                    updateDecoderModeText(selectedMode);
-                    logOperation("【设置】解码器选择：" + modes[which]);
-                    sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
-                    d.dismiss();
-                    Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…", Toast.LENGTH_SHORT).show();
-                }).show();
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("解码器选择");
+        // 🟢 使用自定义 ArrayAdapter 强制文字设为白色
+        builder.setSingleChoiceItems(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, modes) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView tv = (TextView) super.getView(position, convertView, parent);
+                tv.setTextColor(Color.WHITE);
+                tv.setTextSize(16);
+                tv.setPadding(20, 20, 20, 20);
+                return tv;
+            }
+        }, checkedItem, (d, which) -> {
+            String selectedMode = modeValues[which];
+            sp.edit().putString("decoder_mode", selectedMode).apply();
+            updateDecoderModeText(selectedMode);
+            logOperation("【设置】解码器选择：" + modes[which]);
+            sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
+            d.dismiss();
+            Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…", Toast.LENGTH_SHORT).show();
+        });
+
+        AlertDialog dialog = builder.create();
+        // 🟢 去掉白色外框，给列表设置深色半透明背景
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        ListView listView = dialog.getListView();
+        listView.setBackgroundColor(Color.parseColor("#CC111111"));
+        listView.setDivider(null);
+        listView.setDividerHeight(0);
+        dialog.show();
     }
 
     private void updateDecoderModeText(String mode) {
@@ -594,7 +643,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     // ====================================================================
-    // 🆕 渲染方式选择弹窗与更新
+    // 🟢【统一美化】渲染方式选择单选弹窗
     // ====================================================================
     private void showRendererModeDialog() {
         final String[] modes = {"SurfaceView（默认）", "TextureView（兼容）"};
@@ -607,18 +656,39 @@ public class SettingsActivity extends AppCompatActivity {
                 break;
             }
         }
-        new AlertDialog.Builder(this)
-                .setTitle("渲染方式选择")
-                .setSingleChoiceItems(modes, checkedItem, (d, which) -> {
-                    String selectedMode = modeValues[which];
-                    sp.edit().putString("renderer_type", selectedMode).apply();
-                    updateRendererModeText(selectedMode);
-                    logOperation("【设置】渲染方式：" + modes[which]);
-                    // 发送广播，通知播放器立刻切换渲染方式
-                    sendBroadcast(new Intent("com.tv.live.RENDERER_TYPE_CHANGED"));
-                    d.dismiss();
-                    Toast.makeText(this, "已切换到" + modes[which] + "，正在应用……", Toast.LENGTH_SHORT).show();
-                }).show();
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("渲染方式选择");
+        // 🟢 使用自定义 ArrayAdapter 强制文字设为白色
+        builder.setSingleChoiceItems(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, modes) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView tv = (TextView) super.getView(position, convertView, parent);
+                tv.setTextColor(Color.WHITE);
+                tv.setTextSize(16);
+                tv.setPadding(20, 20, 20, 20);
+                return tv;
+            }
+        }, checkedItem, (d, which) -> {
+            String selectedMode = modeValues[which];
+            sp.edit().putString("renderer_type", selectedMode).apply();
+            updateRendererModeText(selectedMode);
+            logOperation("【设置】渲染方式：" + modes[which]);
+            // 发送广播，通知播放器立刻切换渲染方式
+            sendBroadcast(new Intent("com.tv.live.RENDERER_TYPE_CHANGED"));
+            d.dismiss();
+            Toast.makeText(this, "已切换到" + modes[which] + "，正在应用……", Toast.LENGTH_SHORT).show();
+        });
+
+        AlertDialog dialog = builder.create();
+        // 🟢 去掉白色外框，给列表设置深色半透明背景
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        ListView listView = dialog.getListView();
+        listView.setBackgroundColor(Color.parseColor("#CC111111"));
+        listView.setDivider(null);
+        listView.setDividerHeight(0);
+        dialog.show();
     }
 
     private void updateRendererModeText(String mode) {
@@ -672,6 +742,15 @@ public class SettingsActivity extends AppCompatActivity {
         swIgnoreSsl.setChecked(ignoreSsl);
         swSendCookie.setChecked(sendCookie);
 
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setView(dialogView);
+        final AlertDialog dialog = builder.create();
+
+        // 🟢【核心修改】把 AlertDialog 默认的白色外框背景设为透明！
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+
         // 🟢【精简】UA 切换点击弹窗事件（只剩 ExoPlayer 和 VLC）
         llUserAgent.setOnClickListener(v -> {
             final String[] uaOptions = {"ExoPlayer默认", "VLC播放器"};
@@ -694,9 +773,7 @@ public class SettingsActivity extends AppCompatActivity {
                 }).show();
         });
 
-        new AlertDialog.Builder(this)
-                .setTitle("HTTP重定向网络配置")
-                .setView(dialogView)
+        builder.setTitle("HTTP重定向网络配置")
                 .setPositiveButton("保存", (dialog, which) -> {
                     String maxStr = etMax.getText().toString().trim();
                     int newMax = 5;
@@ -717,9 +794,8 @@ public class SettingsActivity extends AppCompatActivity {
                     editor.putBoolean(KEY_REDIRECT_CROSS_PROTOCOL, swCrossProto.isChecked());
                     editor.putBoolean(KEY_REDIRECT_FOLLOW_HEADERS, swFollowHeader.isChecked());
                     editor.putBoolean(KEY_REDIRECT_IGNORE_SSL, swIgnoreSsl.isChecked());
-                    editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked()); // 🟢 保存新开关状态
-                    // ✅ 修复：使用数组下标读取
-                    editor.putString(KEY_USER_AGENT_MODE, currentUaMode[0]); // 🟢 保存 UA 状态
+                    editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked());
+                    editor.putString(KEY_USER_AGENT_MODE, currentUaMode[0]);
                     editor.apply();
                     // 更新界面摘要
                     updateRedirectSettingText();
@@ -728,6 +804,8 @@ public class SettingsActivity extends AppCompatActivity {
                 })
                 .setNegativeButton("取消", null)
                 .show();
+
+        dialog.show();
     }
 
     private void showInputDialog(String title, String hint, String key) {
