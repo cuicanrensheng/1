@@ -165,7 +165,7 @@ public class DateListManager {
             cal.add(Calendar.DAY_OF_YEAR, 1);
         }
 
-        SettingsActivity.logOperation("【日期列表】初始化：" + dateDisplayList);
+        // 🟢【已注释】SettingsActivity.logOperation("【日期列表】初始化：" + dateDisplayList);
 
         adapter = new ArrayAdapter<String>(context, R.layout.item_date, dateDisplayList) {
             @Override
@@ -214,12 +214,12 @@ public class DateListManager {
         lvDate.setOnItemClickListener((parent, view, position, id) -> {
             selectedPosition = position;
             adapter.notifyDataSetChanged();
-            SettingsActivity.logOperation("【日期列表】👆 点击：位置" + position + "，" + dateDisplayList.get(position));
+            // 🟢【已注释】SettingsActivity.logOperation("【日期列表】👆 点击：位置" + position + "，" + dateDisplayList.get(position));
             if (listener != null) {
-                SettingsActivity.logOperation("【日期列表】✅ 触发回调");
+                // 🟢【已注释】SettingsActivity.logOperation("【日期列表】✅ 触发回调");
                 listener.onDateSelected(position);
             } else {
-                SettingsActivity.logOperation("【日期列表】❌ listener为空，未触发回调");
+                // 🟢【已注释】SettingsActivity.logOperation("【日期列表】❌ listener为空，未触发回调");
             }
         });
     }
