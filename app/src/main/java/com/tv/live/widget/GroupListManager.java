@@ -170,10 +170,14 @@ public class GroupListManager {
                 tv.setTextSize(16);
                 tv.setPadding(20, 15, 20, 15);
                 
-                // 显示分组名 + 频道数量
+                // 🟢 修复：只有“全部”分组才显示数字，其他分组只显示纯文本名称
                 String groupName = groupList.get(position);
                 int count = groupCountList.get(position);
-                tv.setText(groupName + " (" + count + ")");
+                if (position == 0 && GROUP_ALL.equals(groupName)) {
+                    tv.setText(groupName + " (" + count + ")");
+                } else {
+                    tv.setText(groupName);
+                }
 
                 // 三种状态样式（区分焦点态）
                 if (position == selectedPosition) {
