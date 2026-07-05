@@ -20,7 +20,6 @@ import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.MainActivity;
 import com.tv.live.R;
-import com.tv.live.SettingsActivity;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -90,10 +89,8 @@ public class EpgManagerWrapper {
      */
     public void refresh(Channel currentChannel, List<Channel> channelSourceList, int dateIndex) {
         if (currentChannel == null) {
-            // 🟢【已注释】SettingsActivity.log("【EPG包装】❌ refresh被调用，但currentChannel为空");
             return;
         }
-        // 🟢【已注释】SettingsActivity.log("【EPG包装】🔄 开始刷新，频道：" + currentChannel.getName() + "，日期索引：" + dateIndex);
         playingIndex = -1;
         selectDayIndex = dateIndex;
         epgEndTimeMap.clear();
@@ -103,10 +100,8 @@ public class EpgManagerWrapper {
                 List<Channel.EpgItem> temp = EpgManager.getInstance().getEpg(currentChannel.getName());
                 originEpgList = temp == null ? new ArrayList<>() : new ArrayList<>(temp);
             } catch (Exception e) {
-                // 🟢【已注释】SettingsActivity.log("【EPG包装】获取EPG异常：" + e.getMessage());
                 originEpgList = new ArrayList<>();
             }
-            // 🟢【已注释】SettingsActivity.log("【EPG包装】📋 原始节目数：" + originEpgList.size());
             List<Channel.EpgItem> data = new ArrayList<>();
             if (!originEpgList.isEmpty()) {
                 String targetDay;
@@ -128,7 +123,6 @@ public class EpgManagerWrapper {
                 } else {
                     targetDay = weekDay;
                 }
-                // 🟢【已注释】SettingsActivity.log("【EPG包装】🎯 目标日期：" + targetDay + "，对应周几：" + weekDay);
                 int matchCount = 0;
                 for (Channel.EpgItem item : originEpgList) {
                     if (item.dayName == null) continue;
@@ -140,7 +134,6 @@ public class EpgManagerWrapper {
                         matchCount++;
                     }
                 }
-                // 🟢【已注释】SettingsActivity.log("【EPG包装】✅ 筛选后节目数：" + matchCount);
                 Collections.sort(data, Comparator.comparing(o -> o.time));
                 // 区分今日/非今日
                 if (dateIndex == 0) {
@@ -189,7 +182,6 @@ public class EpgManagerWrapper {
             final List<Channel.EpgItem> finalData = data;
             final Channel finalChannel = currentChannel;
             ((MainActivity) context).runOnUiThread(() -> {
-                // 🟢【已注释】SettingsActivity.logOperation("【EPG包装】📱 主线程更新UI，节目数：" + finalData.size());
                 if (adapter == null) {
                     adapter = new EpgAdapter(context, finalChannel, finalData, selectDayIndex);
                     lvEpg.setAdapter(adapter);
@@ -201,7 +193,6 @@ public class EpgManagerWrapper {
                 }
                 lvEpg.setSelection(selectedPosition);
                 adapter.notifyDataSetChanged();
-                // 🟢【已注释】SettingsActivity.logOperation("【EPG包装】✅ UI更新完成");
             });
         }).start();
     }
@@ -289,7 +280,6 @@ public class EpgManagerWrapper {
                 holder.tv_time = convertView.findViewById(R.id.tv_time);
                 holder.tv_title = convertView.findViewById(R.id.tv_title);
                 holder.tv_action = convertView.findViewById(R.id.tv_action);
-                // 修复变量名错误 convertView
                 convertView.setTag(holder);
             } else {
                 holder = (ViewHolder) convertView.getTag();
@@ -414,7 +404,6 @@ public class EpgManagerWrapper {
             return convertView;
         }
 
-        // 修复1：去掉 static 关键字，内部适配器不允许静态ViewHolder
         private class ViewHolder {
             TextView tv_dayName;
             TextView tv_time;
