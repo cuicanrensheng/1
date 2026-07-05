@@ -53,7 +53,7 @@ public class TVPlayerManager {
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 10000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
-    // ====================== 新增：重定向SP存储Key（与Settings完全对齐） ======================
+    // ====================== 新增：重定向SP存储Key ======================
     private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
     private static final String KEY_REDIRECT_CROSS_DOMAIN = "redirect_cross_domain";
     private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
@@ -463,16 +463,34 @@ public class TVPlayerManager {
             Log.e(TAG, "注销解码器广播接收器失败：" + e.getMessage());
         }
     }
+    
+    // ============================================================
+    // 🟢【完美修复】切换渲染器时的黑屏掩盖逻辑
+    // ============================================================
     private void switchRenderer(boolean useTexture) {
         if (playerView == null || context == null) return;
+
+        // 1. 在切换开始前，立刻在全屏铺上一层纯黑遮罩
+        FrameLayout parent = (FrameLayout) playerView.getParent();
+        if (parent == null) return;
+
+        View blackMask = new View(context);
+        blackMask.setBackgroundColor(Color.BLACK);
+        FrameLayout.LayoutParams maskParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        );
+        parent.addView(blackMask, maskParams);
+        // 强制遮罩摆在最顶层
+        blackMask.bringToFront();
+
         isRenderingSwitching = true;
         bufferCount = 0;
         long currentPosition = player.getCurrentPosition();
         boolean wasPlaying = player.isPlaying();
         boolean useController = playerView.getUseController();
         ViewGroup.LayoutParams layoutParams = playerView.getLayoutParams();
-        ViewGroup parent = (ViewGroup) playerView.getParent();
-        if (parent == null) return;
+
         int index = parent.indexOfChild(playerView);
         int styleRes = useTexture ? R.style.PlayerView_Texture : R.style.PlayerView_Surface;
         ContextThemeWrapper themedContext = new ContextThemeWrapper(context, styleRes);
@@ -500,8 +518,24 @@ public class TVPlayerManager {
             onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
         }
         playerView.requestFocus();
+
+        // 2. 延迟 100ms 触发新播放器的强制渲染，确保首帧已经准备完毕
+        playerView.postDelayed(() -> {
+            // 3. 淡入动画，让黑色遮罩以动画形式平滑消失
+            blackMask.animate()
+                    .alpha(0f)          
+                    .setDuration(250)   
+                    .withEndAction(() -> {
+                        // 动画彻底结束后，从布局中移除遮罩以释放内存
+                        parent.removeView(blackMask);
+                    })
+                    .start();
+        }, 100); 
+
         isRenderingSwitching = false;
     }
+    // ============================================================
+
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
