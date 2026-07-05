@@ -35,11 +35,6 @@ import java.util.Set;
 
 /**
  * EPG 节目单包装管理器
- * 样式更新规则
- * 1、焦点选中条目（最高优先级）：蓝色字体+加粗+浅蓝色半透明背景
- * 2、播放中条目（仅今日首位，无焦点）：蓝色字体、不加粗、透明无背景
- * 3、普通条目：白色常规文字、透明背景
- * 4、非今日完全不渲染播放中蓝色样式
  */
 public class EpgManagerWrapper {
     private final ListView lvEpg;
@@ -48,8 +43,8 @@ public class EpgManagerWrapper {
     private final Set<String> bookedSet = new HashSet<>();
     private final Map<Channel.EpgItem, String> epgEndTimeMap = new HashMap<>();
     private static final String ACTION_REMINDER = "com.tv.live.EPG_REMINDER";
-    private int selectedPosition = 0; // 焦点选中位置
-    private int playingIndex = -1;    // 播放中条目位置
+    private int selectedPosition = 0;
+    private int playingIndex = -1;
     private int selectDayIndex = 0;
 
     public EpgManagerWrapper(Context context, ListView lvEpg) {
@@ -84,13 +79,8 @@ public class EpgManagerWrapper {
         registerReminderReceiver();
     }
 
-    /**
-     * 刷新指定日期节目单
-     */
     public void refresh(Channel currentChannel, List<Channel> channelSourceList, int dateIndex) {
-        if (currentChannel == null) {
-            return;
-        }
+        if (currentChannel == null) return;
         playingIndex = -1;
         selectDayIndex = dateIndex;
         epgEndTimeMap.clear();
@@ -123,7 +113,6 @@ public class EpgManagerWrapper {
                 } else {
                     targetDay = weekDay;
                 }
-                int matchCount = 0;
                 for (Channel.EpgItem item : originEpgList) {
                     if (item.dayName == null) continue;
                     String dayName = item.dayName.trim();
@@ -131,11 +120,9 @@ public class EpgManagerWrapper {
                     if (!match && targetWeekDay != null) match = targetWeekDay.equals(dayName);
                     if (match) {
                         data.add(item);
-                        matchCount++;
                     }
                 }
                 Collections.sort(data, Comparator.comparing(o -> o.time));
-                // 区分今日/非今日
                 if (dateIndex == 0) {
                     String now = getNow();
                     Channel.EpgItem playing = null;
@@ -157,7 +144,6 @@ public class EpgManagerWrapper {
                             playingIndex = i;
                         }
                     }
-                    // 播放节目置顶
                     if (playing != null && playingIndex > 0) {
                         data.remove(playing);
                         data.add(0, playing);
@@ -244,7 +230,6 @@ public class EpgManagerWrapper {
         context.registerReceiver(receiver, new IntentFilter(ACTION_REMINDER));
     }
 
-    // EPG适配器
     private class EpgAdapter extends ArrayAdapter<Channel.EpgItem> {
         private final Context ctx;
         private Channel currentChannel;
@@ -285,7 +270,6 @@ public class EpgManagerWrapper {
                 holder = (ViewHolder) convertView.getTag();
             }
 
-            // 边界保护
             if (position < 0 || position >= list.size()) {
                 return convertView;
             }
@@ -296,7 +280,7 @@ public class EpgManagerWrapper {
             holder.tv_time.setText(item.time + "-" + endTime);
             holder.tv_title.setText(item.title);
 
-            // 1、先重置所有样式（彻底清空缓存）
+            // 重置样式
             holder.tv_dayName.setTextColor(Color.WHITE);
             holder.tv_time.setTextColor(Color.LTGRAY);
             holder.tv_title.setTextColor(Color.WHITE);
@@ -304,21 +288,16 @@ public class EpgManagerWrapper {
             convertView.setBackgroundColor(Color.TRANSPARENT);
             convertView.setSelected(false);
 
-            // 2、判断当前item是否是焦点选中
             boolean isFocused = (position == selectedPosition) && lvEpg.hasFocus();
-            // 3、判断当前item是否是播放中
             boolean isPlaying = item.isPlaying && dayIndex == 0;
 
-            // 规则1：焦点选中条目（浅蓝色背景 + 蓝色文字 + 加粗）
             if (isFocused) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(0x3340A9FF);
-            }
-            // 规则2：无焦点播放中：蓝色文字、不加粗、透明背景
-            else if (isPlaying) {
+            } else if (isPlaying) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
@@ -326,7 +305,6 @@ public class EpgManagerWrapper {
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             }
 
-            // ========== 按钮逻辑 ==========
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
             try { isPast = item.time.compareTo(getNow()) < 0; } catch (Exception ignored) {}
@@ -411,4 +389,4 @@ public class EpgManagerWrapper {
             TextView tv_action;
         }
     }
-}
+                                }
