@@ -45,7 +45,7 @@
                 android:layout_alignParentStart="true"
                 android:layout_centerVertical="true"
                 android:text="允许跨域名重定向"/>
-            <Switch
+            <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/sw_cross_domain"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -64,7 +64,7 @@
                 android:layout_alignParentStart="true"
                 android:layout_centerVertical="true"
                 android:text="允许HTTP/HTTPS跨协议跳转"/>
-            <Switch
+            <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/sw_cross_proto"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -85,7 +85,7 @@
                 android:layout_marginEnd="8dp"
                 android:layout_centerVertical="true"
                 android:text="跳转携带Referer/Cookie（防盗链必备）"/>
-            <Switch
+            <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/sw_follow_header"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -106,7 +106,7 @@
                 android:layout_marginEnd="8dp"
                 android:layout_centerVertical="true"
                 android:text="Cookie播放授权令牌"/>
-            <Switch
+            <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/sw_send_cookie"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -127,7 +127,7 @@
                 android:layout_marginEnd="8dp"
                 android:layout_centerVertical="true"
                 android:text="忽略HTTPS跳转证书错误（不安全）"/>
-            <Switch
+            <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/sw_ignore_ssl"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
