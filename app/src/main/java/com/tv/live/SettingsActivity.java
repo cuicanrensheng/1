@@ -774,7 +774,8 @@ public class SettingsActivity extends AppCompatActivity {
         });
 
         builder.setTitle("HTTP重定向网络配置")
-                .setPositiveButton("保存", (dialog, which) -> {
+                // 🟢【修复编译错误】将 lambda 参数名从 (dialog, which) 改为 (d, which)
+                .setPositiveButton("保存", (d, which) -> {
                     String maxStr = etMax.getText().toString().trim();
                     int newMax = 5;
                     if (!TextUtils.isEmpty(maxStr)) {
