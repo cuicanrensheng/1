@@ -25,6 +25,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import com.tv.live.manager.LineSelectManager;
 import com.tv.live.manager.TvRemoteManager;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,13 +43,14 @@ import java.util.List;
  * 7. ✅ 解码器选择（自动/硬解/软解）
  * 8. ✅ 渲染方式选择（SurfaceView/TextureView）（2026-07-02 新增）
  * 9. ✅ HTTP重定向网络配置（2026-07-03 新增）
- * 10. 屏幕比例设置
- * 11. 自定义订阅源/节目单
- * 12. 多订阅源/节目单管理（委托给 SourceDialogManager）
- * 13. 扫码添加（委托给 QRCodeManager）
- * 14. 解析&播放日志查看
- * 15. 操作日志查看
- * 16. 检查更新（委托给 UpdateManager）
+ * 10. ✅ 播放线路全局管理（新增）
+ * 11. 屏幕比例设置
+ * 12. 自定义订阅源/节目单
+ * 13. 多订阅源/节目单管理（委托给 SourceDialogManager）
+ * 14. 扫码添加（委托给 QRCodeManager）
+ * 15. 解析&播放日志查看
+ * 16. 操作日志查看
+ * 17. 检查更新（委托给 UpdateManager）
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
@@ -60,6 +62,8 @@ public class SettingsActivity extends AppCompatActivity {
     // 🆕 重定向设置文本显示控件
     private TextView tv_redirect_setting;
     private TextView tv_boot_status;
+    // 🆕 新增：线路管理条目容器
+    private LinearLayout item_line_config;
     // ====================== 配置相关 ======================
     private SharedPreferences sp;
     // ====================================================================
@@ -79,6 +83,8 @@ public class SettingsActivity extends AppCompatActivity {
     private static final int WEB_SERVER_PORT = 10481;
     private String currentWebUrl;
     private UpdateManager updateManager;
+    // 🆕 线路管理器
+    private LineSelectManager lineSelectManager;
     // ====================== SP Key 常量 ======================
     private static final String KEY_CUSTOM_LIVE = "custom_live_url";
     private static final String KEY_CUSTOM_EPG = "custom_epg_url";
@@ -140,6 +146,8 @@ public class SettingsActivity extends AppCompatActivity {
         View viewOutside = findViewById(R.id.view_outside);
         viewOutside.setOnClickListener(v -> finish());
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
+        // 🆕 初始化线路管理器
+        lineSelectManager = LineSelectManager.getInstance();
         // 🆕 初始化重定向默认配置（首次打开自动写入默认值）
         initRedirectDefaultConfig();
 
@@ -161,6 +169,8 @@ public class SettingsActivity extends AppCompatActivity {
         tv_multi_epg = findViewById(R.id.tv_multi_epg);
         tv_qr_code = findViewById(R.id.tv_qr_code);
         tv_boot_status = findViewById(R.id.tv_boot_status);
+        // 🆕 绑定线路管理条目
+        item_line_config = findViewById(R.id.item_line_config);
         scrollView = findViewById(R.id.settings_content);
         bootStartManager = new BootStartManager(this, sp);
         autoUpdateManager = new AutoUpdateManager(this);
@@ -170,6 +180,8 @@ public class SettingsActivity extends AppCompatActivity {
         updateManager = new UpdateManager(this);
         initSettingsItemList();
         initRemoteManager();
+        // 🆕 线路管理条目点击事件
+        item_line_config.setOnClickListener(v -> showLineManageDialog());
         findViewById(R.id.log_viewer).setOnClickListener(v -> showLogDialog());
         findViewById(R.id.log_operation).setOnClickListener(v -> showOperationLogDialog());
         // 开机自启
@@ -272,6 +284,26 @@ public class SettingsActivity extends AppCompatActivity {
         logOperation("【设置】打开设置页面");
     }
 
+    /** 🆕 线路全局管理弹窗 */
+    private void showLineManageDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("播放线路全局管理");
+        String[] ops = {"清空所有频道线路缓存", "重置当前频道线路失败记录"};
+        builder.setItems(ops, (dialog, which) -> {
+            if (which == 0) {
+                lineSelectManager.clearAllCache();
+                Toast.makeText(this, "已清空所有频道线路缓存", Toast.LENGTH_SHORT).show();
+                logOperation("【设置】执行清空全部线路缓存操作");
+            } else if (which == 1) {
+                lineSelectManager.resetCurrentChannelFailCount();
+                Toast.makeText(this, "已重置当前频道线路失败记录", Toast.LENGTH_SHORT).show();
+                logOperation("【设置】执行重置线路失败记录操作");
+            }
+        });
+        builder.setNegativeButton("关闭", null);
+        builder.show();
+    }
+
     /** 🆕 初始化重定向默认配置，首次进入写入默认值 */
     private void initRedirectDefaultConfig() {
         // 判断是否已存在key，不存在则写入默认值
@@ -333,6 +365,8 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void initSettingsItemList() {
         settingsItemList.clear();
+        // 🆕 首位添加线路管理条目，遥控器焦点顺序置顶
+        settingsItemList.add(item_line_config);
         settingsItemList.add(findViewById(R.id.item_boot));
         settingsItemList.add(findViewById(R.id.item_epg));
         settingsItemList.add(findViewById(R.id.item_auto_update));
@@ -915,4 +949,4 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.clear();
         settingsItemList = null;
     }
- }
+}
