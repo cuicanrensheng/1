@@ -4,11 +4,15 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PlaylistParser {
     public static List<Channel> parse(String url) throws Exception {
-        List<Channel> list = new ArrayList<>();
+        // 🟢 替换原有的 List<Channel> list，改用 Map 去重
+        Map<String, Channel> channelMap = new LinkedHashMap<>();
+        
         BufferedReader br = new BufferedReader(new InputStreamReader(new URL(url).openStream()));
         String line;
         String currentGroup = "未分类";
@@ -39,11 +43,21 @@ public class PlaylistParser {
 
                 String uri = br.readLine();
                 if (uri != null && uri.startsWith("http")) {
-                    list.add(new Channel(name, uri, group, tvgId));
+                    // 🟢 核心替换：如果已经有同名频道，把当前地址当成备用源加进去
+                    if (channelMap.containsKey(name)) {
+                        Channel existingChannel = channelMap.get(name);
+                        existingChannel.addBackupUrl(uri);
+                    } else {
+                        // 如果是新频道，正常创建并放入 Map
+                        Channel newChannel = new Channel(name, uri, group, tvgId);
+                        channelMap.put(name, newChannel);
+                    }
                 }
             }
         }
         br.close();
-        return list;
+
+        // 🟢 最后将 Map 中存储的所有频道转回 List 返回
+        return new ArrayList<>(channelMap.values());
     }
 }
