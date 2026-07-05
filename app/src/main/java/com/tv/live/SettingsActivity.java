@@ -67,6 +67,33 @@ public class SettingsActivity extends AppCompatActivity {
     public static volatile StringBuilder PLAY_LOG = new StringBuilder();
     public static volatile StringBuilder OPERATION_LOG = new StringBuilder();
 
+    // ====================== 新增日志方法（解决编译错误） ======================
+    /**
+     * 追加播放日志（被其他类调用）
+     */
+    public static void log(String msg) {
+        if (PLAY_LOG != null) {
+            PLAY_LOG.append(msg).append("\n");
+            // 避免内存无限增长，限制长度
+            if (PLAY_LOG.length() > 50000) {
+                PLAY_LOG.delete(0, PLAY_LOG.length() / 2);
+            }
+        }
+    }
+
+    /**
+     * 追加操作日志（被其他类调用）
+     */
+    public static void logOperation(String msg) {
+        if (OPERATION_LOG != null) {
+            OPERATION_LOG.append(msg).append("\n");
+            // 避免内存无限增长，限制长度
+            if (OPERATION_LOG.length() > 50000) {
+                OPERATION_LOG.delete(0, OPERATION_LOG.length() / 2);
+            }
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         try {
