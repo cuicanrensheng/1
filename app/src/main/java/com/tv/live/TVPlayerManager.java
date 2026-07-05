@@ -648,6 +648,20 @@ public class TVPlayerManager {
         playUrlInternal(channel.getPlayUrl());
     }
 
+    // 🟢【核心新增】手动切换线路源的方法
+    public void switchToSource(String url, int sourceIndex) {
+        if (player == null || url == null || url.trim().isEmpty()) return;
+        this.currentSourceIndex = sourceIndex;
+        this.currentUrl = url.trim();
+        // ✅ 重点：不把 currentChannel 置空！确保备用源列表不会丢失！
+        cancelRetry();
+        retryCount = 0;
+        isRetrying = false;
+        resetPerformanceStats();
+        // 内部直接拉流
+        playUrlInternal(url);
+    }
+
     public void setCurrentChannelName(String name) {
         this.currentChannelName = (name != null) ? name : "";
     }
