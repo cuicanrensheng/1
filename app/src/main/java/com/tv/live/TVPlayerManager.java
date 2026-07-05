@@ -59,6 +59,9 @@ public class TVPlayerManager {
     private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
     private static final String KEY_REDIRECT_FOLLOW_HEADERS = "redirect_follow_headers";
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
+    // 🟢【新增】Cookie播放授权令牌 Key
+    private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
+    
     private static TVPlayerManager instance;
     private Context context;
     private ExoPlayer player;
@@ -655,15 +658,22 @@ public class TVPlayerManager {
             for (String name : globalHeaders.names()) {
                 headerMap.put(name, globalHeaders.get(name));
             }
-            // 保留Cookie逻辑
-            String cookies = CookieManager.getInstance().getCookie(currentUrl);
-            if (cookies != null) {
-                headerMap.put("Cookie", cookies);
+
+            // 🟢【修复】读取设置里“Cookie播放授权令牌”开关的状态
+            SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+            boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+            
+            // 🟢【核心修改】只有开关打开时才发送本地 Cookie
+            if (sendCookie) {
+                String cookies = CookieManager.getInstance().getCookie(currentUrl);
+                if (cookies != null) {
+                    headerMap.put("Cookie", cookies);
+                }
             }
+            
             httpFactory.setDefaultRequestProperties(headerMap);
             httpFactory.setChannelName(currentChannelName);
             // 读取设置持久化的全部重定向配置
-            SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
             int maxRedirect = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
             boolean crossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN,true);
             boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
