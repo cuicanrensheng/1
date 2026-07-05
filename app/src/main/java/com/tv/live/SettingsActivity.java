@@ -886,9 +886,8 @@ public class SettingsActivity extends AppCompatActivity {
                     } else {
                         selectedUrl = currentChannel.getBackupUrls().get(which - 1); // 切到备用源
                     }
-                    
-                    // 5. 直接调用播放器切换地址（无黑屏换源）
-                    MainActivity.mInstance.mPlayerManager.playUrlInternal(selectedUrl);
+                    // 5.✅ 正确（调用公共方法）
+                    MainActivity.mInstance.mPlayerManager.playUrl(selectedUrl);
 
                     // 6. 刷新界面右侧文字
                     updateLineStatusText();
