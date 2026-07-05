@@ -18,6 +18,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -87,6 +88,10 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
     private static final String KEY_REDIRECT_FOLLOW_HEADERS = "redirect_follow_headers";
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
+    // 🟢【新增】Cookie播放授权令牌 Key
+    private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
+    // 🟢【新增】UA切换 Key
+    private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
     // ====================================================================
     // 全局日志系统
     // ====================================================================
@@ -277,6 +282,10 @@ public class SettingsActivity extends AppCompatActivity {
             editor.putBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
             editor.putBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
             editor.putBoolean(KEY_REDIRECT_IGNORE_SSL,false);
+            // 🟢【新增】保存 Cookie授权令牌 默认值（默认开）
+            editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+            // 🟢【新增】保存 UA 默认值 "exo"
+            editor.putString(KEY_USER_AGENT_MODE, "exo");
             editor.apply();
             logOperation("【设置】初始化重定向默认配置完成");
         }
@@ -289,13 +298,23 @@ public class SettingsActivity extends AppCompatActivity {
         boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
         boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
         boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
+        // 🟢【新增】读取 Cookie授权令牌 状态
+        boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+        // 🟢【新增】读取 UA 模式
+        String uaMode = sp.getString(KEY_USER_AGENT_MODE, "exo");
+        String uaLabel = "exo".equals(uaMode) ? "ExoPlayer" : "VLC";
+        
         StringBuilder sb = new StringBuilder();
         sb.append("最大跳转：").append(max).append(" | ");
         sb.append("跨域：").append(crossDomain?"开":"关").append(" | ");
         // 🔄 修复：在这里添加换行符，防止文字过长覆盖左侧标题
         sb.append("跨协议：").append(crossProto?"开":"关").append("\n");
         sb.append("携带请求头：").append(followHeader?"开":"关").append(" | ");
-        sb.append("忽略SSL：").append(ignoreSsl?"开":"关");
+        sb.append("忽略SSL：").append(ignoreSsl?"开":"关").append(" | ");
+        // 🟢【新增】将 Cookie授权令牌和UA状态拼接到 UI
+        sb.append("授权令牌：").append(sendCookie?"开":"关").append(" | ");
+        sb.append("UA：").append(uaLabel);
+        
         tv_redirect_setting.setText(sb.toString());
     }
 
@@ -625,21 +644,55 @@ public class SettingsActivity extends AppCompatActivity {
         boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
         boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
         boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
+        boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+        // 🟢【修复核心】将局部变量改为 final 的单元素数组，从而允许在 Lambda 中修改它的值
+        final String[] currentUaMode = { sp.getString(KEY_USER_AGENT_MODE, "exo") };
+        
         // 构建弹窗布局
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
-        EditText etMax = dialogView.findViewById(R.id.et_redirect_max); // 修复：编辑 → EditText
+        EditText etMax = dialogView.findViewById(R.id.et_redirect_max);
         Switch swCrossDomain = dialogView.findViewById(R.id.sw_cross_domain);
         Switch swCrossProto = dialogView.findViewById(R.id.sw_cross_proto);
         Switch swFollowHeader = dialogView.findViewById(R.id.sw_follow_header);
         Switch swIgnoreSsl = dialogView.findViewById(R.id.sw_ignore_ssl);
+        // 🟢【新增】绑定新开关
+        Switch swSendCookie = dialogView.findViewById(R.id.sw_send_cookie);
+        // 🟢【新增】绑定 UA 切换控件
+        LinearLayout llUserAgent = dialogView.findViewById(R.id.ll_user_agent);
+        TextView tvUserAgentStatus = dialogView.findViewById(R.id.tv_user_agent_status);
+        tvUserAgentStatus.setText("exo".equals(currentUaMode[0]) ? "ExoPlayer默认" : "VLC播放器");
+        
         // 限制输入数字1-20
         etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
         etMax.setText(String.valueOf(currentMax));
-        // 🟢 【修复】把从SharedPreferences读取到的实际状态，填入弹窗的开关控件中！
+        // 从SharedPreferences读取到的实际状态，填入弹窗的开关控件中！
         swCrossDomain.setChecked(crossDomain);
         swCrossProto.setChecked(crossProto);
         swFollowHeader.setChecked(followHeader);
         swIgnoreSsl.setChecked(ignoreSsl);
+        swSendCookie.setChecked(sendCookie);
+
+        // 🟢【精简】UA 切换点击弹窗事件（只剩 ExoPlayer 和 VLC）
+        llUserAgent.setOnClickListener(v -> {
+            final String[] uaOptions = {"ExoPlayer默认", "VLC播放器"};
+            final String[] uaValues = {"exo", "vlc"};
+            int checkedItem = 0;
+            for (int i = 0; i < uaValues.length; i++) {
+                // ✅ 修复：使用数组下标读取
+                if (uaValues[i].equals(currentUaMode[0])) {
+                    checkedItem = i;
+                    break;
+                }
+            }
+            new AlertDialog.Builder(this)
+                .setTitle("UA切换")
+                .setSingleChoiceItems(uaOptions, checkedItem, (d, which) -> {
+                    // ✅ 修复：通过数组下标写入
+                    currentUaMode[0] = uaValues[which];
+                    tvUserAgentStatus.setText(uaOptions[which]);
+                    d.dismiss();
+                }).show();
+        });
 
         new AlertDialog.Builder(this)
                 .setTitle("HTTP重定向网络配置")
@@ -664,6 +717,9 @@ public class SettingsActivity extends AppCompatActivity {
                     editor.putBoolean(KEY_REDIRECT_CROSS_PROTOCOL, swCrossProto.isChecked());
                     editor.putBoolean(KEY_REDIRECT_FOLLOW_HEADERS, swFollowHeader.isChecked());
                     editor.putBoolean(KEY_REDIRECT_IGNORE_SSL, swIgnoreSsl.isChecked());
+                    editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked()); // 🟢 保存新开关状态
+                    // ✅ 修复：使用数组下标读取
+                    editor.putString(KEY_USER_AGENT_MODE, currentUaMode[0]); // 🟢 保存 UA 状态
                     editor.apply();
                     // 更新界面摘要
                     updateRedirectSettingText();
@@ -856,4 +912,4 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.clear();
         settingsItemList = null;
     }
- }
+}
