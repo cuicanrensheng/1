@@ -18,6 +18,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -59,6 +60,11 @@ public class SettingsActivity extends AppCompatActivity {
     // 🆕 重定向设置文本显示控件
     private TextView tv_redirect_setting;
     private TextView tv_boot_status;
+    
+    // 🟢【新增】线路选择控件
+    private LinearLayout itemSwitchLine;
+    private TextView tvLineStatus;
+
     // ====================== 配置相关 ======================
     private SharedPreferences sp;
     // ====================================================================
@@ -167,6 +173,15 @@ public class SettingsActivity extends AppCompatActivity {
         initRemoteManager();
         findViewById(R.id.log_viewer).setOnClickListener(v -> showLogDialog());
         findViewById(R.id.log_operation).setOnClickListener(v -> showOperationLogDialog());
+        
+        // 🟢【新增】绑定线路选择控件
+        itemSwitchLine = findViewById(R.id.item_switch_line);
+        tvLineStatus = findViewById(R.id.tv_line_status);
+        // 🟢【新增】初始化右侧状态文字
+        updateLineStatusText();
+        // 🟢【新增】设置线路选择点击事件
+        itemSwitchLine.setOnClickListener(v -> showLineSelectionDialog());
+
         // 开机自启
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
@@ -324,6 +339,8 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.item_decoder));
         // 🆕 将渲染方式加入焦点列表
         settingsItemList.add(findViewById(R.id.item_renderer));
+        // 🆕 将线路选择加入焦点列表
+        settingsItemList.add(findViewById(R.id.item_switch_line));
         // 🆕 重定向设置项加入焦点列表
         settingsItemList.add(findViewById(R.id.item_redirect));
         settingsItemList.add(findViewById(R.id.tv_screen_ratio));
@@ -827,6 +844,77 @@ public class SettingsActivity extends AppCompatActivity {
         builder.show();
     }
 
+    // ====================================================================
+    // 🆕【核心新增】线路选择弹窗与状态刷新
+    // ====================================================================
+
+    /**
+     * 显示线路选择弹窗，列出当前频道的 主源、源1、源2...
+     */
+    private void showLineSelectionDialog() {
+        // 1. 安全检查：确保播放器存在
+        if (MainActivity.mInstance == null || MainActivity.mInstance.mPlayerManager == null) {
+            Toast.makeText(this, "请先播放一个频道", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 2. 获取当前的频道对象
+        int currentIndex = MainActivity.mInstance.currentPlayIndex;
+        List<Channel> channels = MainActivity.mInstance.channelSourceList;
+        if (currentIndex < 0 || currentIndex >= channels.size()) {
+            Toast.makeText(this, "未获取到当前频道", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Channel currentChannel = channels.get(currentIndex);
+
+        // 3. 准备弹窗的选项列表（主源、源1、源2...）
+        List<String> sourceNames = new ArrayList<>();
+        sourceNames.add("主源");
+        if (currentChannel.getBackupUrls() != null) {
+            for (int i = 0; i < currentChannel.getBackupUrls().size(); i++) {
+                sourceNames.add("源" + (i + 1));
+            }
+        }
+
+        // 4. 弹出选择对话框
+        new AlertDialog.Builder(this)
+                .setTitle("切换线路 - " + currentChannel.getName())
+                .setItems(sourceNames.toArray(new String[0]), (dialog, which) -> {
+                    String selectedUrl;
+                    if (which == 0) {
+                        selectedUrl = currentChannel.getPlayUrl();      // 切回主源
+                    } else {
+                        selectedUrl = currentChannel.getBackupUrls().get(which - 1); // 切到备用源
+                    }
+                    
+                    // 5. 直接调用播放器切换地址（无黑屏换源）
+                    MainActivity.mInstance.mPlayerManager.playUrlInternal(selectedUrl);
+
+                    // 6. 刷新界面右侧文字
+                    updateLineStatusText();
+                    Toast.makeText(SettingsActivity.this, "已切换至 " + sourceNames.get(which), Toast.LENGTH_SHORT).show();
+                })
+                .show();
+    }
+
+    /**
+     * 刷新设置主菜单右侧显示的线路状态文字
+     */
+    private void updateLineStatusText() {
+        if (MainActivity.mInstance == null || tvLineStatus == null) return;
+        int currentIndex = MainActivity.mInstance.currentPlayIndex;
+        List<Channel> channels = MainActivity.mInstance.channelSourceList;
+        if (currentIndex < 0 || currentIndex >= channels.size()) {
+            tvLineStatus.setText("未播放");
+            return;
+        }
+        // 简单起见，默认显示“主源”，点击弹窗进去可以切换
+        // （如需精准记录当前切到了第几个源，可在 TVPlayerManager 中记录 sourceIndex 变量）
+        tvLineStatus.setText("主源");
+    }
+
+    // ====================================================================
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -843,6 +931,13 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // 🟢 每次回到设置页面时，刷新线路选择状态文字
+        updateLineStatusText();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         logOperation("【设置】关闭设置页面");
@@ -856,4 +951,4 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.clear();
         settingsItemList = null;
     }
- }
+}
