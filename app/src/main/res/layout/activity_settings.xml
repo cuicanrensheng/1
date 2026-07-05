@@ -41,6 +41,42 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- ===================== 新增：播放线路管理（面板首位） ===================== -->
+            <LinearLayout
+                android:id="@+id/item_line_config"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:background="@drawable/setting_item_bg"
+                android:focusable="true"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="播放线路管理"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+                <TextView
+                    android:id="@+id/tv_line_tip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="缓存/重置"
+                    android:textColor="#999999"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- 分隔线，区分线路管理与原有设置项 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="#33FFFFFF"/>
+            <!-- ====================================================================== -->
+
             <!-- ============================================================ -->
             <!-- 开机自启（两行布局：文字+开关 + 状态文本）                  -->
             <!-- ============================================================ -->
@@ -85,6 +121,7 @@
                     android:textSize="12sp" />
             </LinearLayout>
 
+            <!-- 下方你原有全部设置条目完整保留，无任何改动 -->
             <!-- ============================================================ -->
             <!-- 节目单开关                                                  -->
             <!-- ============================================================ -->
