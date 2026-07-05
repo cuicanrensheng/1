@@ -97,10 +97,7 @@ public class EpgManager {
         new Thread(() -> {
             String extractedEpgUrl = extractEpgUrlFromM3u(m3uUrl);
             if (extractedEpgUrl != null && !extractedEpgUrl.isEmpty()) {
-                // 🟢【已注释】SettingsActivity.log("【EPG】📡 从直播源获取到EPG地址：" + extractedEpgUrl);
                 epgUrl = extractedEpgUrl;
-            } else {
-                // 🟢【已注释】SettingsActivity.log("【EPG】📡 直播源未指定EPG地址，使用默认：" + epgUrl);
             }
             loadEpg(callback);
         }).start();
@@ -147,7 +144,6 @@ public class EpgManager {
                 }
             }
         } catch (Exception e) {
-            // 🟢【已注释】SettingsActivity.log("【EPG】从M3U提取EPG地址失败：" + e.getMessage());
         } finally {
             try {
                 if (reader != null) reader.close();
@@ -202,12 +198,8 @@ public class EpgManager {
                 // ================================================================
                 long savedBytes = cacheManager.saveFileCache(CACHE_KEY_EPG, in);
                 if (savedBytes <= 0) {
-                    // 🟢【已注释】SettingsActivity.log("【EPG】❌ 保存缓存失败");
                     return;
                 }
-
-                // 🟢【已注释】SettingsActivity.log("【EPG】下载完成，大小：" + (savedBytes / 1024) + " KB");
-                // 🟢【已注释】SettingsActivity.log("【EPG】缓存已保存（有效期24小时）");
 
                 // ================================================================
                 // 第三步：从 CacheManager 流式读取缓存，解析 XML
@@ -217,7 +209,6 @@ public class EpgManager {
 
                 InputStream cacheIs = cacheManager.getFileCacheStream(CACHE_KEY_EPG);
                 if (cacheIs == null) {
-                    // 🟢【已注释】SettingsActivity.log("【EPG】❌ 读取缓存失败");
                     return;
                 }
 
@@ -227,10 +218,7 @@ public class EpgManager {
                     cacheIs.close();
                 }
 
-                // 🟢【已注释】SettingsActivity.log("【EPG】✅ 加载完成，共" + channelEpgMap.size() + "个频道");
-
             } catch (Exception e) {
-                // 🟢【已注释】SettingsActivity.log("【EPG】❌ 加载失败：" + e.getMessage());
                 e.printStackTrace();
             } finally {
                 try {
@@ -262,7 +250,6 @@ public class EpgManager {
                 return false; // 缓存不存在或已过期
             }
 
-            // 🟢【已注释】SettingsActivity.log("【EPG】从缓存加载...");
             hasPrintedSample = false;
             channelEpgMap.clear();
 
@@ -272,11 +259,9 @@ public class EpgManager {
                 cacheIs.close();
             }
 
-            // 🟢【已注释】SettingsActivity.log("【EPG】缓存加载完成，共" + channelEpgMap.size() + "个频道");
             return true;
 
         } catch (Exception e) {
-            // 🟢【已注释】SettingsActivity.log("【EPG】缓存加载失败：" + e.getMessage());
             return false;
         }
     }
@@ -294,9 +279,6 @@ public class EpgManager {
         sdf.setLenient(true);
 
         Calendar todayCheck = Calendar.getInstance();
-        // 🟢【已注释】SettingsActivity.log("【EPG】📅 今天日期：" + todayCheck.get(Calendar.YEAR) + "-"
-        //         + (todayCheck.get(Calendar.MONTH) + 1) + "-" + todayCheck.get(Calendar.DAY_OF_MONTH)
-        //         + "（周" + new String[]{"日","一","二","三","四","五","六"}[todayCheck.get(Calendar.DAY_OF_WEEK)-1] + "）");
 
         String currentChannelName = null;
         List<Channel.EpgItem> tempPrograms = new ArrayList<>();
@@ -331,17 +313,6 @@ public class EpgManager {
                         Calendar today = Calendar.getInstance();
                         String dayName = getDayName(startCal, today);
 
-                        // 🟢【已注释】所有样本打印日志
-                        // if (!hasPrintedSample && programCount < 5) {
-                        //     SettingsActivity.log("【EPG】🔍 样本" + (programCount + 1)
-                        //             + "：原始时间=" + originalStart
-                        //             + "，解析日期=" + (startCal.get(Calendar.MONTH) + 1) + "月" + startCal.get(Calendar.DAY_OF_MONTH) + "日"
-                        //             + "，周" + new String[]{"日","一","二","三","四","五","六"}[startCal.get(Calendar.DAY_OF_WEEK)-1]
-                        //             + "，dayName=" + dayName);
-                        //     programCount++;
-                        //     if (programCount >= 5) hasPrintedSample = true;
-                        // }
-
                         String timeStr = start.substring(8, 10) + ":" + start.substring(10, 12)
                                 + " - " + stop.substring(8, 10) + ":" + stop.substring(10, 12);
 
@@ -349,7 +320,6 @@ public class EpgManager {
                         tempPrograms.add(item);
 
                     } catch (Exception e) {
-                        // 🟢【已注释】SettingsActivity.log("【EPG】跳过异常时间：" + start + "，错误：" + e.getMessage());
                     }
                 }
 
@@ -368,17 +338,6 @@ public class EpgManager {
 
             xml.next();
         }
-
-        int count = 0;
-        for (Map.Entry<String, List<Channel.EpgItem>> entry : channelEpgMap.entrySet()) {
-            if (count >= 3) break;
-            Set<String> days = new HashSet<>();
-            for (Channel.EpgItem item : entry.getValue()) {
-                days.add(item.dayName);
-            }
-            // 🟢【已注释】SettingsActivity.log("【EPG】频道【" + entry.getKey() + "】包含日期：" + days + "，节目数：" + entry.getValue().size());
-            count++;
-        }
     }
 
     // ====================================================================
@@ -391,7 +350,6 @@ public class EpgManager {
         }
 
         if (channelEpgMap.containsKey(channelName)) {
-            // 🟢【已注释】SettingsActivity.log("【EPG】精确匹配成功：" + channelName);
             return channelEpgMap.get(channelName);
         }
 
@@ -412,15 +370,9 @@ public class EpgManager {
         }
 
         if (bestMatch != null && bestScore >= 20) {
-            // 🟢【已注释】SettingsActivity.log("【EPG】模糊匹配成功：" + channelName 
-            //         + " → " + bestMatch 
-            //         + "（匹配度：" + bestScore + "分）");
             return channelEpgMap.get(bestMatch);
         }
 
-        // 🟢【已注释】SettingsActivity.log("【EPG】⚠️ 匹配失败：" + channelName 
-        //         + "（标准化后：" + cleanName + "）"
-        //         + "，共尝试 " + channelEpgMap.size() + " 个频道");
         return new ArrayList<>();
     }
 
