@@ -172,7 +172,7 @@ public class InfoDisplayManager {
                 else return "SD";
             }
         }catch (Exception e){
-            SettingsActivity.log("【分辨率解析异常】" + resolution + " err:" + e.getMessage());
+            // 🟢【已注释】SettingsActivity.log("【分辨率解析异常】" + resolution + " err:" + e.getMessage());
         }
         return resolution;
     }
@@ -188,7 +188,7 @@ public class InfoDisplayManager {
         if(channel == null || tvCurrentProgramName == null) return;
         String channelName = channel.getName();
         try {
-            SettingsActivity.logOperation("【EPG匹配】开始匹配频道:" + channelName);
+            // 🟢【已注释】SettingsActivity.logOperation("【EPG匹配】开始匹配频道:" + channelName);
 
             // 如果是初次启动，EpgManager 数据可能还在异步加载中
             // 建议在 EpgManager 中加一个 getChannelEpgMapSize() 方法检测是否就绪，这里为了安全直接捕获异常
@@ -201,7 +201,7 @@ public class InfoDisplayManager {
             }
 
             if(epgList == null || epgList.isEmpty()){
-                SettingsActivity.logOperation("【EPG匹配】未获取节目，复用缓存节目");
+                // 🟢【已注释】SettingsActivity.logOperation("【EPG匹配】未获取节目，复用缓存节目");
                 if(lastCurrItem != null){
                     refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<>(), getCurrentTimeStr());
                     refreshNextProgramUi(lastNextItem, 0, new ArrayList<>());
@@ -213,7 +213,7 @@ public class InfoDisplayManager {
 
             List<Channel.EpgItem> todayEpg = filterTodayEpg(epgList);
             if(todayEpg.isEmpty()){
-                SettingsActivity.logOperation("【EPG匹配】今日无节目，复用缓存");
+                // 🟢【已注释】SettingsActivity.logOperation("【EPG匹配】今日无节目，复用缓存");
                 if(lastCurrItem != null){
                     refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<>(), getCurrentTimeStr());
                     refreshNextProgramUi(lastNextItem, 0, new ArrayList<>());
@@ -252,7 +252,7 @@ public class InfoDisplayManager {
 
         }catch (Exception e){
             e.printStackTrace();
-            SettingsActivity.logOperation("【EPG匹配异常】" + e.getMessage());
+            // 🟢【已注释】SettingsActivity.logOperation("【EPG匹配异常】" + e.getMessage());
             // 异常也复用缓存
             if(lastCurrItem != null){
                 refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<>(), getCurrentTimeStr());
@@ -332,7 +332,7 @@ public class InfoDisplayManager {
                     progress = (int) (played * 100 / totalDuration);
                     progress = Math.max(0, Math.min(100, progress));
                 }else {
-                    SettingsActivity.logOperation("【进度异常】时长非法 start="+start+" end="+end+" total="+totalDuration);
+                    // 🟢【已注释】SettingsActivity.logOperation("【进度异常】时长非法 start="+start+" end="+end+" total="+totalDuration);
                 }
                 progressProgram.setProgress(progress);
                 progressProgram.invalidate();
@@ -424,7 +424,7 @@ public class InfoDisplayManager {
             long endMs = timeToMs(end, true, startMs);
             return nowMs >= startMs && nowMs < endMs;
         }catch (Exception e){
-            SettingsActivity.logOperation("【时段匹配异常】"+e.getMessage());
+            // 🟢【已注释】SettingsActivity.logOperation("【时段匹配异常】"+e.getMessage());
             return false;
         }
     }
@@ -449,7 +449,7 @@ public class InfoDisplayManager {
             }
             return ms;
         }catch (Exception e){
-            SettingsActivity.logOperation("【时间转换失败】"+timeStr+" err:"+e.getMessage());
+            // 🟢【已注释】SettingsActivity.logOperation("【时间转换失败】"+timeStr+" err:"+e.getMessage());
             return 0;
         }
     }
