@@ -1,4 +1,5 @@
 package com.tv.live;
+
 import android.app.PictureInPictureParams;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -36,6 +37,7 @@ import com.tv.live.widget.EpgManagerWrapper;
 import com.tv.live.widget.GroupListManager;
 import java.util.ArrayList;
 import java.util.List;
+
 /**
  * 主活动类：直播APP的核心页面，负责直播播放、频道管理、交互控制等核心功能
  * 包含播放器初始化、频道面板控制、遥控器适配、画中画、EPG节目指南等核心逻辑
@@ -64,17 +66,18 @@ public class MainActivity extends AppCompatActivity {
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
     public static List<String> logList = new ArrayList<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        SettingsActivity.logOperation("【主页】onCreate -> 页面创建");
-        SettingsActivity.logOperation("【系统】APP启动");
+        // 🟢【已注释】SettingsActivity.logOperation("【主页】onCreate -> 页面创建");
+        // 🟢【已注释】SettingsActivity.logOperation("【系统】APP启动");
         mInstance = this;
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         displayManager = new DisplayManager(this);
         setContentView(R.layout.activity_main);
         displayManager.applyFullScreen();
-        SettingsActivity.logOperation("【主页】全面屏适配已应用");
+        // 🟢【已注释】SettingsActivity.logOperation("【主页】全面屏适配已应用");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         initInfoDisplayManager();
         appConfig = AppConfig.getInstance(this);
@@ -108,12 +111,13 @@ public class MainActivity extends AppCompatActivity {
         });
         currentPlayIndex = appConfig.getLastPlayIndex();
         channelPanelController.setCurrentPlayIndex(currentPlayIndex);
-        SettingsActivity.logOperation("【播放】记录上次播放索引：" + currentPlayIndex);
+        // 🟢【已注释】SettingsActivity.logOperation("【播放】记录上次播放索引：" + currentPlayIndex);
         remoteManager.setNumberChannelEnable(number_channel_enable);
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
         appCoreManager.loadLiveAndEpg();
     }
+
     private void initPictureInPicture() {
         try {
             pipManager = PictureInPictureManager.getInstance(this);
@@ -126,12 +130,13 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             log("【画中画】初始化完成，开关状态：" + (pipEnable ? "开启" : "关闭"));
-            SettingsActivity.logOperation("【画中画】初始化完成，设备支持：" + pipManager.isPipSupported());
+            // 🟢【已注释】SettingsActivity.logOperation("【画中画】初始化完成，设备支持：" + pipManager.isPipSupported());
         } catch (Exception e) {
             log("【画中画】初始化失败：" + e.getMessage());
             pipManager = null;
         }
     }
+
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
@@ -148,9 +153,9 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onPanelMoveRight() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_RIGHT); }
             @Override public void onPanelConfirm() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_CENTER); }
             @Override public boolean onPanelBack() { boolean handled = channelPanelController.handleBackPressed(); if (!channelPanelController.isPanelOpen()) { remoteManager.syncMode(); } return handled; }
-            @Override public void onPanelMenu() { boolean isFavorite = channelPanelController.toggleCurrentFavorite(); SettingsActivity.logOperation("【遥控】菜单键 → " + (isFavorite ? "已添加收藏" : "已取消收藏")); }
+            @Override public void onPanelMenu() { boolean isFavorite = channelPanelController.toggleCurrentFavorite(); /* 🟢【已注释】SettingsActivity.logOperation("【遥控】菜单键 → " + (isFavorite ? "已添加收藏" : "已取消收藏")); */ }
             @Override public void onPanelNumber(int number) {}
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) { SettingsActivity.logOperation("【遥控】面板焦点切换：" + newFocus); }
+            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) { /* 🟢【已注释】SettingsActivity.logOperation("【遥控】面板焦点切换：" + newFocus); */ }
             @Override public void onSettingsMoveUp() {}
             @Override public void onSettingsMoveDown() {}
             @Override public void onSettingsConfirm() {}
@@ -164,6 +169,7 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onHideChannelNumber() { infoDisplayManager.hideChannelNum(); }
         });
     }
+
     private void initInfoDisplayManager() {
         TextView tv_channel_num = findViewById(R.id.tv_channel_num);
         View info_bar = findViewById(R.id.info_bar);
@@ -193,55 +199,57 @@ public class MainActivity extends AppCompatActivity {
                 tv_next_time_range
         );
     }
+
     private void initChannelPanelController() {
-    View panel_layout = findViewById(R.id.panel_layout);
-    // 修复：正确获取 ll_left_panel 控件（之前错误赋值为null）
-    View ll_left_panel = findViewById(R.id.ll_left_panel); // 关键修复
-    View ll_right_panel = findViewById(R.id.ll_right_panel);
-    ListView lvGroup = findViewById(R.id.lv_group);
-    ListView lvChannelList = findViewById(R.id.lv_channel_list);
-    ListView lvChannelListEpg = findViewById(R.id.lv_channel_list_epg);
-    ListView lvDate = findViewById(R.id.lv_date);
-    ListView lvEpg = findViewById(R.id.lv_epg);
-    TextView btn_show_epg = findViewById(R.id.btn_show_epg);
-    TextView btn_back_group = findViewById(R.id.btn_back_group);
-    EpgManager.getInstance(this);
-    ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
-    ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
-    GroupListManager groupListManager = new GroupListManager(this, lvGroup);
-    DateListManager dateListManager = new DateListManager(this, lvDate);
-    EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
-    PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
-    dateListManager.initDate();
-    dateListManager.setOnDateSelectedListener(pos -> {
-        channelPanelController.setCurrentDateIndex(pos);
-    });
-    channelPanelController = new ChannelPanelController(
-            this,
-            panel_layout,
-            ll_left_panel,
-            ll_right_panel,
-            lvGroup,
-            lvChannelList,
-            lvChannelListEpg,
-            lvDate,
-            lvEpg,
-            btn_show_epg,
-            btn_back_group,
-            groupListManager,
-            channelListManager,
-            channelListManagerEpg,
-            dateListManager,
-            epgManagerWrapper,
-            panelManager
-    );
-    channelPanelController.setOnChannelChangeListener(new ChannelPanelController.OnChannelChangeListener() {
-        @Override
-        public void onChannelChanged(Channel channel, int index) {
-            playChannel(channel, index);
-        }
-    });
-}
+        View panel_layout = findViewById(R.id.panel_layout);
+        // 修复：正确获取 ll_left_panel 控件（之前错误赋值为null）
+        View ll_left_panel = findViewById(R.id.ll_left_panel); // 关键修复
+        View ll_right_panel = findViewById(R.id.ll_right_panel);
+        ListView lvGroup = findViewById(R.id.lv_group);
+        ListView lvChannelList = findViewById(R.id.lv_channel_list);
+        ListView lvChannelListEpg = findViewById(R.id.lv_channel_list_epg);
+        ListView lvDate = findViewById(R.id.lv_date);
+        ListView lvEpg = findViewById(R.id.lv_epg);
+        TextView btn_show_epg = findViewById(R.id.btn_show_epg);
+        TextView btn_back_group = findViewById(R.id.btn_back_group);
+        EpgManager.getInstance(this);
+        ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
+        ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
+        GroupListManager groupListManager = new GroupListManager(this, lvGroup);
+        DateListManager dateListManager = new DateListManager(this, lvDate);
+        EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
+        PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
+        dateListManager.initDate();
+        dateListManager.setOnDateSelectedListener(pos -> {
+            channelPanelController.setCurrentDateIndex(pos);
+        });
+        channelPanelController = new ChannelPanelController(
+                this,
+                panel_layout,
+                ll_left_panel,
+                ll_right_panel,
+                lvGroup,
+                lvChannelList,
+                lvChannelListEpg,
+                lvDate,
+                lvEpg,
+                btn_show_epg,
+                btn_back_group,
+                groupListManager,
+                channelListManager,
+                channelListManagerEpg,
+                dateListManager,
+                epgManagerWrapper,
+                panelManager
+        );
+        channelPanelController.setOnChannelChangeListener(new ChannelPanelController.OnChannelChangeListener() {
+            @Override
+            public void onChannelChanged(Channel channel, int index) {
+                playChannel(channel, index);
+            }
+        });
+    }
+
     // ============================================================
     // ✅ 【核心修改】移除截图遮罩相关回调
     // ============================================================
@@ -259,7 +267,7 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 });
                 newPlayerView.requestFocus();
-                SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
+                // 🟢【已注释】SettingsActivity.logOperation("【渲染器】视图已重建，手势和遥控器焦点已重新绑定");
             }
             // 移除 onDecoderSwitchFreezeFrame、onDecoderSwitchUnfreezeFrame
         });
@@ -294,6 +302,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
     private void initAppCoreManager() {
         appCoreManager = new AppCoreManager(this, mPlayerManager, appConfig);
         appCoreManager.setOnDataLoadListener(new AppCoreManager.OnDataLoadListener() {
@@ -327,7 +336,7 @@ public class MainActivity extends AppCompatActivity {
                     public void run() {
                         if (channelSourceList.isEmpty()) {
                             displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
-                            SettingsActivity.logOperation("【加载】直播源加载失败：" + errorMsg);
+                            // 🟢【已注释】SettingsActivity.logOperation("【加载】直播源加载失败：" + errorMsg);
                         } else {
                             log("【缓存】使用缓存数据继续播放");
                             displayManager.hideLoading();
@@ -355,7 +364,7 @@ public class MainActivity extends AppCompatActivity {
                         log("【加载】超时，自动隐藏加载动画");
                         if (!hasData) {
                             displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
-                            SettingsActivity.logOperation("【加载】直播源加载超时");
+                            // 🟢【已注释】SettingsActivity.logOperation("【加载】直播源加载超时");
                         }
                         displayManager.hideLoading();
                     }
@@ -376,6 +385,7 @@ public class MainActivity extends AppCompatActivity {
         });
         appCoreManager.registerReceivers();
     }
+
     private void loadSettings() {
         SharedPreferences sp = getSharedPreferences("app_settings", MODE_PRIVATE);
         boolean epg_enable = sp.getBoolean("epg_enable", true);
@@ -403,21 +413,24 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) {
             pipManager.setPipEnabled(pipEnable);
         }
-        SettingsActivity.logOperation("【设置】EPG开关：" + epg_enable);
-        SettingsActivity.logOperation("【设置】切台反转：" + channel_reverse);
-        SettingsActivity.logOperation("【设置】数字选台：" + number_channel_enable);
-        SettingsActivity.logOperation("【设置】自动更新源：" + auto_update_source);
-        SettingsActivity.logOperation("【设置】画中画开关：" + pipEnable);
+        // 🟢【已注释】SettingsActivity.logOperation("【设置】EPG开关：" + epg_enable);
+        // 🟢【已注释】SettingsActivity.logOperation("【设置】切台反转：" + channel_reverse);
+        // 🟢【已注释】SettingsActivity.logOperation("【设置】数字选台：" + number_channel_enable);
+        // 🟢【已注释】SettingsActivity.logOperation("【设置】自动更新源：" + auto_update_source);
+        // 🟢【已注释】SettingsActivity.logOperation("【设置】画中画开关：" + pipEnable);
     }
+
     public boolean isChannelReverse() {
         return channel_reverse;
     }
+
     public void playChannel(int index) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
         if (index < 0 || index >= channelSourceList.size()) return;
         Channel channel = channelSourceList.get(index);
         playChannel(channel, index);
     }
+
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
@@ -446,16 +459,20 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
     public void togglePanel() {
         channelPanelController.togglePanel();
         remoteManager.syncMode();
     }
+
     public void playPrev() {
         channelPanelController.playPrev();
     }
+
     public void playNext() {
         channelPanelController.playNext();
     }
+
     @Override
     public void onBackPressed() {
         if (remoteManager != null && remoteManager.handleBackPressed()) {
@@ -463,6 +480,7 @@ public class MainActivity extends AppCompatActivity {
         }
         super.onBackPressed();
     }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
@@ -470,14 +488,17 @@ public class MainActivity extends AppCompatActivity {
         }
         return super.onKeyDown(keyCode, event);
     }
+
     public void openSettings() {
         isOpeningSettings = true;
         appCoreManager.beforeOpenSettings();
         startActivity(new Intent(this, SettingsActivity.class));
     }
+
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
     }
+
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
@@ -488,10 +509,11 @@ public class MainActivity extends AppCompatActivity {
             pipManager.enterPip(this, mPlayerManager, pipEnable);
         }
     }
+
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode);
-        SettingsActivity.logOperation("【画中画】模式变化 → " + (isInPictureInPictureMode ? "进入" : "退出"));
+        // 🟢【已注释】SettingsActivity.logOperation("【画中画】模式变化 → " + (isInPictureInPictureMode ? "进入" : "退出"));
         if (remoteManager != null) {
             remoteManager.setInPipMode(isInPictureInPictureMode);
         }
@@ -499,7 +521,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 pipManager.onPipModeChanged(this, isInPictureInPictureMode);
             } catch (Exception e) {
-                SettingsActivity.logOperation("【画中画】模式变化回调失败：" + e.getMessage());
+                // 🟢【已注释】SettingsActivity.logOperation("【画中画】模式变化回调失败：" + e.getMessage());
             }
         }
         if (pipManager != null) {
@@ -509,7 +531,7 @@ public class MainActivity extends AppCompatActivity {
                 pipManager.handleExitPip(new Runnable() {
                     @Override
                     public void run() {
-                        SettingsActivity.logOperation("【画中画】应用已关闭，释放播放器");
+                        // 🟢【已注释】SettingsActivity.logOperation("【画中画】应用已关闭，释放播放器");
                     }
                 });
                 pipManager.handleExitPipRestore(this, displayManager, playerView, mPlayerManager, channelSourceList, currentPlayIndex, infoDisplayManager);
@@ -517,10 +539,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
     private void log(String msg) {
         logList.add(msg);
         Log.d("MainActivity", msg);
     }
+
     @Override
     protected void onPause() {
         super.onPause();
@@ -531,20 +555,22 @@ public class MainActivity extends AppCompatActivity {
                 public void run() {
                     if (mPlayerManager != null) {
                         mPlayerManager.resume();
-                        SettingsActivity.logOperation("【画中画】✅ onPause后立即恢复播放（防止暂停）");
+                        // 🟢【已注释】SettingsActivity.logOperation("【画中画】✅ onPause后立即恢复播放（防止暂停）");
                     }
                 }
             });
         }
     }
+
     @Override
     protected void onStop() {
         super.onStop();
         if (pipManager != null) {
             pipManager.setStopCalled(true);
-            SettingsActivity.logOperation("【画中画】onStop 被调用");
+            // 🟢【已注释】SettingsActivity.logOperation("【画中画】onStop 被调用");
         }
     }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -568,6 +594,7 @@ public class MainActivity extends AppCompatActivity {
         }
         remoteManager.syncMode();
     }
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -576,6 +603,7 @@ public class MainActivity extends AppCompatActivity {
         }
         appCoreManager.onWindowFocusChanged(hasFocus);
     }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -587,6 +615,6 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.release();
         if (mPlayerManager != null) mPlayerManager.release();
         mInstance = null;
-        SettingsActivity.logOperation("【系统】APP退出");
+        // 🟢【已注释】SettingsActivity.logOperation("【系统】APP退出");
     }
 }
