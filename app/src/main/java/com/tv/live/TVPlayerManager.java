@@ -148,7 +148,6 @@ public class TVPlayerManager {
                     } else {
                         if (now - lastPositionUpdateTime > STUCK_TIMEOUT) {
                             Log.w(TAG, "检测到播放卡住，自动重试...");
-                            // 🟢【已移除】SettingsActivity.logOperation("【播放器】检测到播放卡住，准备自动重试");
                             autoRetry("播放卡住");
                             return;
                         }
@@ -169,19 +168,15 @@ public class TVPlayerManager {
         switch (mDecoderMode) {
             case DECODER_MODE_SOFT:
                 Log.d(TAG, "【解码器】软解模式：优先使用系统软件解码器");
-                // 🟢【已移除】SettingsActivity.logOperation("【解码器】初始化：系统软解模式（优先）");
                 break;
             case DECODER_MODE_HARD:
                 Log.d(TAG, "【解码器】硬解模式：只用系统硬解码器");
-                // 🟢【已移除】SettingsActivity.logOperation("【解码器】初始化：系统硬解模式（强制）");
                 break;
             case DECODER_MODE_AUTO:
             default:
                 Log.d(TAG, "【解码器】自动模式：系统硬解优先");
-                // 🟢【已移除】SettingsActivity.logOperation("【解码器】初始化：自动模式（系统硬解优先）");
                 break;
         }
-        // 🟢【核心优化】将最大缓冲从 50秒 降为 15秒，防止 1GB 内存被视频数据撑爆！
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
                         5000,
@@ -204,7 +199,6 @@ public class TVPlayerManager {
             StringBuilder hardNames = new StringBuilder();
             for (MediaCodecInfo codec : h264Codecs) {
                 String name = codec.name;
-                // 🟢 修复：使用名称前缀匹配替代 isSoftwareOnly()
                 if (isSoftwareDecoder(codec)) {
                     softCount++;
                     if (softCount <= 3) {
@@ -223,10 +217,8 @@ public class TVPlayerManager {
                     + " 个，硬解 " + hardCount + " 个");
             Log.d(TAG, "【解码器】软解解码器：" + softNames.toString());
             Log.d(TAG, "【解码器】硬解解码器：" + hardNames.toString());
-            // 🟢【已移除】SettingsActivity.logOperation("【解码器】系统解码器：软解 " + softCount + " 个，硬解 " + hardCount + " 个");
             if (softCount == 0) {
                 Log.w(TAG, "【解码器】⚠️ 系统未找到软件解码器，软解模式可能不生效");
-                // 🟢【已移除】SettingsActivity.logOperation("【解码器】⚠️ 警告：未找到系统软件解码器");
             }
         } catch (Exception e) {
             Log.e(TAG, "【解码器】检测系统解码器失败：" + e.getMessage());
@@ -236,13 +228,11 @@ public class TVPlayerManager {
         CookieManager.getInstance().setAcceptCookie(true);
     }
 
-    // 🟢 修复核心：使用安卓普遍的软解前缀匹配，兼容所有旧版本 Media3 库编译
     private static boolean isSoftwareDecoder(MediaCodecInfo codec) {
         if (codec == null) return false;
         String name = codec.name;
         if (name == null) return false;
         String lowerName = name.toLowerCase();
-        // 谷歌标准的软件解码器总是以这两个前缀开头
         return lowerName.startsWith("omx.google.") || lowerName.startsWith("c2.android.");
     }
 
@@ -251,14 +241,12 @@ public class TVPlayerManager {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
-                // 区分重定向异常，禁止重试、禁止判定源失效
                 Throwable rootCause = error.getCause();
                 boolean isRedirectError = false;
                 while (rootCause != null) {
                     if (rootCause instanceof RedirectFailedException) {
                         isRedirectError = true;
                         RedirectFailedException redirectErr = (RedirectFailedException) rootCause;
-                        // 🟢【保留重定向日志】
                         SettingsActivity.logOperation("【播放器】重定向拦截失败：" + redirectErr.getMessage()
                                 + " Location=" + redirectErr.getLocation());
                         break;
@@ -271,7 +259,6 @@ public class TVPlayerManager {
                 if (!isRedirectError) {
                     autoRetry("播放错误：" + error.getMessage());
                 } else {
-                    // 🟢【保留重定向日志】
                     SettingsActivity.logOperation("【播放器】检测为重定向失败，跳过自动重试");
                 }
             }
@@ -288,7 +275,6 @@ public class TVPlayerManager {
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
-                    // 切台加载中禁止自动切换解码器
                     if (mDecoderMode == DECODER_MODE_AUTO && !hasSwitchedDecoder
                             && !isRenderingSwitching
                             && initialPlayStartTime > 0
@@ -298,7 +284,6 @@ public class TVPlayerManager {
                             return;
                         }
                         Log.d(TAG, "【自动切换】硬解卡顿，自动切换到系统软解");
-                        // 🟢【已移除】SettingsActivity.logOperation("【解码器】硬解卡顿（缓冲" + bufferCount + "次），自动切换到系统软解");
                         hasSwitchedDecoder = true;
                         setDecoderMode(DECODER_MODE_SOFT);
                     }
@@ -309,9 +294,6 @@ public class TVPlayerManager {
                     if (!isStalled) {
                         isStalled = true;
                         lastStallStartTime = System.currentTimeMillis();
-                    }
-                    if (bufferCount == 1) {
-                        // 🟢【已移除】SettingsActivity.logOperation("【播放器】开始缓冲（第1次）");
                     }
                 } else if (state == Player.STATE_ENDED) {
                     if (listener != null) listener.onPlayEnd();
@@ -359,16 +341,13 @@ public class TVPlayerManager {
         isRetrying = false;
     }
     private void autoRetry(String reason) {
-        // 重定向错误直接终止重试
         if (reason.contains("RedirectFailedException") || reason.contains("重定向")) {
-            // 🟢【保留重定向日志】
             SettingsActivity.logOperation("【播放器】重定向类错误，不执行重试");
             return;
         }
         if (isRetrying) return;
         if (retryCount >= MAX_RETRY_COUNT) {
             Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT + "，判定为失效源");
-            // 🟢【已移除】SettingsActivity.logOperation("【播放器】重试" + MAX_RETRY_COUNT + "次均失败，判定为失效源");
             if (sourceFailedListener != null) {
                 mHandler.post(() -> sourceFailedListener.onSourceFailed());
             }
@@ -377,7 +356,6 @@ public class TVPlayerManager {
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
-        // 🟢【已移除】SettingsActivity.logOperation("【播放器】自动重试（第" + retryCount + "次），原因：" + reason);
         retryRunnable = new Runnable() {
             @Override
             public void run() {
@@ -408,7 +386,6 @@ public class TVPlayerManager {
                 break;
         }
         Log.d(TAG, "切换解码器模式：" + decoderType);
-        // 🟢【已移除】SettingsActivity.logOperation("【解码器】切换模式：" + decoderType);
         if (player != null) {
             performDecoderSwitch();
         }
@@ -464,30 +441,14 @@ public class TVPlayerManager {
                             mode = DECODER_MODE_SOFT;
                         }
                         setDecoderMode(mode);
-                        String modeName;
-                        switch (mode) {
-                            case DECODER_MODE_HARD:
-                                modeName = "硬解";
-                                break;
-                            case DECODER_MODE_SOFT:
-                                modeName = "软解（兼容性好）";
-                                break;
-                            case DECODER_MODE_AUTO:
-                            default:
-                                modeName = "自动（推荐）";
-                                break;
-                        }
-                        // 🟢【已移除】SettingsActivity.logOperation("【解码器】收到广播，切换到：" + modeName);
                     }
                 }
             };
             IntentFilter filter = new IntentFilter("com.tv.live.DECODER_MODE_CHANGED");
             context.registerReceiver(decoderModeReceiver, filter);
             decoderReceiverRegistered = true;
-            // 🟢【已移除】SettingsActivity.logOperation("【解码器】广播接收器已注册");
         } catch (Exception e) {
             Log.e(TAG, "注册解码器广播接收器失败：" + e.getMessage());
-            // 🟢【已移除】SettingsActivity.logOperation("【解码器】广播注册失败：" + e.getMessage());
         }
     }
     public void unregisterDecoderModeReceiver() {
@@ -498,7 +459,6 @@ public class TVPlayerManager {
                 decoderModeReceiver = null;
             }
             decoderReceiverRegistered = false;
-            // 🟢【已移除】SettingsActivity.logOperation("【解码器】广播接收器已注销");
         } catch (Exception e) {
             Log.e(TAG, "注销解码器广播接收器失败：" + e.getMessage());
         }
@@ -541,7 +501,6 @@ public class TVPlayerManager {
         }
         playerView.requestFocus();
         isRenderingSwitching = false;
-        // 🟢【已移除】SettingsActivity.logOperation("【渲染器】已切换为：" + (useTexture ? "TextureView" : "SurfaceView") + "（双缓冲无黑屏）");
     }
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
@@ -634,7 +593,6 @@ public class TVPlayerManager {
         hasSwitchedDecoder = false;
         initialPlayStartTime = 0;
         resetPerformanceStats();
-        // 🟢【已移除】SettingsActivity.logOperation("【播放器】开始加载新频道: " + (TextUtils.isEmpty(this.currentChannelName) ? "未知" : this.currentChannelName));
         playUrlInternal(url);
     }
     public void setCurrentChannelName(String name) {
@@ -651,20 +609,15 @@ public class TVPlayerManager {
             if (player == null || url == null || url.trim().isEmpty()) return;
             currentUrl = url.trim();
             Log.d(TAG, "开始播放：" + currentUrl);
-            // 🟢【已移除】SettingsActivity.logOperation("【播放器-数据源】传给底层日志的频道名: [" + currentChannelName + "]");
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
-            // ========== 修复完成核心代码 ==========
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             Map<String, String> headerMap = new HashMap<>();
             for (String name : globalHeaders.names()) {
                 headerMap.put(name, globalHeaders.get(name));
             }
 
-            // 🟢【修复】读取设置里“Cookie播放授权令牌”开关的状态
             SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
             boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
-            
-            // 🟢【核心修改】只有开关打开时才发送本地 Cookie
             if (sendCookie) {
                 String cookies = CookieManager.getInstance().getCookie(currentUrl);
                 if (cookies != null) {
@@ -674,20 +627,18 @@ public class TVPlayerManager {
             
             httpFactory.setDefaultRequestProperties(headerMap);
             httpFactory.setChannelName(currentChannelName);
-            // 读取设置持久化的全部重定向配置
             int maxRedirect = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
             boolean crossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN,true);
             boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
             boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
             boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
-            // 🟢【配套优化】缩短超时时间，在 2.4G 弱网环境下能更快重试
             httpFactory.setMaxRedirects(maxRedirect)
                     .setAllowCrossDomainRedirects(crossDomain)
                     .setAllowCrossProtocolRedirects(crossProto)
                     .setFollowRedirectsWithHeaders(followHeader)
                     .setIgnoreSslErrorRedirect(ignoreSsl)
-                    .setConnectTimeoutMs(8000)  // 从 10000 改为 8000
-                    .setReadTimeoutMs(10000);   // 从 15000 改为 10000
+                    .setConnectTimeoutMs(8000)
+                    .setReadTimeoutMs(10000);
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
             MediaSource mediaSource;
             if (currentUrl.toLowerCase().contains("m3u8")) {
@@ -707,7 +658,6 @@ public class TVPlayerManager {
             Log.e(TAG, "播放异常", e);
             if (e instanceof RedirectFailedException) {
                 RedirectFailedException redirectErr = (RedirectFailedException) e;
-                // 🟢【保留重定向日志】
                 SettingsActivity.logOperation("【播放器重定向失败】码：" + redirectErr.getCode()
                         + " 原地址：" + redirectErr.getOriginUrl()
                         + " 跳转地址：" + redirectErr.getLocation());
@@ -872,7 +822,6 @@ public class TVPlayerManager {
                 case DECODER_MODE_HARD:
                     List<MediaCodecInfo> hardCodecs = new ArrayList<>();
                     for (MediaCodecInfo codec : allCodecs) {
-                        // 🟢 修复：传入 codec 对象
                         if (!isSoftwareDecoder(codec)) {
                             hardCodecs.add(codec);
                         }
@@ -882,7 +831,6 @@ public class TVPlayerManager {
                     List<MediaCodecInfo> softCodecs = new ArrayList<>();
                     List<MediaCodecInfo> hardCodecs2 = new ArrayList<>();
                     for (MediaCodecInfo codec : allCodecs) {
-                        // 🟢 修复：传入 codec 对象
                         if (isSoftwareDecoder(codec))
                             softCodecs.add(codec);
                         else hardCodecs2.add(codec);
