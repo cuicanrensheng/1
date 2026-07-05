@@ -25,7 +25,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.SwitchCompat; // 🟢 必须用 SwitchCompat
+import androidx.appcompat.widget.SwitchCompat;
 
 import com.tv.live.manager.TvRemoteManager;
 
@@ -55,7 +55,7 @@ import java.util.List;
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
-    private SwitchCompat sw_boot, sw_epg, sw_auto_update, sw_reverse, sw_num_channel, sw_pip; // 🟢 改为 SwitchCompat
+    private SwitchCompat sw_boot, sw_epg, sw_auto_update, sw_reverse, sw_num_channel, sw_pip;
     private TextView tv_screen_ratio, tv_custom_source, tv_custom_epg, tv_multi_source, tv_multi_epg, tv_qr_code;
     private TextView tv_decoder_mode;
     // 🆕 渲染方式当前值显示
@@ -362,7 +362,6 @@ public class SettingsActivity extends AppCompatActivity {
                         if (currentPos != position) {
                             remoteManager.setSettingsFocusPosition(position);
                             updateSettingsFocus();
-                            logOperation("【设置】焦点移动到第 " + (position + 1) + " 项（点击）");
                         }
                     }
                 });
@@ -392,13 +391,11 @@ public class SettingsActivity extends AppCompatActivity {
             @Override
             public void onSettingsMoveUp() {
                 int newPos = remoteManager.getSettingsFocusPosition();
-                logOperation("【设置遥控】上键 → 移动到第 " + (newPos + 1) + " 项");
                 updateSettingsFocus();
             }
             @Override
             public void onSettingsMoveDown() {
                 int newPos = remoteManager.getSettingsFocusPosition();
-                logOperation("【设置遥控】下键 → 移动到第 " + (newPos + 1) + " 项");
                 updateSettingsFocus();
             }
             @Override
@@ -473,7 +470,6 @@ public class SettingsActivity extends AppCompatActivity {
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
-        logOperation("【设置遥控】焦点更新 → 第 " + (selectedPosition + 1) + " 项");
         for (int i = 0; i < settingsItemList.size(); i++) {
             View item = settingsItemList.get(i);
             if (item == null) continue;
@@ -537,7 +533,6 @@ public class SettingsActivity extends AppCompatActivity {
         View item = settingsItemList.get(position);
         if (item == null) return;
         item.performClick();
-        logOperation("【设置遥控】选中第 " + (position + 1) + " 项");
     }
 
     private void showRatioDialog() {
@@ -636,11 +631,9 @@ public class SettingsActivity extends AppCompatActivity {
         boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
         final String[] currentUaMode = { sp.getString(KEY_USER_AGENT_MODE, "exo") };
         
-        // 🟢 每次重新 inflate（避免 IllegalStateException）
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
         EditText etMax = dialogView.findViewById(R.id.et_redirect_max);
 
-        // 🟢 所有 Switch 控件必须使用 SwitchCompat
         SwitchCompat swCrossDomain = dialogView.findViewById(R.id.sw_cross_domain);
         SwitchCompat swCrossProto = dialogView.findViewById(R.id.sw_cross_proto);
         SwitchCompat swFollowHeader = dialogView.findViewById(R.id.sw_follow_header);
@@ -884,4 +877,4 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.clear();
         settingsItemList = null;
     }
-}
+ }
