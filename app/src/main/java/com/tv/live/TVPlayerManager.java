@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.Color; // 🟢 新增：修复找不到 Color.BLACK 的符号错误
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -53,7 +54,7 @@ public class TVPlayerManager {
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 10000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
-    // ====================== 新增：重定向SP存储Key ======================
+    // ====================== 新增：重定向SP存储Key（与Settings完全对齐） ======================
     private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
     private static final String KEY_REDIRECT_CROSS_DOMAIN = "redirect_cross_domain";
     private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
