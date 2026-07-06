@@ -16,7 +16,9 @@ import com.tv.live.config.AppConfig;
 import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 应用核心管理器
@@ -317,13 +319,15 @@ public class AppCoreManager {
     /**
      * 解析直播源内容（M3U 格式）
      *
+     * 【修改点】：使用 Map 去重合并备用源
      * @param content M3U 文件内容
      * @return 解析后的频道列表
      */
     private List<Channel> parseLiveSource(String content) {
-        List<Channel> channels = new ArrayList<>();
+        // 🟢 使用 Map 缓存，以 tvgId 或 name 作为 Key 进行去重合并
+        Map<String, Channel> channelMap = new HashMap<>();
         if (TextUtils.isEmpty(content)) {
-            return channels;
+            return new ArrayList<>();
         }
         String[] lines = content.split("\n");
         String currentName = "";
@@ -358,7 +362,19 @@ public class AppCoreManager {
                 // 播放地址行
                 String playUrl = line;
                 if (!TextUtils.isEmpty(currentName) && !TextUtils.isEmpty(playUrl)) {
-                    channels.add(new Channel(currentName, playUrl, currentGroup, currentTvgId));
+                    // 🟢 核心修改：使用 tvgId 或 频道名 作为唯一标识
+                    String key = !TextUtils.isEmpty(currentTvgId) ? currentTvgId : currentName;
+                    Channel existing = channelMap.get(key);
+                    if (existing != null) {
+                        // 已存在该频道：将新地址加到备用列表里（去重）
+                        if (!existing.getUrls().contains(playUrl)) {
+                            existing.getUrls().add(playUrl);
+                        }
+                    } else {
+                        // 不存在：创建新频道，构造时第一条地址被设为“主源”
+                        Channel newChannel = new Channel(currentName, playUrl, currentGroup, currentTvgId);
+                        channelMap.put(key, newChannel);
+                    }
                 }
                 // 重置，准备下一个频道
                 currentName = "";
@@ -367,9 +383,11 @@ public class AppCoreManager {
                 currentTvgId = "";
             }
         }
+        // ✅ 将 Map 里的所有 value 转入最终列表
+        List<Channel> result = new ArrayList<>(channelMap.values());
         // ✅ 保留：数据解析相关 → 播放日志
-        log("【缓存】解析完成，共 " + channels.size() + " 个频道");
-        return channels;
+        log("【缓存】解析完成，共 " + result.size() + " 个频道（去重后）");
+        return result;
     }
     /**
      * 是否已用缓存播放过
@@ -596,10 +614,6 @@ public class AppCoreManager {
      *    - 达到：回调通知停止跳过
      *    - 未达到：回调通知切到下一个频道
      *
-     * 【为什么放到这里？】
-     * 这是纯业务逻辑，不涉及 UI 操作，
-     * 统一放到 AppCoreManager 中管理，MainActivity 更清爽。
-     *
      * @param currentChannelName 当前失效频道名称
      * @return true=继续切台，false=已达到上限停止
      */
@@ -609,17 +623,12 @@ public class AppCoreManager {
         if (sourceSkipListener != null) {
             sourceSkipListener.onSourceFailed(currentChannelName, count);
         }
-        // SettingsActivity.logOperation("【自动切台】频道「" + currentChannelName
-        //         + "」源链接无法连接/解析（非重定向拦截），连续失效第 " + count + " 个"); // 已注释：操作日志已移除
         if (count >= MAX_CONSECUTIVE_SKIP) {
-            // SettingsActivity.logOperation("【自动切台】已连续跳过 "
-            //         + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过"); // 已注释：操作日志已移除
             if (sourceSkipListener != null) {
                 sourceSkipListener.onSkipLimitReached(MAX_CONSECUTIVE_SKIP);
             }
             return false;
         }
-        // SettingsActivity.logOperation("【自动切台】自动切换到下一个频道"); // 已注释：操作日志已移除
         if (sourceSkipListener != null) {
             sourceSkipListener.onNeedSkipChannel();
         }
@@ -667,7 +676,6 @@ public class AppCoreManager {
         // ✅ 保留：配置更新/数据相关 → 播放日志
         log("【远程配置】更新直播源：" + liveUrl);
         log("【远程配置】更新EPG：" + epgUrl);
-        // SettingsActivity.logOperation("【远程配置】更新直播源/EPG地址"); // 已注释：操作日志已移除
         // 重置缓存播放标志
         hasPlayedWithCache = false;
         // 重新加载
@@ -698,25 +706,9 @@ public class AppCoreManager {
     /**
      * 记录播放日志（仅数据加载/播放相关的日志才调用这个）
      *
-     * 【说明】
-     * 这个方法只记录真正的播放/数据相关日志，会输出到"解析 & 播放日志"。
-     *
-     * 【哪些日志应该调用这个？】
-     * - 直播源加载（成功、失败、缓存）
-     * - EPG 加载
-     * - 数据解析
-     * - 配置地址更新
-     *
-     * 【哪些日志不应该调用这个？】
-     * - 页面生命周期（onCreate、onPause、onResume、onDestroy）
-     * - 窗口焦点变化
-     * - 广播注册/注销
-     * - 这些应该调用 SettingsActivity.logOperation()
-     *
      * @param msg 日志内容
      */
     private void log(String msg) {
-        // 同步到 SettingsActivity 的播放日志
         SettingsActivity.log(msg);
     }
     // ====================================================================
