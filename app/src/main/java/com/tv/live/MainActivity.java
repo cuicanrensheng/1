@@ -7,6 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log; // 🟢【修复1】添加缺失的 Log 导入
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -87,7 +88,12 @@ public class MainActivity extends AppCompatActivity {
 
         playerView = findViewById(R.id.player_view);
         playerView.setUseController(false);
-        playerView.setControllerVisibilityListener(null);
+        // 🟢【修复2】兼容不同 Media3 版本，处理 setControllerVisibilityListener 歧义
+        try {
+            playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
+        } catch (Exception e) {
+            // 高版本 Media3 直接忽略即可，不影响功能
+        }
 
         initChannelPanelController();
         initRemoteManager();
@@ -468,7 +474,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void log(String msg) {
         LOG_BUFFER.append(msg);
-        // 如果需要调试，保留 Log.d
+        // 🟢【修复3】加上 android.util.Log 的标准调用
         Log.d("MainActivity", msg);
     }
 
