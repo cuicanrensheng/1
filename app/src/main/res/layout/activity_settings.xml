@@ -438,7 +438,7 @@
                 android:background="#33FFFFFF"/>
 
             <!-- ============================================================ -->
-            <!-- 查看解析日志                                                -->
+            <!-- 查看解析日志（保留）                                        -->
             <!-- ============================================================ -->
             <TextView
                 android:id="@+id/log_viewer"
@@ -455,21 +455,8 @@
                 android:clickable="true"/>
 
             <!-- ============================================================ -->
-            <!-- 操作崩溃日志                                                -->
+            <!-- 操作崩溃日志（已移除）                                      -->
             <!-- ============================================================ -->
-            <TextView
-                android:id="@+id/log_operation"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="📌 查看操作日志"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true"/>
 
             <!-- ============================================================ -->
             <!-- 检查更新                                                    -->
