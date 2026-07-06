@@ -47,6 +47,8 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView tv_renderer_type;
     private TextView tv_redirect_setting;
     private TextView tv_boot_status;
+    // 🟢 新增：频道线路选择文字显示
+    private TextView tv_channel_line;
     // ====================== 配置相关 ======================
     private SharedPreferences sp;
     // ====================================================================
@@ -76,6 +78,8 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
     private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
+    // 🟢 新增：频道线路选择的 SP 存储键
+    private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     // ====================================================================
     // 全局日志系统（仅保留播放日志，操作日志已移除）
@@ -156,7 +160,16 @@ public class SettingsActivity extends AppCompatActivity {
         initSettingsItemList();
         initRemoteManager();
         findViewById(R.id.log_viewer).setOnClickListener(v -> showLogDialog());
-        // 操作日志按钮已移除
+
+        // ============================================================
+        // 🟢 新增：初始化频道线路选择控件
+        // ============================================================
+        tv_channel_line = findViewById(R.id.tv_channel_line);
+        int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
+        tv_channel_line.setText(getLineName(currentLineIndex));
+        findViewById(R.id.item_channel_line).setOnClickListener(v -> showChannelLineDialog());
+        // ============================================================
+
         // 开机自启
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
@@ -244,6 +257,37 @@ public class SettingsActivity extends AppCompatActivity {
         currentWebUrl = webServerManager.getAccessUrl();
     }
 
+    // 🟢 新增：获取线路名称的辅助方法
+    private String getLineName(int index) {
+        if (index == 0) return "主源";
+        return "源" + index;
+    }
+
+    // 🟢 新增：显示频道线路选择弹窗
+    private void showChannelLineDialog() {
+        int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
+        // 预设最多 20 个备用源（足够绝大多数情况）
+        List<String> lineList = new ArrayList<>();
+        lineList.add("主源");
+        for (int i = 1; i <= 20; i++) {
+            lineList.add("源" + i);
+        }
+        String[] lineArray = lineList.toArray(new String[0]);
+
+        new AlertDialog.Builder(this)
+                .setTitle("频道线路选择")
+                .setSingleChoiceItems(lineArray, currentLineIndex, (dialog, which) -> {
+                    sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
+                    tv_channel_line.setText(lineArray[which]);
+                    // 通知播放器重新刷新当前频道播放地址
+                    sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                    dialog.dismiss();
+                    Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
     private void initRedirectDefaultConfig() {
         if (!sp.contains(KEY_REDIRECT_MAX_COUNT)) {
             SharedPreferences.Editor editor = sp.edit();
@@ -310,6 +354,8 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.tv_multi_source));
         settingsItemList.add(findViewById(R.id.tv_multi_epg));
         settingsItemList.add(findViewById(R.id.tv_qr_code));
+        // 🟢 新增：线路选择加入焦点列表
+        settingsItemList.add(findViewById(R.id.item_channel_line));
         settingsItemList.add(findViewById(R.id.log_viewer));
         // 操作日志按钮已移除
         settingsItemList.add(findViewById(R.id.item_check_update));
