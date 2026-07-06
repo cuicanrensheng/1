@@ -194,11 +194,7 @@ public class AppCoreManager {
         });
     }
 
-    // ===================== 核心解析与合并逻辑（高亮修改区） =====================
-
-    /**
-     * 🟢【重写】使用了您的 LinkedHashMap 去重+保序逻辑，并自带分组强制覆盖
-     */
+    // ===================== 核心解析与合并逻辑 =====================
     private List<Channel> parseLiveSource(String content) {
         Map<String, Channel> channelMap = new LinkedHashMap<>();
         if (TextUtils.isEmpty(content)) {
@@ -239,7 +235,6 @@ public class AppCoreManager {
                     Channel existing = channelMap.get(key);
                     if (existing != null) {
                         existing.addBackupUrl(playUrl);
-                        // 🟢【强制覆盖分组】此逻辑对应您“后加载备用源覆盖旧分组”的需求
                         if (!TextUtils.isEmpty(currentGroup)) {
                             existing.setGroup(currentGroup);
                         }
@@ -256,31 +251,23 @@ public class AppCoreManager {
         return new ArrayList<>(channelMap.values());
     }
 
-    /**
-     * 🟢【新增】专门用于“先加载源 A，再加载源 B”时的合并逻辑
-     * 已集成：保留顺序、追加备用源、强制覆盖后加载源的分组
-     */
     public void mergeChannels(List<Channel> newChannels) {
         Map<String, Channel> mergedMap = new LinkedHashMap<>();
-        // 先把当前已有的频道放入合并 map
         for (Channel ch : channelSourceList) {
             String key = !TextUtils.isEmpty(ch.getChannelId()) ? ch.getChannelId() : ch.getName();
             if (!TextUtils.isEmpty(key)) {
                 mergedMap.put(key, ch);
             }
         }
-        // 再把新源的频道放入合并 map
         for (Channel ch : newChannels) {
             String key = !TextUtils.isEmpty(ch.getChannelId()) ? ch.getChannelId() : ch.getName();
             if (TextUtils.isEmpty(key)) continue;
 
             Channel existing = mergedMap.get(key);
             if (existing != null) {
-                // 追加备用源
                 for (String url : ch.getBackupUrls()) {
                     existing.addBackupUrl(url);
                 }
-                // 🟢【核心强制覆盖】以最后加载的直播源分组为准
                 String newGroup = ch.getGroup();
                 if (!TextUtils.isEmpty(newGroup)) {
                     existing.setGroup(newGroup);
@@ -289,13 +276,12 @@ public class AppCoreManager {
                 mergedMap.put(key, ch);
             }
         }
-        // 回写进 channelSourceList，保持 LinkedHashMap 的解析顺序
         channelSourceList.clear();
         channelSourceList.addAll(mergedMap.values());
     }
 
     // ====================================================================
-    // 2. 广播管理相关（保持原样）
+    // 2. 广播管理相关（加入强制清缓存逻辑）
     // ====================================================================
     public void registerReceivers() {
         if (receiversRegistered) return;
@@ -310,6 +296,12 @@ public class AppCoreManager {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if ("com.tv.live.REFRESH_LIVE_AND_EPG".equals(intent.getAction())) {
+                    // 🟢【新增】切换/刷新直播源时，先强制清除所有缓存，确保拉取最新数据！
+                    if (cacheManager != null) {
+                        cacheManager.clearAll(); // 使用 CacheManager 的 clearAll 清空所有缓存
+                        log("【缓存】已强制清除所有缓存，正在重新拉取最新数据");
+                    }
+
                     String customLive = appConfig.getCustomLiveUrl();
                     String customEpg = appConfig.getCustomEpgUrl();
                     if (customLive != null) UrlConfig.LIVE_URL = customLive;
@@ -351,7 +343,7 @@ public class AppCoreManager {
     public boolean isControllerVisible() { return isControllerVisible; }
 
     // ====================================================================
-    // 3. 生命周期管理相关（保持原样）
+    // 3. 生命周期管理相关
     // ====================================================================
     public boolean onPause() {
         if (isOpeningSettings) return false;
@@ -395,7 +387,7 @@ public class AppCoreManager {
     public List<Channel> getChannelList() { return channelSourceList; }
 
     // ====================================================================
-    // 4. 源失效自动切台 & 配置（保持原样）
+    // 4. 源失效自动切台 & 配置
     // ====================================================================
     public void setOnSourceSkipListener(OnSourceSkipListener listener) {
         this.sourceSkipListener = listener;
@@ -429,6 +421,13 @@ public class AppCoreManager {
         if (epgUrl != null) UrlConfig.EPG_URL = epgUrl;
         log("【远程配置】更新直播源：" + liveUrl);
         log("【远程配置】更新EPG：" + epgUrl);
+        
+        // 🟢【新增】远程配置切换时，同样强制清除缓存再加载
+        if (cacheManager != null) {
+            cacheManager.clearAll(); // 使用 CacheManager 的 clearAll 清空所有缓存
+            log("【缓存】远程配置触发，强制清除旧缓存");
+        }
+        
         hasPlayedWithCache = false;
         loadLiveAndEpg();
     }
