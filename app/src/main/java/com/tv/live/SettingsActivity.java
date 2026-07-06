@@ -82,7 +82,8 @@ public class SettingsActivity extends AppCompatActivity {
     // ====================================================================
     // 🟢【性能优化1】改为 StringBuffer + 加锁，彻底解决多线程写入崩溃
     public static volatile StringBuffer PLAY_LOG = new StringBuffer();
-    private static final int MAX_LOG_LINES = 500; // 最大保留行数
+    // 🟢【修改】日志截取改为最近 100 行
+    private static final int MAX_LOG_LINES = 100; 
 
     public static void log(String msg) {
         LogManager.log(msg);
@@ -91,8 +92,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
         synchronized (PLAY_LOG) {
             PLAY_LOG.append(msg).append("\n");
-            // 如果日志过长，自动截断（可选）
-            // 这里不自动截断，交给 showLogDialog 截取，避免频繁操作锁
         }
     }
 
@@ -704,7 +703,7 @@ public class SettingsActivity extends AppCompatActivity {
                     originalLog = PLAY_LOG.toString();
                 }
                 String[] lines = originalLog.split("\n");
-                // 🟢【性能优化2】限制日志行数，只保留最近500行，防止弹窗卡死
+                // 🟢【修改】限制日志行数，只保留最近 100 行，防止弹窗卡死
                 if (lines.length > MAX_LOG_LINES) {
                     List<String> subList = new ArrayList<>();
                     for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
