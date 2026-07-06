@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputFilter;
@@ -32,8 +33,6 @@ import java.util.List;
 
 /**
  * 设置页面 Activity
- *
- * 【功能清单】省略...
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
@@ -44,7 +43,7 @@ public class SettingsActivity extends AppCompatActivity {
     private SharedPreferences sp;
     private TvRemoteManager remoteManager;
     private List<View> settingsItemList = new ArrayList<>();
-    private List<TextView> cachedItemTitleTexts = new ArrayList<>(); // 🟢【优化】缓存主标题文本
+    private List<TextView> cachedItemTitleTexts = new ArrayList<>();
     private ScrollView scrollView;
     // ====================== 管理器相关 ======================
     private BootStartManager bootStartManager;
@@ -67,34 +66,25 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
     private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
     
-    // ====================== 🟢【修复1】日志系统改造 - 限容环形缓存 ======================
+    // ====================== 日志限容 ======================
     public static class FixedSizeLogBuffer {
         private final StringBuilder buffer = new StringBuilder();
-        private final int maxCapacity = 1024 * 50; // 限制最大内存容量为 50KB
+        private final int maxCapacity = 1024 * 50;
         private final Object lock = new Object();
-
         public void append(String msg) {
             if (msg == null) return;
             synchronized (lock) {
                 if (buffer.length() + msg.length() > maxCapacity) {
-                    // 超出容量，截断前半部分（保留后 40KB）
                     buffer.delete(0, buffer.length() - (maxCapacity / 2));
                 }
                 buffer.append(msg).append("\n");
             }
         }
-
         public String getAndClear() {
             synchronized (lock) {
                 String content = buffer.toString();
                 buffer.setLength(0);
                 return content;
-            }
-        }
-
-        public int length() {
-            synchronized (lock) {
-                return buffer.length();
             }
         }
     }
@@ -111,9 +101,7 @@ public class SettingsActivity extends AppCompatActivity {
         LogManager.logOperation(msg);
         OPERATION_LOG.append(msg);
     }
-    // ===============================================================
 
-    // 🟢【优化】锁变量，防止 ScrollView 死循环
     private boolean isScrolling = false;
 
     @Override
@@ -143,7 +131,6 @@ public class SettingsActivity extends AppCompatActivity {
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
         initRedirectDefaultConfig();
 
-        // 绑定控件
         sw_boot = findViewById(R.id.sw_boot);
         sw_epg = findViewById(R.id.sw_epg);
         sw_auto_update = findViewById(R.id.sw_auto_update);
@@ -263,7 +250,6 @@ public class SettingsActivity extends AppCompatActivity {
 
         initListeners();
 
-        // 🟢【优化】WebServer 抛到子线程启动，避免阻塞 UI
         new Thread(() -> {
             webServerManager.start();
             currentWebUrl = webServerManager.getAccessUrl();
@@ -322,7 +308,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void initSettingsItemList() {
         settingsItemList.clear();
-        cachedItemTitleTexts.clear(); // 🟢 清空缓存
+        cachedItemTitleTexts.clear();
 
         settingsItemList.add(findViewById(R.id.item_boot));
         settingsItemList.add(findViewById(R.id.item_epg));
@@ -351,12 +337,12 @@ public class SettingsActivity extends AppCompatActivity {
             final int position = i;
             View item = settingsItemList.get(i);
             if (item != null) {
-                // 🟢【优化】预处理，缓存该 Item 下的首个子 TextView，大幅减少焦点切换时的查找开销
                 TextView titleTv = findFirstTextView(item);
                 cachedItemTitleTexts.add(titleTv);
 
                 item.setFocusableInTouchMode(true);
                 item.setOnFocusChangeListener((v, hasFocus) -> {
+                    // 🟢【修复1】防止死锁：只有焦点移入才更新，移出不处理
                     if (hasFocus && remoteManager != null) {
                         remoteManager.setSettingsFocusPosition(position);
                         updateSettingsFocus();
@@ -387,8 +373,13 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPanelMenu() {}
             @Override public void onPanelNumber(int number) {}
             @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
-            @Override public void onSettingsMoveUp() { updateSettingsFocus(); }
-            @Override public void onSettingsMoveDown() { updateSettingsFocus(); }
+            @Override public void onSettingsMoveUp() {
+                // 🟢【修复2】遥控器上下键触发时，直接调用更新焦点，不额外设置位置避免冲突
+                updateSettingsFocus();
+            }
+            @Override public void onSettingsMoveDown() {
+                updateSettingsFocus();
+            }
             @Override public void onSettingsConfirm() {
                 int position = remoteManager.getSettingsFocusPosition();
                 handleSettingsItemClick(position);
@@ -453,17 +444,20 @@ public class SettingsActivity extends AppCompatActivity {
         View item = settingsItemList.get(selectedPosition);
         if (item == null) return;
 
-        // 🟢【防死锁】当前焦点已经是这个 Item 了，直接跳过，防止无限循环
+        // 🟢【修复3】如果当前焦点已经在这个 Item 上，直接跳过，绝不重复抢焦点
         if (item.isFocused()) return;
 
         for (int i = 0; i < settingsItemList.size(); i++) {
             View v = settingsItemList.get(i);
             if (v == null) continue;
             if (i == selectedPosition) {
-                // 🟢【防死锁】使用 post 延迟一帧请求焦点，打破同步锁
                 setItemStyle(i, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
+                
+                // 🟢【修复4】使用 post 确保主线程安全，并打破可能的同步死锁
                 v.post(() -> {
-                    if (v.isAttachedToWindow()) v.requestFocus();
+                    if (v.isAttachedToWindow()) {
+                        v.requestFocus();
+                    }
                 });
                 scrollToView(v);
             } else {
@@ -472,7 +466,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢【优化】直接接收索引，使用预缓存的 TextView，彻底消灭 findFirstTextView 遍历
     private void setItemStyle(int index, String textColor, int typefaceStyle, int bgColor) {
         if (index < 0 || index >= settingsItemList.size()) return;
         View item = settingsItemList.get(index);
@@ -498,7 +491,6 @@ public class SettingsActivity extends AppCompatActivity {
         return null;
     }
 
-    // 🟢【优化】增加 isScrolling 锁，防止滚动动画冲突导致的死锁和卡顿
     private void scrollToView(View view) {
         if (scrollView == null || view == null || isScrolling) return;
         int viewTop = view.getTop();
@@ -509,7 +501,6 @@ public class SettingsActivity extends AppCompatActivity {
             isScrolling = true;
             int targetY = viewTop < scrollView.getScrollY() ? viewTop - 50 : viewBottom - scrollViewHeight + 50;
             scrollView.smoothScrollTo(0, targetY);
-            // 延迟解锁
             scrollView.postDelayed(() -> isScrolling = false, 400);
         }
     }
@@ -686,7 +677,6 @@ public class SettingsActivity extends AppCompatActivity {
                 .show();
     }
 
-    // 🟢【修复 ANR】极简防 ANR 日志弹窗逻辑
     private void showOperationLogDialog() {
         showLogDialogAsync(false);
     }
@@ -703,7 +693,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         new Thread(() -> {
-            // 将耗时的字符串反序和拼接操作放在子线程，防止低端电视 ANR
             String processedLog;
             String[] lines = rawLog.split("\n");
             StringBuilder reversed = new StringBuilder();
