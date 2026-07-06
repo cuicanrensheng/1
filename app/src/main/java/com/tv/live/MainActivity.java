@@ -289,21 +289,24 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onLiveSourceLoaded(List<Channel> channels, boolean fromCache) {
                 runOnUiThread(() -> {
+                    // 🟢【关键修改】必须从 AppCoreManager 内部获取已经合并好的最终列表
+                    List<Channel> finalList = appCoreManager.getChannelList();
                     channelSourceList.clear();
-                    channelSourceList.addAll(channels);
-                    channelPanelController.setChannels(channels);
+                    channelSourceList.addAll(finalList);
+
+                    channelPanelController.setChannels(channelSourceList);
                     if (remoteManager != null) {
-                        remoteManager.setTotalChannelCount(channels.size());
+                        remoteManager.setTotalChannelCount(channelSourceList.size());
                     }
                     if (!appCoreManager.hasPlayedWithCache()) {
-                        if (currentPlayIndex >= 0 && currentPlayIndex < channels.size()) {
-                            Channel ch = channels.get(currentPlayIndex);
+                        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                            Channel ch = channelSourceList.get(currentPlayIndex);
                             playChannel(ch, currentPlayIndex);
                             appCoreManager.setHasPlayedWithCache(true);
                         }
                     }
                     displayManager.hideLoading();
-                    log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channels.size());
+                    log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channelSourceList.size());
                 });
             }
 
@@ -397,7 +400,8 @@ public class MainActivity extends AppCompatActivity {
 
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
-        mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName());
+        // 🟢【关键修改】把 channel 对象完整传给播放器，以支持线路切换
+        mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName(), channel);
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         infoDisplayManager.showInfoBar(channel, live);
         infoDisplayManager.showChannelNum(index + 1);
