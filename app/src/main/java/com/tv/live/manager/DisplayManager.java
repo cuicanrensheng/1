@@ -163,7 +163,7 @@ public class DisplayManager {
                 activity.getWindow().setDecorFitsSystemWindows(false);
             }
 
-            SettingsActivity.logOperation("【适配】全面屏适配成功");
+            // SettingsActivity.logOperation("【适配】全面屏适配成功"); // 已注释：操作日志已移除
 
         } catch (Exception e) {
             // ✅ 全面屏适配失败不影响正常使用
@@ -172,7 +172,7 @@ public class DisplayManager {
             // 直接调用会崩溃。加个 try-catch，失败了就不用全屏效果，
             // 至少保证应用能正常运行。
             e.printStackTrace();
-            SettingsActivity.logOperation("【适配】全面屏适配失败：" + e.getMessage());
+            // SettingsActivity.logOperation("【适配】全面屏适配失败：" + e.getMessage()); // 已注释：操作日志已移除
         }
     }
 
@@ -257,11 +257,11 @@ public class DisplayManager {
             loadingView = loadingLayout;
             loadingViewInitialized = true;
 
-            SettingsActivity.logOperation("【加载】加载视图初始化完成");
+            // SettingsActivity.logOperation("【加载】加载视图初始化完成"); // 已注释：操作日志已移除
 
         } catch (Exception e) {
             e.printStackTrace();
-            SettingsActivity.logOperation("【加载】加载视图初始化失败：" + e.getMessage());
+            // SettingsActivity.logOperation("【加载】加载视图初始化失败：" + e.getMessage()); // 已注释：操作日志已移除
         }
     }
 
@@ -283,7 +283,7 @@ public class DisplayManager {
             tvLoadingText.setText(text);
         }
 
-        SettingsActivity.logOperation("【加载】显示加载动画：" + text);
+        // SettingsActivity.logOperation("【加载】显示加载动画：" + text); // 已注释：操作日志已移除
     }
 
     /**
@@ -311,7 +311,7 @@ public class DisplayManager {
         if (loadingView != null) {
             loadingView.setVisibility(View.GONE);
         }
-        SettingsActivity.logOperation("【加载】隐藏加载动画");
+        // SettingsActivity.logOperation("【加载】隐藏加载动画"); // 已注释：操作日志已移除
     }
 
     /**
