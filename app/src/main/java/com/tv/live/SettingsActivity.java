@@ -84,7 +84,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
         PLAY_LOG.append(msg).append("\n");
     }
-    
     // ====================== onCreate ======================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -142,6 +141,7 @@ public class SettingsActivity extends AppCompatActivity {
         initSettingsItemList();
         initRemoteManager();
         findViewById(R.id.log_viewer).setOnClickListener(v -> showLogDialog());
+        // 操作日志按钮已移除
         // 开机自启
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
@@ -160,7 +160,6 @@ public class SettingsActivity extends AppCompatActivity {
             boolean isChecked = !sw_epg.isChecked();
             sw_epg.setChecked(isChecked);
             sp.edit().putBoolean("epg_enable", isChecked).apply();
-            // 已移除操作日志
             Toast.makeText(this, "节目单" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
         // 自动更新源
@@ -174,7 +173,6 @@ public class SettingsActivity extends AppCompatActivity {
             } else {
                 autoUpdateManager.cancelAutoUpdateAlarm();
             }
-            // 已移除操作日志
             Toast.makeText(this, "自动更新源" + (isChecked ? "已开启（每天凌晨4点）" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
         if (sp.getBoolean("auto_update_source", true)) {
@@ -186,7 +184,6 @@ public class SettingsActivity extends AppCompatActivity {
             boolean isChecked = !sw_reverse.isChecked();
             sw_reverse.setChecked(isChecked);
             sp.edit().putBoolean("channel_reverse", isChecked).apply();
-            // 已移除操作日志
             Toast.makeText(this, "换台反转" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
         // 数字选台
@@ -195,7 +192,6 @@ public class SettingsActivity extends AppCompatActivity {
             boolean isChecked = !sw_num_channel.isChecked();
             sw_num_channel.setChecked(isChecked);
             sp.edit().putBoolean("number_channel_enable", isChecked).apply();
-            // 已移除操作日志
             Toast.makeText(this, "数字选台" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
         // 画中画
@@ -204,7 +200,6 @@ public class SettingsActivity extends AppCompatActivity {
             boolean isChecked = !sw_pip.isChecked();
             sw_pip.setChecked(isChecked);
             sp.edit().putBoolean("pip_enable", isChecked).apply();
-            // 已移除操作日志
             if (isChecked) {
                 Toast.makeText(this, "画中画已开启，按Home键自动小窗播放", Toast.LENGTH_SHORT).show();
             } else {
@@ -216,27 +211,22 @@ public class SettingsActivity extends AppCompatActivity {
         updateDecoderModeText(decoderMode);
         findViewById(R.id.item_decoder).setOnClickListener(v -> {
             showDecoderModeDialog();
-            // 已移除操作日志
         });
         String rendererMode = sp.getString("renderer_type", "surface");
         updateRendererModeText(rendererMode);
         findViewById(R.id.item_renderer).setOnClickListener(v -> {
             showRendererModeDialog();
-            // 已移除操作日志
         });
         updateRedirectSettingText();
         findViewById(R.id.item_redirect).setOnClickListener(v -> {
             showRedirectConfigDialog();
-            // 已移除操作日志
         });
         findViewById(R.id.item_check_update).setOnClickListener(v -> {
             updateManager.checkUpdate();
-            // 已移除操作日志
         });
         initListeners();
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
-        // 已移除操作日志
     }
 
     private void initRedirectDefaultConfig() {
@@ -250,7 +240,6 @@ public class SettingsActivity extends AppCompatActivity {
             editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, true);
             editor.putString(KEY_USER_AGENT_MODE, "exo");
             editor.apply();
-            // 已移除操作日志
         }
     }
 
@@ -285,10 +274,10 @@ public class SettingsActivity extends AppCompatActivity {
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
             getWindow().getDecorView().setSystemUiVisibility(uiOptions);
         } catch (Exception e) {
-            // 已移除操作日志
         }
     }
 
+    // ========================== 🟢 修复点：补全触摸点击支持，并优化彻底去除了导致背景不动的竞态代码 ==========================
     private void initSettingsItemList() {
         settingsItemList.clear();
         settingsItemList.add(findViewById(R.id.item_boot));
@@ -307,7 +296,7 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.tv_multi_epg));
         settingsItemList.add(findViewById(R.id.tv_qr_code));
         settingsItemList.add(findViewById(R.id.log_viewer));
-        // 已移除操作日志按钮
+        // 操作日志按钮已移除
         settingsItemList.add(findViewById(R.id.item_check_update));
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) {
@@ -324,6 +313,7 @@ public class SettingsActivity extends AppCompatActivity {
                         int currentPos = remoteManager.getSettingsFocusPosition();
                         if (currentPos != position) {
                             remoteManager.setSettingsFocusPosition(position);
+                            // 🟢 补上这行：让触摸点击或外部设备焦点也能立刻刷新样式
                             updateSettingsFocus();
                         }
                     }
@@ -366,13 +356,11 @@ public class SettingsActivity extends AppCompatActivity {
             }
             @Override
             public boolean onSettingsBack() {
-                // 已移除操作日志
                 finish();
                 return true;
             }
             @Override
             public void onSettingsMenu() {
-                // 已移除操作日志
                 finish();
             }
             @Override
@@ -396,27 +384,21 @@ public class SettingsActivity extends AppCompatActivity {
     private void initListeners() {
         tv_screen_ratio.setOnClickListener(v -> {
             showRatioDialog();
-            // 已移除操作日志
         });
         tv_custom_source.setOnClickListener(v -> {
             showInputDialog("自定义订阅源", "请输入直播源地址", KEY_CUSTOM_LIVE);
-            // 已移除操作日志
         });
         tv_custom_epg.setOnClickListener(v -> {
             showInputDialog("自定义节目单", "请输入EPG地址", KEY_CUSTOM_EPG);
-            // 已移除操作日志
         });
         tv_multi_source.setOnClickListener(v -> {
             sourceDialogManager.showHistoryDialog("直播源历史", "live_history");
-            // 已移除操作日志
         });
         tv_multi_epg.setOnClickListener(v -> {
             sourceDialogManager.showHistoryDialog("节目单历史", "epg_history");
-            // 已移除操作日志
         });
         tv_qr_code.setOnClickListener(v -> {
             qrCodeManager.showQRCodeDialog(currentWebUrl);
-            // 已移除操作日志
         });
     }
 
@@ -428,6 +410,7 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    // ========================== 🟢 修复焦点更新算法：取消复杂的 isFocused 分支，强制设置颜色，完美解决高亮无法移动的问题 ==========================
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
@@ -436,6 +419,7 @@ public class SettingsActivity extends AppCompatActivity {
         View target = settingsItemList.get(selectedPosition);
         if (target == null) return;
 
+        // 1. 统一处理所有Item的背景色和文本色，消除旧代码里因为 isFocused() 引发的竞争和错乱
         for (int i = 0; i < settingsItemList.size(); i++) {
             View item = settingsItemList.get(i);
             if (item == null) continue;
@@ -446,6 +430,7 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
+        // 2. 确保目标滚动可见并申请焦点（去掉了 50ms 延时，使用 post 即刻执行，响应更跟手）
         target.post(() -> {
             scrollToView(target);
             target.requestFocus();
@@ -483,6 +468,7 @@ public class SettingsActivity extends AppCompatActivity {
         return null;
     }
 
+    // ========================== 🟢 瞬间跳转，避免动画队列堆积卡死 ==========================
     private void scrollToView(View view) {
         if (scrollView == null || view == null) return;
         int viewTop = view.getTop();
@@ -510,7 +496,6 @@ public class SettingsActivity extends AppCompatActivity {
                 .setTitle("屏幕比例")
                 .setItems(ratios, (d, w) -> {
                     sp.edit().putString("screen_ratio", ratios[w]).apply();
-                    // 已移除操作日志
                     Toast.makeText(this, "已设置", Toast.LENGTH_SHORT).show();
                 }).show();
     }
@@ -532,7 +517,6 @@ public class SettingsActivity extends AppCompatActivity {
                     String selectedMode = modeValues[which];
                     sp.edit().putString("decoder_mode", selectedMode).apply();
                     updateDecoderModeText(selectedMode);
-                    // 已移除操作日志
                     sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
                     d.dismiss();
                     Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…", Toast.LENGTH_SHORT).show();
@@ -565,7 +549,6 @@ public class SettingsActivity extends AppCompatActivity {
                     String selectedMode = modeValues[which];
                     sp.edit().putString("renderer_type", selectedMode).apply();
                     updateRendererModeText(selectedMode);
-                    // 已移除操作日志
                     sendBroadcast(new Intent("com.tv.live.RENDERER_TYPE_CHANGED"));
                     d.dismiss();
                     Toast.makeText(this, "已切换到" + modes[which] + "，正在应用……", Toast.LENGTH_SHORT).show();
@@ -659,7 +642,6 @@ public class SettingsActivity extends AppCompatActivity {
                     editor.putString(KEY_USER_AGENT_MODE, currentUaMode[0]);
                     editor.apply();
                     updateRedirectSettingText();
-                    // 已移除操作日志
                     Toast.makeText(this, "重定向配置保存成功", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("取消", null)
@@ -681,7 +663,6 @@ public class SettingsActivity extends AppCompatActivity {
                                 key.contains("live") ? "live_history" : "epg_history");
                         sourceManager.addSource(url.substring(0, Math.min(10, url.length())) + "...", url);
                         sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                        // 已移除操作日志
                         Toast.makeText(this, "已保存，正在刷新…", Toast.LENGTH_SHORT).show();
                     }
                 })
@@ -689,7 +670,7 @@ public class SettingsActivity extends AppCompatActivity {
                 .show();
     }
 
-    // ========================== 🟢 播放日志（已保留） ==========================
+    // ========================== 🟢 播放日志（保留） ==========================
     private void showLogDialog() {
         new Thread(() -> {
             final String logContent;
@@ -786,7 +767,6 @@ public class SettingsActivity extends AppCompatActivity {
             if (PLAY_LOG != null) {
                 PLAY_LOG.setLength(0);
             }
-            // 已移除操作日志
             Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
         });
         builder.show();
@@ -810,7 +790,6 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 已移除操作日志
         if (webServerManager != null) {
             webServerManager.stop();
         }
