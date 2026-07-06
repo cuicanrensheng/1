@@ -21,14 +21,17 @@ public class Channel {
     public static final long URL_STATUS_INVALID = -1L;
     public static final long URL_STATUS_UNTEST = Long.MAX_VALUE;
 
+    // 存储当前频道EPG列表
+    private List<EpgItem> epgList = new ArrayList<>();
+
     public Channel(String name, String playUrl, String group, String channelId) {
         this.name = name;
         this.standardName = cleanChannelName(name);
         this.group = group;
         this.standardGroup = group;
         this.channelId = channelId;
-        // 构造添加第一条线路
-        if (playUrl != null && !play.isBlank()) {
+        // 🟢 修复1：将 play 改为 playUrl，并改用更安全的 isEmpty 判断
+        if (playUrl != null && !playUrl.trim().isEmpty()) {
             urls.add(playUrl.trim());
             speedCache.putIfAbsent(playUrl.trim(), URL_STATUS_UNTEST);
         }
@@ -187,15 +190,13 @@ public class Channel {
         }
     }
 
-    // 存储当前频道EPG列表
-    private List<EpgItem> epgList = new ArrayList<>();
-
     public List<EpgItem> getEpgList() {
         return new ArrayList<>(epgList);
     }
 
+    // 🟢 修复2：将 this.epg 改为 this.epgList
     public void setEpgList(List<EpgItem> epgList) {
-        this.epg = epgList == null ? new ArrayList<>() : new ArrayList<>(epgList);
+        this.epgList = epgList == null ? new ArrayList<>() : new ArrayList<>(epgList);
     }
 
     public void addEpgItem(EpgItem item) {
