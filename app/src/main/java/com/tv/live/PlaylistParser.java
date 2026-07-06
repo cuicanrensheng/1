@@ -4,17 +4,18 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PlaylistParser {
     public static List<Channel> parse(String url) throws Exception {
-        List<Channel> resultList = new ArrayList<>();
+        // 🟢 修复1：使用 LinkedHashMap 保证频道按直播源的解析顺序排列，避免乱序
+        Map<String, Channel> channelMap = new LinkedHashMap<>();
+        
         BufferedReader br = new BufferedReader(new InputStreamReader(new URL(url).openStream()));
         String line;
         String currentGroup = "未分类";
-
-        Channel lastChannel = null;
-        int continuousSameCount = 0;
 
         while ((line = br.readLine()) != null) {
             line = line.trim();
@@ -30,40 +31,47 @@ public class PlaylistParser {
                 String tvgId = "";
                 String group = currentGroup;
 
+                // 提取 tvg-id
                 if (line.contains("tvg-id=\"")) {
-                    tvgId = line.split("tvg-id=\"")[1].split("\"")[0];
+                    try {
+                        tvgId = line.split("tvg-id=\"")[1].split("\"")[0].trim();
+                    } catch (Exception ignored) {}
                 }
+                // 提取 group-title
                 if (line.contains("group-title=\"")) {
-                    group = line.split("group-title=\"")[1].split("\"")[0];
+                    try {
+                        group = line.split("group-title=\"")[1].split("\"")[0].trim();
+                    } catch (Exception ignored) {}
                 }
+                // 提取频道名称
                 if (line.contains(",")) {
                     name = line.substring(line.indexOf(",") + 1).trim();
                 }
 
                 String uri = br.readLine();
-                if (uri == null || !uri.startsWith("http")) {
-                    continue;
-                }
+                if (uri == null || !uri.startsWith("http")) continue;
 
-                // 判断是否与上一个频道主链接完全相同
-                if (lastChannel != null && uri.equals(lastChannel.getMainPlayUrl())) {
-                    continuousSameCount++;
-                    // 仅连续3~4条同源链接作为备用源存入
-                    if (continuousSameCount <= 4) {
-                        lastChannel.addBackupUrl(uri);
+                // 全局去重：优先使用 tvg-id，没有则用频道名作为 Key
+                String key = !tvgId.isEmpty() ? tvgId : name;
+                if (key.isEmpty()) continue;
+
+                Channel existing = channelMap.get(key);
+                if (existing != null) {
+                    // ✅ 频道已存在：作为备用源添加到 backupUrls 列表
+                    existing.addBackupUrl(uri);
+                    // 🟢 修复2：如果当前行有正常分组，动态覆盖旧频道分组，彻底解决分组错乱！
+                    if (group != null && !group.isEmpty() && !"未分类".equals(group)) {
+                        existing.setGroup(group);
                     }
-                    // 不新建频道，直接跳过本轮
-                    continue;
                 } else {
-                    // 全新频道，创建并加入列表
+                    // ✅ 频道不存在：新建（第一条作为主源 mainPlayUrl）
                     Channel newChannel = new Channel(name, uri, group, tvgId);
-                    resultList.add(newChannel);
-                    lastChannel = newChannel;
-                    continuousSameCount = 0;
+                    channelMap.put(key, newChannel);
                 }
             }
         }
         br.close();
-        return resultList;
+        // 将 Map 的所有 value 转成 List 返回
+        return new ArrayList<>(channelMap.values());
     }
 }
