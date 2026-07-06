@@ -108,7 +108,7 @@ public class TVPlayerManager {
     private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
     private boolean isRenderingSwitching = false;
 
-    // 🟢【修复3】 复用 Map 对象，避免频繁 new 导致频繁 GC 卡顿 (对应问题4)
+    // 🟢【修复3】 复用 Map 对象，避免频繁 new 导致频繁 GC 卡顿
     private final Map<String, String> reusableHeaderMap = new HashMap<>();
 
     public interface OnPlayerViewRecreatedListener {
@@ -140,7 +140,7 @@ public class TVPlayerManager {
             }
         };
 
-        // 🟢【修复4】 卡顿检测增加 player == null 判断，防止死循环空指针 (对应问题1、6)
+        // 🟢【修复4】 卡顿检测增加 player == null 判断，防止死循环空指针
         stuckCheckRunnable = new Runnable() {
             @Override
             public void run() {
@@ -233,14 +233,14 @@ public class TVPlayerManager {
                     if (rootCause instanceof RedirectFailedException) {
                         isRedirectError = true;
                         RedirectFailedException redirectErr = (RedirectFailedException) rootCause;
-                        SettingsActivity.logOperation("【播放器】重定向拦截失败：" + redirectErr.getMessage() + " Location=" + redirectErr.getLocation());
+                        // SettingsActivity.logOperation("【播放器】重定向拦截失败：" + redirectErr.getMessage() + " Location=" + redirectErr.getLocation()); // 已注释：操作日志已移除
                         break;
                     }
                     rootCause = rootCause.getCause();
                 }
                 if (listener != null) listener.onPlayError(error.getMessage());
                 if (!isRedirectError) autoRetry("播放错误：" + error.getMessage());
-                else SettingsActivity.logOperation("【播放器】检测为重定向失败，跳过自动重试");
+                // else SettingsActivity.logOperation("【播放器】检测为重定向失败，跳过自动重试"); // 已注释：操作日志已移除
             }
 
             @Override
@@ -329,7 +329,7 @@ public class TVPlayerManager {
 
     private void autoRetry(String reason) {
         if (reason.contains("RedirectFailedException") || reason.contains("重定向")) {
-            SettingsActivity.logOperation("【播放器】重定向类错误，不执行重试");
+            // SettingsActivity.logOperation("【播放器】重定向类错误，不执行重试"); // 已注释：操作日志已移除
             return;
         }
         if (isRetrying) return;
@@ -363,7 +363,7 @@ public class TVPlayerManager {
         if (player != null) performDecoderSwitch();
     }
 
-    // 🟢【修复6】 彻底解决 performDecoderSwitch 中的资源清理和时序问题 (对应问题1、3、8)
+    // 🟢【修复6】 彻底解决 performDecoderSwitch 中的资源清理和时序问题
     private void performDecoderSwitch() {
         try {
             // 1. 停止当前所有检测任务和延迟任务，防止 postDelayed 死循环
@@ -443,7 +443,7 @@ public class TVPlayerManager {
         }
     }
 
-    // 🟢【修复7】 彻底解决切换渲染器时的黑屏闪烁和 Handler 泄漏 (对应问题1、2、6)
+    // 🟢【修复7】 彻底解决切换渲染器时的黑屏闪烁和 Handler 泄漏
     private void switchRenderer(boolean useTexture) {
         if (playerView == null || context == null) return;
 
@@ -584,7 +584,7 @@ public class TVPlayerManager {
         cancelRetry();
         retryCount = 0;
         isRetrying = false;
-        // 🟢【修复8】 重置状态，防止旧状态影响新开播 (对应问题4)
+        // 🟢【修复8】 重置状态，防止旧状态影响新开播
         initialPlayStartTime = 0;
         resetPerformanceStats();
         playUrlInternal(url);
@@ -646,7 +646,7 @@ public class TVPlayerManager {
             Log.e(TAG, "播放异常", e);
             if (e instanceof RedirectFailedException) {
                 RedirectFailedException redirectErr = (RedirectFailedException) e;
-                SettingsActivity.logOperation("【重定向失败】" + redirectErr.getOriginUrl() + " -> " + redirectErr.getLocation());
+                // SettingsActivity.logOperation("【重定向失败】" + redirectErr.getOriginUrl() + " -> " + redirectErr.getLocation()); // 已注释：操作日志已移除
                 if (listener != null) listener.onPlayError("源跳转失败：" + e.getMessage());
                 return;
             }
@@ -727,7 +727,7 @@ public class TVPlayerManager {
     public void pause() { try { if (player != null) player.pause(); } catch (Exception ignored) {} }
     public void resume() { try { if (player != null) player.play(); } catch (Exception ignored) {} }
 
-    // 🟢【修复10】 彻底安全的释放逻辑，防止单例内存泄漏 (对应问题1)
+    // 🟢【修复10】 彻底安全的释放逻辑，防止单例内存泄漏
     public void release() {
         try {
             stopStuckDetection();
