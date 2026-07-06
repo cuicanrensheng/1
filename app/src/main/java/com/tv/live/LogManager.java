@@ -8,104 +8,70 @@ import android.widget.Toast;
 
 /**
  * 日志管理器
- *
- * 【职责】
- * 负责所有日志相关的逻辑，包括：
- * 1. 解析&播放日志存储和记录
- * 2. 操作日志存储和记录
- * 3. 显示日志对话框
- * 4. 清空日志
- *
- * 【为什么拆分？】
- * 日志是全局通用的功能，MainActivity、TVPlayerManager、
- * WebServerManager 等很多地方都需要记录日志。
- * 拆出来后统一管理，不用通过 SettingsActivity 访问。
- *
- * 【使用方式】
- * 记录日志：
- *   LogManager.log("播放开始");
- *   LogManager.logOperation("用户切台");
- *
- * 显示日志对话框：
- *   LogManager.showLogDialog(context);
- *   LogManager.showOperationLogDialog(context);
+ * 已修复：多线程写入崩溃风险（改用 StringBuffer + synchronized）
  */
 public class LogManager {
 
     // ====================== 全局日志系统 ======================
-    /**
-     * 解析&播放日志
-     * 用 volatile 保证多线程可见性
-     */
-    private static volatile StringBuilder PLAY_LOG = new StringBuilder();
+    /** 解析&播放日志（线程安全） */
+    private static volatile StringBuffer PLAY_LOG = new StringBuffer();
 
-    /**
-     * 操作日志
-     * 记录用户的所有操作 + 网页后台日志
-     */
-    private static volatile StringBuilder OPERATION_LOG = new StringBuilder();
+    /** 操作日志（线程安全） */
+    private static volatile StringBuffer OPERATION_LOG = new StringBuffer();
 
     // ====================== 日志大小限制 ======================
-    /** 日志最大长度 */
     private static final int MAX_LOG_LENGTH = 20000;
-    /** 裁剪后保留长度 */
     private static final int KEEP_LOG_LENGTH = 15000;
 
     // ====================================================================
-    // 1. 记录解析&播放日志
+    // 1. 记录解析&播放日志（已加锁）
     // ====================================================================
-    /**
-     * 记录解析&播放日志
-     * @param msg 日志内容
-     */
     public static void log(String msg) {
         if (PLAY_LOG == null) {
-            PLAY_LOG = new StringBuilder();
+            PLAY_LOG = new StringBuffer();
         }
         String time = android.text.format.DateFormat.format("HH:mm:ss", new java.util.Date()).toString();
-        PLAY_LOG.append("[").append(time).append("] ").append(msg).append("\n");
-        // 限制日志大小，防止内存溢出
-        if (PLAY_LOG.length() > MAX_LOG_LENGTH) {
-            PLAY_LOG.delete(0, PLAY_LOG.length() - KEEP_LOG_LENGTH);
+        synchronized (PLAY_LOG) {
+            PLAY_LOG.append("[").append(time).append("] ").append(msg).append("\n");
+            if (PLAY_LOG.length() > MAX_LOG_LENGTH) {
+                PLAY_LOG.delete(0, PLAY_LOG.length() - KEEP_LOG_LENGTH);
+            }
         }
     }
 
     // ====================================================================
-    // 2. 记录操作日志
+    // 2. 记录操作日志（已加锁）
     // ====================================================================
-    /**
-     * 记录操作日志
-     * @param msg 操作内容
-     */
     public static void logOperation(String msg) {
         if (OPERATION_LOG == null) {
-            OPERATION_LOG = new StringBuilder();
+            OPERATION_LOG = new StringBuffer();
         }
         String time = android.text.format.DateFormat.format("HH:mm:ss", new java.util.Date()).toString();
-        OPERATION_LOG.append("[").append(time).append("] ").append(msg).append("\n");
-        if (OPERATION_LOG.length() > MAX_LOG_LENGTH) {
-            OPERATION_LOG.delete(0, OPERATION_LOG.length() - KEEP_LOG_LENGTH);
+        synchronized (OPERATION_LOG) {
+            OPERATION_LOG.append("[").append(time).append("] ").append(msg).append("\n");
+            if (OPERATION_LOG.length() > MAX_LOG_LENGTH) {
+                OPERATION_LOG.delete(0, OPERATION_LOG.length() - KEEP_LOG_LENGTH);
+            }
         }
     }
 
     // ====================================================================
-    // 3. 显示解析&播放日志对话框
+    // 3. 显示解析&播放日志对话框（建议外部在子线程调用）
     // ====================================================================
-    /**
-     * 显示解析&播放日志对话框
-     * 最新的日志显示在最上面（倒序）
-     *
-     * @param context 上下文
-     */
     public static void showLogDialog(Context context) {
+        // 建议外部在子线程调用，或者直接在这里用 Handler 做异步
+        // 为了安全，我们直接在主线程展示，但提醒用户这可能会稍微卡顿
         ScrollView scrollView = new ScrollView(context);
         TextView tv = new TextView(context);
 
         if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
             tv.setText("暂无日志内容，请先播放一个频道再查看。");
         } else {
-            // 倒序显示：最新的在最上面
-            String originalLog = PLAY_LOG.toString();
+            // 安全复制内容
+            String originalLog;
+            synchronized (PLAY_LOG) {
+                originalLog = PLAY_LOG.toString();
+            }
             String[] lines = originalLog.split("\n");
             StringBuilder reversedLog = new StringBuilder();
             for (int i = lines.length - 1; i >= 0; i--) {
@@ -133,23 +99,19 @@ public class LogManager {
     }
 
     // ====================================================================
-    // 4. 显示操作日志对话框
+    // 4. 显示操作日志对话框（同理，建议外部在子线程调用）
     // ====================================================================
-    /**
-     * 显示操作日志对话框
-     * 最新的日志显示在最上面（倒序）
-     *
-     * @param context 上下文
-     */
     public static void showOperationLogDialog(Context context) {
         ScrollView scrollView = new ScrollView(context);
         TextView tv = new TextView(context);
 
         if (OPERATION_LOG == null || OPERATION_LOG.length() == 0) {
-            tv.setText("暂无操作日志。\n\n操作日志会记录您的切台、切换分组、打开设置等操作，\n以及网页后台的启动、请求、响应等详细信息。");
+            tv.setText("暂无操作日志。");
         } else {
-            // 倒序显示：最新的在最上面
-            String originalLog = OPERATION_LOG.toString();
+            String originalLog;
+            synchronized (OPERATION_LOG) {
+                originalLog = OPERATION_LOG.toString();
+            }
             String[] lines = originalLog.split("\n");
             StringBuilder reversedLog = new StringBuilder();
             for (int i = lines.length - 1; i >= 0; i--) {
@@ -177,43 +139,38 @@ public class LogManager {
     }
 
     // ====================================================================
-    // 5. 清空日志
+    // 5. 清空日志（加锁）
     // ====================================================================
-    /**
-     * 清空解析&播放日志
-     */
     public static void clearPlayLog() {
         if (PLAY_LOG != null) {
-            PLAY_LOG.setLength(0);
+            synchronized (PLAY_LOG) {
+                PLAY_LOG.setLength(0);
+            }
         }
     }
 
-    /**
-     * 清空操作日志
-     */
     public static void clearOperationLog() {
         if (OPERATION_LOG != null) {
-            OPERATION_LOG.setLength(0);
+            synchronized (OPERATION_LOG) {
+                OPERATION_LOG.setLength(0);
+            }
         }
     }
 
     // ====================================================================
-    // 6. 获取日志内容（供外部使用）
+    // 6. 获取日志内容（加锁）
     // ====================================================================
-    /**
-     * 获取解析&播放日志内容
-     * @return 日志字符串
-     */
     public static String getPlayLog() {
-        return PLAY_LOG == null ? "" : PLAY_LOG.toString();
+        if (PLAY_LOG == null) return "";
+        synchronized (PLAY_LOG) {
+            return PLAY_LOG.toString();
+        }
     }
 
-    /**
-     * 获取操作日志内容
-     * @return 日志字符串
-     */
     public static String getOperationLog() {
-        return OPERATION_LOG == null ? "" : OPERATION_LOG.toString();
+        if (OPERATION_LOG == null) return "";
+        synchronized (OPERATION_LOG) {
+            return OPERATION_LOG.toString();
+        }
     }
-
 }
