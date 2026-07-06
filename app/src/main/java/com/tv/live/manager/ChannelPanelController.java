@@ -597,13 +597,13 @@ public class ChannelPanelController {
 
     public void handleFirstLaunch() {
         if (!mIsFirstLaunch) return;
-        SettingsActivity.logOperation("【面板】首次启动，设置特殊延迟："
-                + (FIRST_LAUNCH_HIDE_DELAY_MS / 1000) + "秒");
+        // SettingsActivity.logOperation("【面板】首次启动，设置特殊延迟："
+        //         + (FIRST_LAUNCH_HIDE_DELAY_MS / 1000) + "秒"); // 已注释：操作日志已移除
         setAutoHideDelay(FIRST_LAUNCH_HIDE_DELAY_MS);
         resetAutoHide();
         setAutoHideDelay(NORMAL_HIDE_DELAY_MS);
         mIsFirstLaunch = false;
-        SettingsActivity.logOperation("【面板】首次启动处理完成，已标记为非首次启动");
+        // SettingsActivity.logOperation("【面板】首次启动处理完成，已标记为非首次启动"); // 已注释：操作日志已移除
     }
 
     public boolean isFirstLaunch() {
