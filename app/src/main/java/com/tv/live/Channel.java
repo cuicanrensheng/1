@@ -12,7 +12,6 @@ public class Channel {
     private String group;
     private String channelId;
 
-    // 构造器：初始化备用集合
     public Channel(String name, String mainPlayUrl, String group, String channelId) {
         this.name = name;
         this.mainPlayUrl = mainPlayUrl;
@@ -21,24 +20,30 @@ public class Channel {
         this.backupUrls = new ArrayList<>();
     }
 
-    // 添加备用源
+    // 添加备用源，自动去重
     public void addBackupUrl(String url) {
-        if (!backupUrls.contains(url)) {
+        if (url != null && !backupUrls.contains(url)) {
             backupUrls.add(url);
         }
     }
 
-    // Getter
-    public String getName() {
-        return name;
+    // ====== 兼容旧项目原有代码，保留getPlayUrl()，返回主源地址 ======
+    public String getPlayUrl() {
+        return mainPlayUrl;
     }
 
+    // 新接口：获取主播放地址
     public String getMainPlayUrl() {
         return mainPlayUrl;
     }
 
+    // 获取全部备用源列表
     public List<String> getBackupUrls() {
         return backupUrls;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public String getGroup() {
