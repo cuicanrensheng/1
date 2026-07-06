@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Exec;
+import java.util.concurrent.Executors; // 🟢 修复1：导入 Executors 而不是 Exec
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -119,7 +119,7 @@ public class PlaylistParser {
     // ===================== 分组合并API =====================
     public PlaylistParser addGroupMergeRule(String srcGroup, String targetGroup) {
         if (srcGroup != null && targetGroup != null) {
-            groupMergeRuleMap.put(srcGroup.trim(), target.trim());
+            groupMergeRuleMap.put(srcGroup.trim(), targetGroup.trim());
         }
         return this;
     }
@@ -239,7 +239,7 @@ public class PlaylistParser {
         logInfo("开始同步测速");
         TestResult tr = new TestResult();
         Set<String> allUrls = new HashSet<>();
-        list.forEach(c -> all.addAll(c.getUrls()));
+        list.forEach(c -> allUrls.addAll(c.getUrls())); // 🟢 修复变量名 all -> allUrls
         tr.totalTestCount = allUrls.size();
         Map<String, Long> speedMap = new HashMap<>();
         for (String u : allUrls) {
@@ -260,7 +260,7 @@ public class PlaylistParser {
     public CompletableFuture<TestResult> testAllAsync(List<Channel> list) {
         logInfo("开启异步测速任务");
         Set<String> allUrls = new HashSet<>();
-        list.forEach(c -> all.addAll(c.getUrls()));
+        list.forEach(c -> allUrls.addAll(c.getUrls()));
         List<String> urlList = new ArrayList<>(allUrls);
         List<List<String>> batches = splitList(urlList, ASYNC_TEST_BATCH_SIZE);
         List<CompletableFuture<Map<String, Long>>> tasks = new ArrayList<>();
@@ -394,11 +394,11 @@ public class PlaylistParser {
                 if (!valid) continue;
                 // 合并key：优先channelId，无则标准频道名
                 String stdName = Channel.cleanChannelName(name);
-                String mergeKey = !channel.isBlank() ? channelId : stdName;
+                String mergeKey = !channelId.isBlank() ? channelId : stdName;
                 if (mergeKey.isBlank()) continue;
                 Channel exist = channelMap.get(mergeKey);
                 if (exist != null) {
-                    exist.add(uri);
+                    exist.addUrl(uri);
                 } else {
                     Channel newCh = new Channel(name, uri, rawGroup, channelId);
                     newCh.setStandardGroup(finalGroup);
@@ -409,7 +409,7 @@ public class PlaylistParser {
         return new ArrayList<>(channelMap.values());
     }
 
-    // ===================== 原始单网络M3U解析（你原代码修复版） =====================
+    // ===================== 原始单网络M3U解析 =====================
     public static List<Channel> parse(String url) throws Exception {
         String cacheKey = url.trim();
         if (INSTANCE.parseCache.containsKey(cacheKey)) {
@@ -479,7 +479,8 @@ public class PlaylistParser {
         GROUP_ASC, NAME_ASC, URL_COUNT_DESC
     }
 
-    public List<Channel> sortChannels(List<Channel> raw, Sort type) {
+    // 🟢 修复2：修正方法参数类型为 SortType
+    public List<Channel> sortChannels(List<Channel> raw, SortType type) {
         List<Channel> list = new ArrayList<>(raw);
         switch (type) {
             case GROUP_ASC:
