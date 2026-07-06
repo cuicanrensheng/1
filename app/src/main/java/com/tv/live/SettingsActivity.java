@@ -759,7 +759,7 @@ public class SettingsActivity extends AppCompatActivity {
                 StringBuilder fullReverseLog = new StringBuilder();
                 String[] lagKeywords = {
                         "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
-                        "buffer underflow", "frame drop", "404",
+                        "buffer underflow", "frame drop", 
                         "buffering", "stall", "delay", "timeout", "decoder error",
                         "Forbidden", "访问拒绝", "跳转失败", 
                         "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
