@@ -326,7 +326,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ========================== 🟢 修复点1：移除递归死锁 ==========================
     private void initSettingsItemList() {
         settingsItemList.clear();
         settingsItemList.add(findViewById(R.id.item_boot));
@@ -362,7 +361,7 @@ public class SettingsActivity extends AppCompatActivity {
                         int currentPos = remoteManager.getSettingsFocusPosition();
                         if (currentPos != position) {
                             remoteManager.setSettingsFocusPosition(position);
-                            // 🟢 修复：移除了 updateSettingsFocus()，避免监听死锁！
+                            updateSettingsFocus();
                         }
                     }
                 });
@@ -468,7 +467,6 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    // ========================== 🟢 修复点2：确保滚动完成后再申请焦点 ==========================
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
@@ -477,15 +475,8 @@ public class SettingsActivity extends AppCompatActivity {
             if (item == null) continue;
             if (i == selectedPosition) {
                 setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
-                
-                // 🟢 修复：使用 postDelayed 延迟 50 毫秒，等待 scrollToView 的 smoothScrollTo 动画启动，避免 requestFocus 因不可见被系统拒绝
-                item.postDelayed(() -> {
-                    if (item.isAttachedToWindow()) {
-                        scrollToView(item);
-                        item.requestFocus();
-                    }
-                }, 50);
-                
+                item.requestFocus();
+                scrollToView(item);
             } else if (item.isFocused()) {
                 setItemStyle(item, "#40A9FF", Typeface.NORMAL, Color.TRANSPARENT);
             } else {
@@ -886,4 +877,4 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.clear();
         settingsItemList = null;
     }
-}
+ }
