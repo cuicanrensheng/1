@@ -409,7 +409,8 @@ public class MainActivity extends AppCompatActivity {
 
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
-        mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName());
+        // 🟢【核心修改】必须传入 channel 对象，否则 TVPlayerManager 无法记录当前频道！
+        mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName(), channel);
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         infoDisplayManager.showInfoBar(channel, live);
         infoDisplayManager.showChannelNum(index + 1);
