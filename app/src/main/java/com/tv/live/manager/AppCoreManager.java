@@ -1,4 +1,5 @@
 package com.tv.live.manager;
+
 import com.tv.live.TVPlayerManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -16,6 +17,7 @@ import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
 import java.util.ArrayList;
 import java.util.List;
+
 /**
  * 应用核心管理器
  *
@@ -431,7 +433,7 @@ public class AppCoreManager {
                     }
                     // 重新加载直播源和 EPG
                     loadLiveAndEpg();
-                    SettingsActivity.logOperation("【系统】自动刷新直播源/EPG");
+                    // SettingsActivity.logOperation("【系统】自动刷新直播源/EPG"); // 已注释：操作日志已移除
                 }
             }
         };
@@ -442,12 +444,10 @@ public class AppCoreManager {
             context.registerReceiver(refreshReceiver,
                     new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG"));
             receiversRegistered = true;
-            // ✅ 修改：广播注册 → 操作日志
-            SettingsActivity.logOperation("【广播】广播接收器已注册");
+            // SettingsActivity.logOperation("【广播】广播接收器已注册"); // 已注释：操作日志已移除
         } catch (Exception e) {
             e.printStackTrace();
-            // ✅ 修改：广播注册失败 → 操作日志
-            SettingsActivity.logOperation("【广播】广播注册失败：" + e.getMessage());
+            // SettingsActivity.logOperation("【广播】广播注册失败：" + e.getMessage()); // 已注释：操作日志已移除
         }
     }
     /**
@@ -463,12 +463,10 @@ public class AppCoreManager {
                 context.unregisterReceiver(refreshReceiver);
             }
             receiversRegistered = false;
-            // ✅ 修改：广播注销 → 操作日志
-            SettingsActivity.logOperation("【广播】广播接收器已注销");
+            // SettingsActivity.logOperation("【广播】广播接收器已注销"); // 已注释：操作日志已移除
         } catch (Exception e) {
             e.printStackTrace();
-            // ✅ 修改：广播注销失败 → 操作日志
-            SettingsActivity.logOperation("【广播】广播注销失败：" + e.getMessage());
+            // SettingsActivity.logOperation("【广播】广播注销失败：" + e.getMessage()); // 已注释：操作日志已移除
         }
     }
     /**
@@ -493,13 +491,11 @@ public class AppCoreManager {
      */
     public boolean onPause() {
         if (isOpeningSettings) {
-            // ✅ 修改：生命周期 → 操作日志
-            SettingsActivity.logOperation("【主页】onPause -> 打开设置页面，继续播放");
+            // SettingsActivity.logOperation("【主页】onPause -> 打开设置页面，继续播放"); // 已注释：操作日志已移除
             return false;
         }
-        // ✅ 修改：生命周期 → 操作日志
-        SettingsActivity.logOperation("【主页】onPause -> 切到后台");
-        SettingsActivity.logOperation("【系统】APP切到后台");
+        // SettingsActivity.logOperation("【主页】onPause -> 切到后台"); // 已注释：操作日志已移除
+        // SettingsActivity.logOperation("【系统】APP切到后台"); // 已注释：操作日志已移除
         if (playerManager != null) {
             playerManager.onBackground();
         }
@@ -517,13 +513,11 @@ public class AppCoreManager {
     public boolean onResume() {
         if (isOpeningSettings) {
             isOpeningSettings = false;
-            // ✅ 修改：生命周期 → 操作日志
-            SettingsActivity.logOperation("【主页】onResume -> 从设置页面回来");
+            // SettingsActivity.logOperation("【主页】onResume -> 从设置页面回来"); // 已注释：操作日志已移除
             return false;
         }
-        // ✅ 修改：生命周期 → 操作日志
-        SettingsActivity.logOperation("【主页】onResume -> 回到前台");
-        SettingsActivity.logOperation("【系统】APP回到前台");
+        // SettingsActivity.logOperation("【主页】onResume -> 回到前台"); // 已注释：操作日志已移除
+        // SettingsActivity.logOperation("【系统】APP回到前台"); // 已注释：操作日志已移除
         if (playerManager != null) {
             playerManager.onForeground();
         }
@@ -539,18 +533,17 @@ public class AppCoreManager {
         // 这个由 DisplayManager 处理，这里只记录日志
         // ✅ 修改：窗口焦点 → 操作日志（用户最关心的这个！）
         if (hasFocus) {
-            SettingsActivity.logOperation("【主页】窗口获得焦点");
+            // SettingsActivity.logOperation("【主页】窗口获得焦点"); // 已注释：操作日志已移除
         } else {
-            SettingsActivity.logOperation("【主页】窗口失去焦点");
+            // SettingsActivity.logOperation("【主页】窗口失去焦点"); // 已注释：操作日志已移除
         }
     }
     /**
      * 页面销毁（onDestroy）
      */
     public void onDestroy() {
-        // ✅ 修改：生命周期 → 操作日志
-        SettingsActivity.logOperation("【主页】onDestroy -> 页面销毁");
-        SettingsActivity.logOperation("【系统】APP退出");
+        // SettingsActivity.logOperation("【主页】onDestroy -> 页面销毁"); // 已注释：操作日志已移除
+        // SettingsActivity.logOperation("【系统】APP退出"); // 已注释：操作日志已移除
         // 注销广播
         unregisterReceivers();
         // 取消超时
@@ -568,7 +561,7 @@ public class AppCoreManager {
      */
     public void beforeOpenSettings() {
         isOpeningSettings = true;
-        SettingsActivity.logOperation("【系统】打开设置页面");
+        // SettingsActivity.logOperation("【系统】打开设置页面"); // 已注释：操作日志已移除
     }
     /**
      * 是否正在打开设置页面
@@ -611,27 +604,27 @@ public class AppCoreManager {
      * @return true=继续切台，false=已达到上限停止
      */
     public boolean handleSourceFailed(String currentChannelName) {
-    consecutiveFailedCount++;
-    int count = consecutiveFailedCount;
-    if (sourceSkipListener != null) {
-        sourceSkipListener.onSourceFailed(currentChannelName, count);
-    }
-    SettingsActivity.logOperation("【自动切台】频道「" + currentChannelName
-            + "」源链接无法连接/解析（非重定向拦截），连续失效第 " + count + " 个");
-    if (count >= MAX_CONSECUTIVE_SKIP) {
-        SettingsActivity.logOperation("【自动切台】已连续跳过 "
-                + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过");
+        consecutiveFailedCount++;
+        int count = consecutiveFailedCount;
         if (sourceSkipListener != null) {
-            sourceSkipListener.onSkipLimitReached(MAX_CONSECUTIVE_SKIP);
+            sourceSkipListener.onSourceFailed(currentChannelName, count);
         }
-        return false;
+        // SettingsActivity.logOperation("【自动切台】频道「" + currentChannelName
+        //         + "」源链接无法连接/解析（非重定向拦截），连续失效第 " + count + " 个"); // 已注释：操作日志已移除
+        if (count >= MAX_CONSECUTIVE_SKIP) {
+            // SettingsActivity.logOperation("【自动切台】已连续跳过 "
+            //         + MAX_CONSECUTIVE_SKIP + " 个失效频道，停止自动跳过"); // 已注释：操作日志已移除
+            if (sourceSkipListener != null) {
+                sourceSkipListener.onSkipLimitReached(MAX_CONSECUTIVE_SKIP);
+            }
+            return false;
+        }
+        // SettingsActivity.logOperation("【自动切台】自动切换到下一个频道"); // 已注释：操作日志已移除
+        if (sourceSkipListener != null) {
+            sourceSkipListener.onNeedSkipChannel();
+        }
+        return true;
     }
-    SettingsActivity.logOperation("【自动切台】自动切换到下一个频道");
-    if (sourceSkipListener != null) {
-        sourceSkipListener.onNeedSkipChannel();
-    }
-    return true;
-}
    
     /**
      * 重置连续失效计数
@@ -674,7 +667,7 @@ public class AppCoreManager {
         // ✅ 保留：配置更新/数据相关 → 播放日志
         log("【远程配置】更新直播源：" + liveUrl);
         log("【远程配置】更新EPG：" + epgUrl);
-        SettingsActivity.logOperation("【远程配置】更新直播源/EPG地址");
+        // SettingsActivity.logOperation("【远程配置】更新直播源/EPG地址"); // 已注释：操作日志已移除
         // 重置缓存播放标志
         hasPlayedWithCache = false;
         // 重新加载
