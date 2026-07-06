@@ -263,26 +263,24 @@ public class SettingsActivity extends AppCompatActivity {
         return "源" + index;
     }
 
-    // 🟢【修改】显示频道线路选择弹窗（动态读取实际线路数量）
+    // 🟢【最新修改】显示频道线路选择弹窗
     private void showChannelLineDialog() {
         int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
-        List<String> lineList = new ArrayList<>();
-        lineList.add("主源");
-
-        // 🟢 获取当前正在播放的频道对象，读取实际备用源数量
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         Channel currentChannel = playerManager.getCurrentChannel();
-        
-        if (currentChannel != null && currentChannel.getUrls() != null) {
-            int urlSize = currentChannel.getUrls().size();
-            for (int i = 1; i < urlSize; i++) {
-                lineList.add("源" + i);
-            }
-        } else {
-            // 🟢 兜底策略：如果还没开始播放，最多显示 20 个选项以防万一（与原来一致）
-            for (int i = 1; i <= 20; i++) {
-                lineList.add("源" + i);
-            }
+
+        // 🟢 核心修正：如果当前没有正在播放的频道，直接提示并退出，不再显示硬编码的“源1~源20”
+        if (currentChannel == null || currentChannel.getUrls() == null || currentChannel.getUrls().isEmpty()) {
+            Toast.makeText(this, "请先播放一个频道，再切换线路", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        List<String> lineList = new ArrayList<>();
+        int urlSize = currentChannel.getUrls().size();
+        lineList.add("主源");
+        // 🟢 完全根据当前频道的实际 url 数量动态生成
+        for (int i = 1; i < urlSize; i++) {
+            lineList.add("源" + i);
         }
 
         String[] lineArray = lineList.toArray(new String[0]);
