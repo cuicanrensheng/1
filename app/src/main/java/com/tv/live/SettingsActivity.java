@@ -306,6 +306,7 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception ignored) {}
     }
 
+    // 🟢【修复点1】移除递归死锁
     private void initSettingsItemList() {
         settingsItemList.clear();
         cachedItemTitleTexts.clear();
@@ -341,11 +342,10 @@ public class SettingsActivity extends AppCompatActivity {
                 cachedItemTitleTexts.add(titleTv);
 
                 item.setFocusableInTouchMode(true);
+                // 🟢 关键修复：移除了 updateSettingsFocus()，防止死锁！
                 item.setOnFocusChangeListener((v, hasFocus) -> {
-                    // 🟢【修复1】防止死锁：只有焦点移入才更新，移出不处理
                     if (hasFocus && remoteManager != null) {
                         remoteManager.setSettingsFocusPosition(position);
-                        updateSettingsFocus();
                     }
                 });
             } else {
@@ -374,7 +374,6 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPanelNumber(int number) {}
             @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
             @Override public void onSettingsMoveUp() {
-                // 🟢【修复2】遥控器上下键触发时，直接调用更新焦点，不额外设置位置避免冲突
                 updateSettingsFocus();
             }
             @Override public void onSettingsMoveDown() {
@@ -436,6 +435,7 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    // 🟢【修复点2】解决焦点被系统往复抢夺的问题
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
@@ -444,7 +444,6 @@ public class SettingsActivity extends AppCompatActivity {
         View item = settingsItemList.get(selectedPosition);
         if (item == null) return;
 
-        // 🟢【修复3】如果当前焦点已经在这个 Item 上，直接跳过，绝不重复抢焦点
         if (item.isFocused()) return;
 
         for (int i = 0; i < settingsItemList.size(); i++) {
@@ -453,7 +452,7 @@ public class SettingsActivity extends AppCompatActivity {
             if (i == selectedPosition) {
                 setItemStyle(i, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
                 
-                // 🟢【修复4】使用 post 确保主线程安全，并打破可能的同步死锁
+                // 采用 post 延迟一帧请求焦点，打破同步锁
                 v.post(() -> {
                     if (v.isAttachedToWindow()) {
                         v.requestFocus();
@@ -751,4 +750,4 @@ public class SettingsActivity extends AppCompatActivity {
         cachedItemTitleTexts.clear();
         cachedItemTitleTexts = null;
     }
-}
+ }
