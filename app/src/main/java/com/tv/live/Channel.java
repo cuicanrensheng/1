@@ -50,6 +50,11 @@ public class Channel {
         return group;
     }
 
+    // 🟢【新增】设置分组，用于解析时动态更新分组名
+    public void setGroup(String group) {
+        this.group = group;
+    }
+
     public String getChannelId() {
         return channelId;
     }
