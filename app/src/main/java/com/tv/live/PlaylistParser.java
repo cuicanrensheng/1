@@ -59,8 +59,8 @@ public class PlaylistParser {
                 if (existing != null) {
                     // ✅ 频道已存在：作为备用源添加到 backupUrls 列表
                     existing.addBackupUrl(uri);
-                    // 🟢 修复2：如果当前行有正常分组，动态覆盖旧频道分组，彻底解决分组错乱！
-                    if (group != null && !group.isEmpty() && !"未分类".equals(group)) {
+                    // 🟢【核心修改】只要解析到有效的分组名称，就无条件覆盖旧分组！
+                    if (group != null && !group.isEmpty()) {
                         existing.setGroup(group);
                     }
                 } else {
