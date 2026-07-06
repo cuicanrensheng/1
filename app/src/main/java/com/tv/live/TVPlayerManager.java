@@ -76,6 +76,9 @@ public class TVPlayerManager {
     private String currentChannelName = "";
     private int mDecoderMode = DECODER_MODE_AUTO;
 
+    // 🟢【新增】保存当前正在播放的 Channel 对象，供设置页获取线路数量使用
+    private Channel currentChannel;
+
     // 🟢【修复1】 将首次播放时间记录移到成员变量，防止逻辑错误
     private long initialPlayStartTime = 0;
     private int bufferCount = 0;
@@ -578,9 +581,21 @@ public class TVPlayerManager {
         if (playerView != null) playerView.setKeepScreenOn(enable);
     }
 
-    public void playUrl(String url) { playUrl(url, null); }
-    public void playUrl(String url, String channelName) {
+    // ====================================================================
+    // 🟢【修改】新增 playUrl 重载方法，支持传递 Channel 对象
+    // ====================================================================
+    public void playUrl(String url) { playUrl(url, null, null); }
+    public void playUrl(String url, String channelName) { playUrl(url, channelName, null); }
+
+    public void playUrl(String url, String channelName, Channel channel) {
         if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
+        // 🟢 保存当前 Channel 对象
+        this.currentChannel = channel;
+        // 如果传入的 channel 不为空且名字还没更新，用 channel.getName() 更新
+        if (channel != null && TextUtils.isEmpty(this.currentChannelName)) {
+            this.currentChannelName = channel.getName();
+        }
+
         cancelRetry();
         retryCount = 0;
         isRetrying = false;
@@ -588,6 +603,12 @@ public class TVPlayerManager {
         initialPlayStartTime = 0;
         resetPerformanceStats();
         playUrlInternal(url);
+    }
+    // ====================================================================
+
+    // 🟢【新增】供 SettingsActivity 获取当前频道对象
+    public Channel getCurrentChannel() {
+        return currentChannel;
     }
 
     private void resetPerformanceStats() {
