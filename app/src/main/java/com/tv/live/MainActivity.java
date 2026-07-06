@@ -430,11 +430,25 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ====================================================================
-    // 按键处理：全部交给 TvRemoteManager
+    // ✅ 新增：在 dispatchKeyEvent 中直接拦截菜单/帮助键，并在 onKeyLongPress 中处理长按返回键
     // ====================================================================
     @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        int action = event.getAction();
+        // 优先拦截菜单键和帮助键（优先级最高，可绕过系统拦截）
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
+            if (action == KeyEvent.ACTION_DOWN) {
+                openSettings();
+            }
+            return true; // 消耗事件，不再传递
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 单击事件（包含菜单、帮助等）全部交给 remoteManager
+        // 单击事件（除菜单/帮助外）交给 remoteManager
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
@@ -443,7 +457,12 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        // 长按事件交给 remoteManager 处理（特别是 OK 键长按）
+        // 长按返回键 → 打开设置（优先级最高）
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            openSettings();
+            return true;
+        }
+        // 其他长按事件交给 remoteManager
         if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
             return true;
         }
