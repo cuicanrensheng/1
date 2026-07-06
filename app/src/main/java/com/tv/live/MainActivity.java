@@ -289,6 +289,18 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onLiveSourceLoaded(List<Channel> channels, boolean fromCache) {
                 runOnUiThread(() -> {
+                    // 🟢【新增】读取设置里的全局线路索引，并应用到所有频道
+                    SharedPreferences sp = getSharedPreferences("app_settings", MODE_PRIVATE);
+                    int globalLineIndex = sp.getInt("channel_line_index", 0);
+                    for (Channel ch : channels) {
+                        // 🟢【新增】越界保护：如果用户选的备用源索引超过了该频道的实际最大源数，则自动切回主源(0)
+                        if (globalLineIndex >= ch.getUrls().size()) {
+                            ch.setCurrentLineIndex(0);
+                        } else {
+                            ch.setCurrentLineIndex(globalLineIndex);
+                        }
+                    }
+
                     channelSourceList.clear();
                     channelSourceList.addAll(channels);
                     channelPanelController.setChannels(channels);
