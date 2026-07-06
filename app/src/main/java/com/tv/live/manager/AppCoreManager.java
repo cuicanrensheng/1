@@ -362,8 +362,8 @@ public class AppCoreManager {
                 // 播放地址行
                 String playUrl = line;
                 if (!TextUtils.isEmpty(currentName) && !TextUtils.isEmpty(playUrl)) {
-                    // 🟢 核心修改：使用 tvgId 或 频道名 作为唯一标识
-                    String key = !TextUtils.isEmpty(currentTvgId) ? currentTvgId : currentName;
+                    // 🟢 核心修改：使用 tvgId 或 频道名 作为唯一标识，注意必须 trim() 去除可能存在的空格！
+                    String key = !TextUtils.isEmpty(currentTvgId) ? currentTvgId.trim() : currentName.trim();
                     Channel existing = channelMap.get(key);
                     if (existing != null) {
                         // 已存在该频道：将新地址加到备用列表里（去重）
