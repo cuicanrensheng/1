@@ -11,6 +11,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputFilter;
 import android.text.TextUtils;
 import android.view.KeyEvent;
@@ -30,6 +32,7 @@ import androidx.appcompat.widget.SwitchCompat;
 import com.tv.live.manager.TvRemoteManager;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -73,17 +76,30 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
     private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
+
     // ====================================================================
     // 全局日志系统（仅保留播放日志，操作日志已移除）
     // ====================================================================
-    public static volatile StringBuilder PLAY_LOG = new StringBuilder();
+    // 🟢【性能优化1】改为 StringBuffer + 加锁，彻底解决多线程写入崩溃
+    public static volatile StringBuffer PLAY_LOG = new StringBuffer();
+    private static final int MAX_LOG_LINES = 500; // 最大保留行数
+
     public static void log(String msg) {
         LogManager.log(msg);
         if (PLAY_LOG == null) {
-            PLAY_LOG = new StringBuilder();
+            PLAY_LOG = new StringBuffer();
         }
-        PLAY_LOG.append(msg).append("\n");
+        synchronized (PLAY_LOG) {
+            PLAY_LOG.append(msg).append("\n");
+            // 如果日志过长，自动截断（可选）
+            // 这里不自动截断，交给 showLogDialog 截取，避免频繁操作锁
+        }
     }
+
+    // 🟢【性能优化3】增加防抖机制，避免快速按键时 post 任务堆积
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable focusUpdateRunnable;
+
     // ====================== onCreate ======================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -411,6 +427,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     // ========================== 🟢 修复焦点更新算法：取消复杂的 isFocused 分支，强制设置颜色，完美解决高亮无法移动的问题 ==========================
+    // 🟢【性能优化3】增加防抖机制，避免快速按键时 post 任务堆积
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
@@ -430,11 +447,16 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
-        // 2. 确保目标滚动可见并申请焦点（去掉了 50ms 延时，使用 post 即刻执行，响应更跟手）
-        target.post(() -> {
+        // 2. 防抖处理：取消之前可能堆积的滚动/聚焦任务
+        if (focusUpdateRunnable != null) {
+            mainHandler.removeCallbacks(focusUpdateRunnable);
+        }
+        focusUpdateRunnable = () -> {
             scrollToView(target);
             target.requestFocus();
-        });
+        };
+        // 立即执行（防抖让之前的堆积取消，只执行最新一次）
+        mainHandler.post(focusUpdateRunnable);
     }
 
     private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
@@ -677,8 +699,20 @@ public class SettingsActivity extends AppCompatActivity {
             if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
                 logContent = "暂无日志内容，请先播放一个频道再查看。";
             } else {
-                String originalLog = PLAY_LOG.toString();
+                String originalLog;
+                synchronized (PLAY_LOG) {
+                    originalLog = PLAY_LOG.toString();
+                }
                 String[] lines = originalLog.split("\n");
+                // 🟢【性能优化2】限制日志行数，只保留最近500行，防止弹窗卡死
+                if (lines.length > MAX_LOG_LINES) {
+                    List<String> subList = new ArrayList<>();
+                    for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
+                        subList.add(lines[i]);
+                    }
+                    lines = subList.toArray(new String[0]);
+                }
+                
                 List<String> lagLines = new ArrayList<>();
                 StringBuilder fullReverseLog = new StringBuilder();
                 String[] lagKeywords = {
@@ -765,7 +799,9 @@ public class SettingsActivity extends AppCompatActivity {
         builder.setNeutralButton("清空日志", (dialog, which) -> {
             LogManager.clearPlayLog();
             if (PLAY_LOG != null) {
-                PLAY_LOG.setLength(0);
+                synchronized (PLAY_LOG) {
+                    PLAY_LOG.setLength(0);
+                }
             }
             Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
         });
