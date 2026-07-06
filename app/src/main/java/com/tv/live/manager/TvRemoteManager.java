@@ -174,6 +174,26 @@ public class TvRemoteManager {
         return false;
     }
 
+    // ====================================================================
+    // ✅ 新增：处理长按事件（由 MainActivity 的 onKeyLongPress 调用）
+    // ====================================================================
+    public boolean dispatchKeyLongPress(int keyCode) {
+        if (isInPipMode) {
+            // 在画中画模式下，长按可能不处理，可根据需要调整
+            return false;
+        }
+
+        // 长按只处理特定按键，目前只处理 OK 键
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+            // 长按 OK 键触发打开设置
+            if (listener != null) {
+                listener.onPlayOpenSettings();
+            }
+            return true;
+        }
+        return false;
+    }
+
     public boolean handleBackPressed() {
         if (isInPipMode) {
             if (listener != null) {
@@ -267,6 +287,12 @@ public class TvRemoteManager {
                 }
                 return true;
             case KeyEvent.KEYCODE_MENU:
+                if (listener != null) {
+                    listener.onPlayOpenSettings();
+                }
+                return true;
+            // ✅ 新增：帮助键也触发打开设置
+            case KeyEvent.KEYCODE_HELP:
                 if (listener != null) {
                     listener.onPlayOpenSettings();
                 }
