@@ -166,8 +166,8 @@ public class UpdateManager {
                     });
 
                     // 记录日志
-                    SettingsActivity.logOperation("【更新】检查更新完成：当前="
-                            + currentVersionName + "，最新=" + latestVersionName);
+                    // SettingsActivity.logOperation("【更新】检查更新完成：当前="
+                    //         + currentVersionName + "，最新=" + latestVersionName); // 已注释：操作日志已移除
 
                 } catch (final Exception e) {
                     e.printStackTrace();
@@ -180,7 +180,7 @@ public class UpdateManager {
                                     Toast.LENGTH_SHORT).show();
                         }
                     });
-                    SettingsActivity.logOperation("【更新】检查更新失败：" + e.getMessage());
+                    // SettingsActivity.logOperation("【更新】检查更新失败：" + e.getMessage()); // 已注释：操作日志已移除
                 }
             }
         }).start();
@@ -226,7 +226,7 @@ public class UpdateManager {
 
         builder.show();
 
-        SettingsActivity.logOperation("【更新】发现新版本：" + latestVersion);
+        // SettingsActivity.logOperation("【更新】发现新版本：" + latestVersion); // 已注释：操作日志已移除
     }
 
     // ====================================================================
@@ -273,12 +273,12 @@ public class UpdateManager {
             registerDownloadCompleteReceiver();
 
             Toast.makeText(context, "开始下载，通知栏可查看进度", Toast.LENGTH_SHORT).show();
-            SettingsActivity.logOperation("【更新】开始下载新版本");
+            // SettingsActivity.logOperation("【更新】开始下载新版本"); // 已注释：操作日志已移除
 
         } catch (Exception e) {
             e.printStackTrace();
             Toast.makeText(context, "下载失败：" + e.getMessage(), Toast.LENGTH_SHORT).show();
-            SettingsActivity.logOperation("【更新】下载失败：" + e.getMessage());
+            // SettingsActivity.logOperation("【更新】下载失败：" + e.getMessage()); // 已注释：操作日志已移除
         }
     }
 
@@ -355,10 +355,10 @@ public class UpdateManager {
 
                     context.startActivity(installIntent);
 
-                    SettingsActivity.logOperation("【更新】下载完成，开始安装");
+                    // SettingsActivity.logOperation("【更新】下载完成，开始安装"); // 已注释：操作日志已移除
                 } else {
                     Toast.makeText(context, "下载失败", Toast.LENGTH_SHORT).show();
-                    SettingsActivity.logOperation("【更新】下载失败，状态：" + status);
+                    // SettingsActivity.logOperation("【更新】下载失败，状态：" + status); // 已注释：操作日志已移除
                 }
             }
 
@@ -367,7 +367,7 @@ public class UpdateManager {
         } catch (Exception e) {
             e.printStackTrace();
             Toast.makeText(context, "安装失败：" + e.getMessage(), Toast.LENGTH_SHORT).show();
-            SettingsActivity.logOperation("【更新】安装失败：" + e.getMessage());
+            // SettingsActivity.logOperation("【更新】安装失败：" + e.getMessage()); // 已注释：操作日志已移除
         }
     }
 
