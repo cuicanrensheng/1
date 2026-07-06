@@ -34,33 +34,14 @@ import java.util.List;
 
 /**
  * 设置页面 Activity
- *
- * 【功能清单】
- * 1. 开机自启开关（委托给 BootStartManager）
- * 2. 节目单开关
- * 3. 自动更新源（委托给 AutoUpdateManager）
- * 4. 换台反转
- * 5. 数字选台
- * 6. 画中画（后台小窗播放）开关
- * 7. ✅ 解码器选择（自动/硬解/软解）
- * 8. ✅ 渲染方式选择（SurfaceView/TextureView）（2026-07-02 新增）
- * 9. ✅ HTTP重定向网络配置（2026-07-03 新增）
- * 10. 屏幕比例设置
- * 11. 自定义订阅源/节目单
- * 12. 多订阅源/节目单管理（委托给 SourceDialogManager）
- * 13. 扫码添加（委托给 QRCodeManager）
- * 14. 解析&播放日志查看
- * 15. 操作日志查看
- * 16. 检查更新（委托给 UpdateManager）
+ * 已修复遥控器焦点移动、触摸点击高亮跟随以及点击日志卡顿的问题
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
     private SwitchCompat sw_boot, sw_epg, sw_auto_update, sw_reverse, sw_num_channel, sw_pip;
     private TextView tv_screen_ratio, tv_custom_source, tv_custom_epg, tv_multi_source, tv_multi_epg, tv_qr_code;
     private TextView tv_decoder_mode;
-    // 🆕 渲染方式当前值显示
     private TextView tv_renderer_type;
-    // 🆕 重定向设置文本显示控件
     private TextView tv_redirect_setting;
     private TextView tv_boot_status;
     // ====================== 配置相关 ======================
@@ -85,15 +66,12 @@ public class SettingsActivity extends AppCompatActivity {
     // ====================== SP Key 常量 ======================
     private static final String KEY_CUSTOM_LIVE = "custom_live_url";
     private static final String KEY_CUSTOM_EPG = "custom_epg_url";
-    // ====================== 🆕 重定向配置存储Key ======================
     private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
     private static final String KEY_REDIRECT_CROSS_DOMAIN = "redirect_cross_domain";
     private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
     private static final String KEY_REDIRECT_FOLLOW_HEADERS = "redirect_follow_headers";
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
-    // 🟢【新增】Cookie播放授权令牌 Key
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
-    // 🟢【新增】UA切换 Key
     private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
     // ====================================================================
     // 全局日志系统
@@ -143,10 +121,8 @@ public class SettingsActivity extends AppCompatActivity {
         View viewOutside = findViewById(R.id.view_outside);
         viewOutside.setOnClickListener(v -> finish());
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
-        // 🆕 初始化重定向默认配置（首次打开自动写入默认值）
         initRedirectDefaultConfig();
 
-        // 🟢 全部使用 SwitchCompat 绑定控件
         sw_boot = findViewById(R.id.sw_boot);
         sw_epg = findViewById(R.id.sw_epg);
         sw_auto_update = findViewById(R.id.sw_auto_update);
@@ -250,20 +226,17 @@ public class SettingsActivity extends AppCompatActivity {
             showDecoderModeDialog();
             logOperation("【设置】打开解码器选择");
         });
-        // 🆕 渲染方式选择
         String rendererMode = sp.getString("renderer_type", "surface");
         updateRendererModeText(rendererMode);
         findViewById(R.id.item_renderer).setOnClickListener(v -> {
             showRendererModeDialog();
             logOperation("【设置】打开渲染方式选择");
         });
-        // 🆕 重定向网络设置点击事件
         updateRedirectSettingText();
         findViewById(R.id.item_redirect).setOnClickListener(v -> {
             showRedirectConfigDialog();
             logOperation("【设置】打开HTTP重定向配置");
         });
-        // 检查更新
         findViewById(R.id.item_check_update).setOnClickListener(v -> {
             updateManager.checkUpdate();
             logOperation("【设置】点击检查更新");
@@ -274,7 +247,6 @@ public class SettingsActivity extends AppCompatActivity {
         logOperation("【设置】打开设置页面");
     }
 
-    /** 🆕 初始化重定向默认配置，首次进入写入默认值 */
     private void initRedirectDefaultConfig() {
         if (!sp.contains(KEY_REDIRECT_MAX_COUNT)) {
             SharedPreferences.Editor editor = sp.edit();
@@ -290,7 +262,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    /** 🆕 更新重定向设置摘要文本 */
     private void updateRedirectSettingText() {
         int max = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
         boolean crossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN,true);
@@ -326,7 +297,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ========================== 🟢 修复点1：移除监听器递归死锁 ==========================
+    // ========================== 🟢 修复点：补全触摸点击支持，并优化彻底去除了导致背景不动的竞态代码 ==========================
     private void initSettingsItemList() {
         settingsItemList.clear();
         settingsItemList.add(findViewById(R.id.item_boot));
@@ -362,7 +333,8 @@ public class SettingsActivity extends AppCompatActivity {
                         int currentPos = remoteManager.getSettingsFocusPosition();
                         if (currentPos != position) {
                             remoteManager.setSettingsFocusPosition(position);
-                            // 🟢 致命修复：删掉 updateSettingsFocus(); 彻底解决递归卡死
+                            // 🟢 补上这行：让触摸点击或外部设备焦点也能立刻刷新样式
+                            updateSettingsFocus();
                         }
                     }
                 });
@@ -391,12 +363,10 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
             @Override
             public void onSettingsMoveUp() {
-                int newPos = remoteManager.getSettingsFocusPosition();
                 updateSettingsFocus();
             }
             @Override
             public void onSettingsMoveDown() {
-                int newPos = remoteManager.getSettingsFocusPosition();
                 updateSettingsFocus();
             }
             @Override
@@ -468,26 +438,31 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    // ========================== 🟢 修复点2：确保可见后再申请焦点 ==========================
+    // ========================== 🟢 修复焦点更新算法：取消复杂的 isFocused 分支，强制设置颜色，完美解决高亮无法移动的问题 ==========================
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
+        if (selectedPosition < 0 || selectedPosition >= settingsItemList.size()) return;
+
+        View target = settingsItemList.get(selectedPosition);
+        if (target == null) return;
+
+        // 1. 统一处理所有Item的背景色和文本色，消除旧代码里因为 isFocused() 引发的竞争和错乱
         for (int i = 0; i < settingsItemList.size(); i++) {
             View item = settingsItemList.get(i);
             if (item == null) continue;
             if (i == selectedPosition) {
                 setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
-                // 🟢 关键修复：利用 postDelayed 延迟50毫秒，确保先滚动可见再申请焦点
-                item.postDelayed(() -> {
-                    scrollToView(item);
-                    item.requestFocus();
-                }, 50);
-            } else if (item.isFocused()) {
-                setItemStyle(item, "#40A9FF", Typeface.NORMAL, Color.TRANSPARENT);
             } else {
                 setItemStyle(item, "#FFFFFF", Typeface.NORMAL, Color.TRANSPARENT);
             }
         }
+
+        // 2. 确保目标滚动可见并申请焦点（去掉了 50ms 延时，使用 post 即刻执行，响应更跟手）
+        target.post(() -> {
+            scrollToView(target);
+            target.requestFocus();
+        });
     }
 
     private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
@@ -521,19 +496,17 @@ public class SettingsActivity extends AppCompatActivity {
         return null;
     }
 
-    // ========================== 🟢 修复点3：用瞬间跳转代替动画队列，避免遥控器按键阻塞 ==========================
+    // ========================== 🟢 瞬间跳转，避免动画队列堆积卡死 ==========================
     private void scrollToView(View view) {
         if (scrollView == null || view == null) return;
         int viewTop = view.getTop();
         int viewBottom = view.getBottom();
         int scrollViewHeight = scrollView.getHeight();
         int currScroll = scrollView.getScrollY();
-        
+
         if (viewTop < currScroll) {
-            // 🟢 消除卡顿：用 scrollTo 替换 smoothScrollTo，避免动画队列排队阻塞
-            scrollView.scrollTo(0, viewTop - 50);
+            scrollView.scrollTo(0, Math.max(0, viewTop - 50));
         } else if (viewBottom > currScroll + scrollViewHeight) {
-            // 🟢 消除卡顿：用 scrollTo 替换 smoothScrollTo，避免动画队列排队阻塞
             scrollView.scrollTo(0, viewBottom - scrollViewHeight + 50);
         }
     }
@@ -589,9 +562,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ====================================================================
-    // 🆕 渲染方式选择弹窗与更新
-    // ====================================================================
     private void showRendererModeDialog() {
         final String[] modes = {"SurfaceView（默认）", "TextureView（兼容）"};
         final String[] modeValues = {"surface", "texture"};
@@ -629,9 +599,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ====================================================================
-    // 🆕 重定向配置弹窗（开关+数字输入）
-    // ====================================================================
     private void showRedirectConfigDialog() {
         int currentMax = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
         boolean crossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN,true);
@@ -736,7 +703,7 @@ public class SettingsActivity extends AppCompatActivity {
                 .show();
     }
 
-    // ========================== 🟢 修复点4：日志解析移到子线程，防止点击日志造成主线程卡死 ==========================
+    // ========================== 🟢 日志解析放到子线程，防止卡主线程 ==========================
     private void showOperationLogDialog() {
         new Thread(() -> {
             final String logText;
@@ -753,33 +720,33 @@ public class SettingsActivity extends AppCompatActivity {
                 }
                 logText = reversedLog.toString();
             }
-            
-            runOnUiThread(() -> {
-                ScrollView scrollView = new ScrollView(SettingsActivity.this);
-                TextView tv = new TextView(SettingsActivity.this);
-                tv.setText(logText);
-                tv.setTextSize(12);
-                tv.setPadding(40, 40, 40, 40);
-                tv.setTextColor(Color.BLACK);
-                scrollView.addView(tv);
-                AlertDialog.Builder builder = new AlertDialog.Builder(SettingsActivity.this);
-                builder.setTitle("📌 操作日志");
-                builder.setView(scrollView);
-                builder.setPositiveButton("关闭", null);
-                builder.setNeutralButton("清空日志", (dialog, which) -> {
-                    LogManager.clearOperationLog();
-                    if (OPERATION_LOG != null) {
-                        OPERATION_LOG.setLength(0);
-                    }
-                    logOperation("【设置】操作日志已清空");
-                    Toast.makeText(SettingsActivity.this, "操作日志已清空", Toast.LENGTH_SHORT).show();
-                });
-                builder.show();
-            });
+            runOnUiThread(() -> renderOperationLogDialog(logText));
         }).start();
     }
+
+    private void renderOperationLogDialog(String logText) {
+        ScrollView scrollView = new ScrollView(this);
+        TextView tv = new TextView(this);
+        tv.setText(logText);
+        tv.setTextSize(12);
+        tv.setPadding(40, 40, 40, 40);
+        tv.setTextColor(Color.BLACK);
+        scrollView.addView(tv);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("📌 操作日志");
+        builder.setView(scrollView);
+        builder.setPositiveButton("关闭", null);
+        builder.setNeutralButton("清空日志", (dialog, which) -> {
+            LogManager.clearOperationLog();
+            if (OPERATION_LOG != null) {
+                OPERATION_LOG.setLength(0);
+            }
+            logOperation("【设置】操作日志已清空");
+            Toast.makeText(this, "操作日志已清空", Toast.LENGTH_SHORT).show();
+        });
+        builder.show();
+    }
     
-    // ========================== 🟢 修复点4：日志解析移到子线程，防止点击日志造成主线程卡死 ==========================
     private void showLogDialog() {
         new Thread(() -> {
             final String logContent;
@@ -834,53 +801,52 @@ public class SettingsActivity extends AppCompatActivity {
                 logContent = fullContent.toString();
             }
 
-            runOnUiThread(() -> {
-                ScrollView scrollView = new ScrollView(SettingsActivity.this);
-                TextView tv = new TextView(SettingsActivity.this);
-                
-                SpannableString spLog = new SpannableString(logContent);
-                String[] lagKeywords = {
-                        "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
-                        "buffer underflow", "frame drop", "404",
-                        "buffering", "stall", "delay", "timeout", "decoder error",
-                        "Forbidden", "访问拒绝", "跳转失败", 
-                        "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
-                };
-                
-                // 红色高亮标注，这个过程在子线程处理数据时已经做过了部分，但生成 SpannableString 在主线程做性能损耗极小
-                String totalText = logContent;
-                for (String key : lagKeywords) {
-                    int searchIndex = 0;
-                    while ((searchIndex = totalText.indexOf(key, searchIndex)) != -1) {
-                        spLog.setSpan(
-                                new ForegroundColorSpan(Color.RED),
-                                searchIndex,
-                                searchIndex + key.length(),
-                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        );
-                        searchIndex += key.length();
-                    }
-                }
-                tv.setText(spLog);
-                tv.setTextSize(12);
-                tv.setPadding(40, 40, 40, 40);
-                tv.setTextColor(Color.BLACK);
-                scrollView.addView(tv);
-                AlertDialog.Builder builder = new AlertDialog.Builder(SettingsActivity.this);
-                builder.setTitle("📄 解析 & 播放日志（卡顿分析）");
-                builder.setView(scrollView);
-                builder.setPositiveButton("关闭", null);
-                builder.setNeutralButton("清空日志", (dialog, which) -> {
-                    LogManager.clearPlayLog();
-                    if (PLAY_LOG != null) {
-                        PLAY_LOG.setLength(0);
-                    }
-                    logOperation("【设置】解析日志已清空");
-                    Toast.makeText(SettingsActivity.this, "日志已清空", Toast.LENGTH_SHORT).show();
-                });
-                builder.show();
-            });
+            runOnUiThread(() -> renderPlayLogDialog(logContent));
         }).start();
+    }
+
+    private void renderPlayLogDialog(String logContent) {
+        ScrollView scrollView = new ScrollView(this);
+        TextView tv = new TextView(this);
+        SpannableString spLog = new SpannableString(logContent);
+        String[] lagKeywords = {
+                "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
+                "buffer underflow", "frame drop", "404",
+                "buffering", "stall", "delay", "timeout", "decoder error",
+                "Forbidden", "访问拒绝", "跳转失败", 
+                "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
+        };
+        String totalText = logContent;
+        for (String key : lagKeywords) {
+            int searchIndex = 0;
+            while ((searchIndex = totalText.indexOf(key, searchIndex)) != -1) {
+                spLog.setSpan(
+                        new ForegroundColorSpan(Color.RED),
+                        searchIndex,
+                        searchIndex + key.length(),
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+                searchIndex += key.length();
+            }
+        }
+        tv.setText(spLog);
+        tv.setTextSize(12);
+        tv.setPadding(40, 40, 40, 40);
+        tv.setTextColor(Color.BLACK);
+        scrollView.addView(tv);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("📄 解析 & 播放日志（卡顿分析）");
+        builder.setView(scrollView);
+        builder.setPositiveButton("关闭", null);
+        builder.setNeutralButton("清空日志", (dialog, which) -> {
+            LogManager.clearPlayLog();
+            if (PLAY_LOG != null) {
+                PLAY_LOG.setLength(0);
+            }
+            logOperation("【设置】解析日志已清空");
+            Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
+        });
+        builder.show();
     }
 
     @Override
