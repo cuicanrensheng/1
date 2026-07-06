@@ -149,7 +149,7 @@ public class SettingsActivity extends AppCompatActivity {
         initSettingsItemList();
         initRemoteManager();
         findViewById(R.id.log_viewer).setOnClickListener(v -> showLogDialog());
-        findViewById(R.id.log_operation).setOnClickListener(v -> showOperationLogDialog());
+        // findViewById(R.id.log_operation).setOnClickListener(v -> showOperationLogDialog()); // 已注释：暂时去除查看操作日志按钮
         // 开机自启
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
@@ -316,7 +316,7 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.tv_multi_epg));
         settingsItemList.add(findViewById(R.id.tv_qr_code));
         settingsItemList.add(findViewById(R.id.log_viewer));
-        settingsItemList.add(findViewById(R.id.log_operation));
+        // settingsItemList.add(findViewById(R.id.log_operation)); // 已注释：暂时去除查看操作日志按钮
         settingsItemList.add(findViewById(R.id.item_check_update));
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) {
