@@ -1,22 +1,53 @@
 package com.tv.live;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Channel {
     private String name;
-    private String playUrl;
+    // 主播放地址
+    private String mainPlayUrl;
+    // 备用播放地址列表
+    private List<String> backupUrls;
     private String group;
     private String channelId;
 
-    public Channel(String name, String playUrl, String group, String channelId) {
+    // 构造器：初始化备用集合
+    public Channel(String name, String mainPlayUrl, String group, String channelId) {
         this.name = name;
-        this.playUrl = playUrl;
+        this.mainPlayUrl = mainPlayUrl;
         this.group = group;
         this.channelId = channelId;
+        this.backupUrls = new ArrayList<>();
     }
 
-    public String getName() { return name; }
-    public String getPlayUrl() { return playUrl; }
-    public String getGroup() { return group; }
-    public String getChannelId() { return channelId; }
+    // 添加备用源
+    public void addBackupUrl(String url) {
+        if (!backupUrls.contains(url)) {
+            backupUrls.add(url);
+        }
+    }
+
+    // Getter
+    public String getName() {
+        return name;
+    }
+
+    public String getMainPlayUrl() {
+        return mainPlayUrl;
+    }
+
+    public List<String> getBackupUrls() {
+        return backupUrls;
+    }
+
+    public String getGroup() {
+        return group;
+    }
+
+    public String getChannelId() {
+        return channelId;
+    }
 
     public static class EpgItem {
         public String dayName;
