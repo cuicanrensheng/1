@@ -7,7 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log; // 🟢【修复1】添加缺失的 Log 导入
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -429,11 +429,27 @@ public class MainActivity extends AppCompatActivity {
         super.onBackPressed();
     }
 
+    // ====================================================================
+    // 按键处理：全部交给 TvRemoteManager
+    // ====================================================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) return true;
+        // 单击事件（包含菜单、帮助等）全部交给 remoteManager
+        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
+            return true;
+        }
         return super.onKeyDown(keyCode, event);
     }
+
+    @Override
+    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        // 长按事件交给 remoteManager 处理（特别是 OK 键长按）
+        if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
+            return true;
+        }
+        return super.onKeyLongPress(keyCode, event);
+    }
+    // ====================================================================
 
     public void openSettings() {
         isOpeningSettings = true;
