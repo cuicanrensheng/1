@@ -140,38 +140,38 @@ public class WebServerManager {
     public void start() {
         // ===== 1. 检查是否已经在运行 =====
         if (isRunning) {
-            logOperation("【网页后台】已经在运行中，无需重复启动");
+            // logOperation("【网页后台】已经在运行中，无需重复启动"); // 已注释：操作日志已移除
             return;
         }
 
-        logOperation("【网页后台】========== 开始启动 ==========");
-        logOperation("【网页后台】默认端口：" + port);
+        // logOperation("【网页后台】========== 开始启动 =========="); // 已注释
+        // logOperation("【网页后台】默认端口：" + port); // 已注释
 
         // ===== 2. 自动找可用端口 =====
-        logOperation("【网页后台】开始扫描可用端口...");
+        // logOperation("【网页后台】开始扫描可用端口..."); // 已注释
         int actualPort = findAvailablePort(port);
 
         if (actualPort == -1) {
             // 试了 10 个端口都不行，启动失败
-            logOperation("【网页后台】❌ 扫描完成，所有端口都被占用");
-            logOperation("【网页后台】❌ 启动失败，找不到可用端口");
-            logOperation("【网页后台】💡 可能原因：");
-            logOperation("【网页后台】   1. 设备上有大量应用占用了端口");
-            logOperation("【网页后台】   2. 网络异常，无法创建 Socket");
-            logOperation("【网页后台】   3. 系统权限限制");
-            logOperation("【网页后台】💡 建议：重启设备或检查网络设置");
-            logOperation("【网页后台】================================");
+            // logOperation("【网页后台】❌ 扫描完成，所有端口都被占用"); // 已注释
+            // logOperation("【网页后台】❌ 启动失败，找不到可用端口"); // 已注释
+            // logOperation("【网页后台】💡 可能原因："); // 已注释
+            // logOperation("【网页后台】   1. 设备上有大量应用占用了端口"); // 已注释
+            // logOperation("【网页后台】   2. 网络异常，无法创建 Socket"); // 已注释
+            // logOperation("【网页后台】   3. 系统权限限制"); // 已注释
+            // logOperation("【网页后台】💡 建议：重启设备或检查网络设置"); // 已注释
+            // logOperation("【网页后台】================================"); // 已注释
             isRunning = false;
             return;
         }
 
         // 如果换了端口，打个日志说明一下
         if (actualPort != port) {
-            logOperation("【网页后台】✅ 扫描完成，找到可用端口：" + actualPort);
-            logOperation("【网页后台】端口 " + port + " 被占用，自动改用端口 " + actualPort);
+            // logOperation("【网页后台】✅ 扫描完成，找到可用端口：" + actualPort); // 已注释
+            // logOperation("【网页后台】端口 " + port + " 被占用，自动改用端口 " + actualPort); // 已注释
             this.port = actualPort;
         } else {
-            logOperation("【网页后台】✅ 扫描完成，默认端口 " + port + " 可用");
+            // logOperation("【网页后台】✅ 扫描完成，默认端口 " + port + " 可用"); // 已注释
         }
 
         final int finalPort = actualPort;
@@ -179,7 +179,7 @@ public class WebServerManager {
         // ===== 3. 在子线程中启动服务器 =====
         new Thread(() -> {
             try {
-                logOperation("【网页后台】正在创建 ServerSocket...");
+                // logOperation("【网页后台】正在创建 ServerSocket..."); // 已注释
 
                 // ====================================================================
                 // ✅ 修改：创建 ServerSocket 的方式
@@ -205,27 +205,27 @@ public class WebServerManager {
                  */
                 serverSocket = new ServerSocket();
                 serverSocket.setReuseAddress(true);
-                logOperation("【网页后台】SO_REUSEADDR 已设置为 true");
+                // logOperation("【网页后台】SO_REUSEADDR 已设置为 true"); // 已注释
 
                 serverSocket.bind(new java.net.InetSocketAddress(finalPort));
-                logOperation("【网页后台】端口绑定成功");
+                // logOperation("【网页后台】端口绑定成功"); // 已注释
 
                 isRunning = true;
 
                 // ===== 4. 保存当前运行的实例（用于后续端口检测） =====
                 runningInstance = this;
 
-                logOperation("【网页后台】✅ 启动成功！");
-                logOperation("【网页后台】监听端口：" + finalPort);
-                logOperation("【网页后台】访问地址：http://" + getDeviceIPAddress() + ":" + finalPort);
-                logOperation("【网页后台】========== 启动完成 ==========");
+                // logOperation("【网页后台】✅ 启动成功！"); // 已注释
+                // logOperation("【网页后台】监听端口：" + finalPort); // 已注释
+                // logOperation("【网页后台】访问地址：http://" + getDeviceIPAddress() + ":" + finalPort); // 已注释
+                // logOperation("【网页后台】========== 启动完成 =========="); // 已注释
 
                 // ===== 5. 循环接受连接 =====
                 while (!serverSocket.isClosed()) {
                     try {
                         // accept() 会阻塞，直到有新连接进来
                         Socket socket = serverSocket.accept();
-                        logOperation("【网页后台】新连接进入：" + socket.getInetAddress());
+                        // logOperation("【网页后台】新连接进入：" + socket.getInetAddress()); // 已注释
 
                         // 每个请求开一个线程处理，避免阻塞其他请求
                         new Thread(() -> handleHttpRequest(socket)).start();
@@ -233,19 +233,19 @@ public class WebServerManager {
                         // 正常关闭时也会抛异常（因为 serverSocket.close() 会中断 accept()）
                         // 这里判断一下，只有非正常关闭才打错误日志
                         if (!serverSocket.isClosed()) {
-                            logOperation("【网页后台】接受连接异常：" + e.getMessage());
+                            // logOperation("【网页后台】接受连接异常：" + e.getMessage()); // 已注释
                         }
                     }
                 }
 
-                logOperation("【网页后台】服务器已停止");
+                // logOperation("【网页后台】服务器已停止"); // 已注释
                 isRunning = false;
                 runningInstance = null;
 
             } catch (Exception e) {
                 e.printStackTrace();
-                logOperation("【网页后台】❌ 启动失败：" + e.getClass().getSimpleName() + " - " + e.getMessage());
-                logOperation("【网页后台】❌ 错误详情：" + e.toString());
+                // logOperation("【网页后台】❌ 启动失败：" + e.getClass().getSimpleName() + " - " + e.getMessage()); // 已注释
+                // logOperation("【网页后台】❌ 错误详情：" + e.toString()); // 已注释
                 isRunning = false;
                 runningInstance = null;
             }
@@ -281,7 +281,7 @@ public class WebServerManager {
                     runningInstance = null;
                 }
 
-                logOperation("【网页后台】服务器已关闭");
+                // logOperation("【网页后台】服务器已关闭"); // 已注释
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -318,17 +318,17 @@ public class WebServerManager {
         int maxTry = 10;  // 最多试 10 个端口
         int occupiedCount = 0;  // 被占用的端口数
 
-        logOperation("【网页后台】扫描范围：" + startPort + " ~ " + (startPort + maxTry - 1)
-                + "（共 " + maxTry + " 个端口）");
+        // logOperation("【网页后台】扫描范围：" + startPort + " ~ " + (startPort + maxTry - 1)
+        //         + "（共 " + maxTry + " 个端口）"); // 已注释
 
         for (int i = 0; i < maxTry; i++) {
             int tryPort = startPort + i;
 
             if (!isPortInUse(tryPort)) {
                 // 找到可用端口
-                logOperation("【网页后台】  端口 " + tryPort + " → ✅ 可用");
-                logOperation("【网页后台】扫描统计：共 " + maxTry + " 个端口，"
-                        + "被占用 " + occupiedCount + " 个，找到可用端口 " + tryPort);
+                // logOperation("【网页后台】  端口 " + tryPort + " → ✅ 可用"); // 已注释
+                // logOperation("【网页后台】扫描统计：共 " + maxTry + " 个端口，"
+                //         + "被占用 " + occupiedCount + " 个，找到可用端口 " + tryPort); // 已注释
                 return tryPort;
             }
 
@@ -362,11 +362,11 @@ public class WebServerManager {
              * - 如果低端口被占，可能是系统服务
              */
             String reason = analyzePortOccupiedReason(tryPort, i);
-            logOperation("【网页后台】  端口 " + tryPort + " → ❌ 被占用（" + reason + "）");
+            // logOperation("【网页后台】  端口 " + tryPort + " → ❌ 被占用（" + reason + "）"); // 已注释
         }
 
         // 试了 10 个都不行，返回 -1 表示失败
-        logOperation("【网页后台】扫描统计：共 " + maxTry + " 个端口，全部被占用");
+        // logOperation("【网页后台】扫描统计：共 " + maxTry + " 个端口，全部被占用"); // 已注释
         return -1;
     }
 
@@ -460,8 +460,8 @@ public class WebServerManager {
         } catch (Exception e) {
             // 绑定失败，记录一下异常类型（方便排查）
             String exceptionType = e.getClass().getSimpleName();
-            logOperation("【网页后台】    检测端口 " + port + " 异常："
-                    + exceptionType + " - " + e.getMessage());
+            // logOperation("【网页后台】    检测端口 " + port + " 异常："
+            //         + exceptionType + " - " + e.getMessage()); // 已注释
             return true;   // 绑定失败（抛 BindException），说明端口被占用
         }
     }
@@ -496,7 +496,7 @@ public class WebServerManager {
      */
     private void handleHttpRequest(Socket socket) {
         try {
-            logOperation("【网页后台】开始处理请求，客户端：" + socket.getInetAddress());
+            // logOperation("【网页后台】开始处理请求，客户端：" + socket.getInetAddress()); // 已注释
 
             // ===== 1. 读取请求头（按行读，读到空行结束） =====
             BufferedReader reader = new BufferedReader(
@@ -513,15 +513,15 @@ public class WebServerManager {
                 headerLines.add(line);
                 // 防止恶意请求，最多读 100 行
                 if (lineCount > 100) {
-                    logOperation("【网页后台】请求头超过100行，停止读取");
+                    // logOperation("【网页后台】请求头超过100行，停止读取"); // 已注释
                     break;
                 }
             }
-            logOperation("【网页后台】读取到 " + headerLines.size() + " 行请求头");
+            // logOperation("【网页后台】读取到 " + headerLines.size() + " 行请求头"); // 已注释
 
             // 请求为空，直接关闭连接
             if (headerLines.isEmpty()) {
-                logOperation("【网页后台】请求为空，关闭连接");
+                // logOperation("【网页后台】请求为空，关闭连接"); // 已注释
                 socket.close();
                 return;
             }
@@ -531,13 +531,13 @@ public class WebServerManager {
             String firstLine = headerLines.get(0);
             String[] parts = firstLine.split(" ");
             if (parts.length < 2) {
-                logOperation("【网页后台】请求行格式错误：" + firstLine);
+                // logOperation("【网页后台】请求行格式错误：" + firstLine); // 已注释
                 sendResponse(socket, "400 Bad Request", "text/plain", "Bad Request");
                 return;
             }
             String method = parts[0];  // GET / POST
             String path = parts[1];    // /  /log  /submit
-            logOperation("【网页后台】请求：" + method + " " + path);
+            // logOperation("【网页后台】请求：" + method + " " + path); // 已注释
 
             // ===== 3. 解析 Content-Length（POST 请求用） =====
             int contentLength = 0;
@@ -551,7 +551,7 @@ public class WebServerManager {
                     break;
                 }
             }
-            logOperation("【网页后台】Content-Length: " + contentLength);
+            // logOperation("【网页后台】Content-Length: " + contentLength); // 已注释
 
             // ===== 4. POST 请求：读取 body =====
             String body = "";
@@ -565,7 +565,7 @@ public class WebServerManager {
                     totalRead += len;
                 }
                 body = new String(bodyBuffer, 0, totalRead);
-                logOperation("【网页后台】POST body 内容：" + body);
+                // logOperation("【网页后台】POST body 内容：" + body); // 已注释
             }
 
             // ===== 5. 路由分发 =====
@@ -577,22 +577,22 @@ public class WebServerManager {
 
             // 5.1 配置页面（首页）
             if ("GET".equals(method) && ("/".equals(purePath) || "/index.html".equals(purePath))) {
-                logOperation("【网页后台】→ 返回配置页面");
+                // logOperation("【网页后台】→ 返回配置页面"); // 已注释
                 responseBody = buildConfigPage();
             }
             // 5.2 日志页面
             else if ("GET".equals(method) && "/log".equals(purePath)) {
-                logOperation("【网页后台】→ 返回日志页面");
+                // logOperation("【网页后台】→ 返回日志页面"); // 已注释
                 responseBody = buildLogPage();
             }
             // 5.3 提交配置（POST）
             else if ("POST".equals(method) && "/submit".equals(purePath)) {
-                logOperation("【网页后台】→ 处理配置提交");
+                // logOperation("【网页后台】→ 处理配置提交"); // 已注释
                 Map<String, String> params = parseFormData(body);
                 final String liveUrl = params.get("live_url");
                 final String epgUrl = params.get("epg_url");
                 final String customUa = params.get("custom_ua");
-                logOperation("【网页后台】提交参数 - live: " + liveUrl + ", epg: " + epgUrl + ", ua: " + customUa);
+                // logOperation("【网页后台】提交参数 - live: " + liveUrl + ", epg: " + epgUrl + ", ua: " + customUa); // 已注释
 
                 // 切到主线程保存配置（SP 和广播都要在主线程）
                 handler.post(() -> {
@@ -620,7 +620,7 @@ public class WebServerManager {
                     // 有更新就发送广播刷新
                     if (hasUpdate) {
                         context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                        logOperation("【网页后台】配置已更新，发送刷新广播");
+                        // logOperation("【网页后台】配置已更新，发送刷新广播"); // 已注释
                     }
                 });
 
@@ -628,21 +628,21 @@ public class WebServerManager {
             }
             // 5.4 404 页面
             else {
-                logOperation("【网页后台】→ 404 Not Found: " + path);
+                // logOperation("【网页后台】→ 404 Not Found: " + path); // 已注释
                 responseBody = "404 Not Found";
                 contentType = "text/plain; charset=utf-8";
             }
 
             // ===== 6. 发送响应 =====
-            logOperation("【网页后台】准备发送响应，内容长度："
-                    + responseBody.getBytes("UTF-8").length + " 字节");
+            // logOperation("【网页后台】准备发送响应，内容长度："
+            //         + responseBody.getBytes("UTF-8").length + " 字节"); // 已注释
             sendResponse(socket, "200 OK", contentType, responseBody);
-            logOperation("【网页后台】✅ 响应发送完成");
+            // logOperation("【网页后台】✅ 响应发送完成"); // 已注释
 
         } catch (Exception e) {
             e.printStackTrace();
-            logOperation("【网页后台】❌ 处理请求异常："
-                    + e.getClass().getSimpleName() + " - " + e.getMessage());
+            // logOperation("【网页后台】❌ 处理请求异常："
+            //         + e.getClass().getSimpleName() + " - " + e.getMessage()); // 已注释
             try {
                 socket.close();
             } catch (Exception ignored) {}
@@ -673,7 +673,7 @@ public class WebServerManager {
         out.write(bodyBytes);
         out.flush();
 
-        logOperation("【网页后台】响应头+体已写入输出流");
+        // logOperation("【网页后台】响应头+体已写入输出流"); // 已注释
         socket.close();
     }
 
@@ -697,7 +697,7 @@ public class WebServerManager {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            logOperation("【网页后台】解析表单数据失败：" + e.getMessage());
+            // logOperation("【网页后台】解析表单数据失败：" + e.getMessage()); // 已注释
         }
         return params;
     }
@@ -814,7 +814,7 @@ public class WebServerManager {
                 "    <div class=\"card\">\n" +
                 "        <div class=\"item\">\n" +
                 "            <div class=\"item-label\">上传apk</div>\n" +
-                "            <div class=\"upload-box\" onclick=\"alert('功能开发中，敬请期待~')\">\n" +
+                "            <div class=\"upload-box\" onclick='alert(\"功能开发中，敬请期待~\")'>\n" +
                 "                <div class=\"upload-icon\">📷</div>\n" +
                 "                <div class=\"upload-text\">上传</div>\n" +
                 "            </div>\n" +
@@ -845,43 +845,11 @@ public class WebServerManager {
      * - 解析日志：PLAY_LOG（EPG解析 + 播放器日志）
      */
     private String buildLogPage() {
-        // ===== 1. 构建操作日志 HTML =====
-        String operationLogContent = SettingsActivity.OPERATION_LOG != null
-                ? SettingsActivity.OPERATION_LOG.toString() : "";
-        String[] opLines = operationLogContent.split("\n");
-        StringBuilder opLogHtml = new StringBuilder();
-        for (int i = opLines.length - 1; i >= 0; i--) {
-            String line = opLines[i];
-            if (line.trim().isEmpty()) continue;
+        // ===== 1. 构建操作日志 HTML（已移除操作日志数据） =====
+        // 由于 OPERATION_LOG 已被移除，这里直接显示“暂无操作日志”
+        String opLogHtml = "        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">暂无操作日志</div>\n";
 
-            // 提取时间和内容
-            String time = "";
-            String content = line;
-            if (line.startsWith("[") && line.contains("]")) {
-                time = line.substring(1, line.indexOf("]"));
-                content = line.substring(line.indexOf("]") + 1).trim();
-            }
-
-            // 判断级别（操作日志一般都是 INFO 级别，除了错误）
-            boolean isError = content.contains("失败") || content.contains("异常") || content.contains("❌");
-            String level = isError ? "ERROR" : "INFO";
-            String levelColor = isError ? "#F5222D" : "#1890FF";
-            String icon = isError ? "✕" : "⚙";  // 操作日志用齿轮图标
-
-            opLogHtml.append("        <div class=\"log-item\">\n");
-            opLogHtml.append("            <div class=\"log-icon\" style=\"background: ").append(levelColor).append(";\">").append(icon).append("</div>\n");
-            opLogHtml.append("            <div class=\"log-content\">\n");
-            opLogHtml.append("                <div class=\"log-level\" style=\"color: ").append(levelColor).append(";\">").append(level).append("</div>\n");
-            opLogHtml.append("                <div class=\"log-text\">").append(content).append("</div>\n");
-            opLogHtml.append("            </div>\n");
-            opLogHtml.append("            <div class=\"log-time\">").append(time).append("</div>\n");
-            opLogHtml.append("        </div>\n");
-        }
-        if (opLogHtml.length() == 0) {
-            opLogHtml.append("        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">暂无操作日志</div>\n");
-        }
-
-        // ===== 2. 构建解析日志 HTML =====
+        // ===== 2. 构建解析日志 HTML（保留 PLAY_LOG） =====
         String playLogContent = SettingsActivity.PLAY_LOG != null
                 ? SettingsActivity.PLAY_LOG.toString() : "";
         String[] playLines = playLogContent.split("\n");
@@ -963,10 +931,10 @@ public class WebServerManager {
                 "        <div class=\"tab-item\" onclick=\"switchTab('play')\">解析日志</div>\n" +
                 "    </div>\n" +
                 "\n" +
-                "    <!-- 操作日志面板 -->\n" +
+                "    <!-- 操作日志面板（已无数据） -->\n" +
                 "    <div id=\"panel-operation\" class=\"log-panel active\">\n" +
                 "        <div class=\"log-list\">\n" +
-                opLogHtml.toString() +
+                opLogHtml +
                 "        </div>\n" +
                 "    </div>\n" +
                 "\n" +
@@ -1092,6 +1060,6 @@ public class WebServerManager {
      * - 错误日志
      */
     private void logOperation(String msg) {
-        SettingsActivity.logOperation(msg);
+        // SettingsActivity.logOperation(msg); // 已注释：操作日志已移除
     }
 }
