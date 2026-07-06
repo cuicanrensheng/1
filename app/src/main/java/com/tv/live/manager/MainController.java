@@ -88,8 +88,7 @@ public class MainController {
                 } else {
                     playPrev();
                 }
-                SettingsActivity.logOperation("【切台】上键 → "
-                        + (channelReverse ? "下一台" : "上一台"));
+                // SettingsActivity.logOperation("【切台】上键 → " + (channelReverse ? "下一台" : "上一台")); // 已注释：操作日志已移除
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (channelReverse) {
@@ -97,8 +96,7 @@ public class MainController {
                 } else {
                     playNext();
                 }
-                SettingsActivity.logOperation("【切台】下键 → "
-                        + (channelReverse ? "上一台" : "下一台"));
+                // SettingsActivity.logOperation("【切台】下键 → " + (channelReverse ? "上一台" : "下一台")); // 已注释：操作日志已移除
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -234,7 +232,7 @@ public class MainController {
         while (logList.size() > MAX_LOG_COUNT) {
             logList.remove(logList.size() - 1);
         }
-        SettingsActivity.log(msg);
+        SettingsActivity.log(msg); // 保留（播放日志）
     }
 
     public static List<String> getLogList() {
