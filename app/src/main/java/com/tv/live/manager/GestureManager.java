@@ -45,19 +45,19 @@ public class GestureManager {
         return new PlayerGestureHelper(activity, new PlayerGestureHelper.GestureCallback() {
             @Override
             public void onOk() {
-                SettingsActivity.logOperation("【手势】单击 → 切换面板");
+                // SettingsActivity.logOperation("【手势】单击 → 切换面板"); // 已注释：操作日志已移除
                 activity.togglePanel();
             }
 
             @Override
             public void onLongOk() {
-                SettingsActivity.logOperation("【手势】长按 → 打开设置");
+                // SettingsActivity.logOperation("【手势】长按 → 打开设置"); // 已注释：操作日志已移除
                 activity.openSettings();
             }
 
             @Override
             public void onMenu() {
-                SettingsActivity.logOperation("【手势】菜单 → 打开设置");
+                // SettingsActivity.logOperation("【手势】菜单 → 打开设置"); // 已注释：操作日志已移除
                 activity.openSettings();
             }
 
@@ -71,9 +71,9 @@ public class GestureManager {
 
                     // 记录入口日志：是手势上滑触发的
                     boolean isReverse = activity.isChannelReverse();
-                    SettingsActivity.logOperation("【手势】上滑 → 反转状态：" 
-                            + (isReverse ? "开启" : "关闭")
-                            + " → 实际方向：" + (isReverse ? "下一台" : "上一台"));
+                    // SettingsActivity.logOperation("【手势】上滑 → 反转状态：" 
+                    //         + (isReverse ? "开启" : "关闭")
+                    //         + " → 实际方向：" + (isReverse ? "下一台" : "上一台")); // 已注释：操作日志已移除
 
                     // 根据反转状态决定调用哪个方法
                     if (isReverse) {
@@ -87,7 +87,7 @@ public class GestureManager {
                     // 解锁
                     mainHandler.postDelayed(() -> isGestureLocked = false, DEBOUNCE_DELAY_MS);
                 } else {
-                    SettingsActivity.logOperation("【手势】上滑 → 防抖拦截");
+                    // SettingsActivity.logOperation("【手势】上滑 → 防抖拦截"); // 已注释：操作日志已移除
                 }
             }
 
@@ -101,9 +101,9 @@ public class GestureManager {
 
                     // 记录入口日志：是手势下滑触发的
                     boolean isReverse = activity.isChannelReverse();
-                    SettingsActivity.logOperation("【手势】下滑 → 反转状态：" 
-                            + (isReverse ? "开启" : "关闭")
-                            + " → 实际方向：" + (isReverse ? "上一台" : "下一台"));
+                    // SettingsActivity.logOperation("【手势】下滑 → 反转状态：" 
+                    //         + (isReverse ? "开启" : "关闭")
+                    //         + " → 实际方向：" + (isReverse ? "上一台" : "下一台")); // 已注释：操作日志已移除
 
                     // 根据反转状态决定调用哪个方法
                     if (isReverse) {
@@ -117,7 +117,7 @@ public class GestureManager {
                     // 解锁
                     mainHandler.postDelayed(() -> isGestureLocked = false, DEBOUNCE_DELAY_MS);
                 } else {
-                    SettingsActivity.logOperation("【手势】下滑 → 防抖拦截");
+                    // SettingsActivity.logOperation("【手势】下滑 → 防抖拦截"); // 已注释：操作日志已移除
                 }
             }
         });
