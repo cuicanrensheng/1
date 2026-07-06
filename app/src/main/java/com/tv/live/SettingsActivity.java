@@ -263,17 +263,29 @@ public class SettingsActivity extends AppCompatActivity {
         return "源" + index;
     }
 
-    // 🟢 新增：显示频道线路选择弹窗
+    // 🟢【修改】显示频道线路选择弹窗（动态读取实际线路数量）
     private void showChannelLineDialog() {
         int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
-        // 预设最多 20 个备用源（足够绝大多数情况）
         List<String> lineList = new ArrayList<>();
         lineList.add("主源");
-        for (int i = 1; i <= 20; i++) {
-            lineList.add("源" + i);
-        }
-        String[] lineArray = lineList.toArray(new String[0]);
 
+        // 🟢 获取当前正在播放的频道对象，读取实际备用源数量
+        TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
+        Channel currentChannel = playerManager.getCurrentChannel();
+        
+        if (currentChannel != null && currentChannel.getUrls() != null) {
+            int urlSize = currentChannel.getUrls().size();
+            for (int i = 1; i < urlSize; i++) {
+                lineList.add("源" + i);
+            }
+        } else {
+            // 🟢 兜底策略：如果还没开始播放，最多显示 20 个选项以防万一（与原来一致）
+            for (int i = 1; i <= 20; i++) {
+                lineList.add("源" + i);
+            }
+        }
+
+        String[] lineArray = lineList.toArray(new String[0]);
         new AlertDialog.Builder(this)
                 .setTitle("频道线路选择")
                 .setSingleChoiceItems(lineArray, currentLineIndex, (dialog, which) -> {
