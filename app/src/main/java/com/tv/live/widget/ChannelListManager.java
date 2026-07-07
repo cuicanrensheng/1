@@ -13,7 +13,6 @@ import android.widget.TextView;
 
 import com.tv.live.Channel;
 import com.tv.live.R;
-import com.tv.live.SettingsActivity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,10 +37,6 @@ import java.util.List;
  * 收藏/最近观看列表为空时，也要更新 ListView，
  * 不然会停留在上一个分组的内容，造成混淆。
  *
- * 【2026-06-21 新增：排查日志】
- * 【说明】
- * 在关键位置加上日志，方便排查收藏和最近观看功能的问题。
- * 
  * 【2026-06-24 修改：增加焦点态样式区分】
  * 【修改说明】
  * 新增 hasFocus 变量和 setFocused 方法，区分"有焦点的选中"和"无焦点的选中"。
@@ -59,17 +54,13 @@ public class ChannelListManager {
     /** 当前播放位置（正在播放的频道） */
     private int currentPlayIndex = 0;
 
-    // ====================================================================
-    // ✅ 2026-06-24 新增：焦点状态
-    // ====================================================================
-    /**
-     * 当前列表是否有焦点
-     * 
-     * 【作用】
-     * 区分"有焦点的选中"和"无焦点的选中"：
-     * - true = 当前光标在这个列表上，选中项用浅蓝色背景 + 蓝色文字 + 加粗
-     * - false = 当前光标不在这个列表上，选中项用蓝色文字 + 透明背景
-     */
+    // 🟢【优化1】预定义颜色常量，彻底避免 getView 中反复解析字符串
+    private static final int COLOR_BLUE = 0xFF40A9FF;
+    private static final int COLOR_BG_BLUE = 0x3340A9FF;
+    private static final int COLOR_WHITE = 0xFFFFFFFF;
+    private static final int COLOR_GRAY = 0xFF888888;
+
+    /** 当前列表是否有焦点 */
     private boolean hasFocus = false;
 
     /** 频道点击监听器 */
@@ -82,20 +73,8 @@ public class ChannelListManager {
         this.onChannelClickListener = listener;
     }
 
-    // ====================================================================
-    // ✅ 2026-06-21 新增：长按监听器
-    // ====================================================================
-    /**
-     * 频道长按监听器
-     */
+    /** 频道长按监听器 */
     public interface OnChannelLongClickListener {
-        /**
-         * 频道被长按了
-         *
-         * @param channelName 被长按的频道名称
-         * @param position 被长按的位置
-         * @return true 表示消费了事件
-         */
         boolean onChannelLongClick(String channelName, int position);
     }
     private OnChannelLongClickListener onChannelLongClickListener;
@@ -124,21 +103,18 @@ public class ChannelListManager {
         });
 
         // 长按事件
-        lvChannelList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                if (onChannelLongClickListener != null) {
-                    String channelName = null;
-                    if (parent.getAdapter() != null && position < parent.getAdapter().getCount()) {
-                        Object item = parent.getAdapter().getItem(position);
-                        if (item != null) {
-                            channelName = item.toString();
-                        }
+        lvChannelList.setOnItemLongClickListener((parent, view, position, id) -> {
+            if (onChannelLongClickListener != null) {
+                String channelName = null;
+                if (parent.getAdapter() != null && position < parent.getAdapter().getCount()) {
+                    Object item = parent.getAdapter().getItem(position);
+                    if (item != null) {
+                        channelName = item.toString();
                     }
-                    return onChannelLongClickListener.onChannelLongClick(channelName, position);
                 }
-                return false;
+                return onChannelLongClickListener.onChannelLongClick(channelName, position);
             }
+            return false;
         });
 
         // 遥控器焦点选中时同步更新位置
@@ -153,13 +129,8 @@ public class ChannelListManager {
         });
     }
 
-    // ====================================================================
-    // ✅ 2026-06-24 新增：设置焦点状态
-    // ====================================================================
     /**
      * 设置当前列表是否有焦点
-     * 
-     * @param focused true=有焦点，false=无焦点
      */
     public void setFocused(boolean focused) {
         if (this.hasFocus == focused) return;
@@ -169,9 +140,6 @@ public class ChannelListManager {
         }
     }
 
-    /**
-     * 获取当前是否有焦点
-     */
     public boolean isFocused() {
         return hasFocus;
     }
@@ -179,14 +147,6 @@ public class ChannelListManager {
     // ====================================================================
     // 显示全部频道
     // ====================================================================
-    /**
-     * 设置全部频道列表
-     * 
-     * 【2026-06-24 修改：样式区分焦点态】
-     * 选中态分两种：
-     * - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
-     * - 无焦点 + 选中：蓝色文字 + 透明背景
-     */
     public void setChannels(List<Channel> channelSourceList, int currentPlayIndex) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
 
@@ -200,51 +160,48 @@ public class ChannelListManager {
                 R.layout.item_channel, names) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
+                // 🟢【核心优化】引入 ViewHolder 模式，彻底消灭卡顿
+                ViewHolder holder;
                 if (convertView == null) {
                     convertView = LayoutInflater.from(getContext())
                             .inflate(R.layout.item_channel, parent, false);
+                    holder = new ViewHolder();
+                    holder.tvIndex = convertView.findViewById(R.id.tv_index);
+                    holder.tvChannel = convertView.findViewById(R.id.tv_channel);
+                    convertView.setTag(holder);
+                } else {
+                    holder = (ViewHolder) convertView.getTag();
                 }
-
-                TextView tvIndex = convertView.findViewById(R.id.tv_index);
-                TextView tvChannel = convertView.findViewById(R.id.tv_channel);
 
                 // ✅ 当前播放的频道显示 ▶️ 图标
                 if (position == currentPlayIndex) {
-                    tvIndex.setText("▶");
+                    holder.tvIndex.setText("▶");
                 } else {
-                    tvIndex.setText(String.valueOf(position + 1));
+                    // 🟢 虽然这里需要转字符串，但为了可读性保留。若有极度高频滑动需求，可提前转成 String 数组缓存。
+                    holder.tvIndex.setText(String.valueOf(position + 1));
                 }
 
-                tvChannel.setText(getItem(position));
-                tvChannel.setTextSize(16);
+                holder.tvChannel.setText(getItem(position));
+                holder.tvChannel.setTextSize(16);
 
-                // ====================================================================
-                // ✅ 2026-06-24 修改：三种状态样式（区分焦点态）
-                // ====================================================================
-                // 【样式规范】
-                // - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
-                // - 无焦点 + 选中：蓝色文字 + 透明背景
-                // - 未选中：白色文字 + 透明背景
+                // 🟢 直接使用预定义的静态颜色常量
                 if (position == selectedPosition) {
                     if (hasFocus) {
-                        // ⭐ 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
-                        tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                        tvChannel.setTypeface(null, Typeface.BOLD);
-                        convertView.setBackgroundColor(0x3340A9FF); // 20%透明度的蓝色
-                        tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                        holder.tvChannel.setTextColor(COLOR_BLUE);
+                        holder.tvChannel.setTypeface(null, Typeface.BOLD);
+                        convertView.setBackgroundColor(COLOR_BG_BLUE);
+                        holder.tvIndex.setTextColor(COLOR_BLUE);
                     } else {
-                        // 无焦点 + 选中：蓝色文字 + 透明背景（只是标记，不抢视线）
-                        tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                        tvChannel.setTypeface(null, Typeface.BOLD);
+                        holder.tvChannel.setTextColor(COLOR_BLUE);
+                        holder.tvChannel.setTypeface(null, Typeface.BOLD);
                         convertView.setBackgroundColor(Color.TRANSPARENT);
-                        tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                        holder.tvIndex.setTextColor(COLOR_BLUE);
                     }
                 } else {
-                    // 未选中：白色文字 + 透明背景
-                    tvChannel.setTextColor(Color.WHITE);
-                    tvChannel.setTypeface(null, Typeface.NORMAL);
+                    holder.tvChannel.setTextColor(COLOR_WHITE);
+                    holder.tvChannel.setTypeface(null, Typeface.NORMAL);
                     convertView.setBackgroundColor(Color.TRANSPARENT);
-                    tvIndex.setTextColor(Color.parseColor("#888888"));
+                    holder.tvIndex.setTextColor(COLOR_GRAY);
                 }
 
                 return convertView;
@@ -258,14 +215,6 @@ public class ChannelListManager {
     // ====================================================================
     // 按分组显示频道
     // ====================================================================
-    /**
-     * 按分组显示频道
-     * 
-     * 【2026-06-24 修改：样式区分焦点态】
-     * 选中态分两种：
-     * - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
-     * - 无焦点 + 选中：蓝色文字 + 透明背景
-     */
     public void setChannelsByGroup(List<Channel> channelSourceList, String group, int currentPlayIndex) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
 
@@ -288,51 +237,45 @@ public class ChannelListManager {
                 R.layout.item_channel, names) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
+                // 🟢【核心优化】引入 ViewHolder
+                ViewHolder holder;
                 if (convertView == null) {
                     convertView = LayoutInflater.from(getContext())
                             .inflate(R.layout.item_channel, parent, false);
-                }
-
-                TextView tvIndex = convertView.findViewById(R.id.tv_index);
-                TextView tvChannel = convertView.findViewById(R.id.tv_channel);
-
-                // ✅ 当前播放的频道显示 ▶️ 图标
-                if (position == currentPlayIndex) {
-                    tvIndex.setText("▶");
+                    holder = new ViewHolder();
+                    holder.tvIndex = convertView.findViewById(R.id.tv_index);
+                    holder.tvChannel = convertView.findViewById(R.id.tv_channel);
+                    convertView.setTag(holder);
                 } else {
-                    tvIndex.setText(String.valueOf(position + 1));
+                    holder = (ViewHolder) convertView.getTag();
                 }
 
-                tvChannel.setText(getItem(position));
-                tvChannel.setTextSize(16);
+                if (position == currentPlayIndex) {
+                    holder.tvIndex.setText("▶");
+                } else {
+                    holder.tvIndex.setText(String.valueOf(position + 1));
+                }
 
-                // ====================================================================
-                // ✅ 2026-06-24 修改：三种状态样式（区分焦点态）
-                // ====================================================================
-                // 【样式规范】
-                // - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
-                // - 无焦点 + 选中：蓝色文字 + 透明背景
-                // - 未选中：白色文字 + 透明背景
+                holder.tvChannel.setText(getItem(position));
+                holder.tvChannel.setTextSize(16);
+
                 if (position == selectedPosition) {
                     if (hasFocus) {
-                        // ⭐ 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
-                        tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                        tvChannel.setTypeface(null, Typeface.BOLD);
-                        convertView.setBackgroundColor(0x3340A9FF); // 20%透明度的蓝色
-                        tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                        holder.tvChannel.setTextColor(COLOR_BLUE);
+                        holder.tvChannel.setTypeface(null, Typeface.BOLD);
+                        convertView.setBackgroundColor(COLOR_BG_BLUE);
+                        holder.tvIndex.setTextColor(COLOR_BLUE);
                     } else {
-                        // 无焦点 + 选中：蓝色文字 + 透明背景（只是标记，不抢视线）
-                        tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                        tvChannel.setTypeface(null, Typeface.BOLD);
+                        holder.tvChannel.setTextColor(COLOR_BLUE);
+                        holder.tvChannel.setTypeface(null, Typeface.BOLD);
                         convertView.setBackgroundColor(Color.TRANSPARENT);
-                        tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                        holder.tvIndex.setTextColor(COLOR_BLUE);
                     }
                 } else {
-                    // 未选中：白色文字 + 透明背景
-                    tvChannel.setTextColor(Color.WHITE);
-                    tvChannel.setTypeface(null, Typeface.NORMAL);
+                    holder.tvChannel.setTextColor(COLOR_WHITE);
+                    holder.tvChannel.setTypeface(null, Typeface.NORMAL);
                     convertView.setBackgroundColor(Color.TRANSPARENT);
-                    tvIndex.setTextColor(Color.parseColor("#888888"));
+                    holder.tvIndex.setTextColor(COLOR_GRAY);
                 }
 
                 return convertView;
@@ -344,26 +287,8 @@ public class ChannelListManager {
     }
 
     // ====================================================================
-    // ✅ 2026-06-21 修复：显示筛选后的频道列表（收藏/最近观看）
+    // ✅ 显示筛选后的频道列表
     // ====================================================================
-    /**
-     * 显示筛选后的频道列表（用于收藏、最近观看等）
-     *
-     * @param filteredChannels 筛选后的频道列表
-     * @param currentPlayChannelName 当前播放的频道名（用于高亮播放指示）
-     *
-     * 【说明】
-     * 因为筛选后的列表和全局列表索引不一样，
-     * 所以用频道名来匹配当前播放的频道。
-     *
-     * 【2026-06-21 修复】
-     * 即使列表为空也要更新适配器，不然会停留在上一个分组的内容。
-     * 
-     * 【2026-06-24 修改：样式区分焦点态】
-     * 选中态分两种：
-     * - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
-     * - 无焦点 + 选中：蓝色文字 + 透明背景
-     */
     public void setFilteredChannels(List<Channel> filteredChannels, String currentPlayChannelName) {
         List<String> names = new ArrayList<>();
         int playIndex = 0;
@@ -386,51 +311,45 @@ public class ChannelListManager {
                 R.layout.item_channel, names) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
+                // 🟢【核心优化】引入 ViewHolder
+                ViewHolder holder;
                 if (convertView == null) {
                     convertView = LayoutInflater.from(getContext())
                             .inflate(R.layout.item_channel, parent, false);
-                }
-
-                TextView tvIndex = convertView.findViewById(R.id.tv_index);
-                TextView tvChannel = convertView.findViewById(R.id.tv_channel);
-
-                // ✅ 加判断：列表不为空时才显示 ▶
-                if (position == finalPlayIndex && names.size() > 0) {
-                    tvIndex.setText("▶");
+                    holder = new ViewHolder();
+                    holder.tvIndex = convertView.findViewById(R.id.tv_index);
+                    holder.tvChannel = convertView.findViewById(R.id.tv_channel);
+                    convertView.setTag(holder);
                 } else {
-                    tvIndex.setText(String.valueOf(position + 1));
+                    holder = (ViewHolder) convertView.getTag();
                 }
 
-                tvChannel.setText(getItem(position));
-                tvChannel.setTextSize(16);
+                if (position == finalPlayIndex && names.size() > 0) {
+                    holder.tvIndex.setText("▶");
+                } else {
+                    holder.tvIndex.setText(String.valueOf(position + 1));
+                }
 
-                // ====================================================================
-                // ✅ 2026-06-24 修改：三种状态样式（区分焦点态）
-                // ====================================================================
-                // 【样式规范】
-                // - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
-                // - 无焦点 + 选中：蓝色文字 + 透明背景
-                // - 未选中：白色文字 + 透明背景
+                holder.tvChannel.setText(getItem(position));
+                holder.tvChannel.setTextSize(16);
+
                 if (position == selectedPosition) {
                     if (hasFocus) {
-                        // ⭐ 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
-                        tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                        tvChannel.setTypeface(null, Typeface.BOLD);
-                        convertView.setBackgroundColor(0x3340A9FF); // 20%透明度的蓝色
-                        tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                        holder.tvChannel.setTextColor(COLOR_BLUE);
+                        holder.tvChannel.setTypeface(null, Typeface.BOLD);
+                        convertView.setBackgroundColor(COLOR_BG_BLUE);
+                        holder.tvIndex.setTextColor(COLOR_BLUE);
                     } else {
-                        // 无焦点 + 选中：蓝色文字 + 透明背景（只是标记，不抢视线）
-                        tvChannel.setTextColor(Color.parseColor("#40A9FF"));
-                        tvChannel.setTypeface(null, Typeface.BOLD);
+                        holder.tvChannel.setTextColor(COLOR_BLUE);
+                        holder.tvChannel.setTypeface(null, Typeface.BOLD);
                         convertView.setBackgroundColor(Color.TRANSPARENT);
-                        tvIndex.setTextColor(Color.parseColor("#40A9FF"));
+                        holder.tvIndex.setTextColor(COLOR_BLUE);
                     }
                 } else {
-                    // 未选中：白色文字 + 透明背景
-                    tvChannel.setTextColor(Color.WHITE);
-                    tvChannel.setTypeface(null, Typeface.NORMAL);
+                    holder.tvChannel.setTextColor(COLOR_WHITE);
+                    holder.tvChannel.setTypeface(null, Typeface.NORMAL);
                     convertView.setBackgroundColor(Color.TRANSPARENT);
-                    tvIndex.setTextColor(Color.parseColor("#888888"));
+                    holder.tvIndex.setTextColor(COLOR_GRAY);
                 }
 
                 return convertView;
@@ -439,5 +358,11 @@ public class ChannelListManager {
 
         lvChannelList.setAdapter(adapter);
         lvChannelList.setSelection(selectedPosition);
+    }
+
+    // 🟢【新增】静态内部类 ViewHolder，极低内存占用
+    private static class ViewHolder {
+        TextView tvIndex;
+        TextView tvChannel;
     }
 }
