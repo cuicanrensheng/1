@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="380dp"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="#272B3A"
@@ -85,90 +85,121 @@
         android:layout_height="1dp"
         android:background="#33FFFFFF" />
 
-    <!-- 🔽 重点修改区域：底部输入框和按钮加大间距 -->
+    <!-- 🔽 重点修改区域：底部输入框和按钮（已移除存储权限按钮） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="85dp"
         android:orientation="horizontal"
         android:paddingStart="16dp"
         android:paddingTop="16dp"
         android:paddingEnd="16dp"
         android:paddingBottom="16dp"
         android:gravity="center_vertical"
-        android:background="#1E2230">
+        android:background="#1E2230"
+        android:weightSum="6">
 
-        <!-- 1. 名称输入区 -->
-        <TextView
-            android:text="1."
-            android:textColor="#A0A0A0"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"/>
-        <EditText
-            android:id="@+id/et_name"
+        <!-- 输入框 1 容器（带下划线） -->
+        <LinearLayout
             android:layout_width="0dp"
-            android:layout_weight="1.5"
             android:layout_height="wrap_content"
-            android:minHeight="40dp"
-            android:hint="请输入名称(选填)"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#888888"
-            android:background="@null"
-            android:padding="8dp"
-            android:layout_marginEnd="16dp"
-            android:maxLines="1"
-            android:singleLine="true" />
+            android:layout_weight="2"
+            android:orientation="vertical"
+            android:layout_marginEnd="12dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                <TextView
+                    android:text="1."
+                    android:textColor="#A0A0A0"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp"/>
+                <EditText
+                    android:id="@+id/et_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minHeight="36dp"
+                    android:hint="请输入名称(选填)"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#888888"
+                    android:background="@null"
+                    android:paddingBottom="4dp"
+                    android:singleLine="true" />
+            </LinearLayout>
+            <!-- 输入框底部细线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#33FFFFFF" />
+        </LinearLayout>
 
-        <!-- 2. 地址输入区 -->
-        <TextView
-            android:text="2."
-            android:textColor="#A0A0A0"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="8dp"/>
-        <EditText
-            android:id="@+id/et_url"
+        <!-- 输入框 2 容器（带下划线） -->
+        <LinearLayout
             android:layout_width="0dp"
+            android:layout_height="wrap_content"
             android:layout_weight="3"
-            android:layout_height="wrap_content"
-            android:minHeight="40dp"
-            android:hint="请输入地址"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#888888"
-            android:background="@null"
-            android:padding="8dp"
-            android:layout_marginEnd="12dp"
-            android:maxLines="1"
-            android:singleLine="true" />
+            android:orientation="vertical"
+            android:layout_marginEnd="12dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                <TextView
+                    android:text="2."
+                    android:textColor="#A0A0A0"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp"/>
+                <EditText
+                    android:id="@+id/et_url"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minHeight="36dp"
+                    android:hint="请输入地址"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#888888"
+                    android:background="@null"
+                    android:paddingBottom="4dp"
+                    android:singleLine="true" />
+            </LinearLayout>
+            <!-- 输入框底部细线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#33FFFFFF" />
+        </LinearLayout>
 
-        <!-- 操作按钮组 -->
+        <!-- 按钮操作区 -->
         <Button
             android:id="@+id/btn_clear"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
+            android:layout_height="36dp"
             android:text="🗑️"
             android:background="#55576A"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="4dp"
             android:focusable="true"
             android:clickable="true"/>
 
         <Button
             android:id="@+id/btn_confirm"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
+            android:layout_height="36dp"
             android:text="确定"
             android:textColor="#FFFFFF"
             android:backgroundTint="#55576A"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="4dp"
             android:focusable="true"
             android:clickable="true"/>
 
         <Button
             android:id="@+id/btn_close"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
+            android:layout_height="36dp"
             android:text="关闭"
             android:textColor="#FFFFFF"
             android:backgroundTint="#55576A"
