@@ -205,12 +205,12 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
             saveCrashLogToFile(crashLog);
 
             // ================================================================
-            // 第四步：同步到播放日志（设置页面能看到）
+            // 第四步：同步到播放日志（设置页面能看到）【已修改，替换为原生 Logcat】
             // ================================================================
             try {
-                SettingsActivity.log("【崩溃】" + ex.getClass().getName() + ": " + ex.getMessage());
-                SettingsActivity.log("【崩溃】详细日志已保存到文件");
-                SettingsActivity.log("【崩溃】崩溃页面将显示 " + (CRASH_PAGE_DISPLAY_DURATION / 1000) + " 秒");
+                Log.e(TAG, "【崩溃】" + ex.getClass().getName() + ": " + ex.getMessage());
+                Log.e(TAG, "【崩溃】详细日志已保存到文件");
+                Log.e(TAG, "【崩溃】崩溃页面将显示 " + (CRASH_PAGE_DISPLAY_DURATION / 1000) + " 秒");
             } catch (Exception ignored) {}
 
             // ================================================================
