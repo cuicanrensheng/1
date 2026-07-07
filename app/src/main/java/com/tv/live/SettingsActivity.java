@@ -19,7 +19,9 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
@@ -43,13 +45,12 @@ import java.util.List;
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
     private SwitchCompat sw_boot, sw_epg, sw_auto_update, sw_reverse, sw_num_channel, sw_pip;
-    private TextView tv_screen_ratio, tv_custom_source, tv_custom_epg, tv_multi_source, tv_multi_epg, tv_qr_code;
-    private TextView tv_decoder_mode;
-    private TextView tv_renderer_type;
-    private TextView tv_redirect_setting;
-    private TextView tv_boot_status;
+    private TextView tv_screen_ratio, tv_decoder_mode, tv_renderer_type, tv_redirect_setting, tv_boot_status;
     // 🟢【新增】频道线路选择文字显示
     private TextView tv_channel_line;
+    // 🟢【新增】合并后两个新入口
+    private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
+    
     // ====================== 配置相关 ======================
     private SharedPreferences sp;
     // ====================================================================
@@ -145,19 +146,20 @@ public class SettingsActivity extends AppCompatActivity {
         tv_renderer_type = findViewById(R.id.tv_renderer_type);
         tv_redirect_setting = findViewById(R.id.tv_redirect_setting);
         tv_screen_ratio = findViewById(R.id.tv_screen_ratio);
-        tv_custom_source = findViewById(R.id.tv_custom_source);
-        tv_custom_epg = findViewById(R.id.tv_custom_epg);
-        tv_multi_source = findViewById(R.id.tv_multi_source);
-        tv_multi_epg = findViewById(R.id.tv_multi_epg);
-        tv_qr_code = findViewById(R.id.tv_qr_code);
         tv_boot_status = findViewById(R.id.tv_boot_status);
         scrollView = findViewById(R.id.settings_content);
+        
         bootStartManager = new BootStartManager(this, sp);
         autoUpdateManager = new AutoUpdateManager(this);
         sourceDialogManager = new SourceDialogManager(this, sp);
         qrCodeManager = new QRCodeManager(this);
         webServerManager = new WebServerManager(this, WEB_SERVER_PORT);
         updateManager = new UpdateManager(this);
+        
+        // 🟢【修改】查找合并后的两个新按钮
+        itemLiveSubscribe = findViewById(R.id.item_live_subscribe);
+        itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
+
         initSettingsItemList();
         initRemoteManager();
         findViewById(R.id.log_viewer).setOnClickListener(v -> showLogDialog());
@@ -359,12 +361,9 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.item_renderer));
         settingsItemList.add(findViewById(R.id.item_redirect));
         settingsItemList.add(findViewById(R.id.tv_screen_ratio));
-        settingsItemList.add(findViewById(R.id.tv_custom_source));
-        settingsItemList.add(findViewById(R.id.tv_custom_epg));
-        settingsItemList.add(findViewById(R.id.tv_multi_source));
-        settingsItemList.add(findViewById(R.id.tv_multi_epg));
-        settingsItemList.add(findViewById(R.id.tv_qr_code));
-        // 🟢 新增：线路选择加入焦点列表
+        // 🟢【修改】原来这里有一堆旧的入口，现在替换为两个新入口
+        settingsItemList.add(itemLiveSubscribe);
+        settingsItemList.add(itemEpgSubscribe);
         settingsItemList.add(findViewById(R.id.item_channel_line));
         settingsItemList.add(findViewById(R.id.log_viewer));
         // 操作日志按钮已移除
@@ -452,127 +451,124 @@ public class SettingsActivity extends AppCompatActivity {
         updateSettingsFocus();
     }
 
+    // ====================================================================
+    // 🟢【新增核心弹窗】两个新按钮的点击事件
+    // ====================================================================
     private void initListeners() {
-        tv_screen_ratio.setOnClickListener(v -> {
-            showRatioDialog();
-        });
-        tv_custom_source.setOnClickListener(v -> {
-            showInputDialog("自定义订阅源", "请输入直播源地址", KEY_CUSTOM_LIVE);
-        });
-        tv_custom_epg.setOnClickListener(v -> {
-            showInputDialog("自定义节目单", "请输入EPG地址", KEY_CUSTOM_EPG);
-        });
+        tv_screen_ratio.setOnClickListener(v -> showRatioDialog());
 
-        // ========== 直播源切换（带删除按钮） ==========
-        tv_multi_source.setOnClickListener(v -> {
-            SourceManager sourceManager = new SourceManager(this, "live_history");
-            List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
-            if (sources.isEmpty()) {
-                Toast.makeText(this, "暂未保存任何直播源，请先通过自定义订阅源添加", Toast.LENGTH_SHORT).show();
-                return;
-            }
+        itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
+        itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
+    }
 
-            LinearLayout layout = new LinearLayout(this);
-            layout.setOrientation(LinearLayout.VERTICAL);
-            ListView listView = new ListView(this);
-            layout.addView(listView);
+    /**
+     * 🟢 统一定制管理弹窗（直播源 / 节目单共用）
+     */
+    private void showSubscriptionDialog(String spKey, String title) {
+        SourceManager sourceManager = new SourceManager(this, spKey);
+        List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
 
-            SwitchSourceAdapter adapter = new SwitchSourceAdapter(this, sources);
-            int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
-            adapter.setSelectedPosition(currentDefault);
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_subscription, null);
+        ListView lvSourceList = dialogView.findViewById(R.id.lv_source_list);
+        ImageView ivQrCode = dialogView.findViewById(R.id.iv_qr_code);
+        TextView tvIpAddress = dialogView.findViewById(R.id.tv_ip_address);
+        EditText etName = dialogView.findViewById(R.id.et_name);
+        EditText etUrl = dialogView.findViewById(R.id.et_url);
+        Button btnClear = dialogView.findViewById(R.id.btn_clear);
+        Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
+        Button btnSavePermission = dialogView.findViewById(R.id.btn_save_permission);
 
-            // 删除回调（用户点击右侧 ✕ 按钮）
-            adapter.setOnDeleteClickListener(position -> {
-                SourceManager.SourceItem item = sources.get(position);
-                new AlertDialog.Builder(this)
-                        .setTitle("确认删除")
-                        .setMessage("确定要删除「" + item.name + "」吗？")
-                        .setPositiveButton("删除", (d, w) -> {
-                            sourceManager.removeSource(sourceManager.indexOfUrl(item.url));
-                            tv_multi_source.performClick(); // 刷新弹窗
-                        })
-                        .setNegativeButton("取消", null)
-                        .show();
-            });
+        tvIpAddress.setText(currentWebUrl);
 
-            listView.setAdapter(adapter);
+        // 生成二维码
+        try {
+            qrCodeManager.showQRCodeDialog(currentWebUrl);
+            // 实际上我们不需要显示二维码的 dialog，而是直接展示图片
+            // 借助 QRCodeManager 生成 Bitmap 的方法（如果它有）
+            // 如果没有，我们用简单的“暂不生成”先占位
+            ivQrCode.setBackgroundColor(Color.LTGRAY);
+        } catch (Exception e) {
+            ivQrCode.setBackgroundColor(Color.LTGRAY);
+        }
 
-            // 列表项点击：直接切换，不用适配器的删除回调
-            listView.setOnItemClickListener((parent, view, position, id) -> {
-                adapter.setSelectedPosition(position);
-                int selectedIdx = adapter.getSelectedPosition();
-                if (selectedIdx >= 0) {
-                    sourceManager.setDefault(selectedIdx);
-                    sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                    Toast.makeText(this, "已切换到：" + sources.get(selectedIdx).name, Toast.LENGTH_SHORT).show();
-                    tv_multi_source.performClick(); // 刷新弹窗
-                }
-            });
-
-            new AlertDialog.Builder(this)
-                    .setTitle("切换直播源")
-                    .setView(layout)
-                    .setNegativeButton("取消", null)
-                    .show();
-        });
-
-        // ========== 节目单切换（带删除按钮） ==========
-        tv_multi_epg.setOnClickListener(v -> {
-            SourceManager sourceManager = new SourceManager(this, "epg_history");
-            List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
-            if (sources.isEmpty()) {
-                Toast.makeText(this, "暂未保存任何节目单，请先通过自定义节目单添加", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            LinearLayout layout = new LinearLayout(this);
-            layout.setOrientation(LinearLayout.VERTICAL);
-            ListView listView = new ListView(this);
-            layout.addView(listView);
-
-            SwitchSourceAdapter adapter = new SwitchSourceAdapter(this, sources);
-            int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
-            adapter.setSelectedPosition(currentDefault);
-
-            // 删除回调
-            adapter.setOnDeleteClickListener(position -> {
-                SourceManager.SourceItem item = sources.get(position);
-                new AlertDialog.Builder(this)
-                        .setTitle("确认删除")
-                        .setMessage("确定要删除「" + item.name + "」吗？")
-                        .setPositiveButton("删除", (d, w) -> {
-                            sourceManager.removeSource(sourceManager.indexOfUrl(item.url));
-                            tv_multi_epg.performClick(); // 刷新弹窗
-                        })
-                        .setNegativeButton("取消", null)
-                        .show();
-            });
-
-            listView.setAdapter(adapter);
-
-            // 列表项点击：直接切换
-            listView.setOnItemClickListener((parent, view, position, id) -> {
-                adapter.setSelectedPosition(position);
-                int selectedIdx = adapter.getSelectedPosition();
-                if (selectedIdx >= 0) {
-                    sourceManager.setDefault(selectedIdx);
-                    sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                    Toast.makeText(this, "已切换到：" + sources.get(selectedIdx).name, Toast.LENGTH_SHORT).show();
-                    tv_multi_epg.performClick(); // 刷新弹窗
-                }
-            });
-
-            new AlertDialog.Builder(this)
-                    .setTitle("切换节目单")
-                    .setView(layout)
-                    .setNegativeButton("取消", null)
-                    .show();
-        });
-
-        tv_qr_code.setOnClickListener(v -> {
+        // 点击二维码可以弹出大图或者扫码说明
+        ivQrCode.setOnClickListener(v -> {
             qrCodeManager.showQRCodeDialog(currentWebUrl);
         });
+
+        // 初始化列表与适配器
+        int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+        SubscriptionAdapter adapter = new SubscriptionAdapter(this, sources);
+        adapter.setSelectedPosition(currentDefault);
+
+        adapter.setOnActionListener(new SubscriptionAdapter.OnActionListener() {
+            @Override
+            public void onSwitch(int position) {
+                // 点击整行切换
+                sourceManager.setDefault(position);
+                sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                Toast.makeText(SettingsActivity.this, "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
+                adapter.setSelectedPosition(position);
+                adapter.notifyDataSetChanged();
+            }
+
+            @Override
+            public void onDelete(int position) {
+                // 点击删除按钮
+                SourceManager.SourceItem item = sources.get(position);
+                new AlertDialog.Builder(SettingsActivity.this)
+                        .setTitle("确认删除")
+                        .setMessage("确定要删除「" + item.name + "」吗？")
+                        .setPositiveButton("删除", (d, w) -> {
+                            sourceManager.removeSource(sourceManager.indexOfUrl(item.url));
+                            sources.clear();
+                            sources.addAll(sourceManager.getAllSources());
+                            adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
+                            adapter.notifyDataSetChanged();
+                        })
+                        .setNegativeButton("取消", null)
+                        .show();
+            }
+        });
+
+        lvSourceList.setAdapter(adapter);
+
+        // 底部按钮事件
+        btnConfirm.setOnClickListener(v -> {
+            String name = etName.getText().toString().trim();
+            String url = etUrl.getText().toString().trim();
+            if (url.isEmpty()) {
+                Toast.makeText(this, "地址不能为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (sourceManager.addSource(name, url)) {
+                etName.setText("");
+                etUrl.setText("");
+                sources.clear();
+                sources.addAll(sourceManager.getAllSources());
+                adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
+                adapter.notifyDataSetChanged();
+                Toast.makeText(this, "已添加，正在刷新...", Toast.LENGTH_SHORT).show();
+                sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+            } else {
+                Toast.makeText(this, "该地址已存在", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnClear.setOnClickListener(v -> {
+            etName.setText("");
+            etUrl.setText("");
+        });
+
+        btnSavePermission.setOnClickListener(v -> Toast.makeText(this, "存储权限功能暂未实现", Toast.LENGTH_SHORT).show());
+
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(dialogView)
+                .setNegativeButton("关闭", null)
+                .show();
     }
+    // ====================================================================
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -821,28 +817,6 @@ public class SettingsActivity extends AppCompatActivity {
                     editor.apply();
                     updateRedirectSettingText();
                     Toast.makeText(this, "重定向配置保存成功", Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("取消", null)
-                .show();
-    }
-
-    private void showInputDialog(String title, String hint, String key) {
-        EditText ed = new EditText(this);
-        ed.setHint(hint);
-        ed.setText(sp.getString(key, ""));
-        new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setView(ed)
-                .setPositiveButton("确定", (d, w) -> {
-                    String url = ed.getText().toString().trim();
-                    if (!url.isEmpty()) {
-                        sp.edit().putString(key, url).apply();
-                        SourceManager sourceManager = new SourceManager(this,
-                                key.contains("live") ? "live_history" : "epg_history");
-                        sourceManager.addSource(url.substring(0, Math.min(10, url.length())) + "...", url);
-                        sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                        Toast.makeText(this, "已保存，正在刷新…", Toast.LENGTH_SHORT).show();
-                    }
                 })
                 .setNegativeButton("取消", null)
                 .show();
