@@ -79,6 +79,9 @@ public class TVPlayerManager {
     // 🟢【新增】保存当前正在播放的 Channel 对象，供设置页获取线路数量使用
     private Channel currentChannel;
 
+    // 🟢【新增】备用源尝试索引（-1 表示未尝试）
+    private int backupRetryIndex = -1;
+
     // 🟢【修复1】 将首次播放时间记录移到成员变量，防止逻辑错误
     private long initialPlayStartTime = 0;
     private int bufferCount = 0;
@@ -236,14 +239,25 @@ public class TVPlayerManager {
                     if (rootCause instanceof RedirectFailedException) {
                         isRedirectError = true;
                         RedirectFailedException redirectErr = (RedirectFailedException) rootCause;
-                        // SettingsActivity.logOperation("【播放器】重定向拦截失败：" + redirectErr.getMessage() + " Location=" + redirectErr.getLocation()); // 已注释：操作日志已移除
                         break;
                     }
                     rootCause = rootCause.getCause();
                 }
                 if (listener != null) listener.onPlayError(error.getMessage());
-                if (!isRedirectError) autoRetry("播放错误：" + error.getMessage());
-                // else SettingsActivity.logOperation("【播放器】检测为重定向失败，跳过自动重试"); // 已注释：操作日志已移除
+
+                // 🟢【关键修改】如果不是重定向错误，尝试自动切换备用源
+                if (!isRedirectError) {
+                    boolean switched = trySwitchBackup();
+                    if (switched) {
+                        // 已经切换到备用源，不再触发 sourceFailed
+                        return;
+                    }
+                }
+
+                // 如果没有备用源或重定向错误，触发外部失败回调
+                if (sourceFailedListener != null) {
+                    sourceFailedListener.onSourceFailed();
+                }
             }
 
             @Override
@@ -268,7 +282,6 @@ public class TVPlayerManager {
                             && bufferCount > 1) {
                         if (isRetrying || TextUtils.isEmpty(currentUrl)) return;
                         Log.d(TAG, "【自动切换】硬解卡顿，自动切换到系统软解");
-                        // 🟢【修复5】 标记切换状态，避免无限循环切换
                         mDecoderMode = DECODER_MODE_SOFT; 
                         performDecoderSwitch();
                     }
@@ -311,6 +324,36 @@ public class TVPlayerManager {
         player.addListener(playerListener);
     }
 
+    // 🟢【新增】尝试自动切换到下一个备用源
+    private boolean trySwitchBackup() {
+        if (currentChannel == null || currentChannel.getBackupUrls().isEmpty()) {
+            // 没有备用源，返回 false 让外部处理切台
+            return false;
+        }
+
+        // 如果尚未尝试过备用源，将索引设为0
+        if (backupRetryIndex < 0) {
+            backupRetryIndex = 0;
+        } else {
+            // 已经尝试过，尝试下一个
+            backupRetryIndex++;
+        }
+
+        List<String> backups = currentChannel.getBackupUrls();
+        if (backupRetryIndex >= backups.size()) {
+            // 所有备用源都已尝试，重置索引并返回 false 让外部切台
+            backupRetryIndex = -1;
+            return false;
+        }
+
+        String backupUrl = backups.get(backupRetryIndex);
+        Log.d(TAG, "尝试切换到备用源：" + backupUrl);
+
+        // 使用备用源重新播放
+        playUrlInternal(backupUrl);
+        return true;
+    }
+
     private void startStuckDetection() {
         mHandler.removeCallbacks(stuckCheckRunnable);
         lastPositionUpdateTime = System.currentTimeMillis();
@@ -331,8 +374,8 @@ public class TVPlayerManager {
     }
 
     private void autoRetry(String reason) {
+        // 重定向错误不重试，由备用源切换处理
         if (reason.contains("RedirectFailedException") || reason.contains("重定向")) {
-            // SettingsActivity.logOperation("【播放器】重定向类错误，不执行重试"); // 已注释：操作日志已移除
             return;
         }
         if (isRetrying) return;
@@ -591,7 +634,8 @@ public class TVPlayerManager {
         if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
         // 🟢 保存当前 Channel 对象
         this.currentChannel = channel;
-        // 如果传入的 channel 不为空且名字还没更新，用 channel.getName() 更新
+        // 重置备用源尝试索引
+        this.backupRetryIndex = -1;
         if (channel != null && TextUtils.isEmpty(this.currentChannelName)) {
             this.currentChannelName = channel.getName();
         }
@@ -609,6 +653,10 @@ public class TVPlayerManager {
     // 🟢【新增】供 SettingsActivity 获取当前频道对象
     public Channel getCurrentChannel() {
         return currentChannel;
+    }
+
+    public void setOnSourceFailedListener(OnSourceFailedListener listener) {
+        this.sourceFailedListener = listener;
     }
 
     private void resetPerformanceStats() {
@@ -692,7 +740,6 @@ public class TVPlayerManager {
             Log.e(TAG, "播放异常", e);
             if (e instanceof RedirectFailedException) {
                 RedirectFailedException redirectErr = (RedirectFailedException) e;
-                // SettingsActivity.logOperation("【重定向失败】" + redirectErr.getOriginUrl() + " -> " + redirectErr.getLocation()); // 已注释：操作日志已移除
                 if (listener != null) listener.onPlayError("源跳转失败：" + e.getMessage());
                 return;
             }
