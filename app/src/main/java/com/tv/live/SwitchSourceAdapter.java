@@ -18,6 +18,7 @@ public class SwitchSourceAdapter extends ArrayAdapter<SourceManager.SourceItem> 
 
     public interface OnDeleteClickListener {
         void onDelete(int position);
+        void onSelect(int position);
     }
 
     public SwitchSourceAdapter(Context context, List<SourceManager.SourceItem> items) {
@@ -50,20 +51,19 @@ public class SwitchSourceAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         TextView tvUrl = convertView.findViewById(R.id.tv_url);
         Button btnDelete = convertView.findViewById(R.id.btn_delete_source);
 
-        // 设置完整链接（不截断）
+        // 显示完整链接
         tvUrl.setText(item.url);
         tvUrl.setSingleLine(false);
         tvUrl.setEllipsize(null);
 
-        // 选中状态
+        // 🟢 关键修复：如果当前选中了该项，单选按钮打勾
         rbSelect.setChecked(position == selectedPosition);
 
-        // 默认源不显示删除按钮（且不可点击）
+        // 🟢 关键修复：如果是默认源，隐藏删除按钮；普通源显示删除按钮
         if (item.isDefault) {
             btnDelete.setVisibility(View.GONE);
         } else {
             btnDelete.setVisibility(View.VISIBLE);
-            btnDelete.setFocusable(true);
             btnDelete.setOnClickListener(v -> {
                 if (deleteListener != null) {
                     deleteListener.onDelete(position);
@@ -71,11 +71,11 @@ public class SwitchSourceAdapter extends ArrayAdapter<SourceManager.SourceItem> 
             });
         }
 
-        // 点击整个条目触发切换
+        // 点击整行，触发切换选中
         convertView.setOnClickListener(v -> {
             setSelectedPosition(position);
             if (deleteListener != null) {
-                deleteListener.onDelete(-1); // 用 -1 表示是切换操作，不是删除
+                deleteListener.onSelect(position);
             }
         });
 
