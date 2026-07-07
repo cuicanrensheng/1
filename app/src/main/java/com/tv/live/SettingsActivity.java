@@ -426,6 +426,10 @@ public class SettingsActivity extends AppCompatActivity {
 
             @Override
             public void onDelete(int position) {
+                // 🛡️ 已修复：新增防御性检查，防止 index=-1 导致崩溃
+                if (position < 0 || position >= sources.size()) {
+                    return;
+                }
                 SourceManager.SourceItem item = sources.get(position);
                 new AlertDialog.Builder(SettingsActivity.this)
                         .setTitle("确认删除")
