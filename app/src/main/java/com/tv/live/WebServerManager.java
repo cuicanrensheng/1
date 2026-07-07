@@ -27,24 +27,6 @@ import java.util.Map;
  * 2. 处理 HTTP 请求（GET/POST）
  * 3. 构建 HTML 页面（配置页/日志页/成功页）
  * 4. 保存配置到 SharedPreferences
- * 5. 输出日志到操作日志系统
- *
- * 【为什么拆分出来？】
- * SettingsActivity 里代码太多太杂，把网页后台独立成一个类，
- * 职责更清晰，代码更好维护。
- *
- * 【端口策略】
- * 从默认端口开始尝试，最多试 10 个端口，找到可用的就用。
- * 整个扫描过程都会输出详细日志到操作日志，方便排查问题。
- *
- * 【日志接入】
- * 所有日志都通过 SettingsActivity.logOperation() 输出，
- * 用户点击「操作日志」按钮就能看到完整的启动过程和端口扫描信息。
- *
- * 【使用方式】
- * WebServerManager manager = new WebServerManager(context, port);
- * manager.start();  // 启动
- * manager.stop();   // 停止
  */
 public class WebServerManager {
 
@@ -58,44 +40,16 @@ public class WebServerManager {
 
     // ====================== 成员变量 ======================
 
-    /** 上下文 */
     private Context context;
-    /** 端口号 */
     private int port;
-    /** HTTP 服务器 Socket */
     private ServerSocket serverSocket;
-    /** 主线程 Handler，用于子线程切主线程 */
     private Handler handler = new Handler(Looper.getMainLooper());
-    /** 是否正在运行 */
     private boolean isRunning = false;
 
-    // ====================================================================
-    // ✅ 新增：当前运行的实例（静态变量）
-    // ====================================================================
-    /**
-     * 当前正在运行的 WebServerManager 实例（静态）
-     *
-     * 【作用】
-     * 用于端口占用检测时，找到并关闭之前的实例。
-     * 因为 SettingsActivity 每次打开都会 new 一个新的 WebServerManager，
-     * 如果旧的没关掉，就会端口冲突。
-     * 用静态变量保存当前运行的实例，就能在启动新的之前先关掉旧的。
-     *
-     * 【为什么用静态而不是单例？】
-     * 单例模式下全局只有一个实例，但 SettingsActivity 销毁重建时，
-     * 旧的 context 可能已经失效，会有内存泄漏风险。
-     * 用静态变量保存引用，每次启动新的之前检测并关闭旧的，
-     * 既能解决端口冲突，又能保证每次都是新的实例、新的 context。
-     */
     private static WebServerManager runningInstance;
 
     // ====================== 构造函数 ======================
 
-    /**
-     * 构造函数
-     * @param context 上下文
-     * @param port 端口号
-     */
     public WebServerManager(Context context, int port) {
         this.context = context.getApplicationContext();
         this.port = port;
@@ -103,402 +57,97 @@ public class WebServerManager {
 
     // ====================== 公共方法 ======================
 
-    // ====================================================================
-    // ✅ 修改：start() 方法 - 加上详细启动日志 + 端口扫描
-    // ====================================================================
-    /**
-     * 启动 HTTP 服务器
-     * 在子线程中运行，不会阻塞主线程
-     *
-     * 【完整启动流程】
-     * 1. 检查是否已经在运行 → 是则直接返回
-     * 2. 自动找可用端口（从默认端口开始，最多试 10 个）
-     *    ├─ 扫描过程输出详细日志
-     *    └─ 每个被占用的端口都会分析可能的原因
-     * 3. 在子线程中创建 ServerSocket，开始监听
-     * 4. 保存当前实例到静态变量 runningInstance
-     * 5. 循环接受连接，每个请求开一个线程处理
-     *
-     * 【端口扫描日志】
-     * 整个端口扫描过程都会输出到操作日志，包括：
-     * - 开始扫描的提示
-     * - 扫描范围（共多少个端口）
-     * - 每个端口的检测结果（✅可用 / ❌被占用）
-     * - 被占用端口的原因分析
-     * - 扫描统计（总共多少、被占用多少、找到哪个）
-     * - 最终选择的端口
-     *
-     * 【为什么要自动找端口？】
-     * 默认端口 10481 可能被其他应用占用，或者 APP 异常退出后
-     * 端口处于 TIME_WAIT 状态暂时无法绑定。自动找可用端口能保证
-     * 服务器总能启动成功，用户不需要手动改端口。
-     *
-     * 【日志接入】
-     * 所有启动日志都通过 SettingsActivity.logOperation() 输出，
-     * 用户点击「操作日志」按钮就能看到完整的启动过程。
-     */
     public void start() {
-        // ===== 1. 检查是否已经在运行 =====
-        if (isRunning) {
-            // logOperation("【网页后台】已经在运行中，无需重复启动"); // 已注释：操作日志已移除
-            return;
-        }
+        if (isRunning) return;
 
-        // logOperation("【网页后台】========== 开始启动 =========="); // 已注释
-        // logOperation("【网页后台】默认端口：" + port); // 已注释
-
-        // ===== 2. 自动找可用端口 =====
-        // logOperation("【网页后台】开始扫描可用端口..."); // 已注释
         int actualPort = findAvailablePort(port);
-
         if (actualPort == -1) {
-            // 试了 10 个端口都不行，启动失败
-            // logOperation("【网页后台】❌ 扫描完成，所有端口都被占用"); // 已注释
-            // logOperation("【网页后台】❌ 启动失败，找不到可用端口"); // 已注释
-            // logOperation("【网页后台】💡 可能原因："); // 已注释
-            // logOperation("【网页后台】   1. 设备上有大量应用占用了端口"); // 已注释
-            // logOperation("【网页后台】   2. 网络异常，无法创建 Socket"); // 已注释
-            // logOperation("【网页后台】   3. 系统权限限制"); // 已注释
-            // logOperation("【网页后台】💡 建议：重启设备或检查网络设置"); // 已注释
-            // logOperation("【网页后台】================================"); // 已注释
             isRunning = false;
             return;
         }
-
-        // 如果换了端口，打个日志说明一下
-        if (actualPort != port) {
-            // logOperation("【网页后台】✅ 扫描完成，找到可用端口：" + actualPort); // 已注释
-            // logOperation("【网页后台】端口 " + port + " 被占用，自动改用端口 " + actualPort); // 已注释
-            this.port = actualPort;
-        } else {
-            // logOperation("【网页后台】✅ 扫描完成，默认端口 " + port + " 可用"); // 已注释
-        }
-
+        this.port = actualPort;
         final int finalPort = actualPort;
 
-        // ===== 3. 在子线程中启动服务器 =====
         new Thread(() -> {
             try {
-                // logOperation("【网页后台】正在创建 ServerSocket..."); // 已注释
-
-                // ====================================================================
-                // ✅ 修改：创建 ServerSocket 的方式
-                // ====================================================================
-                /**
-                 * 【为什么要这样写？】
-                 * setReuseAddress(true) 必须在 bind() 之前设置才有效。
-                 *
-                 * 原来的写法（错误）：
-                 *   serverSocket = new ServerSocket(port);  // 构造函数里就绑定了
-                 *   serverSocket.setReuseAddress(true);     // 这时候再设置已经晚了
-                 *
-                 * 现在的写法（正确）：
-                 *   serverSocket = new ServerSocket();           // 先创建空的
-                 *   serverSocket.setReuseAddress(true);          // 再设置 SO_REUSEADDR
-                 *   serverSocket.bind(new InetSocketAddress(port));  // 最后绑定
-                 *
-                 * 【SO_REUSEADDR 的作用】
-                 * 允许端口处于 TIME_WAIT 状态时重新绑定。
-                 * APP 异常退出后，端口会进入 TIME_WAIT 状态（通常持续 1-2 分钟），
-                 * 这时候如果没有 SO_REUSEADDR，重新绑定会失败。
-                 * 有了 SO_REUSEADDR，就能立即复用这个端口。
-                 */
                 serverSocket = new ServerSocket();
                 serverSocket.setReuseAddress(true);
-                // logOperation("【网页后台】SO_REUSEADDR 已设置为 true"); // 已注释
-
                 serverSocket.bind(new java.net.InetSocketAddress(finalPort));
-                // logOperation("【网页后台】端口绑定成功"); // 已注释
 
                 isRunning = true;
-
-                // ===== 4. 保存当前运行的实例（用于后续端口检测） =====
                 runningInstance = this;
 
-                // logOperation("【网页后台】✅ 启动成功！"); // 已注释
-                // logOperation("【网页后台】监听端口：" + finalPort); // 已注释
-                // logOperation("【网页后台】访问地址：http://" + getDeviceIPAddress() + ":" + finalPort); // 已注释
-                // logOperation("【网页后台】========== 启动完成 =========="); // 已注释
-
-                // ===== 5. 循环接受连接 =====
                 while (!serverSocket.isClosed()) {
                     try {
-                        // accept() 会阻塞，直到有新连接进来
                         Socket socket = serverSocket.accept();
-                        // logOperation("【网页后台】新连接进入：" + socket.getInetAddress()); // 已注释
-
-                        // 每个请求开一个线程处理，避免阻塞其他请求
                         new Thread(() -> handleHttpRequest(socket)).start();
                     } catch (Exception e) {
-                        // 正常关闭时也会抛异常（因为 serverSocket.close() 会中断 accept()）
-                        // 这里判断一下，只有非正常关闭才打错误日志
                         if (!serverSocket.isClosed()) {
-                            // logOperation("【网页后台】接受连接异常：" + e.getMessage()); // 已注释
+                            // 忽略正常关闭导致的异常
                         }
                     }
                 }
 
-                // logOperation("【网页后台】服务器已停止"); // 已注释
                 isRunning = false;
                 runningInstance = null;
 
             } catch (Exception e) {
                 e.printStackTrace();
-                // logOperation("【网页后台】❌ 启动失败：" + e.getClass().getSimpleName() + " - " + e.getMessage()); // 已注释
-                // logOperation("【网页后台】❌ 错误详情：" + e.toString()); // 已注释
                 isRunning = false;
                 runningInstance = null;
             }
         }).start();
     }
 
-    // ====================================================================
-    // ✅ 修改：stop() 方法 - 同步清空静态变量
-    // ====================================================================
-    /**
-     * 停止 HTTP 服务器
-     * 释放端口资源
-     *
-     * 【停止流程】
-     * 1. 检查 serverSocket 是否存在且未关闭
-     * 2. 调用 serverSocket.close() 关闭连接
-     *    （这会中断 accept() 的阻塞，让循环退出）
-     * 3. 设置 isRunning = false
-     * 4. 如果当前实例就是 runningInstance，清空静态引用
-     *
-     * 【为什么要判断 runningInstance == this？】
-     * 可能存在多个实例的情况（比如旧的还没完全关掉，新的已经启动了），
-     * 只清空属于自己的引用，避免误清掉新实例的引用。
-     */
     public void stop() {
         try {
             if (serverSocket != null && !serverSocket.isClosed()) {
                 serverSocket.close();
                 isRunning = false;
-
-                // 清空静态引用（只清空自己的，不误清新实例的）
                 if (runningInstance == this) {
                     runningInstance = null;
                 }
-
-                // logOperation("【网页后台】服务器已关闭"); // 已注释
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    // ====================================================================
-    // ✅ 修改：findAvailablePort() 方法 - 加上详细扫描日志
-    // ====================================================================
-    /**
-     * 自动找可用端口
-     *
-     * 从 startPort 开始尝试，最多试 10 个端口，找到第一个可用的就返回。
-     * 整个扫描过程都会输出详细日志到操作日志。
-     *
-     * 【为什么需要这个方法？】
-     * 默认端口可能被其他应用占用，或者处于 TIME_WAIT 状态。
-     * 自动找可用端口能保证服务器总能启动成功。
-     *
-     * 【日志输出】
-     * - 扫描范围（共多少个端口）
-     * - 每个端口的检测结果（✅可用 / ❌被占用）
-     * - 被占用端口的可能原因分析
-     * - 扫描统计（总共多少、被占用多少、找到哪个）
-     *
-     * 【尝试范围】
-     * startPort ~ startPort + 9（共 10 个端口）
-     * 比如默认 10481，就会试 10481、10482、...、10490
-     *
-     * @param startPort 起始端口号
-     * @return 可用的端口号，找不到返回 -1
-     */
     private int findAvailablePort(int startPort) {
-        int maxTry = 10;  // 最多试 10 个端口
-        int occupiedCount = 0;  // 被占用的端口数
-
-        // logOperation("【网页后台】扫描范围：" + startPort + " ~ " + (startPort + maxTry - 1)
-        //         + "（共 " + maxTry + " 个端口）"); // 已注释
-
+        int maxTry = 10;
         for (int i = 0; i < maxTry; i++) {
             int tryPort = startPort + i;
-
             if (!isPortInUse(tryPort)) {
-                // 找到可用端口
-                // logOperation("【网页后台】  端口 " + tryPort + " → ✅ 可用"); // 已注释
-                // logOperation("【网页后台】扫描统计：共 " + maxTry + " 个端口，"
-                //         + "被占用 " + occupiedCount + " 个，找到可用端口 " + tryPort); // 已注释
                 return tryPort;
             }
-
-            // 端口被占用，计数 +1
-            occupiedCount++;
-
-            // ====================================================================
-            // ✅ 新增：分析端口被占用的可能原因
-            // ====================================================================
-            /**
-             * 【端口被占用的可能原因】
-             *
-             * 1. TIME_WAIT 状态（最常见）
-             *    - 现象：APP 刚退出，端口还在等待回收
-             *    - 持续时间：通常 1-2 分钟
-             *    - 特点：只有最近用过的端口才会出现
-             *
-             * 2. 其他应用/进程占用
-             *    - 现象：其他应用也在用这个端口
-             *    - 特点：一直被占用，不会自动释放
-             *
-             * 3. 系统服务占用
-             *    - 现象：系统级服务占用了该端口
-             *    - 特点：一直被占用，且端口号通常比较特殊
-             *
-             * 【怎么判断？】
-             * 虽然在 Android 上没法直接拿到占用端口的进程名，
-             * 但可以通过一些特征做推测：
-             * - 如果是第一个端口（默认端口）被占，可能是之前的实例没关掉
-             * - 如果连续多个端口都被占，可能是其他应用在用
-             * - 如果低端口被占，可能是系统服务
-             */
-            String reason = analyzePortOccupiedReason(tryPort, i);
-            // logOperation("【网页后台】  端口 " + tryPort + " → ❌ 被占用（" + reason + "）"); // 已注释
         }
-
-        // 试了 10 个都不行，返回 -1 表示失败
-        // logOperation("【网页后台】扫描统计：共 " + maxTry + " 个端口，全部被占用"); // 已注释
         return -1;
     }
 
-    // ====================================================================
-    // ✅ 新增：analyzePortOccupiedReason() 方法 - 分析端口被占用的原因
-    // ====================================================================
-    /**
-     * 分析端口被占用的可能原因
-     *
-     * 【说明】
-     * 在 Android 上，由于权限限制，没法直接获取占用端口的进程名。
-     * 这里只能通过一些特征做推测，给用户一个参考。
-     *
-     * 【推测逻辑】
-     * 1. 如果是第一个端口（默认端口）被占，且之前有运行的实例
-     *    → 很可能是之前的实例没关掉，或者处于 TIME_WAIT 状态
-     * 2. 如果是低端口（< 1024）被占
-     *    → 可能是系统服务
-     * 3. 如果连续多个端口都被占（第 4 个及以后）
-     *    → 可能是其他应用在用
-     * 4. 其他情况
-     *    → 可能是其他应用占用，或者 TIME_WAIT 状态
-     *
-     * @param port 端口号
-     * @param index 第几个端口（0 表示第一个，即默认端口）
-     * @return 原因描述
-     */
-    private String analyzePortOccupiedReason(int port, int index) {
-        // 情况 1：第一个端口（默认端口）被占
-        if (index == 0) {
-            if (runningInstance != null) {
-                return "之前的实例未关闭";
-            } else {
-                return "可能是 TIME_WAIT 状态或其他应用占用";
-            }
-        }
-
-        // 情况 2：低端口（< 1024）被占，可能是系统服务
-        if (port < 1024) {
-            return "可能是系统服务占用";
-        }
-
-        // 情况 3：连续多个端口被占（第 4 个及以后），可能是其他应用在用
-        if (index >= 3) {
-            return "可能是其他应用占用";
-        }
-
-        // 情况 4：其他情况，默认推测
-        return "可能是其他应用或 TIME_WAIT 状态";
-    }
-
-    // ====================================================================
-    // ✅ 修改：isPortInUse() 方法 - 正确设置 SO_REUSEADDR
-    // ====================================================================
-    /**
-     * 检测端口是否被占用
-     *
-     * 【检测原理】
-     * 尝试创建一个 ServerSocket 绑定到该端口：
-     * - 如果绑定成功 → 说明端口空闲 → 返回 false
-     * - 如果绑定失败（抛 BindException）→ 说明端口被占用 → 返回 true
-     *
-     * 检测完立即关闭，不影响后续正常启动。
-     *
-     * 【为什么不用 Socket 连接检测？】
-     * 用 Socket 连接目标端口也能检测，但会发送一个 SYN 包，
-     * 如果端口上有服务在运行，可能会触发一些异常行为。
-     * 用 ServerSocket 绑定检测更"干净"，不会干扰正在运行的服务。
-     *
-     * 【重要：SO_REUSEADDR 的设置时机】
-     * setReuseAddress(true) 必须在 bind() 之前设置才有效。
-     * 所以要先创建空的 ServerSocket，设置完再绑定。
-     *
-     * 【错误日志】
-     * 如果检测失败，会输出异常类型和详细信息，方便排查问题。
-     *
-     * @param port 端口号
-     * @return true=被占用，false=空闲
-     */
     private boolean isPortInUse(int port) {
         try {
-            // 先创建空的 ServerSocket
             ServerSocket testSocket = new ServerSocket();
-            // 再设置 SO_REUSEADDR（必须在 bind 之前）
             testSocket.setReuseAddress(true);
-            // 最后绑定端口
             testSocket.bind(new java.net.InetSocketAddress(port));
-            // 用完关掉
             testSocket.close();
-            return false;  // 能绑定成功，说明端口空闲
+            return false;
         } catch (Exception e) {
-            // 绑定失败，记录一下异常类型（方便排查）
-            String exceptionType = e.getClass().getSimpleName();
-            // logOperation("【网页后台】    检测端口 " + port + " 异常："
-            //         + exceptionType + " - " + e.getMessage()); // 已注释
-            return true;   // 绑定失败（抛 BindException），说明端口被占用
+            return true;
         }
     }
 
-    /**
-     * 获取访问地址（用于生成二维码）
-     * @return 完整的访问 URL
-     */
     public String getAccessUrl() {
         return "http://" + getDeviceIPAddress() + ":" + port;
     }
 
-    /**
-     * 检查服务器是否正在运行
-     */
     public boolean isRunning() {
         return isRunning;
     }
 
     // ====================== HTTP 请求处理 ======================
 
-    /**
-     * 处理单个 HTTP 请求
-     *
-     * 【完整流程】
-     * 1. 按行读取请求头，读到空行结束
-     * 2. 解析请求行（方法、路径、协议版本）
-     * 3. 解析 Content-Length（POST 请求用）
-     * 4. POST 请求：读取指定长度的 body
-     * 5. 路由分发到对应页面
-     * 6. 发送 HTTP 响应
-     */
     private void handleHttpRequest(Socket socket) {
         try {
-            // logOperation("【网页后台】开始处理请求，客户端：" + socket.getInetAddress()); // 已注释
-
-            // ===== 1. 读取请求头（按行读，读到空行结束） =====
             BufferedReader reader = new BufferedReader(
                     new InputStreamReader(socket.getInputStream(), "UTF-8"));
             List<String> headerLines = new ArrayList<>();
@@ -506,40 +155,25 @@ public class WebServerManager {
             int lineCount = 0;
             while ((line = reader.readLine()) != null) {
                 lineCount++;
-                // 空行表示请求头结束（HTTP 协议规定）
-                if (line.isEmpty()) {
-                    break;
-                }
+                if (line.isEmpty()) break;
                 headerLines.add(line);
-                // 防止恶意请求，最多读 100 行
-                if (lineCount > 100) {
-                    // logOperation("【网页后台】请求头超过100行，停止读取"); // 已注释
-                    break;
-                }
+                if (lineCount > 100) break;
             }
-            // logOperation("【网页后台】读取到 " + headerLines.size() + " 行请求头"); // 已注释
 
-            // 请求为空，直接关闭连接
             if (headerLines.isEmpty()) {
-                // logOperation("【网页后台】请求为空，关闭连接"); // 已注释
                 socket.close();
                 return;
             }
 
-            // ===== 2. 解析请求行 =====
-            // 格式：GET /path HTTP/1.1
             String firstLine = headerLines.get(0);
             String[] parts = firstLine.split(" ");
             if (parts.length < 2) {
-                // logOperation("【网页后台】请求行格式错误：" + firstLine); // 已注释
                 sendResponse(socket, "400 Bad Request", "text/plain", "Bad Request");
                 return;
             }
-            String method = parts[0];  // GET / POST
-            String path = parts[1];    // /  /log  /submit
-            // logOperation("【网页后台】请求：" + method + " " + path); // 已注释
+            String method = parts[0];
+            String path = parts[1];
 
-            // ===== 3. 解析 Content-Length（POST 请求用） =====
             int contentLength = 0;
             for (String headerLine : headerLines) {
                 if (headerLine.toLowerCase().startsWith("content-length:")) {
@@ -551,136 +185,87 @@ public class WebServerManager {
                     break;
                 }
             }
-            // logOperation("【网页后台】Content-Length: " + contentLength); // 已注释
 
-            // ===== 4. POST 请求：读取 body =====
             String body = "";
             if ("POST".equals(method) && contentLength > 0) {
                 char[] bodyBuffer = new char[contentLength];
                 int totalRead = 0;
-                // 读满 contentLength 个字符就停，不会阻塞
                 while (totalRead < contentLength) {
                     int len = reader.read(bodyBuffer, totalRead, contentLength - totalRead);
                     if (len <= 0) break;
                     totalRead += len;
                 }
                 body = new String(bodyBuffer, 0, totalRead);
-                // logOperation("【网页后台】POST body 内容：" + body); // 已注释
             }
 
-            // ===== 5. 路由分发 =====
             String responseBody = "";
             String contentType = "text/html; charset=utf-8";
-
-            // 去掉 URL 里的查询参数（只取路径部分）
             String purePath = path.contains("?") ? path.split("\\?")[0] : path;
 
-            // 5.1 配置页面（首页）
             if ("GET".equals(method) && ("/".equals(purePath) || "/index.html".equals(purePath))) {
-                // logOperation("【网页后台】→ 返回配置页面"); // 已注释
                 responseBody = buildConfigPage();
-            }
-            // 5.2 日志页面
-            else if ("GET".equals(method) && "/log".equals(purePath)) {
-                // logOperation("【网页后台】→ 返回日志页面"); // 已注释
+            } else if ("GET".equals(method) && "/log".equals(purePath)) {
                 responseBody = buildLogPage();
-            }
-            // 5.3 提交配置（POST）
-            else if ("POST".equals(method) && "/submit".equals(purePath)) {
-                // logOperation("【网页后台】→ 处理配置提交"); // 已注释
+            } else if ("POST".equals(method) && "/submit".equals(purePath)) {
                 Map<String, String> params = parseFormData(body);
                 final String liveUrl = params.get("live_url");
                 final String epgUrl = params.get("epg_url");
                 final String customUa = params.get("custom_ua");
-                // logOperation("【网页后台】提交参数 - live: " + liveUrl + ", epg: " + epgUrl + ", ua: " + customUa); // 已注释
 
-                // 切到主线程保存配置（SP 和广播都要在主线程）
                 handler.post(() -> {
                     boolean hasUpdate = false;
                     SharedPreferences sp = context.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
 
-                    // 更新直播源
                     if (liveUrl != null && !liveUrl.trim().isEmpty()) {
                         sp.edit().putString(KEY_CUSTOM_LIVE, liveUrl.trim()).apply();
                         addHistory("live_history", liveUrl.trim());
                         hasUpdate = true;
                     }
-                    // 更新节目单
                     if (epgUrl != null && !epgUrl.trim().isEmpty()) {
                         sp.edit().putString(KEY_CUSTOM_EPG, epgUrl.trim()).apply();
                         addHistory("epg_history", epgUrl.trim());
                         hasUpdate = true;
                     }
-                    // 更新自定义 UA
                     if (customUa != null && !customUa.trim().isEmpty()) {
                         sp.edit().putString(KEY_CUSTOM_UA, customUa.trim()).apply();
                         hasUpdate = true;
                     }
 
-                    // 有更新就发送广播刷新
                     if (hasUpdate) {
                         context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                        // logOperation("【网页后台】配置已更新，发送刷新广播"); // 已注释
                     }
                 });
 
                 responseBody = buildSuccessPage();
-            }
-            // 5.4 404 页面
-            else {
-                // logOperation("【网页后台】→ 404 Not Found: " + path); // 已注释
+            } else {
                 responseBody = "404 Not Found";
                 contentType = "text/plain; charset=utf-8";
             }
 
-            // ===== 6. 发送响应 =====
-            // logOperation("【网页后台】准备发送响应，内容长度："
-            //         + responseBody.getBytes("UTF-8").length + " 字节"); // 已注释
             sendResponse(socket, "200 OK", contentType, responseBody);
-            // logOperation("【网页后台】✅ 响应发送完成"); // 已注释
 
         } catch (Exception e) {
             e.printStackTrace();
-            // logOperation("【网页后台】❌ 处理请求异常："
-            //         + e.getClass().getSimpleName() + " - " + e.getMessage()); // 已注释
             try {
                 socket.close();
             } catch (Exception ignored) {}
         }
     }
 
-    /**
-     * 发送 HTTP 响应
-     *
-     * 【HTTP 响应格式】
-     * 第一行：状态行（HTTP/1.1 200 OK）
-     * 然后是响应头（Content-Type、Content-Length 等）
-     * 空行
-     * 响应体（HTML 内容）
-     */
     private void sendResponse(Socket socket, String status, String contentType, String body) throws Exception {
         byte[] bodyBytes = body.getBytes("UTF-8");
-
-        // 构建响应头
         String header = "HTTP/1.1 " + status + "\r\n" +
                 "Content-Type: " + contentType + "\r\n" +
                 "Content-Length: " + bodyBytes.length + "\r\n" +
-                "Connection: close\r\n" +  // 告诉客户端发完就关，避免 keep-alive
-                "\r\n";  // 空行分隔头和体
-
+                "Connection: close\r\n" +
+                "\r\n";
         OutputStream out = socket.getOutputStream();
         out.write(header.getBytes("UTF-8"));
         out.write(bodyBytes);
         out.flush();
-
-        // logOperation("【网页后台】响应头+体已写入输出流"); // 已注释
         socket.close();
     }
 
-    /**
-     * 解析表单数据（application/x-www-form-urlencoded）
-     * 格式：key1=value1&key2=value2
-     */
     private Map<String, String> parseFormData(String body) {
         Map<String, String> params = new java.util.HashMap<>();
         if (body == null || body.isEmpty()) return params;
@@ -689,7 +274,6 @@ public class WebServerManager {
             for (String pair : pairs) {
                 if (pair.contains("=")) {
                     String[] kv = pair.split("=", 2);
-                    // URL 解码，处理中文和特殊字符
                     String key = URLDecoder.decode(kv[0], "UTF-8");
                     String value = kv.length > 1 ? URLDecoder.decode(kv[1], "UTF-8") : "";
                     params.put(key, value);
@@ -697,25 +281,14 @@ public class WebServerManager {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            // logOperation("【网页后台】解析表单数据失败：" + e.getMessage()); // 已注释
         }
         return params;
     }
 
     // ====================== HTML 页面构建 ======================
 
-    /**
-     * 构建配置页面 HTML（APP 风格，4个分组）
-     *
-     * 分组：
-     * 1. 直播源 - 自定义直播源链接 + 推送按钮
-     * 2. 节目单 - 自定义节目单链接 + 推送按钮
-     * 3. 播放器 - 自定义UA + 推送按钮
-     * 4. 调试 - 上传apk
-     */
     private String buildConfigPage() {
         SharedPreferences sp = context.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
-        // 读取当前配置，回显到输入框
         String currentLive = sp.getString(KEY_CUSTOM_LIVE, "");
         String currentEpg = sp.getString(KEY_CUSTOM_EPG, "");
         String currentUa = sp.getString(KEY_CUSTOM_UA, "");
@@ -837,56 +410,48 @@ public class WebServerManager {
                 "</html>";
     }
 
-    /**
-     * 构建日志页面 HTML（APP 风格，支持 tab 切换）
-     *
-     * 两个 tab：
-     * - 操作日志：OPERATION_LOG（用户操作 + 网页后台日志）
-     * - 解析日志：PLAY_LOG（EPG解析 + 播放器日志）
-     */
+    // ============================================================
+    // 🟢【核心修改】直接调用原生日志 Logcat，去除 SettingsActivity 依赖
+    // ============================================================
     private String buildLogPage() {
-        // ===== 1. 构建操作日志 HTML（已移除操作日志数据） =====
-        // 由于 OPERATION_LOG 已被移除，这里直接显示“暂无操作日志”
-        String opLogHtml = "        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">暂无操作日志</div>\n";
+        String playLogContent = getSystemLogs(); // 从 logcat 抓取原生日志
 
-        // ===== 2. 构建解析日志 HTML（保留 PLAY_LOG） =====
-        String playLogContent = SettingsActivity.PLAY_LOG != null
-                ? SettingsActivity.PLAY_LOG.toString() : "";
         String[] playLines = playLogContent.split("\n");
         StringBuilder playLogHtml = new StringBuilder();
-        for (int i = playLines.length - 1; i >= 0; i--) {
+        for (int i = Math.min(playLines.length - 1, 500); i >= 0; i--) {
             String line = playLines[i];
-            if (line.trim().isEmpty()) continue;
+            if (line == null || line.trim().isEmpty()) continue;
 
-            // 提取时间和内容
             String time = "";
             String content = line;
-            if (line.startsWith("[") && line.contains("]")) {
-                time = line.substring(1, line.indexOf("]"));
-                content = line.substring(line.indexOf("]") + 1).trim();
+            if (line.contains(" ") && line.length() > 15) {
+                // 提取简化的时间 (logcat格式: 12-30 15:22:33.123)
+                int timeStart = line.indexOf(" ");
+                int timeEnd = line.indexOf(" ", timeStart + 1);
+                if (timeStart > 0 && timeEnd > timeStart) {
+                    time = line.substring(timeStart, timeEnd).trim();
+                    content = line.substring(timeEnd).trim();
+                }
             }
 
-            // 判断级别
             boolean isError = content.contains("错误") || content.contains("失败")
-                    || content.contains("异常") || content.contains("ERROR") || content.contains("❌");
-            String level = isError ? "ERROR" : "INFO";
+                    || content.contains("异常") || content.contains("ERROR") || content.contains("E/");
             String levelColor = isError ? "#F5222D" : "#1890FF";
-            String icon = isError ? "✕" : "i";  // 解析日志用 i 图标
+            String icon = isError ? "✕" : "i";
 
             playLogHtml.append("        <div class=\"log-item\">\n");
             playLogHtml.append("            <div class=\"log-icon\" style=\"background: ").append(levelColor).append(";\">").append(icon).append("</div>\n");
             playLogHtml.append("            <div class=\"log-content\">\n");
-            playLogHtml.append("                <div class=\"log-level\" style=\"color: ").append(levelColor).append(";\">").append(level).append("</div>\n");
-            playLogHtml.append("                <div class=\"log-text\">").append(content).append("</div>\n");
+            playLogHtml.append("                <div class=\"log-level\" style=\"color: ").append(levelColor).append(";\">").append(isError ? "ERROR" : "INFO").append("</div>\n");
+            playLogHtml.append("                <div class=\"log-text\">").append(escapeHtml(content)).append("</div>\n");
             playLogHtml.append("            </div>\n");
             playLogHtml.append("            <div class=\"log-time\">").append(time).append("</div>\n");
             playLogHtml.append("        </div>\n");
         }
         if (playLogHtml.length() == 0) {
-            playLogHtml.append("        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">暂无解析日志</div>\n");
+            playLogHtml.append("        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">暂无原生日志</div>\n");
         }
 
-        // ===== 3. 完整页面（带 tab 切换） =====
         return "<!DOCTYPE html>\n" +
                 "<html lang=\"zh-CN\">\n" +
                 "<head>\n" +
@@ -927,18 +492,18 @@ public class WebServerManager {
                 "\n" +
                 "    <!-- Tab 切换 -->\n" +
                 "    <div class=\"tab-bar\">\n" +
-                "        <div class=\"tab-item active\" onclick=\"switchTab('operation')\">操作日志</div>\n" +
-                "        <div class=\"tab-item\" onclick=\"switchTab('play')\">解析日志</div>\n" +
+                "        <div class=\"tab-item active\" onclick=\"switchTab('operation')\">系统日志</div>\n" +
+                "        <div class=\"tab-item\" onclick=\"switchTab('play')\">播放日志</div>\n" +
                 "    </div>\n" +
                 "\n" +
-                "    <!-- 操作日志面板（已无数据） -->\n" +
+                "    <!-- 原操作日志面板（现在统一展示原生日志） -->\n" +
                 "    <div id=\"panel-operation\" class=\"log-panel active\">\n" +
                 "        <div class=\"log-list\">\n" +
-                opLogHtml +
+                "        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">原生日志已合并展示，此处无额外操作日志</div>\n" +
                 "        </div>\n" +
                 "    </div>\n" +
                 "\n" +
-                "    <!-- 解析日志面板 -->\n" +
+                "    <!-- 播放日志面板（抓取 Logcat 替换原 PLAY_LOG） -->\n" +
                 "    <div id=\"panel-play\" class=\"log-panel\">\n" +
                 "        <div class=\"log-list\">\n" +
                 playLogHtml.toString() +
@@ -969,16 +534,48 @@ public class WebServerManager {
                 "            });\n" +
                 "            document.getElementById('panel-' + tabName).classList.add('active');\n" +
                 "        }\n" +
-                "        setTimeout(function() { location.reload(); }, 60000);\n" +
                 "    </script>\n" +
                 "\n" +
                 "</body>\n" +
                 "</html>";
     }
 
-    /**
-     * 构建提交成功页面
-     */
+    // ============================================================
+    // 🟢【新增方法】调用原生 logcat -d 抓取系统日志
+    // ============================================================
+    private String getSystemLogs() {
+        StringBuilder logResult = new StringBuilder();
+        try {
+            // 执行 logcat -d 转储日志，-t 500 限制最新 500 行，-v time 显示时间
+            Process process = Runtime.getRuntime().exec("logcat -d -v time -t 500");
+            BufferedReader bufferedReader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()));
+
+            String line;
+            while ((line = bufferedReader.readLine()) != null) {
+                logResult.append(line).append("\n");
+            }
+            process.waitFor();
+        } catch (Exception e) {
+            // 抓取出错则返回空
+        }
+        return logResult.toString();
+    }
+
+    // ============================================================
+    // 🟢【工具方法】HTML 转义，防止特殊字符破坏网页排版
+    // ============================================================
+    private String escapeHtml(String str) {
+        if (str == null) return "";
+        return str.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#x27;");
+    }
+
+    // ============================================================
+
     private String buildSuccessPage() {
         return "<!DOCTYPE html>\n" +
                 "<html lang=\"zh-CN\">\n" +
@@ -1009,57 +606,30 @@ public class WebServerManager {
 
     // ====================== 工具方法 ======================
 
-    /**
-     * 获取设备的 IP 地址
-     */
     private String getDeviceIPAddress() {
         try {
             WifiManager wm = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             WifiInfo info = wm.getConnectionInfo();
             int ip = info.getIpAddress();
-            // 小端序转成正常的 IP 格式
             return (ip & 0xFF) + "." + ((ip >> 8) & 0xFF) + "." + ((ip >> 16) & 0xFF) + "." + ((ip >> 24) & 0xFF);
         } catch (Exception e) {
             return "192.168.1.100";
         }
     }
 
-    /**
-     * 添加历史记录
-     * 新添加的在最前面，去重，限制总长度
-     */
     private void addHistory(String key, String url) {
         SharedPreferences sp = context.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
         String history = sp.getString(key, "");
         StringBuilder sb = new StringBuilder();
-        // 新的放最前面
         sb.append(url);
         if (!history.isEmpty()) {
             String[] arr = history.split("\\|");
             for (String s : arr) {
-                // 去重 + 限制总长度
                 if (!s.equals(url) && sb.length() < 1000) {
                     sb.append("|").append(s);
                 }
             }
         }
         sp.edit().putString(key, sb.toString()).apply();
-    }
-
-    /**
-     * 输出操作日志
-     * 直接调用 SettingsActivity 的静态方法
-     *
-     * 【日志接入说明】
-     * 所有网页后台的日志都通过这个方法输出，
-     * 用户点击「操作日志」按钮就能看到完整的日志信息。
-     * 包括：
-     * - 启动/停止日志
-     * - 端口扫描日志
-     * - 连接处理日志
-     * - 错误日志
-     */
-    private void logOperation(String msg) {
-        // SettingsActivity.logOperation(msg); // 已注释：操作日志已移除
     }
 }
