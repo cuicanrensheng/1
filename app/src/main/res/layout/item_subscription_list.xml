@@ -20,7 +20,7 @@
         android:textSize="16sp"
         android:visibility="gone" />
 
-    <!-- URL 地址（完整显示，太长则省略末尾） -->
+    <!-- 🔽 修改了这里：把 maxLines="1" 改为 maxLines="2"，并增加了 paddingTop -->
     <TextView
         android:id="@+id/tv_url"
         android:layout_width="0dp"
@@ -28,8 +28,9 @@
         android:layout_weight="1"
         android:textColor="#FFFFFF"
         android:textSize="14sp"
-        android:maxLines="1"
+        android:maxLines="2"
         android:ellipsize="end"
+        android:paddingTop="4dp"
         android:layout_marginStart="8dp"
         android:layout_marginEnd="8dp" />
 
