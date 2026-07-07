@@ -25,7 +25,9 @@
             android:textSize="18sp"
             android:textStyle="bold" />
 
+        <!-- 增加 ID：ll_scan_header，以便 Java 动态隐藏 -->
         <LinearLayout
+            android:id="@+id/ll_scan_header"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -48,7 +50,7 @@
         </LinearLayout>
     </RelativeLayout>
 
-    <!-- 🔽 中间区域：占据屏幕剩余空间 -->
+    <!-- 中间区域：占据屏幕剩余空间 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -66,7 +68,6 @@
             android:background="#FFFFFF"
             android:scaleType="fitCenter" />
             
-        <!-- 🔽 修复区域：将“列表订阅”保持在最顶端 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -74,7 +75,7 @@
             android:orientation="vertical"
             android:layout_marginStart="16dp">
 
-            <!-- 列表订阅：移除 marginTop，紧贴容器的顶部边缘 -->
+            <!-- 使用负边距 -4dp，让标题稍微上移，正好对齐你画线上方 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -82,10 +83,9 @@
                 android:textColor="#FFFFFF"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:layout_marginTop="0dp"
+                android:layout_marginTop="-4dp"
                 android:layout_marginBottom="4dp" />
 
-            <!-- 列表视图：紧贴标题下方，不必再加负边距拉高它 -->
             <ListView
                 android:id="@+id/lv_source_list"
                 android:layout_width="match_parent"
