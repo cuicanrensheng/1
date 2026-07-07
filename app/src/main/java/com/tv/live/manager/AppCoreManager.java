@@ -8,7 +8,7 @@ import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-import android.util.Log; // 🟢 替换为原生日志
+import android.util.Log;
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.UrlConfig;
@@ -23,57 +23,45 @@ import java.util.Map;
 
 /**
  * 应用核心管理器
- *
- * 【职责】
- * 统一管理应用的核心功能，包括：
- * 1. 数据加载（直播源加载、EPG 加载、M3U 解析、缓存管理）
- * 2. 广播管理（注册/注销广播接收器、处理广播事件）
- * 3. 生命周期管理（前后台切换、播放器暂停/恢复、进入设置不暂停）
- * 4. ✅ 源失效自动切台（2026-06-26 新增）
  */
 public class AppCoreManager {
     // ====================== 常量 ======================
     /** 加载超时时间（15 秒） */
     private static final long LOAD_TIMEOUT = 15000;
-    /**
-     * ✅ 2026-06-26 新增：源失效自动切台 - 最大连续跳过数
-     * 【说明】连续跳过多少个失效频道后停止，防止无限切台
-     */
+    /** 源失效自动切台 - 最大连续跳过数 */
     private static final int MAX_CONSECUTIVE_SKIP = 10;
+    
     // ====================== 上下文与管理器 ======================
     private Context context;
-    /** 播放器管理器 */
     private TVPlayerManager playerManager;
-    /** 应用配置 */
     private AppConfig appConfig;
-    /** 缓存管理器 */
     private CacheManager cacheManager;
+    
     // ====================== 数据相关 ======================
-    /** 全部频道列表（使用 LinkedHashMap 保证插入顺序不乱） */
+    /** 全部频道列表（使用锁保护，避免并发修改崩溃） */
     private List<Channel> channelSourceList = new ArrayList<>();
-    /** 是否已用缓存播放过（防止重复播放） */
+    /** 🟢【新增】频道列表读写锁对象 */
+    private final Object channelListLock = new Object();
+    
     private boolean hasPlayedWithCache = false;
-    /** 加载超时 Handler */
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
-    /** 是否正在加载 */
     private boolean isLoading = false;
+    
     // ====================== 广播相关 ======================
-    /** 切换控制器的广播接收器 */
     private BroadcastReceiver toggleControllerReceiver;
-    /** 刷新直播源/EPG 的广播接收器 */
     private BroadcastReceiver refreshReceiver;
-    /** 广播是否已注册 */
     private boolean receiversRegistered = false;
+    
     // ====================== 生命周期相关 ======================
-    /** 是否正在打开设置页面（用于区分 onPause 场景） */
     private boolean isOpeningSettings = false;
-    /** 播放器控制器是否可见 */
     private boolean isControllerVisible = false;
+    
     // ====================================================================
-    // ✅ 2026-06-26 新增：源失效自动切台相关变量
+    // 源失效自动切台相关变量
     // ====================================================================
     private int consecutiveFailedCount = 0;
     private OnSourceSkipListener sourceSkipListener;
+    
     // ====================== 回调监听器 ======================
     private OnDataLoadListener dataLoadListener;
     private OnRefreshListener refreshListener;
@@ -92,7 +80,6 @@ public class AppCoreManager {
         void onSourceFailed(String channelName, int failedCount);
     }
 
-    // ====================== 构造函数 ======================
     public AppCoreManager(Context context, TVPlayerManager playerManager, AppConfig appConfig) {
         this.context = context.getApplicationContext();
         this.playerManager = playerManager;
@@ -112,7 +99,10 @@ public class AppCoreManager {
             public void run() {
                 if (isLoading) {
                     log("【加载】超时，自动隐藏加载动画");
-                    boolean hasData = !channelSourceList.isEmpty();
+                    boolean hasData;
+                    synchronized (channelListLock) {
+                        hasData = !channelSourceList.isEmpty();
+                    }
                     if (dataLoadListener != null) {
                         dataLoadListener.onLoadTimeout(hasData);
                     }
@@ -126,8 +116,10 @@ public class AppCoreManager {
             log("【缓存】找到直播源缓存，快速显示");
             List<Channel> cacheChannels = parseLiveSource(cacheContent);
             if (cacheChannels != null && !cacheChannels.isEmpty()) {
-                channelSourceList.clear();
-                channelSourceList.addAll(cacheChannels);
+                synchronized (channelListLock) {
+                    channelSourceList.clear();
+                    channelSourceList.addAll(cacheChannels);
+                }
                 if (dataLoadListener != null) {
                     dataLoadListener.onLiveSourceLoaded(cacheChannels, true);
                 }
@@ -141,12 +133,13 @@ public class AppCoreManager {
             @Override
             public void onSuccess(List<Channel> channels) {
                 log("【网络】直播源加载成功，频道总数：" + channels.size());
-                // 🟢【核心修改】如果是首次加载，直接覆盖；如果已存在列表，执行合并
-                if (channelSourceList.isEmpty()) {
-                    channelSourceList.clear();
-                    channelSourceList.addAll(channels);
-                } else {
-                    mergeChannels(channels);
+                synchronized (channelListLock) {
+                    if (channelSourceList.isEmpty()) {
+                        channelSourceList.clear();
+                        channelSourceList.addAll(channels);
+                    } else {
+                        mergeChannels(channels);
+                    }
                 }
                 isLoading = false;
                 timeoutHandler.removeCallbacksAndMessages(null);
@@ -195,7 +188,6 @@ public class AppCoreManager {
         });
     }
 
-    // ===================== 核心解析与合并逻辑 =====================
     private List<Channel> parseLiveSource(String content) {
         Map<String, Channel> channelMap = new LinkedHashMap<>();
         if (TextUtils.isEmpty(content)) {
@@ -282,7 +274,7 @@ public class AppCoreManager {
     }
 
     // ====================================================================
-    // 2. 广播管理相关（加入强制清缓存 + 清空列表逻辑）
+    // 2. 广播管理相关（强制清缓存 + 清空列表逻辑）
     // ====================================================================
     public void registerReceivers() {
         if (receiversRegistered) return;
@@ -290,41 +282,40 @@ public class AppCoreManager {
             @Override
             public void onReceive(Context context, Intent intent) {
                 isControllerVisible = !isControllerVisible;
-                if (refreshListener != null) {}
             }
         };
         refreshReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if ("com.tv.live.REFRESH_LIVE_AND_EPG".equals(intent.getAction())) {
-                    // 🟢【新增】切换/刷新直播源时，先强制清除所有缓存
-                    if (cacheManager != null) {
-                        cacheManager.clearAll();
-                        log("【缓存】已强制清除所有缓存，正在重新拉取最新数据");
-                    }
+                    // 🟢【核心修复】使用子线程执行 I/O 清理，避免阻塞 UI 线程
+                    new Thread(() -> {
+                        if (cacheManager != null) {
+                            cacheManager.clearAll();
+                            log("【缓存】已强制清除所有缓存，正在重新拉取最新数据");
+                        }
+                        synchronized (channelListLock) {
+                            channelSourceList.clear();
+                        }
 
-                    // 🟢【核心修改】强制清空当前频道列表，确保后续加载是“覆盖”而不是“合并”！
-                    channelSourceList.clear();
+                        SourceManager liveManager = new SourceManager(context, "live_history");
+                        String defaultLive = liveManager.getDefaultUrl();
+                        if (!TextUtils.isEmpty(defaultLive)) {
+                            UrlConfig.LIVE_URL = defaultLive;
+                        }
 
-                    // 🟢【核心修改】从 SourceManager 获取当前默认的直播源和节目单地址
-                    SourceManager liveManager = new SourceManager(context, "live_history");
-                    String defaultLive = liveManager.getDefaultUrl();
-                    if (!TextUtils.isEmpty(defaultLive)) {
-                        UrlConfig.LIVE_URL = defaultLive;
-                    }
+                        SourceManager epgManager = new SourceManager(context, "epg_history");
+                        String defaultEpg = epgManager.getDefaultUrl();
+                        if (!TextUtils.isEmpty(defaultEpg)) {
+                            UrlConfig.EPG_URL = defaultEpg;
+                        }
 
-                    SourceManager epgManager = new SourceManager(context, "epg_history");
-                    String defaultEpg = epgManager.getDefaultUrl();
-                    if (!TextUtils.isEmpty(defaultEpg)) {
-                        UrlConfig.EPG_URL = defaultEpg;
-                    }
-
-                    // 重置播放状态，触发刷新
-                    hasPlayedWithCache = false;
-                    if (refreshListener != null) {
-                        refreshListener.onRefreshNeeded();
-                    }
-                    loadLiveAndEpg();
+                        hasPlayedWithCache = false;
+                        if (refreshListener != null) {
+                            refreshListener.onRefreshNeeded();
+                        }
+                        loadLiveAndEpg();
+                    }).start();
                 }
             }
         };
@@ -387,7 +378,9 @@ public class AppCoreManager {
         if (playerManager != null) {
             playerManager.release();
         }
-        channelSourceList = null;
+        synchronized (channelListLock) {
+            channelSourceList = null;
+        }
     }
 
     public void beforeOpenSettings() {
@@ -398,7 +391,13 @@ public class AppCoreManager {
 
     public boolean hasPlayedWithCache() { return hasPlayedWithCache; }
     public void setHasPlayedWithCache(boolean played) { this.hasPlayedWithCache = played; }
-    public List<Channel> getChannelList() { return channelSourceList; }
+    
+    // 🟢【修复】获取列表时加上锁保护，防止并发读取崩溃
+    public List<Channel> getChannelList() { 
+        synchronized (channelListLock) {
+            return new ArrayList<>(channelSourceList);
+        }
+    }
 
     // ====================================================================
     // 4. 源失效自动切台 & 配置
@@ -430,29 +429,31 @@ public class AppCoreManager {
     public int getMaxConsecutiveSkip() { return MAX_CONSECUTIVE_SKIP; }
 
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
-        appConfig.setCustomUrls(liveUrl, epgUrl);
-        if (liveUrl != null) UrlConfig.LIVE_URL = liveUrl;
-        if (epgUrl != null) UrlConfig.EPG_URL = epgUrl;
-        log("【远程配置】更新直播源：" + liveUrl);
-        log("【远程配置】更新EPG：" + epgUrl);
-        
-        // 🟢【新增】远程配置切换时，强制清除缓存 + 清空列表再加载
-        if (cacheManager != null) {
-            cacheManager.clearAll();
-            log("【缓存】远程配置触发，强制清除旧缓存");
-        }
-        
-        // 🟢【核心修改】强制清空当前频道列表，保证是“覆盖”而不是“合并”！
-        channelSourceList.clear();
-        
-        hasPlayedWithCache = false;
-        loadLiveAndEpg();
+        // 🟢【核心修复】配置更新同样放到子线程执行，防止文件 I/O 卡死主线程
+        new Thread(() -> {
+            appConfig.setCustomUrls(liveUrl, epgUrl);
+            if (liveUrl != null) UrlConfig.LIVE_URL = liveUrl;
+            if (epgUrl != null) UrlConfig.EPG_URL = epgUrl;
+            log("【远程配置】更新直播源：" + liveUrl);
+            log("【远程配置】更新EPG：" + epgUrl);
+            
+            if (cacheManager != null) {
+                cacheManager.clearAll();
+                log("【缓存】远程配置触发，强制清除旧缓存");
+            }
+            
+            synchronized (channelListLock) {
+                channelSourceList.clear();
+            }
+            
+            hasPlayedWithCache = false;
+            loadLiveAndEpg();
+        }).start();
     }
 
     public void setOnDataLoadListener(OnDataLoadListener listener) { this.dataLoadListener = listener; }
     public void setOnRefreshListener(OnRefreshListener listener) { this.refreshListener = listener; }
 
-    // 🟢【核心修改】替换为原生 Log.d，移除对 SettingsActivity 的依赖
     private void log(String msg) { 
         Log.d("AppCoreManager", msg); 
     }
