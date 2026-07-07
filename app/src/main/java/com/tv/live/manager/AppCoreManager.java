@@ -8,14 +8,14 @@ import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.util.Log; // 🟢 替换为原生日志
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
-import com.tv.live.SettingsActivity;
 import com.tv.live.UrlConfig;
 import com.tv.live.config.AppConfig;
 import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
-import com.tv.live.SourceManager; // 🟢 导入 SourceManager
+import com.tv.live.SourceManager;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -452,7 +452,10 @@ public class AppCoreManager {
     public void setOnDataLoadListener(OnDataLoadListener listener) { this.dataLoadListener = listener; }
     public void setOnRefreshListener(OnRefreshListener listener) { this.refreshListener = listener; }
 
-    private void log(String msg) { SettingsActivity.log(msg); }
+    // 🟢【核心修改】替换为原生 Log.d，移除对 SettingsActivity 的依赖
+    private void log(String msg) { 
+        Log.d("AppCoreManager", msg); 
+    }
 
     public void release() {
         onDestroy();
