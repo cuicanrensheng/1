@@ -92,7 +92,9 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 🟢 确保 super.onCreate 始终是第一行！
         super.onCreate(savedInstanceState);
+        
         try { applyFullScreen(); } catch (Exception e) { }
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -110,7 +112,7 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) { }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        super.onCreate(savedInstanceState);
+        
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         setContentView(R.layout.activity_settings);
         View viewOutside = findViewById(R.id.view_outside);
