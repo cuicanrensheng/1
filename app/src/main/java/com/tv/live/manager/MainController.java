@@ -2,7 +2,7 @@ package com.tv.live.manager;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log; // 🟢 替换为原生日志
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 
@@ -15,8 +15,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MainController {
-
-    private static final int MAX_LOG_COUNT = 100;
 
     private Context context;
 
@@ -34,7 +32,8 @@ public class MainController {
 
     private int currentPlayIndex = 0;
 
-    private static List<String> logList = new ArrayList<>();
+    // 🟢【优化】彻底移除 logList，消除 ArrayList 头部插入的复制开销
+    // private static List<String> logList = new ArrayList<>();
 
     private OnPlayControlListener playControlListener;
     private OnPanelControlListener panelControlListener;
@@ -88,7 +87,6 @@ public class MainController {
                 } else {
                     playPrev();
                 }
-                // 操作日志已移除，此处注释保留
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (channelReverse) {
@@ -96,7 +94,6 @@ public class MainController {
                 } else {
                     playNext();
                 }
-                // 操作日志已移除，此处注释保留
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -149,11 +146,11 @@ public class MainController {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
 
-        log("========================================");
-        log("【播放】频道名称：" + channel.getName());
-        log("【播放】播放地址：" + channel.getPlayUrl());
-        log("【播放】当前索引：" + index);
-        log("========================================");
+        Log.d("MainController", "========================================");
+        Log.d("MainController", "【播放】频道名称：" + channel.getName());
+        Log.d("MainController", "【播放】播放地址：" + channel.getPlayUrl());
+        Log.d("MainController", "【播放】当前索引：" + index);
+        Log.d("MainController", "========================================");
 
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
@@ -201,10 +198,10 @@ public class MainController {
             channelPanelController.setEpgEnable(epgEnable);
         }
 
-        log("【设置】EPG开关：" + epgEnable);
-        log("【设置】切台反转：" + channelReverse);
-        log("【设置】数字选台：" + numberChannelEnable);
-        log("【设置】自动更新源：" + autoUpdateSource);
+        Log.d("MainController", "【设置】EPG开关：" + epgEnable);
+        Log.d("MainController", "【设置】切台反转：" + channelReverse);
+        Log.d("MainController", "【设置】数字选台：" + numberChannelEnable);
+        Log.d("MainController", "【设置】自动更新源：" + autoUpdateSource);
     }
 
     public boolean isChannelReverse() {
@@ -224,25 +221,10 @@ public class MainController {
     }
 
     // ====================================================================
-    // 4. 日志管理相关
+    // 4. 日志管理相关（已彻底移除，防止阵列复制造成的卡顿）
     // ====================================================================
 
-    public static void log(String msg) {
-        logList.add(0, msg);
-        while (logList.size() > MAX_LOG_COUNT) {
-            logList.remove(logList.size() - 1);
-        }
-        // 🟢 修改：替换为原生日志 Log.d，彻底解决编译报错
-        Log.d("MainController", msg);
-    }
-
-    public static List<String> getLogList() {
-        return logList;
-    }
-
-    public static void clearLog() {
-        logList.clear();
-    }
+    // 🟢 已移除所有的 logList 和静态缓存
 
     // ====================================================================
     // 5. 监听器设置
