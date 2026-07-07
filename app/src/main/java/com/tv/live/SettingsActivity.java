@@ -238,7 +238,7 @@ public class SettingsActivity extends AppCompatActivity {
         return "源" + index;
     }
 
-    // ================= 🔥 新增通用辅助方法：生成统一深色风格的单选弹窗 =================
+    // ================= 🔥 统一深色风格的单选弹窗 =================
     private void showDarkSingleChoiceDialog(String title, String[] items, int checkedItem, java.util.function.Consumer<Integer> onSelected) {
         ListView listView = new ListView(this);
         listView.setBackgroundColor(0xFF272B3A);
@@ -284,11 +284,10 @@ public class SettingsActivity extends AppCompatActivity {
         }
         dialog.show();
 
-        // 统一按钮样式
+        // 🔽 统一取消按钮样式，保证不透明
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
     }
-    // ================= 🔥 辅助方法结束 =================
 
     private void showChannelLineDialog() {
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
@@ -507,7 +506,9 @@ public class SettingsActivity extends AppCompatActivity {
                     return;
                 }
                 SourceManager.SourceItem item = sources.get(position);
-                new AlertDialog.Builder(SettingsActivity.this)
+                
+                // 🔥 修复了删除按钮透明的问题：使用 create() 独立生成，修改背景色
+                AlertDialog deleteDialog = new AlertDialog.Builder(SettingsActivity.this)
                         .setTitle("确认删除")
                         .setMessage("确定要删除「" + item.name + "」吗？")
                         .setPositiveButton("删除", (d, w) -> {
@@ -518,7 +519,17 @@ public class SettingsActivity extends AppCompatActivity {
                             adapter.notifyDataSetChanged();
                         })
                         .setNegativeButton("取消", null)
-                        .show();
+                        .create();
+                if (deleteDialog.getWindow() != null) {
+                    deleteDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                }
+                deleteDialog.show();
+                
+                // 🔽 统一删除弹窗按钮样式，保证不透明
+                deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
+                deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
+                deleteDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
+                deleteDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
             }
         });
 
@@ -732,7 +743,6 @@ public class SettingsActivity extends AppCompatActivity {
         boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
         final String[] currentUaMode = { sp.getString(KEY_USER_AGENT_MODE, "exo") };
         
-        // 使用刚刚替换的深色 dialog_redirect_config 布局
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
         EditText etMax = dialogView.findViewById(R.id.et_redirect_max);
         SwitchCompat swCrossDomain = dialogView.findViewById(R.id.sw_cross_domain);
@@ -764,14 +774,12 @@ public class SettingsActivity extends AppCompatActivity {
                     break;
                 }
             }
-            // 点击UA切换时，使用统一的深色弹窗
             showDarkSingleChoiceDialog("UA切换", uaOptions, checkedItem, (which) -> {
                 currentUaMode[0] = uaValues[which];
                 tvUserAgentStatus.setText(uaOptions[which]);
             });
         });
 
-        // 使用AlertDialog包裹自定义View（背景透明）
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)
                 .create();
@@ -780,7 +788,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
         dialog.show();
 
-        // 绑定深色布局中的取消和保存按钮
         btnCancel.setOnClickListener(v -> dialog.dismiss());
         btnSave.setOnClickListener(v -> {
             String maxStr = etMax.getText().toString().trim();
@@ -872,10 +879,9 @@ public class SettingsActivity extends AppCompatActivity {
         }).start();
     }
 
-    // ================= 🔥 修复日志弹窗颜色 =================
     private void renderPlayLogDialog(String logContent) {
         ScrollView scrollView = new ScrollView(this);
-        scrollView.setBackgroundColor(0xFF272B3A); // 深色背景
+        scrollView.setBackgroundColor(0xFF272B3A);
         
         TextView tv = new TextView(this);
         SpannableString spLog = new SpannableString(logContent);
@@ -902,7 +908,7 @@ public class SettingsActivity extends AppCompatActivity {
         tv.setText(spLog);
         tv.setTextSize(12);
         tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.WHITE); // 改成白色文字
+        tv.setTextColor(Color.WHITE);
         scrollView.addView(tv);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -925,11 +931,12 @@ public class SettingsActivity extends AppCompatActivity {
         }
         dialog.show();
         
-        // 统一操作按钮样式
+        // 🔽 统一日志弹窗按钮样式，保证不透明
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Color.WHITE);
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
     }
-    // ================= 🔥 修复结束 =================
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
