@@ -15,6 +15,7 @@ import com.tv.live.UrlConfig;
 import com.tv.live.config.AppConfig;
 import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
+import com.tv.live.SourceManager; // 🟢 导入 SourceManager
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -281,7 +282,7 @@ public class AppCoreManager {
     }
 
     // ====================================================================
-    // 2. 广播管理相关（加入强制清缓存逻辑）
+    // 2. 广播管理相关（加入强制清缓存逻辑 + 读取 SourceManager 默认源）
     // ====================================================================
     public void registerReceivers() {
         if (receiversRegistered) return;
@@ -296,16 +297,26 @@ public class AppCoreManager {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if ("com.tv.live.REFRESH_LIVE_AND_EPG".equals(intent.getAction())) {
-                    // 🟢【新增】切换/刷新直播源时，先强制清除所有缓存，确保拉取最新数据！
+                    // 🟢【新增】切换/刷新直播源时，先强制清除所有缓存
                     if (cacheManager != null) {
-                        cacheManager.clearAll(); // 使用 CacheManager 的 clearAll 清空所有缓存
+                        cacheManager.clearAll();
                         log("【缓存】已强制清除所有缓存，正在重新拉取最新数据");
                     }
 
-                    String customLive = appConfig.getCustomLiveUrl();
-                    String customEpg = appConfig.getCustomEpgUrl();
-                    if (customLive != null) UrlConfig.LIVE_URL = customLive;
-                    if (customEpg != null) UrlConfig.EPG_URL = customEpg;
+                    // 🟢【核心修改】从 SourceManager 获取当前默认的直播源和节目单地址
+                    SourceManager liveManager = new SourceManager(context, "live_history");
+                    String defaultLive = liveManager.getDefaultUrl();
+                    if (!TextUtils.isEmpty(defaultLive)) {
+                        UrlConfig.LIVE_URL = defaultLive;
+                    }
+
+                    SourceManager epgManager = new SourceManager(context, "epg_history");
+                    String defaultEpg = epgManager.getDefaultUrl();
+                    if (!TextUtils.isEmpty(defaultEpg)) {
+                        UrlConfig.EPG_URL = defaultEpg;
+                    }
+
+                    // 重置播放状态，触发刷新
                     hasPlayedWithCache = false;
                     if (refreshListener != null) {
                         refreshListener.onRefreshNeeded();
@@ -424,7 +435,7 @@ public class AppCoreManager {
         
         // 🟢【新增】远程配置切换时，同样强制清除缓存再加载
         if (cacheManager != null) {
-            cacheManager.clearAll(); // 使用 CacheManager 的 clearAll 清空所有缓存
+            cacheManager.clearAll();
             log("【缓存】远程配置触发，强制清除旧缓存");
         }
         
