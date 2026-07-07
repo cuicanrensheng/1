@@ -383,6 +383,7 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
     }
 
+    // ================= 🔥 重点修改：修复二维码显示 + 去除自动弹窗 =================
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(this, spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
@@ -395,18 +396,47 @@ public class SettingsActivity extends AppCompatActivity {
         EditText etUrl = dialogView.findViewById(R.id.et_url);
         Button btnClear = dialogView.findViewById(R.id.btn_clear);
         Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
-        Button btnSavePermission = dialogView.findViewById(R.id.btn_save_permission);
         Button btnClose = dialogView.findViewById(R.id.btn_close); // 获取自定义关闭按钮
 
         tvIpAddress.setText(currentWebUrl);
 
+        // ✅ 修复1：取消自动弹窗，直接利用 ZXing 生成二维码并绘制到 ImageView 上
         try {
-            qrCodeManager.showQRCodeDialog(currentWebUrl);
-            ivQrCode.setBackgroundColor(Color.LTGRAY);
+            Bitmap qrBitmap = null;
+            // 如果你的 QRCodeManager 里有 getQRCodeBitmap 方法，可以直接调用，如下：
+            // qrBitmap = qrCodeManager.getQRCodeBitmap(currentWebUrl);
+            
+            if (qrBitmap == null) {
+                try {
+                    // 使用 ZXing 生成二维码
+                    com.google.zxing.Writer writer = new com.google.zxing.qrcode.QRCodeWriter();
+                    com.google.zxing.common.BitMatrix bitMatrix = writer.encode(currentWebUrl, com.google.zxing.BarcodeFormat.QR_CODE, 400, 400);
+                    int width = bitMatrix.getWidth();
+                    int height = bitMatrix.getHeight();
+                    int[] pixels = new int[width * height];
+                    for (int y = 0; y < height; y++) {
+                        int offset = y * width;
+                        for (int x = 0; x < width; x++) {
+                            pixels[offset + x] = bitMatrix.get(x, y) ? 0xFF000000 : 0xFFFFFFFF;
+                        }
+                    }
+                    qrBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                    qrBitmap.setPixels(pixels, 0, width, 0, 0, width, height);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            if (qrBitmap != null) {
+                ivQrCode.setImageBitmap(qrBitmap);
+            } else {
+                ivQrCode.setBackgroundColor(Color.LTGRAY);
+            }
         } catch (Exception e) {
             ivQrCode.setBackgroundColor(Color.LTGRAY);
         }
 
+        // ✅ 修复2：点击二维码方块时，才弹出“扫码管理”白窗
         ivQrCode.setOnClickListener(v -> {
             qrCodeManager.showQRCodeDialog(currentWebUrl);
         });
@@ -475,10 +505,7 @@ public class SettingsActivity extends AppCompatActivity {
             etUrl.setText("");
         });
 
-        btnSavePermission.setOnClickListener(v -> Toast.makeText(this, "存储权限功能暂未实现", Toast.LENGTH_SHORT).show());
-
-        // ================= 🔥 重点修改区域：改成图2的纯黑透明风格 =================
-        // 去掉 setTitle() 和 setNegativeButton()，使用纯自定义布局 + 透明背景
+        // ================= 透明风格弹窗 =================
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)
                 .create();
@@ -493,8 +520,8 @@ public class SettingsActivity extends AppCompatActivity {
         if (btnClose != null) {
             btnClose.setOnClickListener(v -> dialog.dismiss());
         }
-        // ================= 🔥 重点修改结束 =================
     }
+    // ================= 🔥 重点修改结束 =================
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
