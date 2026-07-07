@@ -81,6 +81,9 @@ public class ChannelPanelController {
     private boolean isSwitchingChannel = false;
     private int autoSkipCount = 0;
 
+    // 🟢【新增缓存】记录上次在分组列表中的索引，避免循环遍历查找
+    private int cachedGroupSelectionIndex = 0;
+
     private OnChannelChangeListener channelChangeListener;
     private OnPanelStateListener panelStateListener;
 
@@ -305,7 +308,6 @@ public class ChannelPanelController {
     public void setChannels(List<Channel> channels) {
         if (channels == null) return;
         this.channelSourceList = channels;
-        // 🔧【修复】已移除多余的 0, 0 参数，正确对应 GroupListManager.setGroups(List<Channel>)
         groupListManager.setGroups(channels);
         channelListManager.setChannels(channels, currentPlayIndex);
         channelListManagerEpg.setChannels(channels, currentPlayIndex);
@@ -317,7 +319,6 @@ public class ChannelPanelController {
         lvGroup.setSelection(position);
         String groupName = groupListManager.getCurrentGroup(position);
         currentGroupName = groupName;
-        // 🟢 【修改】移除 GROUP_FAVORITE 和 GROUP_RECENT 的过滤逻辑，统一按普通分组处理
         if (GroupListManager.GROUP_ALL.equals(groupName)) {
             currentGroupChannelList.clear();
             currentGroupChannelList.addAll(channelSourceList);
@@ -447,7 +448,6 @@ public class ChannelPanelController {
         if (ch == null) return;
         String channelGroup = ch.getGroup();
         if (channelGroup != null && !channelGroup.isEmpty()) {
-            // 🟢 【修改】移除了 GROUP_FAVORITE 和 GROUP_RECENT 的特殊判断
             if (!channelGroup.equals(currentGroupName)) {
                 currentGroupName = channelGroup;
                 currentGroupChannelList.clear();
@@ -475,12 +475,10 @@ public class ChannelPanelController {
     }
 
     private boolean handleChannelLongClick(String channelName, boolean isRightPanel) {
-        // 🟢 【修改】长按不再处理收藏逻辑，直接返回 false
         return false;
     }
 
     public boolean toggleCurrentFavorite() {
-        // 🟢 【修改】菜单键不再处理收藏逻辑，直接返回 false
         return false;
     }
 
@@ -596,13 +594,10 @@ public class ChannelPanelController {
 
     public void handleFirstLaunch() {
         if (!mIsFirstLaunch) return;
-        // SettingsActivity.logOperation("【面板】首次启动，设置特殊延迟："
-        //         + (FIRST_LAUNCH_HIDE_DELAY_MS / 1000) + "秒"); // 已注释：操作日志已移除
         setAutoHideDelay(FIRST_LAUNCH_HIDE_DELAY_MS);
         resetAutoHide();
         setAutoHideDelay(NORMAL_HIDE_DELAY_MS);
         mIsFirstLaunch = false;
-        // SettingsActivity.logOperation("【面板】首次启动处理完成，已标记为非首次启动"); // 已注释：操作日志已移除
     }
 
     public boolean isFirstLaunch() {
@@ -618,7 +613,6 @@ public class ChannelPanelController {
             return;
         }
         if (!rightPanelOpen) {
-            // 🟢 【修复】在 llLeftPanel 和 llRightPanel 调用前增加空指针判断
             if (llLeftPanel != null) {
                 llLeftPanel.setVisibility(View.GONE);
             }
@@ -647,7 +641,6 @@ public class ChannelPanelController {
                 epgManagerWrapper.refresh(curr, channelSourceList, currentSelectedDateIndex);
             }
         } else {
-            // 🟢 【修复】在 llRightPanel 和 llLeftPanel 调用前增加空指针判断
             if (llRightPanel != null) {
                 llRightPanel.setVisibility(View.GONE);
             }
@@ -712,23 +705,15 @@ public class ChannelPanelController {
         return currentSelectedDateIndex;
     }
 
+    // 🟢【核心优化】使用缓存避免 O(N) 循环。只在 playChannel 中更新缓存变量
     private int getChannelListSelection() {
         if (GroupListManager.GROUP_ALL.equals(currentGroupName)
                 || currentGroupName.isEmpty()
                 || currentGroupChannelList.isEmpty()) {
             return currentPlayIndex;
         } else {
-            // 🟢 【修复】增加越界保护，避免崩溃
-            if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
-                return 0;
-            }
-            Channel currentChannel = channelSourceList.get(currentPlayIndex);
-            for (int i = 0; i < currentGroupChannelList.size(); i++) {
-                if (currentGroupChannelList.get(i).getName().equals(currentChannel.getName())) {
-                    return i;
-                }
-            }
-            return 0;
+            // 直接返回缓存的索引，无需遍历
+            return cachedGroupSelectionIndex;
         }
     }
 
