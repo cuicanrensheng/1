@@ -313,8 +313,13 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
+    // 🟢 添加缓存 SparseArray，彻底避免焦点切换时的递归查找
+    private android.util.SparseArray<TextView> itemTextViews = new android.util.SparseArray<>();
+
     private void initSettingsItemList() {
         settingsItemList.clear();
+        itemTextViews.clear(); // 清除旧缓存
+
         settingsItemList.add(findViewById(R.id.item_boot));
         settingsItemList.add(findViewById(R.id.item_reverse));
         settingsItemList.add(findViewById(R.id.item_pip));
@@ -327,11 +332,26 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.item_channel_line));
         // 🟢 删除：settingsItemList.add(findViewById(R.id.log_viewer));
         settingsItemList.add(findViewById(R.id.item_check_update));
+
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) {
                 settingsItemList.remove(i);
             }
         }
+
+        // 🔥 提前缓存每个项的 TextView，避免 updateSettingsFocus 时的递归查找
+        for (int i = 0; i < settingsItemList.size(); i++) {
+            View view = settingsItemList.get(i);
+            if (view instanceof TextView) {
+                itemTextViews.put(i, (TextView) view);
+            } else if (view instanceof ViewGroup) {
+                TextView tv = findFirstTextView((ViewGroup) view);
+                if (tv != null) {
+                    itemTextViews.put(i, tv);
+                }
+            }
+        }
+
         for (int i = 0; i < settingsItemList.size(); i++) {
             final int position = i;
             View item = settingsItemList.get(i);
@@ -413,17 +433,25 @@ public class SettingsActivity extends AppCompatActivity {
             if (tvDialogTitle != null) tvDialogTitle.setText(title);
             if (llScanHeader != null) llScanHeader.setVisibility(View.VISIBLE);
             if (ivQrCode != null) ivQrCode.setVisibility(View.VISIBLE);
-            try {
-                Bitmap qrBitmap = qrCodeManager.createQR(currentWebUrl, 240);
-                if (qrBitmap != null) {
-                    ivQrCode.setImageBitmap(qrBitmap);
-                } else {
-                    ivQrCode.setBackgroundColor(Color.LTGRAY);
+            
+            // 🔥 将耗时二维码生成放到子线程，避免卡住弹窗动画
+            new Thread(() -> {
+                Bitmap qrBitmap = null;
+                try {
+                    qrBitmap = qrCodeManager.createQR(currentWebUrl, 240);
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
-                ivQrCode.setBackgroundColor(Color.LTGRAY);
-            }
+                final Bitmap finalQrBitmap = qrBitmap;
+                runOnUiThread(() -> {
+                    if (finalQrBitmap != null) {
+                        ivQrCode.setImageBitmap(finalQrBitmap);
+                    } else {
+                        ivQrCode.setBackgroundColor(Color.LTGRAY);
+                    }
+                });
+            }).start();
+
             ivQrCode.setOnClickListener(v -> {
                 Toast.makeText(SettingsActivity.this, "已生成二维码，请扫码", Toast.LENGTH_SHORT).show();
             });
@@ -558,12 +586,24 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
         item.setBackgroundColor(bgColor);
+        // 🔥 使用已缓存的 TextView，彻底避免递归查找
         if (item instanceof TextView) {
             TextView tv = (TextView) item;
             tv.setTextColor(Color.parseColor(textColor));
             tv.setTypeface(null, typefaceStyle);
-        } else if (item instanceof ViewGroup) {
-            TextView tv = findFirstTextView((ViewGroup) item);
+        } else {
+            // 使用 initSettingsItemList 中缓存的 Map，如果没有，做一次降级查找兜底
+            int index = settingsItemList.indexOf(item);
+            TextView tv = null;
+            if (index >= 0 && itemTextViews != null) {
+                tv = itemTextViews.get(index);
+            }
+            if (tv == null) {
+                // 最终降级方案：递归查找
+                if (item instanceof ViewGroup) {
+                    tv = findFirstTextView((ViewGroup) item);
+                }
+            }
             if (tv != null) {
                 tv.setTextColor(Color.parseColor(textColor));
                 tv.setTypeface(null, typefaceStyle);
@@ -787,8 +827,14 @@ public class SettingsActivity extends AppCompatActivity {
         if (updateManager != null) {
             updateManager.release();
         }
+        
+        // 🔥 彻底清除所有未执行的 Handler 任务，防止内存泄漏
+        mainHandler.removeCallbacksAndMessages(null);
+        
         remoteManager = null;
         settingsItemList.clear();
         settingsItemList = null;
+        itemTextViews.clear();
+        itemTextViews = null;
     }
 }
