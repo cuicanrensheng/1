@@ -54,7 +54,8 @@ public class TVPlayerManager {
     public static final int DECODER_MODE_HARD = 1;
     public static final int DECODER_MODE_SOFT = 2;
     private static final int MAX_RETRY_COUNT = 2;
-    private static final long STUCK_TIMEOUT = 10000;
+    // 🟢【优化】将卡顿检测时间拉长至 20 秒，避免弱网下频繁切台黑屏
+    private static final long STUCK_TIMEOUT = 20000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
 
     // ====================== 配置常量 ======================
@@ -76,7 +77,6 @@ public class TVPlayerManager {
     private String currentChannelName = "";
     private int mDecoderMode = DECODER_MODE_AUTO;
 
-    // 🟢【新增】防止重复切换/重建播放器导致的各种崩溃
     private boolean isSwitching = false;
 
     private Channel currentChannel;
@@ -267,7 +267,6 @@ public class TVPlayerManager {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
 
-                    // 🛡️【手动切换】移除自动硬解转软解的强行判断逻辑
                 } else if (state == Player.STATE_BUFFERING) {
                     if (listener != null) listener.onBuffering();
                     lastPositionUpdateTime = System.currentTimeMillis();
@@ -374,7 +373,8 @@ public class TVPlayerManager {
                 retryRunnable = null;
             }
         };
-        mHandler.postDelayed(retryRunnable, 1000);
+        // 🟢【优化】重试间隔从 1 秒改为 3 秒，缓解连续重试造成的视觉闪烁
+        mHandler.postDelayed(retryRunnable, 3000);
     }
 
     public void setDecoderMode(int mode) {
@@ -384,7 +384,6 @@ public class TVPlayerManager {
         if (player != null) performDecoderSwitch();
     }
 
-    // 🔧【核心修复】彻底解决播放器切换时的黑屏卡顿、死锁和多次调用并发问题
     private void performDecoderSwitch() {
         if (isSwitching) {
             Log.w(TAG, "正在解码器切换中，忽略当前请求");
@@ -392,13 +391,15 @@ public class TVPlayerManager {
         }
         isSwitching = true;
 
+        // 🟢【优化】保存当前播放进度，以便重建后续播
+        long currentPosition = player != null ? player.getCurrentPosition() : 0;
+        boolean wasPlaying = player != null && player.isPlaying();
+
         try {
-            // 1. 停止当前所有相关检测（只移除特定任务，绝不使用 removeCallbacksAndMessages(null)）
             mHandler.removeCallbacks(stuckCheckRunnable);
             mHandler.removeCallbacks(retryRunnable);
             mHandler.removeCallbacks(hideChannelRunnable);
 
-            // 2. 释放旧播放器并移除监听器
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -411,10 +412,8 @@ public class TVPlayerManager {
             Log.e(TAG, "释放旧播放器异常", e);
         }
 
-        // 3. 重新初始化播放器（主线程必然耗时，但为了稳定性只能如此）
         initPlayer();
 
-        // 4. 重新绑定 PlayerView
         if (playerView != null) {
             mHandler.post(() -> {
                 if (playerView != null && player != null) {
@@ -423,11 +422,10 @@ public class TVPlayerManager {
             });
         }
 
-        // 5. 重新播放
         if (!TextUtils.isEmpty(currentUrl)) {
             retryCount = 0;
             isRetrying = false;
-            playUrlInternal(currentUrl);
+            playUrlInternal(currentUrl, currentPosition);
         }
 
         isSwitching = false;
@@ -472,7 +470,6 @@ public class TVPlayerManager {
         }
     }
 
-    // 渲染器切换部分保持原样（因为用户没有明确说明要改，但之前的优化已经够好了）
     private void switchRenderer(boolean useTexture) {
         if (playerView == null || context == null) return;
 
@@ -619,7 +616,7 @@ public class TVPlayerManager {
         isRetrying = false;
         initialPlayStartTime = 0;
         resetPerformanceStats();
-        playUrlInternal(url);
+        playUrlInternal(url, 0);
     }
 
     public Channel getCurrentChannel() {
@@ -639,6 +636,11 @@ public class TVPlayerManager {
     }
 
     private void playUrlInternal(String url) {
+        playUrlInternal(url, 0);
+    }
+
+    // 🟢【优化】重载方法，支持在播放时传入指定的 seek 进度
+    private void playUrlInternal(String url, long initialSeekPosition) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
             
@@ -700,6 +702,12 @@ public class TVPlayerManager {
 
             player.setMediaSource(mediaSource, true);
             player.prepare();
+            
+            // 🟢【优化】如果切换解码器时保存了进度，则跳转过去，避免从头播放
+            if (initialSeekPosition > 0) {
+                player.seekTo(initialSeekPosition);
+            }
+
             player.play();
             startStuckDetection();
 
