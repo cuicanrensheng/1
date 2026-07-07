@@ -18,11 +18,19 @@
             android:layout_height="match_parent"
             android:orientation="vertical"
             android:gravity="center_vertical">
+            
+            <!-- 已修复：补充 layout_width 和 layout_height -->
             <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:text="扫码远程输入"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
+                
+            <!-- 已修复：补充 layout_width 和 layout_height -->
             <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:id="@+id/tv_ip_address"
                 android:text="http://192.168.1.2:9978/"
                 android:textColor="#A0A0A0"
