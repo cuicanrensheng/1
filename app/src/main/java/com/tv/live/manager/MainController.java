@@ -2,11 +2,11 @@ package com.tv.live.manager;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log; // 🟢 替换为原生日志
 import android.view.KeyEvent;
 import android.view.View;
 
 import com.tv.live.Channel;
-import com.tv.live.SettingsActivity;
 import com.tv.live.TVPlayerManager;
 import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
@@ -88,7 +88,7 @@ public class MainController {
                 } else {
                     playPrev();
                 }
-                // SettingsActivity.logOperation("【切台】上键 → " + (channelReverse ? "下一台" : "上一台")); // 已注释：操作日志已移除
+                // 操作日志已移除，此处注释保留
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (channelReverse) {
@@ -96,7 +96,7 @@ public class MainController {
                 } else {
                     playNext();
                 }
-                // SettingsActivity.logOperation("【切台】下键 → " + (channelReverse ? "上一台" : "下一台")); // 已注释：操作日志已移除
+                // 操作日志已移除，此处注释保留
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -232,7 +232,8 @@ public class MainController {
         while (logList.size() > MAX_LOG_COUNT) {
             logList.remove(logList.size() - 1);
         }
-        SettingsActivity.log(msg); // 保留（播放日志）
+        // 🟢 修改：替换为原生日志 Log.d，彻底解决编译报错
+        Log.d("MainController", msg);
     }
 
     public static List<String> getLogList() {
