@@ -6,6 +6,7 @@ import android.text.style.ForegroundColorSpan;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -35,7 +36,6 @@ import androidx.appcompat.widget.SwitchCompat;
 import com.tv.live.manager.TvRemoteManager;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -46,22 +46,14 @@ public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
     private SwitchCompat sw_boot, sw_epg, sw_auto_update, sw_reverse, sw_num_channel, sw_pip;
     private TextView tv_screen_ratio, tv_decoder_mode, tv_renderer_type, tv_redirect_setting, tv_boot_status;
-    // 🟢【新增】频道线路选择文字显示
     private TextView tv_channel_line;
-    // 🟢【新增】合并后两个新入口
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
     
-    // ====================== 配置相关 ======================
     private SharedPreferences sp;
-    // ====================================================================
-    // 遥控器统一管理器
-    // ====================================================================
     private TvRemoteManager remoteManager;
     private List<View> settingsItemList = new ArrayList<>();
     private ScrollView scrollView;
-    // ====================================================================
-    // 管理器相关
-    // ====================================================================
+    
     private BootStartManager bootStartManager;
     private AutoUpdateManager autoUpdateManager;
     private SourceDialogManager sourceDialogManager;
@@ -70,7 +62,7 @@ public class SettingsActivity extends AppCompatActivity {
     private static final int WEB_SERVER_PORT = 10481;
     private String currentWebUrl;
     private UpdateManager updateManager;
-    // ====================== SP Key 常量 ======================
+    
     private static final String KEY_CUSTOM_LIVE = "custom_live_url";
     private static final String KEY_CUSTOM_EPG = "custom_epg_url";
     private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
@@ -80,15 +72,9 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
     private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
-    // 🟢【新增】频道线路选择的 SP 存储键
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
-    // ====================================================================
-    // 全局日志系统（仅保留播放日志，操作日志已移除）
-    // ====================================================================
-    // 🟢【性能优化1】改为 StringBuffer + 加锁，彻底解决多线程写入崩溃
     public static volatile StringBuffer PLAY_LOG = new StringBuffer();
-    // 🟢【修改】日志截取改为最近 100 行
     private static final int MAX_LOG_LINES = 100; 
 
     public static void log(String msg) {
@@ -101,21 +87,17 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢【性能优化3】增加防抖机制，避免快速按键时 post 任务堆积
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable focusUpdateRunnable;
 
-    // ====================== onCreate ======================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        try {
-            applyFullScreen();
-        } catch (Exception e) { }
+        super.onCreate(savedInstanceState);
+        try { applyFullScreen(); } catch (Exception e) { }
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                 WindowManager.LayoutParams lp = getWindow().getAttributes();
-                lp.layoutInDisplayCutoutMode =
-                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
                 getWindow().setAttributes(lp);
             }
         } catch (Exception e) { }
@@ -156,7 +138,6 @@ public class SettingsActivity extends AppCompatActivity {
         webServerManager = new WebServerManager(this, WEB_SERVER_PORT);
         updateManager = new UpdateManager(this);
         
-        // 🟢【修改】查找合并后的两个新按钮
         itemLiveSubscribe = findViewById(R.id.item_live_subscribe);
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
@@ -164,16 +145,11 @@ public class SettingsActivity extends AppCompatActivity {
         initRemoteManager();
         findViewById(R.id.log_viewer).setOnClickListener(v -> showLogDialog());
 
-        // ============================================================
-        // 🟢【新增】初始化频道线路选择控件
-        // ============================================================
         tv_channel_line = findViewById(R.id.tv_channel_line);
         int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
         tv_channel_line.setText(getLineName(currentLineIndex));
         findViewById(R.id.item_channel_line).setOnClickListener(v -> showChannelLineDialog());
-        // ============================================================
 
-        // 开机自启
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
         findViewById(R.id.item_boot).setOnClickListener(v -> {
@@ -185,7 +161,6 @@ public class SettingsActivity extends AppCompatActivity {
             bootStartManager.showBootStatusDialog();
             return true;
         });
-        // 节目单开关
         sw_epg.setChecked(sp.getBoolean("epg_enable", true));
         findViewById(R.id.item_epg).setOnClickListener(v -> {
             boolean isChecked = !sw_epg.isChecked();
@@ -193,7 +168,6 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putBoolean("epg_enable", isChecked).apply();
             Toast.makeText(this, "节目单" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
-        // 自动更新源
         sw_auto_update.setChecked(sp.getBoolean("auto_update_source", true));
         findViewById(R.id.item_auto_update).setOnClickListener(v -> {
             boolean isChecked = !sw_auto_update.isChecked();
@@ -209,7 +183,6 @@ public class SettingsActivity extends AppCompatActivity {
         if (sp.getBoolean("auto_update_source", true)) {
             autoUpdateManager.setAutoUpdateAlarm();
         }
-        // 换台反转
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
         findViewById(R.id.item_reverse).setOnClickListener(v -> {
             boolean isChecked = !sw_reverse.isChecked();
@@ -217,7 +190,6 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putBoolean("channel_reverse", isChecked).apply();
             Toast.makeText(this, "换台反转" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
-        // 数字选台
         sw_num_channel.setChecked(sp.getBoolean("number_channel_enable", true));
         findViewById(R.id.item_num_channel).setOnClickListener(v -> {
             boolean isChecked = !sw_num_channel.isChecked();
@@ -225,7 +197,6 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putBoolean("number_channel_enable", isChecked).apply();
             Toast.makeText(this, "数字选台" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
-        // 画中画
         sw_pip.setChecked(sp.getBoolean("pip_enable", false));
         findViewById(R.id.item_pip).setOnClickListener(v -> {
             boolean isChecked = !sw_pip.isChecked();
@@ -237,61 +208,44 @@ public class SettingsActivity extends AppCompatActivity {
                 Toast.makeText(this, "画中画已关闭", Toast.LENGTH_SHORT).show();
             }
         });
-        // 解码器选择
         String decoderMode = sp.getString("decoder_mode", "auto");
         updateDecoderModeText(decoderMode);
-        findViewById(R.id.item_decoder).setOnClickListener(v -> {
-            showDecoderModeDialog();
-        });
+        findViewById(R.id.item_decoder).setOnClickListener(v -> showDecoderModeDialog());
         String rendererMode = sp.getString("renderer_type", "surface");
         updateRendererModeText(rendererMode);
-        findViewById(R.id.item_renderer).setOnClickListener(v -> {
-            showRendererModeDialog();
-        });
+        findViewById(R.id.item_renderer).setOnClickListener(v -> showRendererModeDialog());
         updateRedirectSettingText();
-        findViewById(R.id.item_redirect).setOnClickListener(v -> {
-            showRedirectConfigDialog();
-        });
-        findViewById(R.id.item_check_update).setOnClickListener(v -> {
-            updateManager.checkUpdate();
-        });
+        findViewById(R.id.item_redirect).setOnClickListener(v -> showRedirectConfigDialog());
+        findViewById(R.id.item_check_update).setOnClickListener(v -> updateManager.checkUpdate());
         initListeners();
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
     }
 
-    // 🟢【新增】获取线路名称的辅助方法
     private String getLineName(int index) {
         if (index == 0) return "主源";
         return "源" + index;
     }
 
-    // 🟢【新增】显示频道线路选择弹窗
     private void showChannelLineDialog() {
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         Channel currentChannel = playerManager.getCurrentChannel();
-
-        // 如果当前没有播放频道，提示用户先播放频道
         if (currentChannel == null) {
             Toast.makeText(this, "请先播放一个频道，再切换线路", Toast.LENGTH_SHORT).show();
             return;
         }
-
         int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
         List<String> lineList = new ArrayList<>();
         lineList.add("主源");
-        // 动态生成备用源列表
         for (int i = 1; i <= currentChannel.getBackupUrls().size(); i++) {
             lineList.add("源" + i);
         }
-
         String[] lineArray = lineList.toArray(new String[0]);
         new AlertDialog.Builder(this)
                 .setTitle("频道线路选择")
                 .setSingleChoiceItems(lineArray, currentLineIndex, (dialog, which) -> {
                     sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
                     tv_channel_line.setText(lineArray[which]);
-                    // 通知播放器刷新当前频道
                     sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
                     dialog.dismiss();
                     Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
@@ -323,7 +277,6 @@ public class SettingsActivity extends AppCompatActivity {
         boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
         String uaMode = sp.getString(KEY_USER_AGENT_MODE, "exo");
         String uaLabel = "exo".equals(uaMode) ? "ExoPlayer" : "VLC";
-        
         StringBuilder sb = new StringBuilder();
         sb.append("最大跳转：").append(max).append(" | ");
         sb.append("跨域：").append(crossDomain?"开":"关").append(" | ");
@@ -348,7 +301,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ========================== 🟢 修复点：补全触摸点击支持，并优化彻底去除了导致背景不动的竞态代码 ==========================
     private void initSettingsItemList() {
         settingsItemList.clear();
         settingsItemList.add(findViewById(R.id.item_boot));
@@ -361,12 +313,10 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.item_renderer));
         settingsItemList.add(findViewById(R.id.item_redirect));
         settingsItemList.add(findViewById(R.id.tv_screen_ratio));
-        // 🟢【修改】原来这里有一堆旧的入口，现在替换为两个新入口
         settingsItemList.add(itemLiveSubscribe);
         settingsItemList.add(itemEpgSubscribe);
         settingsItemList.add(findViewById(R.id.item_channel_line));
         settingsItemList.add(findViewById(R.id.log_viewer));
-        // 操作日志按钮已移除
         settingsItemList.add(findViewById(R.id.item_check_update));
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) {
@@ -383,7 +333,6 @@ public class SettingsActivity extends AppCompatActivity {
                         int currentPos = remoteManager.getSettingsFocusPosition();
                         if (currentPos != position) {
                             remoteManager.setSettingsFocusPosition(position);
-                            // 🟢 补上这行：让触摸点击或外部设备焦点也能立刻刷新样式
                             updateSettingsFocus();
                         }
                     }
@@ -411,59 +360,27 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPanelMenu() {}
             @Override public void onPanelNumber(int number) {}
             @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
-            @Override
-            public void onSettingsMoveUp() {
-                updateSettingsFocus();
-            }
-            @Override
-            public void onSettingsMoveDown() {
-                updateSettingsFocus();
-            }
-            @Override
-            public void onSettingsConfirm() {
-                int position = remoteManager.getSettingsFocusPosition();
-                handleSettingsItemClick(position);
-            }
-            @Override
-            public boolean onSettingsBack() {
-                finish();
-                return true;
-            }
-            @Override
-            public void onSettingsMenu() {
-                finish();
-            }
-            @Override
-            public void onSettingsFocusChanged(int position) {
-                updateSettingsFocus();
-            }
-            @Override
-            public boolean onPipBack() { return false; }
-            @Override
-            public void onRequestPlayFocus() {}
-            @Override
-            public void onChannelNumberSelected(int channelIndex) {}
-            @Override
-            public void onShowChannelNumber(String number) {}
-            @Override
-            public void onHideChannelNumber() {}
+            @Override public void onSettingsMoveUp() { updateSettingsFocus(); }
+            @Override public void onSettingsMoveDown() { updateSettingsFocus(); }
+            @Override public void onSettingsConfirm() { int position = remoteManager.getSettingsFocusPosition(); handleSettingsItemClick(position); }
+            @Override public boolean onSettingsBack() { finish(); return true; }
+            @Override public void onSettingsMenu() { finish(); }
+            @Override public void onSettingsFocusChanged(int position) { updateSettingsFocus(); }
+            @Override public boolean onPipBack() { return false; }
+            @Override public void onRequestPlayFocus() {}
+            @Override public void onChannelNumberSelected(int channelIndex) {}
+            @Override public void onShowChannelNumber(String number) {}
+            @Override public void onHideChannelNumber() {}
         });
         updateSettingsFocus();
     }
 
-    // ====================================================================
-    // 🟢【新增核心弹窗】两个新按钮的点击事件
-    // ====================================================================
     private void initListeners() {
         tv_screen_ratio.setOnClickListener(v -> showRatioDialog());
-
         itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
     }
 
-    /**
-     * 🟢 统一定制管理弹窗（直播源 / 节目单共用）
-     */
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(this, spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
@@ -480,23 +397,17 @@ public class SettingsActivity extends AppCompatActivity {
 
         tvIpAddress.setText(currentWebUrl);
 
-        // 生成二维码
         try {
             qrCodeManager.showQRCodeDialog(currentWebUrl);
-            // 实际上我们不需要显示二维码的 dialog，而是直接展示图片
-            // 借助 QRCodeManager 生成 Bitmap 的方法（如果它有）
-            // 如果没有，我们用简单的“暂不生成”先占位
             ivQrCode.setBackgroundColor(Color.LTGRAY);
         } catch (Exception e) {
             ivQrCode.setBackgroundColor(Color.LTGRAY);
         }
 
-        // 点击二维码可以弹出大图或者扫码说明
         ivQrCode.setOnClickListener(v -> {
             qrCodeManager.showQRCodeDialog(currentWebUrl);
         });
 
-        // 初始化列表与适配器
         int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
         SubscriptionAdapter adapter = new SubscriptionAdapter(this, sources);
         adapter.setSelectedPosition(currentDefault);
@@ -504,7 +415,6 @@ public class SettingsActivity extends AppCompatActivity {
         adapter.setOnActionListener(new SubscriptionAdapter.OnActionListener() {
             @Override
             public void onSwitch(int position) {
-                // 点击整行切换
                 sourceManager.setDefault(position);
                 sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
                 Toast.makeText(SettingsActivity.this, "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
@@ -514,7 +424,6 @@ public class SettingsActivity extends AppCompatActivity {
 
             @Override
             public void onDelete(int position) {
-                // 点击删除按钮
                 SourceManager.SourceItem item = sources.get(position);
                 new AlertDialog.Builder(SettingsActivity.this)
                         .setTitle("确认删除")
@@ -533,7 +442,6 @@ public class SettingsActivity extends AppCompatActivity {
 
         lvSourceList.setAdapter(adapter);
 
-        // 底部按钮事件
         btnConfirm.setOnClickListener(v -> {
             String name = etName.getText().toString().trim();
             String url = etUrl.getText().toString().trim();
@@ -568,7 +476,6 @@ public class SettingsActivity extends AppCompatActivity {
                 .setNegativeButton("关闭", null)
                 .show();
     }
-    // ====================================================================
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -578,8 +485,6 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    // ========================== 🟢 修复焦点更新算法：取消复杂的 isFocused 分支，强制设置颜色，完美解决高亮无法移动的问题 ==========================
-    // 🟢【性能优化3】增加防抖机制，避免快速按键时 post 任务堆积
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
@@ -588,7 +493,6 @@ public class SettingsActivity extends AppCompatActivity {
         View target = settingsItemList.get(selectedPosition);
         if (target == null) return;
 
-        // 1. 统一处理所有Item的背景色和文本色，消除旧代码里因为 isFocused() 引发的竞争和错乱
         for (int i = 0; i < settingsItemList.size(); i++) {
             View item = settingsItemList.get(i);
             if (item == null) continue;
@@ -599,7 +503,6 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
-        // 2. 防抖处理：取消之前可能堆积的滚动/聚焦任务
         if (focusUpdateRunnable != null) {
             mainHandler.removeCallbacks(focusUpdateRunnable);
         }
@@ -607,7 +510,6 @@ public class SettingsActivity extends AppCompatActivity {
             scrollToView(target);
             target.requestFocus();
         };
-        // 立即执行（防抖让之前的堆积取消，只执行最新一次）
         mainHandler.post(focusUpdateRunnable);
     }
 
@@ -642,7 +544,6 @@ public class SettingsActivity extends AppCompatActivity {
         return null;
     }
 
-    // ========================== 🟢 瞬间跳转，避免动画队列堆积卡死 ==========================
     private void scrollToView(View view) {
         if (scrollView == null || view == null) return;
         int viewTop = view.getTop();
@@ -732,13 +633,8 @@ public class SettingsActivity extends AppCompatActivity {
     private void updateRendererModeText(String mode) {
         if (tv_renderer_type == null) return;
         switch (mode) {
-            case "texture":
-                tv_renderer_type.setText("TextureView");
-                break;
-            case "surface":
-            default:
-                tv_renderer_type.setText("SurfaceView");
-                break;
+            case "texture": tv_renderer_type.setText("TextureView"); break;
+            case "surface": default: tv_renderer_type.setText("SurfaceView"); break;
         }
     }
 
@@ -750,20 +646,16 @@ public class SettingsActivity extends AppCompatActivity {
         boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
         boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
         final String[] currentUaMode = { sp.getString(KEY_USER_AGENT_MODE, "exo") };
-        
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
         EditText etMax = dialogView.findViewById(R.id.et_redirect_max);
-
         SwitchCompat swCrossDomain = dialogView.findViewById(R.id.sw_cross_domain);
         SwitchCompat swCrossProto = dialogView.findViewById(R.id.sw_cross_proto);
         SwitchCompat swFollowHeader = dialogView.findViewById(R.id.sw_follow_header);
         SwitchCompat swIgnoreSsl = dialogView.findViewById(R.id.sw_ignore_ssl);
         SwitchCompat swSendCookie = dialogView.findViewById(R.id.sw_send_cookie);
-        
         LinearLayout llUserAgent = dialogView.findViewById(R.id.ll_user_agent);
         TextView tvUserAgentStatus = dialogView.findViewById(R.id.tv_user_agent_status);
         tvUserAgentStatus.setText("exo".equals(currentUaMode[0]) ? "ExoPlayer默认" : "VLC播放器");
-        
         etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
         etMax.setText(String.valueOf(currentMax));
         swCrossDomain.setChecked(crossDomain);
@@ -771,7 +663,6 @@ public class SettingsActivity extends AppCompatActivity {
         swFollowHeader.setChecked(followHeader);
         swIgnoreSsl.setChecked(ignoreSsl);
         swSendCookie.setChecked(sendCookie);
-
         llUserAgent.setOnClickListener(v -> {
             final String[] uaOptions = {"ExoPlayer默认", "VLC播放器"};
             final String[] uaValues = {"exo", "vlc"};
@@ -790,7 +681,6 @@ public class SettingsActivity extends AppCompatActivity {
                     d.dismiss();
                 }).show();
         });
-
         new AlertDialog.Builder(this)
                 .setTitle("HTTP重定向网络配置")
                 .setView(dialogView)
@@ -802,9 +692,7 @@ public class SettingsActivity extends AppCompatActivity {
                             newMax = Integer.parseInt(maxStr);
                             if(newMax < 1) newMax = 1;
                             if(newMax > 20) newMax = 20;
-                        }catch (Exception ignored){
-                            newMax =5;
-                        }
+                        }catch (Exception ignored){ newMax =5; }
                     }
                     SharedPreferences.Editor editor = sp.edit();
                     editor.putInt(KEY_REDIRECT_MAX_COUNT, newMax);
@@ -822,7 +710,6 @@ public class SettingsActivity extends AppCompatActivity {
                 .show();
     }
 
-    // ========================== 🟢 播放日志（保留） ==========================
     private void showLogDialog() {
         new Thread(() -> {
             final String logContent;
@@ -834,7 +721,6 @@ public class SettingsActivity extends AppCompatActivity {
                     originalLog = PLAY_LOG.toString();
                 }
                 String[] lines = originalLog.split("\n");
-                // 🟢【修改】限制日志行数，只保留最近 100 行，防止弹窗卡死
                 if (lines.length > MAX_LOG_LINES) {
                     List<String> subList = new ArrayList<>();
                     for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
@@ -842,7 +728,6 @@ public class SettingsActivity extends AppCompatActivity {
                     }
                     lines = subList.toArray(new String[0]);
                 }
-                
                 List<String> lagLines = new ArrayList<>();
                 StringBuilder fullReverseLog = new StringBuilder();
                 String[] lagKeywords = {
@@ -852,7 +737,6 @@ public class SettingsActivity extends AppCompatActivity {
                         "Forbidden", "访问拒绝", "跳转失败", 
                         "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
                 };
-
                 for (int i = lines.length - 1; i >= 0; i--) {
                     String line = lines[i].trim();
                     if (line.isEmpty()) continue;
@@ -874,7 +758,6 @@ public class SettingsActivity extends AppCompatActivity {
                     }
                     fullReverseLog.append(line).append("\n");
                 }
-
                 StringBuilder fullContent = new StringBuilder();
                 fullContent.append("========== 卡顿原因分析汇总 ==========\n");
                 if (!lagLines.isEmpty()) {
@@ -888,7 +771,6 @@ public class SettingsActivity extends AppCompatActivity {
                 fullContent.append(fullReverseLog);
                 logContent = fullContent.toString();
             }
-
             runOnUiThread(() -> renderPlayLogDialog(logContent));
         }).start();
     }
