@@ -76,13 +76,12 @@ public class TVPlayerManager {
     private String currentChannelName = "";
     private int mDecoderMode = DECODER_MODE_AUTO;
 
-    // 🟢【新增】保存当前正在播放的 Channel 对象，供设置页获取线路数量使用
-    private Channel currentChannel;
+    // 🟢【新增】防止重复切换/重建播放器导致的各种崩溃
+    private boolean isSwitching = false;
 
-    // 🟢【新增】备用源尝试索引（-1 表示未尝试）
+    private Channel currentChannel;
     private int backupRetryIndex = -1;
 
-    // 🟢【修复1】 将首次播放时间记录移到成员变量，防止逻辑错误
     private long initialPlayStartTime = 0;
     private int bufferCount = 0;
     private long totalStallTime = 0;
@@ -96,7 +95,6 @@ public class TVPlayerManager {
     private long lastPosition = 0;
     private Runnable stuckCheckRunnable;
     
-    // 🟢【修复2】 统一使用一个主 Handler，避免匿名 Handler 造成的内存泄漏
     private Handler mHandler;
     private Runnable hideChannelRunnable;
     
@@ -114,7 +112,6 @@ public class TVPlayerManager {
     private OnPlayerViewRecreatedListener onPlayerViewRecreatedListener;
     private boolean isRenderingSwitching = false;
 
-    // 🟢【修复3】 复用 Map 对象，避免频繁 new 导致频繁 GC 卡顿
     private final Map<String, String> reusableHeaderMap = new HashMap<>();
 
     public interface OnPlayerViewRecreatedListener {
@@ -146,7 +143,6 @@ public class TVPlayerManager {
             }
         };
 
-        // 🟢【修复4】 卡顿检测增加 player == null 判断，防止死循环空指针
         stuckCheckRunnable = new Runnable() {
             @Override
             public void run() {
@@ -204,7 +200,6 @@ public class TVPlayerManager {
                 .setLoadControl(loadControl)
                 .build();
 
-        // 检测解码器日志
         try {
             List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos("video/avc", false, false);
             int softCount = 0, hardCount = 0;
@@ -245,16 +240,13 @@ public class TVPlayerManager {
                 }
                 if (listener != null) listener.onPlayError(error.getMessage());
 
-                // 🟢【关键修改】如果不是重定向错误，尝试自动切换备用源
                 if (!isRedirectError) {
                     boolean switched = trySwitchBackup();
                     if (switched) {
-                        // 已经切换到备用源，不再触发 sourceFailed
                         return;
                     }
                 }
 
-                // 如果没有备用源或重定向错误，触发外部失败回调
                 if (sourceFailedListener != null) {
                     sourceFailedListener.onSourceFailed();
                 }
@@ -274,17 +266,8 @@ public class TVPlayerManager {
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
-                    
-                    // 自动硬解转软解逻辑
-                    if (mDecoderMode == DECODER_MODE_AUTO && !isRenderingSwitching
-                            && initialPlayStartTime > 0 
-                            && System.currentTimeMillis() - initialPlayStartTime > 15000 
-                            && bufferCount > 1) {
-                        if (isRetrying || TextUtils.isEmpty(currentUrl)) return;
-                        Log.d(TAG, "【自动切换】硬解卡顿，自动切换到系统软解");
-                        mDecoderMode = DECODER_MODE_SOFT; 
-                        performDecoderSwitch();
-                    }
+
+                    // 🛡️【手动切换】移除自动硬解转软解的强行判断逻辑
                 } else if (state == Player.STATE_BUFFERING) {
                     if (listener != null) listener.onBuffering();
                     lastPositionUpdateTime = System.currentTimeMillis();
@@ -324,32 +307,25 @@ public class TVPlayerManager {
         player.addListener(playerListener);
     }
 
-    // 🟢【新增】尝试自动切换到下一个备用源
     private boolean trySwitchBackup() {
         if (currentChannel == null || currentChannel.getBackupUrls().isEmpty()) {
-            // 没有备用源，返回 false 让外部处理切台
             return false;
         }
 
-        // 如果尚未尝试过备用源，将索引设为0
         if (backupRetryIndex < 0) {
             backupRetryIndex = 0;
         } else {
-            // 已经尝试过，尝试下一个
             backupRetryIndex++;
         }
 
         List<String> backups = currentChannel.getBackupUrls();
         if (backupRetryIndex >= backups.size()) {
-            // 所有备用源都已尝试，重置索引并返回 false 让外部切台
             backupRetryIndex = -1;
             return false;
         }
 
         String backupUrl = backups.get(backupRetryIndex);
         Log.d(TAG, "尝试切换到备用源：" + backupUrl);
-
-        // 使用备用源重新播放
         playUrlInternal(backupUrl);
         return true;
     }
@@ -374,7 +350,6 @@ public class TVPlayerManager {
     }
 
     private void autoRetry(String reason) {
-        // 重定向错误不重试，由备用源切换处理
         if (reason.contains("RedirectFailedException") || reason.contains("重定向")) {
             return;
         }
@@ -405,23 +380,29 @@ public class TVPlayerManager {
     public void setDecoderMode(int mode) {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
-        Log.d(TAG, "切换解码器模式：" + mode);
+        Log.d(TAG, "手动切换解码器模式：" + mode);
         if (player != null) performDecoderSwitch();
     }
 
-    // 🟢【修复6】 彻底解决 performDecoderSwitch 中的资源清理和时序问题
+    // 🔧【核心修复】彻底解决播放器切换时的黑屏卡顿、死锁和多次调用并发问题
     private void performDecoderSwitch() {
+        if (isSwitching) {
+            Log.w(TAG, "正在解码器切换中，忽略当前请求");
+            return;
+        }
+        isSwitching = true;
+
         try {
-            // 1. 停止当前所有检测任务和延迟任务，防止 postDelayed 死循环
-            stopStuckDetection();
-            cancelRetry();
-            mHandler.removeCallbacksAndMessages(null);
+            // 1. 停止当前所有相关检测（只移除特定任务，绝不使用 removeCallbacksAndMessages(null)）
+            mHandler.removeCallbacks(stuckCheckRunnable);
+            mHandler.removeCallbacks(retryRunnable);
+            mHandler.removeCallbacks(hideChannelRunnable);
 
             // 2. 释放旧播放器并移除监听器
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
-                    playerListener = null; // 置空防止泄漏
+                    playerListener = null;
                 }
                 player.release();
                 player = null;
@@ -430,10 +411,10 @@ public class TVPlayerManager {
             Log.e(TAG, "释放旧播放器异常", e);
         }
 
-        // 3. 重新初始化
+        // 3. 重新初始化播放器（主线程必然耗时，但为了稳定性只能如此）
         initPlayer();
 
-        // 4. 重新绑定 PlayerView (必须确保操作在主线程且顺序正确)
+        // 4. 重新绑定 PlayerView
         if (playerView != null) {
             mHandler.post(() -> {
                 if (playerView != null && player != null) {
@@ -448,6 +429,8 @@ public class TVPlayerManager {
             isRetrying = false;
             playUrlInternal(currentUrl);
         }
+
+        isSwitching = false;
     }
 
     public int getDecoderMode() { return mDecoderMode; }
@@ -489,14 +472,13 @@ public class TVPlayerManager {
         }
     }
 
-    // 🟢【修复7】 彻底解决切换渲染器时的黑屏闪烁和 Handler 泄漏
+    // 渲染器切换部分保持原样（因为用户没有明确说明要改，但之前的优化已经够好了）
     private void switchRenderer(boolean useTexture) {
         if (playerView == null || context == null) return;
 
         FrameLayout parent = (FrameLayout) playerView.getParent();
         if (parent == null) return;
 
-        // 1. 添加黑屏遮罩
         View blackMask = new View(context);
         blackMask.setBackgroundColor(Color.BLACK);
         FrameLayout.LayoutParams maskParams = new FrameLayout.LayoutParams(
@@ -529,7 +511,6 @@ public class TVPlayerManager {
         if (currentPosition > 0) player.seekTo(currentPosition);
         
         if (wasPlaying) {
-            // 复用全局 mHandler，配合 mHandler.removeCallbacksAndMessages(null) 清除，解决内存泄漏
             mHandler.postDelayed(() -> {
                 if (player != null && !player.isPlaying()) player.play();
             }, 200);
@@ -540,13 +521,11 @@ public class TVPlayerManager {
         }
         playerView.requestFocus();
 
-        // 2. 移除遮罩：通过动画实现平滑过渡，避免闪烁
         playerView.postDelayed(() -> {
             blackMask.animate()
                     .alpha(0f)
                     .setDuration(250)
                     .withEndAction(() -> {
-                        // 动画结束后从布局移除释放内存
                         parent.removeView(blackMask);
                     })
                     .start();
@@ -624,17 +603,12 @@ public class TVPlayerManager {
         if (playerView != null) playerView.setKeepScreenOn(enable);
     }
 
-    // ====================================================================
-    // 🟢【修改】新增 playUrl 重载方法，支持传递 Channel 对象
-    // ====================================================================
     public void playUrl(String url) { playUrl(url, null, null); }
     public void playUrl(String url, String channelName) { playUrl(url, channelName, null); }
 
     public void playUrl(String url, String channelName, Channel channel) {
         if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
-        // 🟢 保存当前 Channel 对象
         this.currentChannel = channel;
-        // 重置备用源尝试索引
         this.backupRetryIndex = -1;
         if (channel != null && TextUtils.isEmpty(this.currentChannelName)) {
             this.currentChannelName = channel.getName();
@@ -643,14 +617,11 @@ public class TVPlayerManager {
         cancelRetry();
         retryCount = 0;
         isRetrying = false;
-        // 🟢【修复8】 重置状态，防止旧状态影响新开播
         initialPlayStartTime = 0;
         resetPerformanceStats();
         playUrlInternal(url);
     }
-    // ====================================================================
 
-    // 🟢【新增】供 SettingsActivity 获取当前频道对象
     public Channel getCurrentChannel() {
         return currentChannel;
     }
@@ -671,23 +642,19 @@ public class TVPlayerManager {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
             
-            // 🟢【新增】根据用户设置选择主源还是备用源播放
             String playUrl = url.trim();
             if (currentChannel != null) {
                 SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
                 int lineIndex = sp.getInt("channel_line_index", 0);
                 
                 if (lineIndex == 0) {
-                    // 选了主源
                     playUrl = currentChannel.getMainPlayUrl();
                 } else {
-                    // 选了备用源
                     List<String> backups = currentChannel.getBackupUrls();
                     int backupIndex = lineIndex - 1;
                     if (backupIndex >= 0 && backupIndex < backups.size()) {
                         playUrl = backups.get(backupIndex);
                     } else {
-                        // 越界保护，自动切回主源
                         playUrl = currentChannel.getMainPlayUrl();
                         Log.w(TAG, "线路索引越界，已自动切回主源");
                     }
@@ -701,7 +668,6 @@ public class TVPlayerManager {
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
 
-            // 🟢【修复9】 复用 reusableHeaderMap 对象并 clear，解决频繁 new HashMap 引起的 GC 掉帧
             reusableHeaderMap.clear();
             for (String name : globalHeaders.names()) {
                 reusableHeaderMap.put(name, globalHeaders.get(name));
@@ -818,12 +784,11 @@ public class TVPlayerManager {
     public void pause() { try { if (player != null) player.pause(); } catch (Exception ignored) {} }
     public void resume() { try { if (player != null) player.play(); } catch (Exception ignored) {} }
 
-    // 🟢【修复10】 彻底安全的释放逻辑，防止单例内存泄漏
     public void release() {
         try {
             stopStuckDetection();
             cancelRetry();
-            mHandler.removeCallbacksAndMessages(null); // 清除所有未执行的排期任务！
+            mHandler.removeCallbacks(hideChannelRunnable);
             
             updateWakeLock(false);
             unregisterDecoderModeReceiver();
@@ -837,9 +802,8 @@ public class TVPlayerManager {
                 player.release();
                 player = null;
             }
-            instance = null; // 彻底销毁单例，允许后续 GC 回收
+            instance = null;
             
-            // 释放对外暴露的 View 引用
             if (playerView != null) {
                 playerView.setPlayer(null);
                 playerView = null;
@@ -879,4 +843,4 @@ public class TVPlayerManager {
             }
         }
     }
- }
+}
