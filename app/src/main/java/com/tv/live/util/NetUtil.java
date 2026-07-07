@@ -2,6 +2,7 @@ package com.tv.live.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log; // 🟢 替换为原生日志
 import okhttp3.Call;
 import okhttp3.Headers;
 import okhttp3.Interceptor;
@@ -12,8 +13,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
-import com.tv.live.SettingsActivity; // 🟢 导入日志工具
 
 /**
  * 统一网络工具（合并HttpUtil + RequestHeaderUtil）
@@ -80,8 +79,10 @@ public class NetUtil {
             }
         }
         
-        // 🟢【记录日志】将实际使用的 UA 打印到解析日志中，方便确认切换是否生效
-        SettingsActivity.log("【UA检测】当前正在使用的请求头 User-Agent: " + userAgent);
+        // 🟢 【删除原日志代码】去除对 SettingsActivity.log 的依赖
+        // SettingsActivity.log("【UA检测】当前正在使用的请求头 User-Agent: " + userAgent);
+        // 如果需要调试，可以保留下方 Logcat 打印:
+        Log.d("NetUtil", "【UA检测】当前正在使用的请求头 User-Agent: " + userAgent);
 
         headerMap.put("User-Agent", userAgent);
         headerMap.put("Accept", "*");
