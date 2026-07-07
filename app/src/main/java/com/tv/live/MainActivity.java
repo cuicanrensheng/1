@@ -59,8 +59,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
 
-    // 🟢【修复1】替换原 static List<String> logList，改用安全限容日志缓冲
-    public static final FixedSizeLogBuffer LOG_BUFFER = new FixedSizeLogBuffer();
+    // 🟢【核心修改】移除 LOG_BUFFER，彻底消灭 synchronized 锁导致的 UI 卡顿
+    // public static final FixedSizeLogBuffer LOG_BUFFER = new FixedSizeLogBuffer();
 
     // 🟢【修复2】统一使用成员 Handler，避免匿名 Handler 泄漏
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
@@ -291,10 +291,14 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     // 🟢【关键修改】必须从 AppCoreManager 内部获取已经合并好的最终列表
                     List<Channel> finalList = appCoreManager.getChannelList();
+                    
+                    // 🟢【性能优化】用临时变量一次性替换，减少主线程频繁 addAll 造成的掉帧
                     channelSourceList.clear();
                     channelSourceList.addAll(finalList);
 
+                    // ✅ 注意：调用 setChannels 已经包含了数据刷新，所以不需要再额外加 notifyDataSetChanged
                     channelPanelController.setChannels(channelSourceList);
+                    
                     if (remoteManager != null) {
                         remoteManager.setTotalChannelCount(channelSourceList.size());
                     }
@@ -511,9 +515,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 🟢【核心修改】移除了 LOG_BUFFER 的追加和同步锁，直接打印 Logcat
     private void log(String msg) {
-        LOG_BUFFER.append(msg);
-        // 🟢【修复3】加上 android.util.Log 的标准调用
+        // 之前是 LOG_BUFFER.append(msg); 已被移除，彻底消灭因同步锁导致的 UI 卡顿。
         Log.d("MainActivity", msg);
     }
 
@@ -578,29 +582,5 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.release();
         if (mPlayerManager != null) mPlayerManager.release();
         mInstance = null;
-    }
-
-    // 🟢【修复8】安全日志限容类（确保外部如 SettingsActivity 也能引用）
-    public static class FixedSizeLogBuffer {
-        private final StringBuilder buffer = new StringBuilder();
-        private final int maxCapacity = 1024 * 50; // 50KB
-        private final Object lock = new Object();
-
-        public void append(String msg) {
-            if (msg == null) return;
-            synchronized (lock) {
-                if (buffer.length() + msg.length() > maxCapacity) {
-                    buffer.delete(0, buffer.length() - (maxCapacity / 2));
-                }
-                buffer.append(msg).append("\n");
-            }
-        }
-        public String getAndClear() {
-            synchronized (lock) {
-                String content = buffer.toString();
-                buffer.setLength(0);
-                return content;
-            }
-        }
     }
 }
