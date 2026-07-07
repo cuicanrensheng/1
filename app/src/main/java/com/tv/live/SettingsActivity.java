@@ -20,6 +20,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -221,7 +222,7 @@ public class SettingsActivity extends AppCompatActivity {
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
 
-        // ================= 🟢 新增：首次启动时注入默认源 (UrlConfig) =================
+        // 首次启动注入默认源 (UrlConfig)
         SourceManager liveManager = new SourceManager(this, "live_history");
         if (liveManager.size() == 0) {
             liveManager.addSource("默认直播源", UrlConfig.LIVE_URL);
@@ -230,13 +231,64 @@ public class SettingsActivity extends AppCompatActivity {
         if (epgManager.size() == 0) {
             epgManager.addSource("默认节目单", UrlConfig.EPG_URL);
         }
-        // ================= 🟢 注入结束 =================
     }
 
     private String getLineName(int index) {
         if (index == 0) return "主源";
         return "源" + index;
     }
+
+    // ================= 🔥 新增通用辅助方法：生成统一深色风格的单选弹窗 =================
+    private void showDarkSingleChoiceDialog(String title, String[] items, int checkedItem, java.util.function.Consumer<Integer> onSelected) {
+        ListView listView = new ListView(this);
+        listView.setBackgroundColor(0xFF272B3A);
+        listView.setDivider(new ColorDrawable(0x33FFFFFF));
+        listView.setDividerHeight(1);
+        listView.setPadding(0, 16, 0, 16);
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_single_choice, items) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View view = super.getView(position, convertView, parent);
+                TextView tv = view.findViewById(android.R.id.text1);
+                tv.setTextColor(Color.WHITE);
+                tv.setTextSize(16);
+                return view;
+            }
+        };
+        listView.setAdapter(adapter);
+        listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+        listView.setItemChecked(checkedItem, true);
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            onSelected.accept(position);
+        });
+
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextColor(Color.WHITE);
+        titleView.setTextSize(20);
+        titleView.setPadding(24, 24, 24, 0);
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundColor(0xFF272B3A);
+        layout.addView(titleView);
+        layout.addView(listView);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(layout)
+                .setNegativeButton("取消", null)
+                .create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+
+        // 统一按钮样式
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
+    }
+    // ================= 🔥 辅助方法结束 =================
 
     private void showChannelLineDialog() {
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
@@ -252,17 +304,13 @@ public class SettingsActivity extends AppCompatActivity {
             lineList.add("源" + i);
         }
         String[] lineArray = lineList.toArray(new String[0]);
-        new AlertDialog.Builder(this)
-                .setTitle("频道线路选择")
-                .setSingleChoiceItems(lineArray, currentLineIndex, (dialog, which) -> {
-                    sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
-                    tv_channel_line.setText(lineArray[which]);
-                    sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                    dialog.dismiss();
-                    Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("取消", null)
-                .show();
+
+        showDarkSingleChoiceDialog("频道线路选择", lineArray, currentLineIndex, (which) -> {
+            sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
+            tv_channel_line.setText(lineArray[which]);
+            sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+            Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void initRedirectDefaultConfig() {
@@ -392,7 +440,6 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
     }
 
-    // ================= 🔥 完整修复版：标题变化、隐藏扫码与二维码、底部提示改动 =================
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(this, spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
@@ -401,26 +448,19 @@ public class SettingsActivity extends AppCompatActivity {
         ListView lvSourceList = dialogView.findViewById(R.id.lv_source_list);
         ImageView ivQrCode = dialogView.findViewById(R.id.iv_qr_code);
         TextView tvIpAddress = dialogView.findViewById(R.id.tv_ip_address);
-        TextView tvDialogTitle = dialogView.findViewById(R.id.tv_dialog_title); // 顶部标题控件
-        LinearLayout llScanHeader = dialogView.findViewById(R.id.ll_scan_header); // 扫码文字容器
+        TextView tvDialogTitle = dialogView.findViewById(R.id.tv_dialog_title);
+        LinearLayout llScanHeader = dialogView.findViewById(R.id.ll_scan_header);
         EditText etName = dialogView.findViewById(R.id.et_name);
         EditText etUrl = dialogView.findViewById(R.id.et_url);
         Button btnClear = dialogView.findViewById(R.id.btn_clear);
         Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
         Button btnClose = dialogView.findViewById(R.id.btn_close);
 
-        // ✅ 判断当前是直播源还是节目单
         boolean isLive = "live_history".equals(spKey);
-
         tvIpAddress.setText(currentWebUrl);
 
         if (isLive) {
-            // -----------------------------------------
-            // 情况 1：直播源订阅
-            // -----------------------------------------
-            if (tvDialogTitle != null) tvDialogTitle.setText(title); // 设置为 "直播源订阅"
-            
-            // 1. 显示扫码文字、显示二维码
+            if (tvDialogTitle != null) tvDialogTitle.setText(title);
             if (llScanHeader != null) llScanHeader.setVisibility(View.VISIBLE);
             if (ivQrCode != null) ivQrCode.setVisibility(View.VISIBLE);
             try {
@@ -437,22 +477,12 @@ public class SettingsActivity extends AppCompatActivity {
             ivQrCode.setOnClickListener(v -> {
                 Toast.makeText(SettingsActivity.this, "已生成二维码，请扫码", Toast.LENGTH_SHORT).show();
             });
-
-            // 2. 设置直播源输入框提示
             etName.setHint("请输入名称(选填)");
             etUrl.setHint("请输入地址");
-
         } else {
-            // -----------------------------------------
-            // 情况 2：节目单订阅
-            // -----------------------------------------
-            if (tvDialogTitle != null) tvDialogTitle.setText(title); // 动态替换为 "节目单订阅"
-
-            // 1. 隐藏扫码文字、隐藏二维码
+            if (tvDialogTitle != null) tvDialogTitle.setText(title);
             if (llScanHeader != null) llScanHeader.setVisibility(View.GONE);
             if (ivQrCode != null) ivQrCode.setVisibility(View.GONE);
-
-            // 2. 设置节目单输入框提示
             etName.setHint("请输入节目单名称(选填)");
             etUrl.setHint("请输入EPG节目单地址");
         }
@@ -473,7 +503,6 @@ public class SettingsActivity extends AppCompatActivity {
 
             @Override
             public void onDelete(int position) {
-                // 🛡️ 防御性检查
                 if (position < 0 || position >= sources.size()) {
                     return;
                 }
@@ -521,22 +550,17 @@ public class SettingsActivity extends AppCompatActivity {
             etUrl.setText("");
         });
 
-        // ================= 透明风格弹窗 =================
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)
                 .create();
-
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
-
         dialog.show();
-
         if (btnClose != null) {
             btnClose.setOnClickListener(v -> dialog.dismiss());
         }
     }
-    // ================= 🔥 重点修改结束 =================
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -628,12 +652,18 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void showRatioDialog() {
         final String[] ratios = {"全屏", "填充", "原始"};
-        new AlertDialog.Builder(this)
-                .setTitle("屏幕比例")
-                .setItems(ratios, (d, w) -> {
-                    sp.edit().putString("screen_ratio", ratios[w]).apply();
-                    Toast.makeText(this, "已设置", Toast.LENGTH_SHORT).show();
-                }).show();
+        String currentMode = sp.getString("screen_ratio", "全屏");
+        int checkedItem = 0;
+        for (int i = 0; i < ratios.length; i++) {
+            if (ratios[i].equals(currentMode)) {
+                checkedItem = i;
+                break;
+            }
+        }
+        showDarkSingleChoiceDialog("屏幕比例", ratios, checkedItem, (which) -> {
+            sp.edit().putString("screen_ratio", ratios[which]).apply();
+            Toast.makeText(this, "已设置", Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void showDecoderModeDialog() {
@@ -647,16 +677,13 @@ public class SettingsActivity extends AppCompatActivity {
                 break;
             }
         }
-        new AlertDialog.Builder(this)
-                .setTitle("解码器选择")
-                .setSingleChoiceItems(modes, checkedItem, (d, which) -> {
-                    String selectedMode = modeValues[which];
-                    sp.edit().putString("decoder_mode", selectedMode).apply();
-                    updateDecoderModeText(selectedMode);
-                    sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
-                    d.dismiss();
-                    Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…", Toast.LENGTH_SHORT).show();
-                }).show();
+        showDarkSingleChoiceDialog("解码器选择", modes, checkedItem, (which) -> {
+            String selectedMode = modeValues[which];
+            sp.edit().putString("decoder_mode", selectedMode).apply();
+            updateDecoderModeText(selectedMode);
+            sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
+            Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…", Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void updateDecoderModeText(String mode) {
@@ -679,16 +706,13 @@ public class SettingsActivity extends AppCompatActivity {
                 break;
             }
         }
-        new AlertDialog.Builder(this)
-                .setTitle("渲染方式选择")
-                .setSingleChoiceItems(modes, checkedItem, (d, which) -> {
-                    String selectedMode = modeValues[which];
-                    sp.edit().putString("renderer_type", selectedMode).apply();
-                    updateRendererModeText(selectedMode);
-                    sendBroadcast(new Intent("com.tv.live.RENDERER_TYPE_CHANGED"));
-                    d.dismiss();
-                    Toast.makeText(this, "已切换到" + modes[which] + "，正在应用……", Toast.LENGTH_SHORT).show();
-                }).show();
+        showDarkSingleChoiceDialog("渲染方式选择", modes, checkedItem, (which) -> {
+            String selectedMode = modeValues[which];
+            sp.edit().putString("renderer_type", selectedMode).apply();
+            updateRendererModeText(selectedMode);
+            sendBroadcast(new Intent("com.tv.live.RENDERER_TYPE_CHANGED"));
+            Toast.makeText(this, "已切换到" + modes[which] + "，正在应用……", Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void updateRendererModeText(String mode) {
@@ -707,6 +731,8 @@ public class SettingsActivity extends AppCompatActivity {
         boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
         boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
         final String[] currentUaMode = { sp.getString(KEY_USER_AGENT_MODE, "exo") };
+        
+        // 使用刚刚替换的深色 dialog_redirect_config 布局
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
         EditText etMax = dialogView.findViewById(R.id.et_redirect_max);
         SwitchCompat swCrossDomain = dialogView.findViewById(R.id.sw_cross_domain);
@@ -716,6 +742,9 @@ public class SettingsActivity extends AppCompatActivity {
         SwitchCompat swSendCookie = dialogView.findViewById(R.id.sw_send_cookie);
         LinearLayout llUserAgent = dialogView.findViewById(R.id.ll_user_agent);
         TextView tvUserAgentStatus = dialogView.findViewById(R.id.tv_user_agent_status);
+        Button btnCancel = dialogView.findViewById(R.id.btn_redirect_cancel);
+        Button btnSave = dialogView.findViewById(R.id.btn_redirect_save);
+
         tvUserAgentStatus.setText("exo".equals(currentUaMode[0]) ? "ExoPlayer默认" : "VLC播放器");
         etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
         etMax.setText(String.valueOf(currentMax));
@@ -724,6 +753,7 @@ public class SettingsActivity extends AppCompatActivity {
         swFollowHeader.setChecked(followHeader);
         swIgnoreSsl.setChecked(ignoreSsl);
         swSendCookie.setChecked(sendCookie);
+
         llUserAgent.setOnClickListener(v -> {
             final String[] uaOptions = {"ExoPlayer默认", "VLC播放器"};
             final String[] uaValues = {"exo", "vlc"};
@@ -734,41 +764,47 @@ public class SettingsActivity extends AppCompatActivity {
                     break;
                 }
             }
-            new AlertDialog.Builder(this)
-                .setTitle("UA切换")
-                .setSingleChoiceItems(uaOptions, checkedItem, (d, which) -> {
-                    currentUaMode[0] = uaValues[which];
-                    tvUserAgentStatus.setText(uaOptions[which]);
-                    d.dismiss();
-                }).show();
+            // 点击UA切换时，使用统一的深色弹窗
+            showDarkSingleChoiceDialog("UA切换", uaOptions, checkedItem, (which) -> {
+                currentUaMode[0] = uaValues[which];
+                tvUserAgentStatus.setText(uaOptions[which]);
+            });
         });
-        new AlertDialog.Builder(this)
-                .setTitle("HTTP重定向网络配置")
+
+        // 使用AlertDialog包裹自定义View（背景透明）
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)
-                .setPositiveButton("保存", (dialog, which) -> {
-                    String maxStr = etMax.getText().toString().trim();
-                    int newMax = 5;
-                    if (!TextUtils.isEmpty(maxStr)) {
-                        try {
-                            newMax = Integer.parseInt(maxStr);
-                            if(newMax < 1) newMax = 1;
-                            if(newMax > 20) newMax = 20;
-                        }catch (Exception ignored){ newMax =5; }
-                    }
-                    SharedPreferences.Editor editor = sp.edit();
-                    editor.putInt(KEY_REDIRECT_MAX_COUNT, newMax);
-                    editor.putBoolean(KEY_REDIRECT_CROSS_DOMAIN, swCrossDomain.isChecked());
-                    editor.putBoolean(KEY_REDIRECT_CROSS_PROTOCOL, swCrossProto.isChecked());
-                    editor.putBoolean(KEY_REDIRECT_FOLLOW_HEADERS, swFollowHeader.isChecked());
-                    editor.putBoolean(KEY_REDIRECT_IGNORE_SSL, swIgnoreSsl.isChecked());
-                    editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked());
-                    editor.putString(KEY_USER_AGENT_MODE, currentUaMode[0]);
-                    editor.apply();
-                    updateRedirectSettingText();
-                    Toast.makeText(this, "重定向配置保存成功", Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("取消", null)
-                .show();
+                .create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+
+        // 绑定深色布局中的取消和保存按钮
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        btnSave.setOnClickListener(v -> {
+            String maxStr = etMax.getText().toString().trim();
+            int newMax = 5;
+            if (!TextUtils.isEmpty(maxStr)) {
+                try {
+                    newMax = Integer.parseInt(maxStr);
+                    if(newMax < 1) newMax = 1;
+                    if(newMax > 20) newMax = 20;
+                }catch (Exception ignored){ newMax =5; }
+            }
+            SharedPreferences.Editor editor = sp.edit();
+            editor.putInt(KEY_REDIRECT_MAX_COUNT, newMax);
+            editor.putBoolean(KEY_REDIRECT_CROSS_DOMAIN, swCrossDomain.isChecked());
+            editor.putBoolean(KEY_REDIRECT_CROSS_PROTOCOL, swCrossProto.isChecked());
+            editor.putBoolean(KEY_REDIRECT_FOLLOW_HEADERS, swFollowHeader.isChecked());
+            editor.putBoolean(KEY_REDIRECT_IGNORE_SSL, swIgnoreSsl.isChecked());
+            editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked());
+            editor.putString(KEY_USER_AGENT_MODE, currentUaMode[0]);
+            editor.apply();
+            updateRedirectSettingText();
+            Toast.makeText(this, "重定向配置保存成功", Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
     }
 
     private void showLogDialog() {
@@ -836,8 +872,11 @@ public class SettingsActivity extends AppCompatActivity {
         }).start();
     }
 
+    // ================= 🔥 修复日志弹窗颜色 =================
     private void renderPlayLogDialog(String logContent) {
         ScrollView scrollView = new ScrollView(this);
+        scrollView.setBackgroundColor(0xFF272B3A); // 深色背景
+        
         TextView tv = new TextView(this);
         SpannableString spLog = new SpannableString(logContent);
         String[] lagKeywords = {
@@ -863,8 +902,9 @@ public class SettingsActivity extends AppCompatActivity {
         tv.setText(spLog);
         tv.setTextSize(12);
         tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.BLACK);
+        tv.setTextColor(Color.WHITE); // 改成白色文字
         scrollView.addView(tv);
+
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("📄 解析 & 播放日志（卡顿分析）");
         builder.setView(scrollView);
@@ -878,8 +918,18 @@ public class SettingsActivity extends AppCompatActivity {
             }
             Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
         });
-        builder.show();
+        
+        AlertDialog dialog = builder.create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        
+        // 统一操作按钮样式
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Color.WHITE);
     }
+    // ================= 🔥 修复结束 =================
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
