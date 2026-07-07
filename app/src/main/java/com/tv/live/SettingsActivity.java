@@ -74,8 +74,8 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     public static volatile StringBuffer PLAY_LOG = new StringBuffer();
-    // 🟢 修改：容量限制改为 50KB（50000 个字符）
-    private static final int MAX_LOG_SIZE = 50000; 
+    // 🟢 修改：容量限制改回 100 行
+    private static final int MAX_LOG_LINES = 100; 
 
     public static void log(String msg) {
         LogManager.log(msg);
@@ -119,7 +119,7 @@ public class SettingsActivity extends AppCompatActivity {
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
         initRedirectDefaultConfig();
 
-        // 🟢 强制默认开启：节目单和数字选台（因 UI 中已移除开关）
+        // 🟢 强制默认开启：节目单和数字选台
         sp.edit().putBoolean("epg_enable", true).apply();
         sp.edit().putBoolean("number_channel_enable", true).apply();
 
@@ -162,8 +162,6 @@ public class SettingsActivity extends AppCompatActivity {
             bootStartManager.showBootStatusDialog();
             return true;
         });
-
-        // 🟢 已移除 sw_epg, sw_auto_update, sw_num_channel 相关 UI 逻辑
 
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
         findViewById(R.id.item_reverse).setOnClickListener(v -> {
@@ -778,7 +776,7 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
-    // ================= 🟢 修改：日志容量改为 50KB，移除卡顿分析 =================
+    // ================= 🟢 修改：改回按 100 行截断 =================
     private void showLogDialog() {
         new Thread(() -> {
             final String logContent;
@@ -790,19 +788,17 @@ public class SettingsActivity extends AppCompatActivity {
                     originalLog = PLAY_LOG.toString();
                 }
                 
-                // 🟢 修改：按字符数 50KB 截断
-                if (originalLog.length() > MAX_LOG_SIZE) {
-                    originalLog = originalLog.substring(originalLog.length() - MAX_LOG_SIZE);
-                    // 去除截断后可能产生的首行空白换行
-                    if (originalLog.startsWith("\n")) {
-                        originalLog = originalLog.substring(1);
+                // 🟢 改回按 100 行截断
+                String[] lines = originalLog.split("\n");
+                if (lines.length > MAX_LOG_LINES) {
+                    List<String> subList = new ArrayList<>();
+                    for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
+                        subList.add(lines[i]);
                     }
+                    lines = subList.toArray(new String[0]);
                 }
 
-                String[] lines = originalLog.split("\n");
                 StringBuilder fullReverseLog = new StringBuilder();
-                
-                // 🟢 移除了卡顿原因分析汇总的遍历与判断
                 for (int i = lines.length - 1; i >= 0; i--) {
                     String line = lines[i].trim();
                     if (line.isEmpty()) continue;
@@ -814,7 +810,7 @@ public class SettingsActivity extends AppCompatActivity {
         }).start();
     }
 
-    // ================= 🟢 修改：标题精简、移除高亮逻辑 =================
+    // ================= 🟢 标题精简、白底黑字（无卡顿高亮） =================
     private void renderPlayLogDialog(String logContent) {
         ScrollView scrollView = new ScrollView(this);
         scrollView.setBackgroundColor(Color.WHITE);
@@ -827,7 +823,7 @@ public class SettingsActivity extends AppCompatActivity {
         scrollView.addView(tv);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("📄 播放日志"); // 移除“卡顿分析”
+        builder.setTitle("📄 播放日志");
         builder.setView(scrollView);
         builder.setPositiveButton("关闭", null);
         builder.setNeutralButton("清空日志", (dialog, which) -> {
