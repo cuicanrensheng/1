@@ -9,7 +9,6 @@
     android:focusable="true"
     android:clickable="true">
 
-    <!-- 单选按钮，用于指示当前选中的源 -->
     <RadioButton
         android:id="@+id/rb_select"
         android:layout_width="wrap_content"
@@ -17,7 +16,6 @@
         android:focusable="false"
         android:clickable="false" />
 
-    <!-- 显示完整的直播源链接 -->
     <TextView
         android:id="@+id/tv_url"
         android:layout_width="0dp"
@@ -30,7 +28,6 @@
         android:layout_marginStart="8dp"
         android:layout_marginEnd="8dp" />
 
-    <!-- 删除按钮（默认源自动隐藏） -->
     <Button
         android:id="@+id/btn_delete_source"
         android:layout_width="wrap_content"
