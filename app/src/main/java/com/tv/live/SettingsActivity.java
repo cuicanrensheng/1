@@ -73,19 +73,7 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
-    public static volatile StringBuffer PLAY_LOG = new StringBuffer();
-    // 🟢 修改：容量限制改回 100 行
-    private static final int MAX_LOG_LINES = 100; 
-
-    public static void log(String msg) {
-        LogManager.log(msg);
-        if (PLAY_LOG == null) {
-            PLAY_LOG = new StringBuffer();
-        }
-        synchronized (PLAY_LOG) {
-            PLAY_LOG.append(msg).append("\n");
-        }
-    }
+    // 🟢 删除：PLAY_LOG 和 MAX_LOG_LINES 已彻底移除
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable focusUpdateRunnable;
@@ -119,7 +107,6 @@ public class SettingsActivity extends AppCompatActivity {
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
         initRedirectDefaultConfig();
 
-        // 🟢 强制默认开启：节目单和数字选台
         sp.edit().putBoolean("epg_enable", true).apply();
         sp.edit().putBoolean("number_channel_enable", true).apply();
 
@@ -144,7 +131,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         initSettingsItemList();
         initRemoteManager();
-        findViewById(R.id.log_viewer).setOnClickListener(v -> showLogDialog());
+        // 🟢 删除：findViewById(R.id.log_viewer).setOnClickListener...
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
         int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
@@ -195,7 +182,6 @@ public class SettingsActivity extends AppCompatActivity {
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
 
-        // 首次启动注入默认源 (UrlConfig)
         SourceManager liveManager = new SourceManager(this, "live_history");
         if (liveManager.size() == 0) {
             liveManager.addSource("默认直播源", UrlConfig.LIVE_URL);
@@ -339,7 +325,7 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(itemLiveSubscribe);
         settingsItemList.add(itemEpgSubscribe);
         settingsItemList.add(findViewById(R.id.item_channel_line));
-        settingsItemList.add(findViewById(R.id.log_viewer));
+        // 🟢 删除：settingsItemList.add(findViewById(R.id.log_viewer));
         settingsItemList.add(findViewById(R.id.item_check_update));
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) {
@@ -775,77 +761,7 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
-    // ================= 🟢 修改：改回按 100 行截断、并修正底部按钮为纯白 =================
-    private void showLogDialog() {
-        new Thread(() -> {
-            final String logContent;
-            if (PLAY_LOG == null || PLAY_LOG.length() == 0) {
-                logContent = "暂无日志内容，请先播放一个频道再查看。";
-            } else {
-                String originalLog;
-                synchronized (PLAY_LOG) {
-                    originalLog = PLAY_LOG.toString();
-                }
-                
-                // 🟢 按 100 行截断
-                String[] lines = originalLog.split("\n");
-                if (lines.length > MAX_LOG_LINES) {
-                    List<String> subList = new ArrayList<>();
-                    for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
-                        subList.add(lines[i]);
-                    }
-                    lines = subList.toArray(new String[0]);
-                }
-
-                StringBuilder fullReverseLog = new StringBuilder();
-                for (int i = lines.length - 1; i >= 0; i--) {
-                    String line = lines[i].trim();
-                    if (line.isEmpty()) continue;
-                    fullReverseLog.append(line).append("\n");
-                }
-                logContent = fullReverseLog.toString();
-            }
-            runOnUiThread(() -> renderPlayLogDialog(logContent));
-        }).start();
-    }
-
-    private void renderPlayLogDialog(String logContent) {
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setBackgroundColor(Color.WHITE);
-        
-        TextView tv = new TextView(this);
-        tv.setText(logContent);
-        tv.setTextSize(12);
-        tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.BLACK);
-        scrollView.addView(tv);
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("📄 播放日志");
-        builder.setView(scrollView);
-        builder.setPositiveButton("关闭", null);
-        builder.setNeutralButton("清空日志", (dialog, which) -> {
-            LogManager.clearPlayLog();
-            if (PLAY_LOG != null) {
-                synchronized (PLAY_LOG) {
-                    PLAY_LOG.setLength(0);
-                }
-            }
-            Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
-        });
-        
-        AlertDialog dialog = builder.create();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-        dialog.show();
-
-        // 🟢 修改底部按钮样式：背景变为白色，文字变为黑色，与顶部和中间统一
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.BLACK);
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Color.BLACK);
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
-    }
+    // 🟢 删除：showLogDialog() 和 renderPlayLogDialog() 方法已彻底删除
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
