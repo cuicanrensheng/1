@@ -6,7 +6,7 @@
     android:background="#272B3A"
     android:padding="0dp">
 
-    <!-- ===== 顶部：扫码远程输入 + 列表订阅 ===== -->
+    <!-- 顶部：扫码远程输入 + 列表订阅 -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="60dp"
@@ -39,20 +39,18 @@
             android:textStyle="bold" />
     </RelativeLayout>
 
-    <!-- ===== 中间：二维码 + 列表 ===== -->
+    <!-- 中间：二维码 + 列表 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp">
-        <!-- 左侧二维码 -->
         <ImageView
             android:id="@+id/iv_qr_code"
             android:layout_width="140dp"
             android:layout_height="140dp"
             android:background="#FFFFFF"
             android:scaleType="fitCenter" />
-        <!-- 右侧列表 -->
         <ListView
             android:id="@+id/lv_source_list"
             android:layout_width="0dp"
@@ -62,7 +60,7 @@
             android:divider="@null" />
     </LinearLayout>
 
-    <!-- ===== 底部：输入 + 操作按钮 ===== -->
+    <!-- 底部：输入 + 操作按钮 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -70,7 +68,6 @@
         android:padding="12dp"
         android:gravity="center_vertical"
         android:background="#1E2230">
-        <!-- 名称输入 -->
         <TextView
             android:text="1."
             android:textColor="#666"
@@ -106,7 +103,6 @@
             android:background="@null"
             android:padding="8dp"
             android:maxLines="1" />
-        <!-- 操作按钮组 -->
         <Button
             android:id="@+id/btn_clear"
             android:layout_width="wrap_content"
