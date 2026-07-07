@@ -372,89 +372,56 @@
                 android:clickable="true"/>
 
             <!-- ============================================================ -->
-            <!-- 自定义订阅源                                                -->
+            <!-- 分隔线                                                      -->
             <!-- ============================================================ -->
-            <TextView
-                android:id="@+id/tv_custom_source"
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="自定义订阅源"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true"/>
+                android:layout_height="1dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="#33FFFFFF"/>
 
             <!-- ============================================================ -->
-            <!-- 自定义节目单                                                -->
+            <!-- 🆕 直播源订阅（合并后的入口）                               -->
             <!-- ============================================================ -->
-            <TextView
-                android:id="@+id/tv_custom_epg"
+            <LinearLayout
+                android:id="@+id/item_live_subscribe"
                 android:layout_width="match_parent"
                 android:layout_height="55dp"
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:text="自定义节目单"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true"/>
+                android:clickable="true">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="直播源订阅"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+            </LinearLayout>
 
             <!-- ============================================================ -->
-            <!-- 多订阅源                                                    -->
+            <!-- 🆕 节目单订阅（合并后的入口）                               -->
             <!-- ============================================================ -->
-            <TextView
-                android:id="@+id/tv_multi_source"
+            <LinearLayout
+                android:id="@+id/item_epg_subscribe"
                 android:layout_width="match_parent"
                 android:layout_height="55dp"
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:text="直播源切换"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true"/>
-
-            <!-- ============================================================ -->
-            <!-- 多节目单                                                    -->
-            <!-- ============================================================ -->
-            <TextView
-                android:id="@+id/tv_multi_epg"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="节目单切换"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true"/>
-
-            <!-- ============================================================ -->
-            <!-- 扫码添加                                                    -->
-            <!-- ============================================================ -->
-            <TextView
-                android:id="@+id/tv_qr_code"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="扫码添加直播源/节目单"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true"/>
+                android:clickable="true">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="节目单订阅"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+            </LinearLayout>
 
             <!-- ============================================================ -->
             <!-- 分隔线                                                      -->
