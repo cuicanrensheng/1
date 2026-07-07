@@ -16,7 +16,6 @@
         android:paddingBottom="16dp"
         android:background="#1E2230">
 
-        <!-- 新增：自定义标题 -->
         <TextView
             android:id="@+id/tv_dialog_title"
             android:layout_width="wrap_content"
@@ -26,7 +25,6 @@
             android:textSize="18sp"
             android:textStyle="bold" />
 
-        <!-- 扫码远程输入区域 (移到标题下方) -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -49,7 +47,6 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- 右上角列表订阅文字 (对齐标题右侧) -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -82,17 +79,29 @@
             android:divider="@null" />
     </LinearLayout>
 
-    <!-- 底部：输入 + 操作按钮 + 关闭按钮 -->
+    <!-- 🔽 重点修改 1：添加分割线，解决底部与中间区域黏连的问题 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#33FFFFFF" />
+
+    <!-- 底部：输入 + 操作按钮 -->
+    <!-- 🔽 重点修改 2：增大 padding 至 16dp，并适当增加最小高度，解决太挤的问题 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="60dp"
         android:orientation="horizontal"
-        android:padding="12dp"
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp"
         android:gravity="center_vertical"
         android:background="#1E2230">
+
         <TextView
             android:text="1."
-            android:textColor="#666"
+            android:textColor="#A0A0A0"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="4dp"/>
@@ -106,10 +115,12 @@
             android:textColorHint="#888888"
             android:background="@null"
             android:padding="8dp"
+            android:layout_marginEnd="8dp"
             android:maxLines="1" />
+
         <TextView
             android:text="2."
-            android:textColor="#666"
+            android:textColor="#A0A0A0"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
@@ -117,53 +128,61 @@
         <EditText
             android:id="@+id/et_url"
             android:layout_width="0dp"
-            android:layout_weight="2"
+            android:layout_weight="2.5"
             android:layout_height="wrap_content"
             android:hint="请输入地址"
             android:textColor="#FFFFFF"
             android:textColorHint="#888888"
             android:background="@null"
             android:padding="8dp"
+            android:layout_marginEnd="8dp"
             android:maxLines="1" />
+
         <Button
             android:id="@+id/btn_clear"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:text="🗑️"
             android:background="#55576A"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
             android:focusable="true"
             android:clickable="true"/>
+
+        <!-- 🔽 重点修改 3：把确定和存储权限的背景颜色，改成与垃圾桶一致的深灰，彻底统一视觉 -->
         <Button
             android:id="@+id/btn_confirm"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:text="确定"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#40A9FF"
-            android:layout_marginStart="8dp"
+            android:backgroundTint="#55576A"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
             android:focusable="true"
             android:clickable="true"/>
+
         <Button
             android:id="@+id/btn_save_permission"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:text="存储权限"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#40A9FF"
-            android:layout_marginStart="8dp"
+            android:backgroundTint="#55576A"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
             android:focusable="true"
             android:clickable="true"/>
-        
-        <!-- 新增：自定义关闭按钮 -->
+
         <Button
             android:id="@+id/btn_close"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:text="关闭"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#40A9FF"
-            android:layout_marginStart="8dp"
+            android:backgroundTint="#55576A"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
             android:focusable="true"
             android:clickable="true"/>
     </LinearLayout>
