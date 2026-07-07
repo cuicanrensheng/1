@@ -6,7 +6,7 @@
     android:background="#272B3A"
     android:padding="0dp">
 
-    <!-- 顶部：标题 + 扫码远程输入 + 列表订阅（已移除右侧列表订阅文字） -->
+    <!-- 顶部：标题 + 扫码远程输入 -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -48,12 +48,16 @@
         </LinearLayout>
     </RelativeLayout>
 
-    <!-- 中间：二维码 + 列表（重点调整） -->
+    <!-- 🔽 重点修改：中间区域设为 0dp + weight=1，占据除顶部和底部外的全部剩余空间 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:orientation="horizontal"
-        android:padding="16dp">
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
         
         <ImageView
             android:id="@+id/iv_qr_code"
@@ -62,15 +66,14 @@
             android:background="#FFFFFF"
             android:scaleType="fitCenter" />
             
-        <!-- 右侧布局：把“列表订阅”移到了这里 -->
+        <!-- 右侧布局 -->
         <LinearLayout
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical"
             android:layout_marginStart="16dp">
             
-            <!-- 🟢 移动到这里的“列表订阅”标题 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -80,10 +83,11 @@
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
                 
+            <!-- 🔽 重点修改：ListView 高度改为 match_parent，以便在父容器内部自由上下滚动 -->
             <ListView
                 android:id="@+id/lv_source_list"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:divider="@null" />
         </LinearLayout>
     </LinearLayout>
@@ -94,7 +98,7 @@
         android:layout_height="1dp"
         android:background="#33FFFFFF" />
 
-    <!-- 🔽 底部：修复输入框太大、按钮图标被切掉的问题 -->
+    <!-- 底部：输入框 + 按钮 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -106,7 +110,6 @@
         android:gravity="center_vertical"
         android:background="#1E2230">
 
-        <!-- 左侧：两个输入框布局 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -115,7 +118,6 @@
             android:gravity="center_vertical"
             android:layout_marginEnd="16dp">
 
-            <!-- 输入框 1 -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -133,7 +135,6 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginEnd="4dp"/>
-                    <!-- 🔽 缩小字体：增加 textSize="14sp" -->
                     <EditText
                         android:id="@+id/et_name"
                         android:layout_width="0dp"
@@ -154,7 +155,6 @@
                     android:background="#33FFFFFF" />
             </LinearLayout>
 
-            <!-- 输入框 2 -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -171,7 +171,6 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginEnd="4dp"/>
-                    <!-- 🔽 缩小字体：增加 textSize="14sp" -->
                     <EditText
                         android:id="@+id/et_url"
                         android:layout_width="0dp"
@@ -193,7 +192,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 右侧：按钮组（修复高度，确保不切图标） -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
