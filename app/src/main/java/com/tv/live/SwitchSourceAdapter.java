@@ -16,9 +16,9 @@ public class SwitchSourceAdapter extends ArrayAdapter<SourceManager.SourceItem> 
     private int selectedPosition = -1;
     private OnDeleteClickListener deleteListener;
 
+    // 🟢 修复：只保留一个抽象方法，使接口成为“函数式接口”，完美兼容 Lambda 写法
     public interface OnDeleteClickListener {
         void onDelete(int position);
-        void onSelect(int position);
     }
 
     public SwitchSourceAdapter(Context context, List<SourceManager.SourceItem> items) {
@@ -51,15 +51,15 @@ public class SwitchSourceAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         TextView tvUrl = convertView.findViewById(R.id.tv_url);
         Button btnDelete = convertView.findViewById(R.id.btn_delete_source);
 
-        // 显示完整链接
+        // 完整显示链接
         tvUrl.setText(item.url);
         tvUrl.setSingleLine(false);
         tvUrl.setEllipsize(null);
 
-        // 🟢 关键修复：如果当前选中了该项，单选按钮打勾
+        // 选中状态
         rbSelect.setChecked(position == selectedPosition);
 
-        // 🟢 关键修复：如果是默认源，隐藏删除按钮；普通源显示删除按钮
+        // 默认源无删除按钮
         if (item.isDefault) {
             btnDelete.setVisibility(View.GONE);
         } else {
@@ -71,12 +71,9 @@ public class SwitchSourceAdapter extends ArrayAdapter<SourceManager.SourceItem> 
             });
         }
 
-        // 点击整行，触发切换选中
+        // 整行点击：只更新选中样式，实际的切换逻辑交给 ListView 的 onItemClickListener 处理
         convertView.setOnClickListener(v -> {
             setSelectedPosition(position);
-            if (deleteListener != null) {
-                deleteListener.onSelect(position);
-            }
         });
 
         return convertView;
