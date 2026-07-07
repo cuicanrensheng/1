@@ -429,8 +429,8 @@ public class EpgManagerWrapper {
             TextView tv_action;
         }
 
-        // 🟢 静态内部类，用于承载 Adapter 内传递的数据
-        private static class ItemActionTag {
+        // 🔧【修复】去掉 static 关键字，因为 ItemActionTag 定义在非静态内部类 EpgAdapter 内部
+        private class ItemActionTag {
             Channel.EpgItem item;
             String key;
             boolean isPast;
