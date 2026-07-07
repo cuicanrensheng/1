@@ -6,7 +6,7 @@
     android:background="#272B3A"
     android:padding="0dp">
 
-    <!-- 顶部：标题 + 扫码远程输入 + 列表订阅 -->
+    <!-- 顶部：标题 + 扫码远程输入 + 列表订阅（已移除右侧列表订阅文字） -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -46,37 +46,46 @@
                 android:textColor="#A0A0A0"
                 android:textSize="12sp" />
         </LinearLayout>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:layout_alignBottom="@id/tv_dialog_title"
-            android:text="列表订阅"
-            android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold" />
     </RelativeLayout>
 
-    <!-- 中间：二维码 + 列表 -->
+    <!-- 中间：二维码 + 列表（重点调整） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp">
+        
         <ImageView
             android:id="@+id/iv_qr_code"
             android:layout_width="140dp"
             android:layout_height="140dp"
             android:background="#FFFFFF"
             android:scaleType="fitCenter" />
-        <ListView
-            android:id="@+id/lv_source_list"
+            
+        <!-- 右侧布局：把“列表订阅”移到了这里 -->
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="16dp"
-            android:divider="@null" />
+            android:orientation="vertical"
+            android:layout_marginStart="16dp">
+            
+            <!-- 🟢 移动到这里的“列表订阅”标题 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="列表订阅"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+                
+            <ListView
+                android:id="@+id/lv_source_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:divider="@null" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- 分割线 -->
@@ -85,7 +94,7 @@
         android:layout_height="1dp"
         android:background="#33FFFFFF" />
 
-    <!-- 🔽 重点修改：彻底分离输入框和按钮，按钮强制靠右下角 -->
+    <!-- 🔽 底部：修复输入框太大、按钮图标被切掉的问题 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -97,7 +106,7 @@
         android:gravity="center_vertical"
         android:background="#1E2230">
 
-        <!-- 左侧：两个输入框布局（占尽除按钮外的所有空间） -->
+        <!-- 左侧：两个输入框布局 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -124,12 +133,14 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginEnd="4dp"/>
+                    <!-- 🔽 缩小字体：增加 textSize="14sp" -->
                     <EditText
                         android:id="@+id/et_name"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:minHeight="36dp"
+                        android:minHeight="32dp"
+                        android:textSize="14sp"
                         android:hint="请输入名称(选填)"
                         android:textColor="#FFFFFF"
                         android:textColorHint="#888888"
@@ -160,12 +171,14 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginEnd="4dp"/>
+                    <!-- 🔽 缩小字体：增加 textSize="14sp" -->
                     <EditText
                         android:id="@+id/et_url"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:minHeight="36dp"
+                        android:minHeight="32dp"
+                        android:textSize="14sp"
                         android:hint="请输入地址"
                         android:textColor="#FFFFFF"
                         android:textColorHint="#888888"
@@ -180,7 +193,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 右侧：三个按钮组（强制靠右下角） -->
+        <!-- 右侧：按钮组（修复高度，确保不切图标） -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -188,40 +201,34 @@
             android:layout_gravity="end|center_vertical"
             android:gravity="center_vertical">
 
-            <!-- 垃圾桶按钮：单独缩小宽高，去掉冗余内边距 -->
             <Button
                 android:id="@+id/btn_clear"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:text="🗑️"
                 android:backgroundTint="#55576A"
-                android:padding="0dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:layout_marginEnd="4dp"/>
+                android:layout_marginEnd="8dp"/>
 
             <Button
                 android:id="@+id/btn_confirm"
                 android:layout_width="wrap_content"
-                android:layout_height="32dp"
+                android:layout_height="40dp"
                 android:text="确定"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#55576A"
-                android:layout_marginEnd="4dp"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:minHeight="0dp"/>
+                android:layout_marginEnd="8dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"/>
 
             <Button
                 android:id="@+id/btn_close"
                 android:layout_width="wrap_content"
-                android:layout_height="32dp"
+                android:layout_height="40dp"
                 android:text="关闭"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#55576A"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:minHeight="0dp"/>
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"/>
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>
