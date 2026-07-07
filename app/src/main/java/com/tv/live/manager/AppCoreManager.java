@@ -282,7 +282,7 @@ public class AppCoreManager {
     }
 
     // ====================================================================
-    // 2. 广播管理相关（加入强制清缓存逻辑 + 读取 SourceManager 默认源）
+    // 2. 广播管理相关（加入强制清缓存 + 清空列表逻辑）
     // ====================================================================
     public void registerReceivers() {
         if (receiversRegistered) return;
@@ -302,6 +302,9 @@ public class AppCoreManager {
                         cacheManager.clearAll();
                         log("【缓存】已强制清除所有缓存，正在重新拉取最新数据");
                     }
+
+                    // 🟢【核心修改】强制清空当前频道列表，确保后续加载是“覆盖”而不是“合并”！
+                    channelSourceList.clear();
 
                     // 🟢【核心修改】从 SourceManager 获取当前默认的直播源和节目单地址
                     SourceManager liveManager = new SourceManager(context, "live_history");
@@ -433,11 +436,14 @@ public class AppCoreManager {
         log("【远程配置】更新直播源：" + liveUrl);
         log("【远程配置】更新EPG：" + epgUrl);
         
-        // 🟢【新增】远程配置切换时，同样强制清除缓存再加载
+        // 🟢【新增】远程配置切换时，强制清除缓存 + 清空列表再加载
         if (cacheManager != null) {
             cacheManager.clearAll();
             log("【缓存】远程配置触发，强制清除旧缓存");
         }
+        
+        // 🟢【核心修改】强制清空当前频道列表，保证是“覆盖”而不是“合并”！
+        channelSourceList.clear();
         
         hasPlayedWithCache = false;
         loadLiveAndEpg();
