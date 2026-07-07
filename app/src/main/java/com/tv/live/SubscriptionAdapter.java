@@ -64,8 +64,11 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         Button btnCopy = convertView.findViewById(R.id.btn_copy);
         Button btnDelete = convertView.findViewById(R.id.btn_delete);
 
-        // 设置 URL 文本
-        tvUrl.setText(item.url);
+        // ================= 🛠️ 修复：同时显示名称和链接 =================
+        // 因为你的 XML 里只有一个 tvUrl，所以利用换行符把名称和链接拼接在一起显示
+        String displayText = item.name + "\n" + item.url;
+        tvUrl.setText(displayText);
+        // ================= 🛠️ 修复结束 =================
 
         // 处理选中状态
         boolean isSelected = (position == selectedPosition);
