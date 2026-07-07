@@ -79,26 +79,26 @@
             android:divider="@null" />
     </LinearLayout>
 
-    <!-- 🔽 重点修改 1：添加分割线，解决底部与中间区域黏连的问题 -->
+    <!-- 分割线：隔开列表和输入区 -->
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#33FFFFFF" />
 
-    <!-- 底部：输入 + 操作按钮 -->
-    <!-- 🔽 重点修改 2：增大 padding 至 16dp，并适当增加最小高度，解决太挤的问题 -->
+    <!-- 🔽 重点修改区域：底部输入框和按钮 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="60dp"
+        android:minHeight="70dp"
         android:orientation="horizontal"
         android:paddingStart="16dp"
-        android:paddingTop="12dp"
+        android:paddingTop="16dp"
         android:paddingEnd="16dp"
-        android:paddingBottom="12dp"
+        android:paddingBottom="16dp"
         android:gravity="center_vertical"
         android:background="#1E2230">
 
+        <!-- 1. 名称输入 -->
         <TextView
             android:text="1."
             android:textColor="#A0A0A0"
@@ -108,48 +108,50 @@
         <EditText
             android:id="@+id/et_name"
             android:layout_width="0dp"
-            android:layout_weight="1.5"
+            android:layout_weight="1"
             android:layout_height="wrap_content"
+            android:minHeight="36dp"
             android:hint="请输入名称(选填)"
             android:textColor="#FFFFFF"
             android:textColorHint="#888888"
             android:background="@null"
             android:padding="8dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="12dp"
             android:maxLines="1" />
 
+        <!-- 2. 地址输入 -->
         <TextView
             android:text="2."
             android:textColor="#A0A0A0"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="4dp"
             android:layout_marginEnd="4dp"/>
         <EditText
             android:id="@+id/et_url"
             android:layout_width="0dp"
-            android:layout_weight="2.5"
+            android:layout_weight="2"
             android:layout_height="wrap_content"
+            android:minHeight="36dp"
             android:hint="请输入地址"
             android:textColor="#FFFFFF"
             android:textColorHint="#888888"
             android:background="@null"
             android:padding="8dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="12dp"
             android:maxLines="1" />
 
+        <!-- 操作按钮组 -->
         <Button
             android:id="@+id/btn_clear"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:text="🗑️"
             android:background="#55576A"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
+            android:layout_marginEnd="6dp"
             android:focusable="true"
             android:clickable="true"/>
 
-        <!-- 🔽 重点修改 3：把确定和存储权限的背景颜色，改成与垃圾桶一致的深灰，彻底统一视觉 -->
         <Button
             android:id="@+id/btn_confirm"
             android:layout_width="wrap_content"
@@ -157,20 +159,7 @@
             android:text="确定"
             android:textColor="#FFFFFF"
             android:backgroundTint="#55576A"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
-            android:focusable="true"
-            android:clickable="true"/>
-
-        <Button
-            android:id="@+id/btn_save_permission"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:text="存储权限"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#55576A"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
+            android:layout_marginEnd="6dp"
             android:focusable="true"
             android:clickable="true"/>
 
@@ -181,8 +170,6 @@
             android:text="关闭"
             android:textColor="#FFFFFF"
             android:backgroundTint="#55576A"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
             android:focusable="true"
             android:clickable="true"/>
     </LinearLayout>
