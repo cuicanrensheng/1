@@ -238,7 +238,7 @@ public class SettingsActivity extends AppCompatActivity {
         return "源" + index;
     }
 
-    // ================= 🔥 统一深色风格的单选弹窗 =================
+    // ================= 🔥 统一深色风格的单选弹窗（已移除“取消”按钮） =================
     private void showDarkSingleChoiceDialog(String title, String[] items, int checkedItem, java.util.function.Consumer<Integer> onSelected) {
         ListView listView = new ListView(this);
         listView.setBackgroundColor(0xFF272B3A);
@@ -275,18 +275,14 @@ public class SettingsActivity extends AppCompatActivity {
         layout.addView(titleView);
         layout.addView(listView);
 
+        // 🟢 彻底移除了 setNegativeButton，解决透明字体的困扰
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(layout)
-                .setNegativeButton("取消", null)
                 .create();
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
         dialog.show();
-
-        // 🔽 统一取消按钮样式，保证不透明
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
     }
 
     private void showChannelLineDialog() {
@@ -507,7 +503,7 @@ public class SettingsActivity extends AppCompatActivity {
                 }
                 SourceManager.SourceItem item = sources.get(position);
                 
-                // 🔥 修复了删除按钮透明的问题：使用 create() 独立生成，修改背景色
+                // 🟢 移除“取消”按钮，避免在深色背景下出现讨厌的透明字，用户按返回键即可取消删除
                 AlertDialog deleteDialog = new AlertDialog.Builder(SettingsActivity.this)
                         .setTitle("确认删除")
                         .setMessage("确定要删除「" + item.name + "」吗？")
@@ -518,18 +514,16 @@ public class SettingsActivity extends AppCompatActivity {
                             adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
                             adapter.notifyDataSetChanged();
                         })
-                        .setNegativeButton("取消", null)
-                        .create();
+                        .create(); // 去掉了 setNegativeButton
+                        
                 if (deleteDialog.getWindow() != null) {
                     deleteDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
                 }
                 deleteDialog.show();
                 
-                // 🔽 统一删除弹窗按钮样式，保证不透明
+                // 统一删除弹窗按钮样式，保证不透明
                 deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
                 deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
-                deleteDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
-                deleteDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
             }
         });
 
@@ -879,9 +873,10 @@ public class SettingsActivity extends AppCompatActivity {
         }).start();
     }
 
+    // ================= 🔥 已恢复：日志弹窗为白色背景、黑色文字 =================
     private void renderPlayLogDialog(String logContent) {
         ScrollView scrollView = new ScrollView(this);
-        scrollView.setBackgroundColor(0xFF272B3A);
+        scrollView.setBackgroundColor(Color.WHITE); // 🟢 恢复为白色背景
         
         TextView tv = new TextView(this);
         SpannableString spLog = new SpannableString(logContent);
@@ -908,7 +903,7 @@ public class SettingsActivity extends AppCompatActivity {
         tv.setText(spLog);
         tv.setTextSize(12);
         tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.WHITE);
+        tv.setTextColor(Color.BLACK); // 🟢 恢复为黑色文字
         scrollView.addView(tv);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -937,6 +932,7 @@ public class SettingsActivity extends AppCompatActivity {
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Color.WHITE);
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
     }
+    // ================= 🔥 日志恢复结束 =================
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
