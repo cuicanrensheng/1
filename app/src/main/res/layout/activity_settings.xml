@@ -86,60 +86,12 @@
             </LinearLayout>
 
             <!-- ============================================================ -->
-            <!-- 节目单开关                                                  -->
+            <!-- 【已移除】节目单开关（已默认开启，不再显示 UI）             -->
             <!-- ============================================================ -->
-            <LinearLayout
-                android:id="@+id/item_epg"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="节目单开关"
-                    android:textColor="#FFFFFF"
-                    android:textSize="16sp" />
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/sw_epg"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:focusable="false"
-                    android:clickable="false" />
-            </LinearLayout>
 
             <!-- ============================================================ -->
-            <!-- 自动更新源                                                  -->
+            <!-- 【已移除】自动更新源（功能已彻底删除）                       -->
             <!-- ============================================================ -->
-            <LinearLayout
-                android:id="@+id/item_auto_update"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="自动更新源"
-                    android:textColor="#FFFFFF"
-                    android:textSize="16sp" />
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/sw_auto_update"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:focusable="false"
-                    android:clickable="false" />
-            </LinearLayout>
 
             <!-- ============================================================ -->
             <!-- 换台反转                                                    -->
@@ -170,32 +122,8 @@
             </LinearLayout>
 
             <!-- ============================================================ -->
-            <!-- 数字选台                                                    -->
+            <!-- 【已移除】数字选台（已默认开启，不再显示 UI）                -->
             <!-- ============================================================ -->
-            <LinearLayout
-                android:id="@+id/item_num_channel"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="数字选台"
-                    android:textColor="#FFFFFF"
-                    android:textSize="16sp" />
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/sw_num_channel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:focusable="false"
-                    android:clickable="false" />
-            </LinearLayout>
 
             <!-- ============================================================ -->
             <!-- 画中画开关                                                  -->
