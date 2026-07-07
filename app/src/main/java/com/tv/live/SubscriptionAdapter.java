@@ -54,7 +54,10 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         }
 
         SourceManager.SourceItem item = getItem(position);
-        if (item == null) return convertView;
+        // 🛡️ 如果当前位置无效，直接返回视图（后续不设置点击事件，避免无效回调）
+        if (item == null) {
+            return convertView;
+        }
 
         TextView tvCheck = convertView.findViewById(R.id.tv_check);
         TextView tvUrl = convertView.findViewById(R.id.tv_url);
@@ -83,17 +86,16 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
             android.widget.Toast.makeText(getContext(), "已复制地址", android.widget.Toast.LENGTH_SHORT).show();
         });
 
-        // 删除按钮点击事件（如果是默认源，删除按钮应该隐藏，但我们在 getView 中由外部控制，这里保留逻辑）
-        // 注意：删除按钮的显隐由外部决定，这里只处理点击事件
+        // 🛡️ 删除按钮点击事件 - 增加位置有效性检查，防止因数据变化导致 position 无效而崩溃
         btnDelete.setOnClickListener(v -> {
-            if (actionListener != null) {
+            if (actionListener != null && position >= 0 && position < getCount()) {
                 actionListener.onDelete(position);
             }
         });
 
-        // 整行点击切换
+        // 🛡️ 整行点击切换 - 同样增加位置有效性检查
         convertView.setOnClickListener(v -> {
-            if (actionListener != null) {
+            if (actionListener != null && position >= 0 && position < getCount()) {
                 actionListener.onSwitch(position);
             }
         });
