@@ -11,7 +11,6 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import com.tv.live.Channel;
-import com.tv.live.SettingsActivity;
 import com.tv.live.config.AppConfig;
 import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
@@ -306,8 +305,8 @@ public class ChannelPanelController {
     public void setChannels(List<Channel> channels) {
         if (channels == null) return;
         this.channelSourceList = channels;
-        // 🟢 【修改】移除计算 favoriteCount 和 recentCount 的逻辑
-        groupListManager.setGroups(channels, 0, 0);
+        // 🔧【修复】已移除多余的 0, 0 参数，正确对应 GroupListManager.setGroups(List<Channel>)
+        groupListManager.setGroups(channels);
         channelListManager.setChannels(channels, currentPlayIndex);
         channelListManagerEpg.setChannels(channels, currentPlayIndex);
     }
@@ -675,21 +674,23 @@ public class ChannelPanelController {
 
     private void onBackGroupClicked() {
         if (rightPanelOpen) {
-            llRightPanel.setVisibility(View.GONE);
-            llLeftPanel.setVisibility(View.VISIBLE);
+            if (llRightPanel != null) llRightPanel.setVisibility(View.GONE);
+            if (llLeftPanel != null) llLeftPanel.setVisibility(View.VISIBLE);
             rightPanelOpen = false;
             epgPanelOpen = false;
-            llLeftPanel.post(new Runnable() {
-                @Override
-                public void run() {
-                    clearAllFocusStyles();
-                    currentFocusPanel = "left";
-                    leftFocusView = "channel";
-                    syncFocusStyle();
-                    lvChannelList.requestFocus();
-                    lvChannelList.setSelection(getChannelListSelection());
-                }
-            });
+            if (llLeftPanel != null) {
+                llLeftPanel.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        clearAllFocusStyles();
+                        currentFocusPanel = "left";
+                        leftFocusView = "channel";
+                        syncFocusStyle();
+                        lvChannelList.requestFocus();
+                        lvChannelList.setSelection(getChannelListSelection());
+                    }
+                });
+            }
         }
     }
 
