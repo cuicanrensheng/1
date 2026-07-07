@@ -25,7 +25,7 @@
             android:textSize="18sp"
             android:textStyle="bold" />
 
-        <!-- 增加 ID：ll_scan_header，以便 Java 动态隐藏 -->
+        <!-- 扫码容器 -->
         <LinearLayout
             android:id="@+id/ll_scan_header"
             android:layout_width="wrap_content"
@@ -50,7 +50,7 @@
         </LinearLayout>
     </RelativeLayout>
 
-    <!-- 中间区域：占据屏幕剩余空间 -->
+    <!-- 中间区域 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -75,17 +75,9 @@
             android:orientation="vertical"
             android:layout_marginStart="16dp">
 
-            <!-- 使用负边距 -4dp，让标题稍微上移，正好对齐你画线上方 -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="列表订阅"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:layout_marginTop="-4dp"
-                android:layout_marginBottom="4dp" />
-
+            <!-- ✨ 已去除：列表订阅 4个字 -->
+            
+            <!-- 列表视图：去掉了顶部的 marginTop 以防有间隙 -->
             <ListView
                 android:id="@+id/lv_source_list"
                 android:layout_width="match_parent"
