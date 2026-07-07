@@ -230,13 +230,72 @@ public class EpgManagerWrapper {
         context.registerReceiver(receiver, new IntentFilter(ACTION_REMINDER));
     }
 
+    // ================= 🛠️ 核心优化的 Adapter 部分 =================
     private class EpgAdapter extends ArrayAdapter<Channel.EpgItem> {
         private final Context ctx;
         private Channel currentChannel;
         private List<Channel.EpgItem> list;
         private final LayoutInflater inflater;
         private int dayIndex;
+        private String currentNowStr; // 🟢 缓存当前时间字符串
         private final SimpleDateFormat sdfFull = new SimpleDateFormat("yyyyMMddHHmmss", Locale.CHINA);
+
+        // 🟢 复用单例 OnClickListener 避免重复 new
+        private final View.OnClickListener actionClickListener = new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Object tag = v.getTag();
+                if (!(tag instanceof ItemActionTag)) return;
+                ItemActionTag actionTag = (ItemActionTag) tag;
+
+                Channel.EpgItem item = actionTag.item;
+                String key = actionTag.key;
+
+                // 复用日历对象，减少 GC
+                if (actionTag.isPast) {
+                    // 回看逻辑
+                    try {
+                        String liveUrl = currentChannel.getPlayUrl();
+                        if (TextUtils.isEmpty(liveUrl)) {
+                            Toast.makeText(ctx, "无播放地址", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        Calendar playDay = Calendar.getInstance();
+                        playDay.add(Calendar.DAY_OF_YEAR, dayIndex);
+                        String[] startHm = item.time.split(":");
+                        Calendar startCal = (Calendar) playDay.clone();
+                        startCal.set(Calendar.HOUR_OF_DAY, Integer.parseInt(startHm[0].trim()));
+                        startCal.set(Calendar.MINUTE, Integer.parseInt(startHm[1].trim()));
+                        startCal.set(Calendar.SECOND, 0);
+                        String endTime = epgEndTimeMap.get(item);
+                        String[] endHm = endTime.split(":");
+                        Calendar endCal = (Calendar) playDay.clone();
+                        endCal.set(Calendar.HOUR_OF_DAY, Integer.parseInt(endHm[0].trim()));
+                        endCal.set(Calendar.MINUTE, Integer.parseInt(endHm[1].trim()));
+                        endCal.set(Calendar.SECOND, 0);
+                        String startStr = sdfFull.format(startCal.getTime());
+                        String endStr = sdfFull.format(endCal.getTime());
+                        String catchUrl = liveUrl.contains("PLTV") ? liveUrl.replace("PLTV", "TVOD") : liveUrl;
+                        catchUrl += catchUrl.contains("?") ? "&playseek=" + startStr + "-" + endStr : "?playseek=" + startStr + "-" + endStr;
+                        ((MainActivity) ctx).mPlayerManager.playUrl(catchUrl);
+                        Toast.makeText(ctx, "回看：" + item.title, Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {
+                        Toast.makeText(ctx, "回看失败", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    // 预约/取消预约逻辑
+                    if (bookedSet.contains(key)) {
+                        bookedSet.remove(key);
+                        Toast.makeText(ctx, "已取消预约", Toast.LENGTH_SHORT).show();
+                    } else {
+                        bookedSet.add(key);
+                        Toast.makeText(ctx, "已预约：" + item.title, Toast.LENGTH_SHORT).show();
+                    }
+                    // 🟢 改用局部更新，避免全量刷新掉帧
+                    updateActionButtonState(v, actionTag);
+                }
+            }
+        };
 
         public EpgAdapter(Context ctx, Channel currentChannel, List<Channel.EpgItem> list, int dayIndex) {
             super(ctx, R.layout.item_epg, list);
@@ -252,6 +311,7 @@ public class EpgManagerWrapper {
             this.list.clear();
             this.list.addAll(list);
             this.dayIndex = dayIndex;
+            this.currentNowStr = getNow(); // 缓存一次当前时间
             notifyDataSetChanged();
         }
 
@@ -307,79 +367,59 @@ public class EpgManagerWrapper {
 
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
-            try { isPast = item.time.compareTo(getNow()) < 0; } catch (Exception ignored) {}
+            
+            // 🟢 优化：缓存 now 字符串，避免重复获取
+            if (dayIndex == 0) {
+                if (currentNowStr == null) currentNowStr = getNow();
+                try {
+                    if (item.time != null) {
+                        isPast = item.time.compareTo(currentNowStr) < 0;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // 🟢 构建保存 Tag，供复用监听器使用
+            ItemActionTag tag = new ItemActionTag();
+            tag.item = item;
+            tag.key = key;
+            tag.isPast = isPast;
+            holder.tv_action.setTag(tag);
+            holder.tv_action.setOnClickListener(actionClickListener);
 
             if (dayIndex == 0) {
                 if (item.isPlaying) {
                     holder.tv_action.setText("播放中");
                     holder.tv_action.setBackgroundColor(0xFFFF9800);
                     holder.tv_action.setEnabled(false);
-                    holder.tv_action.setOnClickListener(null);
                 } else if (isPast) {
                     holder.tv_action.setText("回看");
                     holder.tv_action.setBackgroundColor(0xFF607D8B);
                     holder.tv_action.setEnabled(true);
-                    holder.tv_action.setOnClickListener(v -> {
-                        try {
-                            String liveUrl = currentChannel.getPlayUrl();
-                            if (TextUtils.isEmpty(liveUrl)) {
-                                Toast.makeText(ctx, "无播放地址", Toast.LENGTH_SHORT).show();
-                                return;
-                            }
-                            Calendar playDay = Calendar.getInstance();
-                            playDay.add(Calendar.DAY_OF_YEAR, dayIndex);
-                            String[] startHm = item.time.split(":");
-                            Calendar startCal = (Calendar) playDay.clone();
-                            startCal.set(Calendar.HOUR_OF_DAY, Integer.parseInt(startHm[0].trim()));
-                            startCal.set(Calendar.MINUTE, Integer.parseInt(startHm[1].trim()));
-                            startCal.set(Calendar.SECOND, 0);
-                            String[] endHm = endTime.split(":");
-                            Calendar endCal = (Calendar) playDay.clone();
-                            endCal.set(Calendar.HOUR_OF_DAY, Integer.parseInt(endHm[0].trim()));
-                            endCal.set(Calendar.MINUTE, Integer.parseInt(endHm[1].trim()));
-                            endCal.set(Calendar.SECOND, 0);
-                            String startStr = sdfFull.format(startCal.getTime());
-                            String endStr = sdfFull.format(endCal.getTime());
-                            String catchUrl = liveUrl.contains("PLTV") ? liveUrl.replace("PLTV", "TVOD") : liveUrl;
-                            catchUrl += catchUrl.contains("?") ? "&playseek=" + startStr + "-" + endStr : "?playseek=" + startStr + "-" + endStr;
-                            ((MainActivity) ctx).mPlayerManager.playUrl(catchUrl);
-                            Toast.makeText(ctx, "回看：" + item.title, Toast.LENGTH_SHORT).show();
-                        } catch (Exception e) {
-                            Toast.makeText(ctx, "回看失败", Toast.LENGTH_SHORT).show();
-                        }
-                    });
                 } else {
-                    holder.tv_action.setText("预约");
+                    holder.tv_action.setText(bookedSet.contains(key) ? "已预约" : "预约");
                     holder.tv_action.setBackgroundColor(0xFF4CAF50);
                     holder.tv_action.setEnabled(true);
-                    holder.tv_action.setOnClickListener(v -> {
-                        if (bookedSet.contains(key)) {
-                            bookedSet.remove(key);
-                            Toast.makeText(ctx, "已取消预约", Toast.LENGTH_SHORT).show();
-                        } else {
-                            bookedSet.add(key);
-                            Toast.makeText(ctx, "已预约：" + item.title, Toast.LENGTH_SHORT).show();
-                        }
-                        notifyDataSetChanged();
-                    });
                 }
             } else {
-                holder.tv_action.setText("预约");
+                holder.tv_action.setText(bookedSet.contains(key) ? "已预约" : "预约");
                 holder.tv_action.setBackgroundColor(0xFF4CAF50);
                 holder.tv_action.setEnabled(true);
-                holder.tv_action.setOnClickListener(v -> {
-                    if (bookedSet.contains(key)) {
-                        bookedSet.remove(key);
-                        Toast.makeText(ctx, "已取消预约", Toast.LENGTH_SHORT).show();
-                    } else {
-                        bookedSet.add(key);
-                        Toast.makeText(ctx, "已预约：" + item.title, Toast.LENGTH_SHORT);
-                    }
-                    notifyDataSetChanged();
-                });
             }
 
             return convertView;
+        }
+
+        // 🟢 局部更新按钮状态，避免调用全局 notifyDataSetChanged
+        private void updateActionButtonState(View rootView, ItemActionTag tag) {
+            TextView actionBtn = rootView.findViewById(R.id.tv_action);
+            if (actionBtn == null) return;
+            if (tag.isPast) {
+                // 回看按钮无状态变化，不需要更新
+            } else {
+                boolean isBooked = bookedSet.contains(tag.key);
+                actionBtn.setText(isBooked ? "已预约" : "预约");
+                actionBtn.setBackgroundColor(0xFF4CAF50);
+            }
         }
 
         private class ViewHolder {
@@ -388,5 +428,13 @@ public class EpgManagerWrapper {
             TextView tv_title;
             TextView tv_action;
         }
+
+        // 🟢 静态内部类，用于承载 Adapter 内传递的数据
+        private static class ItemActionTag {
+            Channel.EpgItem item;
+            String key;
+            boolean isPast;
+        }
     }
-                                }
+    // ================= 🛠️ 优化结束 =================
+}
