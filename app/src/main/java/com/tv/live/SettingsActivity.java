@@ -248,7 +248,6 @@ public class SettingsActivity extends AppCompatActivity {
         layout.addView(titleView);
         layout.addView(listView);
 
-        // 🟢 彻底移除了 setNegativeButton，解决透明字体的困扰
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(layout)
                 .create();
@@ -776,7 +775,7 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
-    // ================= 🟢 修改：改回按 100 行截断 =================
+    // ================= 🟢 修改：改回按 100 行截断、并修正底部按钮为纯白 =================
     private void showLogDialog() {
         new Thread(() -> {
             final String logContent;
@@ -788,7 +787,7 @@ public class SettingsActivity extends AppCompatActivity {
                     originalLog = PLAY_LOG.toString();
                 }
                 
-                // 🟢 改回按 100 行截断
+                // 🟢 按 100 行截断
                 String[] lines = originalLog.split("\n");
                 if (lines.length > MAX_LOG_LINES) {
                     List<String> subList = new ArrayList<>();
@@ -810,7 +809,6 @@ public class SettingsActivity extends AppCompatActivity {
         }).start();
     }
 
-    // ================= 🟢 标题精简、白底黑字（无卡顿高亮） =================
     private void renderPlayLogDialog(String logContent) {
         ScrollView scrollView = new ScrollView(this);
         scrollView.setBackgroundColor(Color.WHITE);
@@ -841,14 +839,13 @@ public class SettingsActivity extends AppCompatActivity {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
         dialog.show();
-        
-        // 统一操作按钮样式，保证不透明
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Color.WHITE);
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
+
+        // 🟢 修改底部按钮样式：背景变为白色，文字变为黑色，与顶部和中间统一
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.BLACK);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Color.BLACK);
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
     }
-    // ================= 🟢 修改结束 =================
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
