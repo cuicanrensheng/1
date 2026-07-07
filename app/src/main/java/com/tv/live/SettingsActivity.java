@@ -383,7 +383,6 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
     }
 
-    // ================= 🛠️ 重点修改：弹窗 UI 统一（去白边） =================
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(this, spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
@@ -397,15 +396,7 @@ public class SettingsActivity extends AppCompatActivity {
         Button btnClear = dialogView.findViewById(R.id.btn_clear);
         Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
         Button btnSavePermission = dialogView.findViewById(R.id.btn_save_permission);
-
-        // 🆕 获取自定义布局中的标题和关闭按钮
-        TextView tvDialogTitle = dialogView.findViewById(R.id.tv_dialog_title);
-        Button btnClose = dialogView.findViewById(R.id.btn_close);
-
-        // 动态设置标题文字
-        if (tvDialogTitle != null) {
-            tvDialogTitle.setText(title);
-        }
+        Button btnClose = dialogView.findViewById(R.id.btn_close); // 获取自定义关闭按钮
 
         tvIpAddress.setText(currentWebUrl);
 
@@ -486,24 +477,24 @@ public class SettingsActivity extends AppCompatActivity {
 
         btnSavePermission.setOnClickListener(v -> Toast.makeText(this, "存储权限功能暂未实现", Toast.LENGTH_SHORT).show());
 
-        // 🆕 去掉系统自带的白色 Title 和底部按钮，改为纯自定义视图
+        // ================= 🔥 重点修改区域：改成图2的纯黑透明风格 =================
+        // 去掉 setTitle() 和 setNegativeButton()，使用纯自定义布局 + 透明背景
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)
                 .create();
-        
-        // 🎯 关键：将 Dialog 背景设为透明，彻底干掉白色边框
+
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
-        
+
         dialog.show();
 
-        // 绑定自定义的关闭按钮
+        // 绑定 XML 里自定义的关闭按钮
         if (btnClose != null) {
             btnClose.setOnClickListener(v -> dialog.dismiss());
         }
+        // ================= 🔥 重点修改结束 =================
     }
-    // ================= 🛠️ 重点修改结束 =================
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
