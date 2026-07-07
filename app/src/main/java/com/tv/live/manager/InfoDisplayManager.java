@@ -3,13 +3,13 @@ package com.tv.live.manager;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log; // 🟢 替换为原生日志
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
-import com.tv.live.SettingsActivity;
 import com.tv.live.TVPlayerManager;
 
 import java.text.SimpleDateFormat;
@@ -172,8 +172,8 @@ public class InfoDisplayManager {
                 else return "SD";
             }
         }catch (Exception e){
-            // SettingsActivity.log 保留（播放日志），不注释
-            SettingsActivity.log("【分辨率解析异常】" + resolution + " err:" + e.getMessage());
+            // 🟢 修改：替换为原生日志 Log.e，解决编译报错
+            Log.e("InfoDisplayManager", "【分辨率解析异常】" + resolution + " err:" + e.getMessage());
         }
         return resolution;
     }
@@ -189,10 +189,7 @@ public class InfoDisplayManager {
         if(channel == null || tvCurrentProgramName == null) return;
         String channelName = channel.getName();
         try {
-            // SettingsActivity.logOperation("【EPG匹配】开始匹配频道:" + channelName); // 已注释：操作日志已移除
-
             // 如果是初次启动，EpgManager 数据可能还在异步加载中
-            // 建议在 EpgManager 中加一个 getChannelEpgMapSize() 方法检测是否就绪，这里为了安全直接捕获异常
             List<Channel.EpgItem> epgList = EpgManager.getInstance().getEpg(channelName);
 
             // 如果数据还没加载好，显示"加载中"避免空白
@@ -202,7 +199,6 @@ public class InfoDisplayManager {
             }
 
             if(epgList == null || epgList.isEmpty()){
-                // SettingsActivity.logOperation("【EPG匹配】未获取节目，复用缓存节目"); // 已注释：操作日志已移除
                 if(lastCurrItem != null){
                     refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<>(), getCurrentTimeStr());
                     refreshNextProgramUi(lastNextItem, 0, new ArrayList<>());
@@ -214,7 +210,6 @@ public class InfoDisplayManager {
 
             List<Channel.EpgItem> todayEpg = filterTodayEpg(epgList);
             if(todayEpg.isEmpty()){
-                // SettingsActivity.logOperation("【EPG匹配】今日无节目，复用缓存"); // 已注释：操作日志已移除
                 if(lastCurrItem != null){
                     refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<>(), getCurrentTimeStr());
                     refreshNextProgramUi(lastNextItem, 0, new ArrayList<>());
@@ -253,7 +248,6 @@ public class InfoDisplayManager {
 
         }catch (Exception e){
             e.printStackTrace();
-            // SettingsActivity.logOperation("【EPG匹配异常】" + e.getMessage()); // 已注释：操作日志已移除
             // 异常也复用缓存
             if(lastCurrItem != null){
                 refreshCurrProgramUi(lastCurrItem, 0, new ArrayList<>(), getCurrentTimeStr());
@@ -332,8 +326,6 @@ public class InfoDisplayManager {
                 if(totalDuration > 0){
                     progress = (int) (played * 100 / totalDuration);
                     progress = Math.max(0, Math.min(100, progress));
-                }else {
-                    // SettingsActivity.logOperation("【进度异常】时长非法 start="+start+" end="+end+" total="+totalDuration); // 已注释：操作日志已移除
                 }
                 progressProgram.setProgress(progress);
                 progressProgram.invalidate();
@@ -425,7 +417,6 @@ public class InfoDisplayManager {
             long endMs = timeToMs(end, true, startMs);
             return nowMs >= startMs && nowMs < endMs;
         }catch (Exception e){
-            // SettingsActivity.logOperation("【时段匹配异常】"+e.getMessage()); // 已注释：操作日志已移除
             return false;
         }
     }
@@ -450,7 +441,6 @@ public class InfoDisplayManager {
             }
             return ms;
         }catch (Exception e){
-            // SettingsActivity.logOperation("【时间转换失败】"+timeStr+" err:"+e.getMessage()); // 已注释：操作日志已移除
             return 0;
         }
     }
