@@ -57,8 +57,9 @@ public class PlaylistParser {
 
                 Channel existing = channelMap.get(key);
                 if (existing != null) {
-                    // ✅ 频道已存在：作为备用源添加到 backupUrls 列表
-                    existing.addBackupUrl(uri);
+                    // 🚫 已取消：当主源无效时自动跳转备用源
+                    // existing.addBackupUrl(uri); 
+                    
                     // 🟢【核心修改】只要解析到有效的分组名称，就无条件覆盖旧分组！
                     if (group != null && !group.isEmpty()) {
                         existing.setGroup(group);
