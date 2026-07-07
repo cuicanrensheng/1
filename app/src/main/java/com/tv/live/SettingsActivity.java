@@ -381,7 +381,7 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
     }
 
-    // ================= 🔥 修正：始终显示二维码，仅修改输入框的提示文字 =================
+    // ================= 🔥 完整修复版：标题变化、隐藏扫码与二维码、底部提示改动 =================
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(this, spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
@@ -390,6 +390,8 @@ public class SettingsActivity extends AppCompatActivity {
         ListView lvSourceList = dialogView.findViewById(R.id.lv_source_list);
         ImageView ivQrCode = dialogView.findViewById(R.id.iv_qr_code);
         TextView tvIpAddress = dialogView.findViewById(R.id.tv_ip_address);
+        TextView tvDialogTitle = dialogView.findViewById(R.id.tv_dialog_title); // 顶部标题控件
+        LinearLayout llScanHeader = dialogView.findViewById(R.id.ll_scan_header); // 扫码文字容器
         EditText etName = dialogView.findViewById(R.id.et_name);
         EditText etUrl = dialogView.findViewById(R.id.et_url);
         Button btnClear = dialogView.findViewById(R.id.btn_clear);
@@ -401,29 +403,45 @@ public class SettingsActivity extends AppCompatActivity {
 
         tvIpAddress.setText(currentWebUrl);
 
-        // 🔄 直播源和节目单都正常显示二维码（不隐藏任何控件）
-        try {
-            Bitmap qrBitmap = qrCodeManager.createQR(currentWebUrl, 240);
-            if (qrBitmap != null) {
-                ivQrCode.setImageBitmap(qrBitmap);
-            } else {
+        if (isLive) {
+            // -----------------------------------------
+            // 情况 1：直播源订阅
+            // -----------------------------------------
+            if (tvDialogTitle != null) tvDialogTitle.setText(title); // 设置为 "直播源订阅"
+            
+            // 1. 显示扫码文字、显示二维码
+            if (llScanHeader != null) llScanHeader.setVisibility(View.VISIBLE);
+            if (ivQrCode != null) ivQrCode.setVisibility(View.VISIBLE);
+            try {
+                Bitmap qrBitmap = qrCodeManager.createQR(currentWebUrl, 240);
+                if (qrBitmap != null) {
+                    ivQrCode.setImageBitmap(qrBitmap);
+                } else {
+                    ivQrCode.setBackgroundColor(Color.LTGRAY);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
                 ivQrCode.setBackgroundColor(Color.LTGRAY);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-            ivQrCode.setBackgroundColor(Color.LTGRAY);
-        }
-        ivQrCode.setOnClickListener(v -> {
-            Toast.makeText(SettingsActivity.this, "已生成二维码，请扫码", Toast.LENGTH_SHORT).show();
-        });
+            ivQrCode.setOnClickListener(v -> {
+                Toast.makeText(SettingsActivity.this, "已生成二维码，请扫码", Toast.LENGTH_SHORT).show();
+            });
 
-        // 🔤 根据类型修改底部输入框的提示文字
-        if (isLive) {
-            // 直播源弹窗：使用默认的提示文字（XML 里已经写好了，此处保持即可）
+            // 2. 设置直播源输入框提示
             etName.setHint("请输入名称(选填)");
             etUrl.setHint("请输入地址");
+
         } else {
-            // 节目单弹窗：动态修改提示文字
+            // -----------------------------------------
+            // 情况 2：节目单订阅
+            // -----------------------------------------
+            if (tvDialogTitle != null) tvDialogTitle.setText(title); // 动态替换为 "节目单订阅"
+
+            // 1. 隐藏扫码文字、隐藏二维码
+            if (llScanHeader != null) llScanHeader.setVisibility(View.GONE);
+            if (ivQrCode != null) ivQrCode.setVisibility(View.GONE);
+
+            // 2. 设置节目单输入框提示
             etName.setHint("请输入节目单名称(选填)");
             etUrl.setHint("请输入EPG节目单地址");
         }
@@ -813,7 +831,7 @@ public class SettingsActivity extends AppCompatActivity {
         SpannableString spLog = new SpannableString(logContent);
         String[] lagKeywords = {
                 "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
-                "buffer underflow", "frame drop", "404",
+                "buffer underflow", "frame drop", 
                 "buffering", "stall", "delay", "timeout", "decoder error",
                 "Forbidden", "访问拒绝", "跳转失败", 
                 "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
