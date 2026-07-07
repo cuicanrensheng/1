@@ -461,12 +461,57 @@ public class SettingsActivity extends AppCompatActivity {
         tv_custom_epg.setOnClickListener(v -> {
             showInputDialog("自定义节目单", "请输入EPG地址", KEY_CUSTOM_EPG);
         });
+
+        // 🟢【修改】"直播源切换"：从查看历史改为单选切换弹窗
         tv_multi_source.setOnClickListener(v -> {
-            sourceDialogManager.showHistoryDialog("直播源历史", "live_history");
+            SourceManager sourceManager = new SourceManager(this, "live_history");
+            List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
+            if (sources.isEmpty()) {
+                Toast.makeText(this, "暂未保存任何直播源，请先通过自定义订阅源添加", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String[] names = new String[sources.size()];
+            for (int i = 0; i < sources.size(); i++) {
+                names[i] = sources.get(i).name;
+            }
+            int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+            new AlertDialog.Builder(this)
+                    .setTitle("切换直播源")
+                    .setSingleChoiceItems(names, currentDefault, (dialog, which) -> {
+                        sourceManager.setDefault(which);
+                        dialog.dismiss();
+                        Toast.makeText(this, "已切换到：" + names[which], Toast.LENGTH_SHORT).show();
+                        sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
         });
+
+        // 🟢【修改】"节目单切换"：从查看历史改为单选切换弹窗
         tv_multi_epg.setOnClickListener(v -> {
-            sourceDialogManager.showHistoryDialog("节目单历史", "epg_history");
+            SourceManager sourceManager = new SourceManager(this, "epg_history");
+            List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
+            if (sources.isEmpty()) {
+                Toast.makeText(this, "暂未保存任何节目单，请先通过自定义节目单添加", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String[] names = new String[sources.size()];
+            for (int i = 0; i < sources.size(); i++) {
+                names[i] = sources.get(i).name;
+            }
+            int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+            new AlertDialog.Builder(this)
+                    .setTitle("切换节目单")
+                    .setSingleChoiceItems(names, currentDefault, (dialog, which) -> {
+                        sourceManager.setDefault(which);
+                        dialog.dismiss();
+                        Toast.makeText(this, "已切换到：" + names[which], Toast.LENGTH_SHORT).show();
+                        sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
         });
+
         tv_qr_code.setOnClickListener(v -> {
             qrCodeManager.showQRCodeDialog(currentWebUrl);
         });
