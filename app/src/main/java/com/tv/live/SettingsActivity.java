@@ -44,7 +44,6 @@ import java.util.List;
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
-    // 🟢 移除：sw_epg, sw_auto_update, sw_num_channel
     private SwitchCompat sw_boot, sw_reverse, sw_pip;
     private TextView tv_screen_ratio, tv_decoder_mode, tv_renderer_type, tv_redirect_setting, tv_boot_status;
     private TextView tv_channel_line;
@@ -56,7 +55,6 @@ public class SettingsActivity extends AppCompatActivity {
     private ScrollView scrollView;
     
     private BootStartManager bootStartManager;
-    // 🟢 移除：autoUpdateManager
     private SourceDialogManager sourceDialogManager;
     private QRCodeManager qrCodeManager;
     private WebServerManager webServerManager;
@@ -76,7 +74,8 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     public static volatile StringBuffer PLAY_LOG = new StringBuffer();
-    private static final int MAX_LOG_LINES = 100; 
+    // 🟢 修改：容量限制改为 50KB（50000 个字符）
+    private static final int MAX_LOG_SIZE = 50000; 
 
     public static void log(String msg) {
         LogManager.log(msg);
@@ -120,7 +119,7 @@ public class SettingsActivity extends AppCompatActivity {
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
         initRedirectDefaultConfig();
 
-        // 🟢 确保节目单和数字选台功能强制默认开启
+        // 🟢 强制默认开启：节目单和数字选台（因 UI 中已移除开关）
         sp.edit().putBoolean("epg_enable", true).apply();
         sp.edit().putBoolean("number_channel_enable", true).apply();
 
@@ -164,9 +163,7 @@ public class SettingsActivity extends AppCompatActivity {
             return true;
         });
 
-        // 🟢 已移除 sw_epg 开关及点击事件，默认一直为开启状态
-
-        // 🟢 已移除 sw_auto_update 开关及点击事件，相关类 AutoUpdateManager 已删除
+        // 🟢 已移除 sw_epg, sw_auto_update, sw_num_channel 相关 UI 逻辑
 
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
         findViewById(R.id.item_reverse).setOnClickListener(v -> {
@@ -175,8 +172,6 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putBoolean("channel_reverse", isChecked).apply();
             Toast.makeText(this, "换台反转" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
-
-        // 🟢 已移除 sw_num_channel 开关及点击事件，默认一直为开启状态
 
         sw_pip.setChecked(sp.getBoolean("pip_enable", false));
         findViewById(R.id.item_pip).setOnClickListener(v -> {
@@ -338,7 +333,6 @@ public class SettingsActivity extends AppCompatActivity {
     private void initSettingsItemList() {
         settingsItemList.clear();
         settingsItemList.add(findViewById(R.id.item_boot));
-        // 🟢 移除了 item_epg, item_auto_update, item_num_channel
         settingsItemList.add(findViewById(R.id.item_reverse));
         settingsItemList.add(findViewById(R.id.item_pip));
         settingsItemList.add(findViewById(R.id.item_decoder));
@@ -481,7 +475,6 @@ public class SettingsActivity extends AppCompatActivity {
                 }
                 SourceManager.SourceItem item = sources.get(position);
                 
-                // 🟢 移除“取消”按钮，避免在深色背景下出现讨厌的透明字，用户按返回键即可取消删除
                 AlertDialog deleteDialog = new AlertDialog.Builder(SettingsActivity.this)
                         .setTitle("确认删除")
                         .setMessage("确定要删除「" + item.name + "」吗？")
@@ -492,14 +485,13 @@ public class SettingsActivity extends AppCompatActivity {
                             adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
                             adapter.notifyDataSetChanged();
                         })
-                        .create(); // 去掉了 setNegativeButton
+                        .create();
                         
                 if (deleteDialog.getWindow() != null) {
                     deleteDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
                 }
                 deleteDialog.show();
                 
-                // 统一删除弹窗按钮样式，保证不透明
                 deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
                 deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
             }
@@ -786,6 +778,7 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
+    // ================= 🟢 修改：日志容量改为 50KB，移除卡顿分析 =================
     private void showLogDialog() {
         new Thread(() -> {
             final String logContent;
@@ -796,96 +789,45 @@ public class SettingsActivity extends AppCompatActivity {
                 synchronized (PLAY_LOG) {
                     originalLog = PLAY_LOG.toString();
                 }
-                String[] lines = originalLog.split("\n");
-                if (lines.length > MAX_LOG_LINES) {
-                    List<String> subList = new ArrayList<>();
-                    for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
-                        subList.add(lines[i]);
+                
+                // 🟢 修改：按字符数 50KB 截断
+                if (originalLog.length() > MAX_LOG_SIZE) {
+                    originalLog = originalLog.substring(originalLog.length() - MAX_LOG_SIZE);
+                    // 去除截断后可能产生的首行空白换行
+                    if (originalLog.startsWith("\n")) {
+                        originalLog = originalLog.substring(1);
                     }
-                    lines = subList.toArray(new String[0]);
                 }
-                List<String> lagLines = new ArrayList<>();
+
+                String[] lines = originalLog.split("\n");
                 StringBuilder fullReverseLog = new StringBuilder();
-                String[] lagKeywords = {
-                        "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
-                        "buffer underflow", "frame drop", 
-                        "buffering", "stall", "delay", "timeout", "decoder error",
-                        "Forbidden", "访问拒绝", "跳转失败", 
-                        "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
-                };
+                
+                // 🟢 移除了卡顿原因分析汇总的遍历与判断
                 for (int i = lines.length - 1; i >= 0; i--) {
                     String line = lines[i].trim();
                     if (line.isEmpty()) continue;
-
-                    if (line.startsWith("开始播放") || (line.startsWith("第") && line.contains("重定向到"))) {
-                        fullReverseLog.append(line).append("\n");
-                        continue;
-                    }
-
-                    boolean hitLag = false;
-                    for (String kw : lagKeywords) {
-                        if (line.contains(kw)) {
-                            hitLag = true;
-                            break;
-                        }
-                    }
-                    if (hitLag && !lagLines.contains(line)) {
-                        lagLines.add(line);
-                    }
                     fullReverseLog.append(line).append("\n");
                 }
-                StringBuilder fullContent = new StringBuilder();
-                fullContent.append("========== 卡顿原因分析汇总 ==========\n");
-                if (!lagLines.isEmpty()) {
-                    for (String lagItem : lagLines) {
-                        fullContent.append(lagItem).append("\n");
-                    }
-                } else {
-                    fullContent.append("未检测到卡顿相关日志\n");
-                }
-                fullContent.append("\n========== 完整播放日志 ==========\n");
-                fullContent.append(fullReverseLog);
-                logContent = fullContent.toString();
+                logContent = fullReverseLog.toString();
             }
             runOnUiThread(() -> renderPlayLogDialog(logContent));
         }).start();
     }
 
-    // ================= 🔥 已恢复：日志弹窗为白色背景、黑色文字 =================
+    // ================= 🟢 修改：标题精简、移除高亮逻辑 =================
     private void renderPlayLogDialog(String logContent) {
         ScrollView scrollView = new ScrollView(this);
-        scrollView.setBackgroundColor(Color.WHITE); // 🟢 恢复为白色背景
+        scrollView.setBackgroundColor(Color.WHITE);
         
         TextView tv = new TextView(this);
-        SpannableString spLog = new SpannableString(logContent);
-        String[] lagKeywords = {
-                "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
-                "buffer underflow", "frame drop", "404",
-                "buffering", "stall", "delay", "timeout", "decoder error",
-                "Forbidden", "访问拒绝", "跳转失败", 
-                "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
-        };
-        String totalText = logContent;
-        for (String key : lagKeywords) {
-            int searchIndex = 0;
-            while ((searchIndex = totalText.indexOf(key, searchIndex)) != -1) {
-                spLog.setSpan(
-                        new ForegroundColorSpan(Color.RED),
-                        searchIndex,
-                        searchIndex + key.length(),
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
-                searchIndex += key.length();
-            }
-        }
-        tv.setText(spLog);
+        tv.setText(logContent);
         tv.setTextSize(12);
         tv.setPadding(40, 40, 40, 40);
-        tv.setTextColor(Color.BLACK); // 🟢 恢复为黑色文字
+        tv.setTextColor(Color.BLACK);
         scrollView.addView(tv);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("📄 解析 & 播放日志（卡顿分析）");
+        builder.setTitle("📄 播放日志"); // 移除“卡顿分析”
         builder.setView(scrollView);
         builder.setPositiveButton("关闭", null);
         builder.setNeutralButton("清空日志", (dialog, which) -> {
@@ -904,13 +846,13 @@ public class SettingsActivity extends AppCompatActivity {
         }
         dialog.show();
         
-        // 🔽 统一日志弹窗按钮样式，保证不透明
+        // 统一操作按钮样式，保证不透明
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Color.WHITE);
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
     }
-    // ================= 🔥 日志恢复结束 =================
+    // ================= 🟢 修改结束 =================
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
