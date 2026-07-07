@@ -381,7 +381,7 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
     }
 
-    // ================= 🔥 重点修改：直接显示二维码，无需弹窗 =================
+    // ================= 🔥 修正：始终显示二维码，仅修改输入框的提示文字 =================
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(this, spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
@@ -394,12 +394,15 @@ public class SettingsActivity extends AppCompatActivity {
         EditText etUrl = dialogView.findViewById(R.id.et_url);
         Button btnClear = dialogView.findViewById(R.id.btn_clear);
         Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
-        Button btnClose = dialogView.findViewById(R.id.btn_close); // 获取自定义关闭按钮
+        Button btnClose = dialogView.findViewById(R.id.btn_close);
+
+        // ✅ 判断当前是直播源还是节目单
+        boolean isLive = "live_history".equals(spKey);
 
         tvIpAddress.setText(currentWebUrl);
 
+        // 🔄 直播源和节目单都正常显示二维码（不隐藏任何控件）
         try {
-            // ✅ 直接生成二维码图片，并设置到 ImageView 上
             Bitmap qrBitmap = qrCodeManager.createQR(currentWebUrl, 240);
             if (qrBitmap != null) {
                 ivQrCode.setImageBitmap(qrBitmap);
@@ -410,11 +413,20 @@ public class SettingsActivity extends AppCompatActivity {
             e.printStackTrace();
             ivQrCode.setBackgroundColor(Color.LTGRAY);
         }
-
-        // ✅ 可选：点击二维码方块时，提示已生成（不再弹出白窗）
         ivQrCode.setOnClickListener(v -> {
             Toast.makeText(SettingsActivity.this, "已生成二维码，请扫码", Toast.LENGTH_SHORT).show();
         });
+
+        // 🔤 根据类型修改底部输入框的提示文字
+        if (isLive) {
+            // 直播源弹窗：使用默认的提示文字（XML 里已经写好了，此处保持即可）
+            etName.setHint("请输入名称(选填)");
+            etUrl.setHint("请输入地址");
+        } else {
+            // 节目单弹窗：动态修改提示文字
+            etName.setHint("请输入节目单名称(选填)");
+            etUrl.setHint("请输入EPG节目单地址");
+        }
 
         int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
         SubscriptionAdapter adapter = new SubscriptionAdapter(this, sources);
@@ -432,7 +444,7 @@ public class SettingsActivity extends AppCompatActivity {
 
             @Override
             public void onDelete(int position) {
-                // 🛡️ 防御性检查，防止 index=-1 导致崩溃
+                // 🛡️ 防御性检查
                 if (position < 0 || position >= sources.size()) {
                     return;
                 }
@@ -491,7 +503,6 @@ public class SettingsActivity extends AppCompatActivity {
 
         dialog.show();
 
-        // 绑定 XML 里自定义的关闭按钮
         if (btnClose != null) {
             btnClose.setOnClickListener(v -> dialog.dismiss());
         }
