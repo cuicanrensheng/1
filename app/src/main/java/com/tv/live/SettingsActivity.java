@@ -220,6 +220,17 @@ public class SettingsActivity extends AppCompatActivity {
         initListeners();
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
+
+        // ================= 🟢 新增：首次启动时注入默认源 (UrlConfig) =================
+        SourceManager liveManager = new SourceManager(this, "live_history");
+        if (liveManager.size() == 0) {
+            liveManager.addSource("默认直播源", UrlConfig.LIVE_URL);
+        }
+        SourceManager epgManager = new SourceManager(this, "epg_history");
+        if (epgManager.size() == 0) {
+            epgManager.addSource("默认节目单", UrlConfig.EPG_URL);
+        }
+        // ================= 🟢 注入结束 =================
     }
 
     private String getLineName(int index) {
@@ -831,7 +842,7 @@ public class SettingsActivity extends AppCompatActivity {
         SpannableString spLog = new SpannableString(logContent);
         String[] lagKeywords = {
                 "卡顿", "超时", "解码失败", "帧率下降", "网络延迟", "丢包",
-                "buffer underflow", "frame drop", 
+                "buffer underflow", "frame drop", "404",
                 "buffering", "stall", "delay", "timeout", "decoder error",
                 "Forbidden", "访问拒绝", "跳转失败", 
                 "连接失败", "解析失败", "服务器拒绝", "无法拉流", "ssl错误"
