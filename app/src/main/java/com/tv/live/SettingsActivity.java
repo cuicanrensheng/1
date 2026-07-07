@@ -40,7 +40,6 @@ import java.util.List;
 
 /**
  * 设置页面 Activity
- * 已修复遥控器焦点移动、触摸点击高亮跟随以及点击日志卡顿的问题
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
@@ -92,7 +91,6 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // 🟢 确保 super.onCreate 始终是第一行！
         super.onCreate(savedInstanceState);
         
         try { applyFullScreen(); } catch (Exception e) { }
@@ -383,7 +381,7 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
     }
 
-    // ================= 🔥 重点修改：修复二维码显示 + 去除自动弹窗 =================
+    // ================= 🔥 重点修改：直接显示二维码，无需弹窗 =================
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(this, spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
@@ -400,45 +398,22 @@ public class SettingsActivity extends AppCompatActivity {
 
         tvIpAddress.setText(currentWebUrl);
 
-        // ✅ 修复1：取消自动弹窗，直接利用 ZXing 生成二维码并绘制到 ImageView 上
         try {
-            Bitmap qrBitmap = null;
-            // 如果你的 QRCodeManager 里有 getQRCodeBitmap 方法，可以直接调用，如下：
-            // qrBitmap = qrCodeManager.getQRCodeBitmap(currentWebUrl);
-            
-            if (qrBitmap == null) {
-                try {
-                    // 使用 ZXing 生成二维码
-                    com.google.zxing.Writer writer = new com.google.zxing.qrcode.QRCodeWriter();
-                    com.google.zxing.common.BitMatrix bitMatrix = writer.encode(currentWebUrl, com.google.zxing.BarcodeFormat.QR_CODE, 400, 400);
-                    int width = bitMatrix.getWidth();
-                    int height = bitMatrix.getHeight();
-                    int[] pixels = new int[width * height];
-                    for (int y = 0; y < height; y++) {
-                        int offset = y * width;
-                        for (int x = 0; x < width; x++) {
-                            pixels[offset + x] = bitMatrix.get(x, y) ? 0xFF000000 : 0xFFFFFFFF;
-                        }
-                    }
-                    qrBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-                    qrBitmap.setPixels(pixels, 0, width, 0, 0, width, height);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-
+            // ✅ 直接生成二维码图片，并设置到 ImageView 上
+            Bitmap qrBitmap = qrCodeManager.createQR(currentWebUrl, 240);
             if (qrBitmap != null) {
                 ivQrCode.setImageBitmap(qrBitmap);
             } else {
                 ivQrCode.setBackgroundColor(Color.LTGRAY);
             }
         } catch (Exception e) {
+            e.printStackTrace();
             ivQrCode.setBackgroundColor(Color.LTGRAY);
         }
 
-        // ✅ 修复2：点击二维码方块时，才弹出“扫码管理”白窗
+        // ✅ 可选：点击二维码方块时，提示已生成（不再弹出白窗）
         ivQrCode.setOnClickListener(v -> {
-            qrCodeManager.showQRCodeDialog(currentWebUrl);
+            Toast.makeText(SettingsActivity.this, "已生成二维码，请扫码", Toast.LENGTH_SHORT).show();
         });
 
         int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
@@ -457,7 +432,7 @@ public class SettingsActivity extends AppCompatActivity {
 
             @Override
             public void onDelete(int position) {
-                // 🛡️ 已修复：新增防御性检查，防止 index=-1 导致崩溃
+                // 🛡️ 防御性检查，防止 index=-1 导致崩溃
                 if (position < 0 || position >= sources.size()) {
                     return;
                 }
