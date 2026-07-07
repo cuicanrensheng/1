@@ -655,6 +655,7 @@ public class TVPlayerManager {
         return currentChannel;
     }
 
+    public interface OnSourceFailedListener { void onSourceFailed(); }
     public void setOnSourceFailedListener(OnSourceFailedListener listener) {
         this.sourceFailedListener = listener;
     }
@@ -811,9 +812,6 @@ public class TVPlayerManager {
     }
     public void setOnPlayStateListener(OnPlayStateListener l) { listener = l; }
 
-    public interface OnSourceFailedListener { void onSourceFailed(); }
-    public void setOnSourceFailedListener(OnSourceFailedListener listener) { sourceFailedListener = listener; }
-
     public interface OnLiveInfoUpdateListener { void onLiveInfoUpdate(LiveInfo info); }
     public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) { liveInfoUpdateListener = listener; }
 
@@ -881,4 +879,4 @@ public class TVPlayerManager {
             }
         }
     }
-}
+ }
