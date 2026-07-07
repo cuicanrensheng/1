@@ -44,7 +44,8 @@ import java.util.List;
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
-    private SwitchCompat sw_boot, sw_epg, sw_auto_update, sw_reverse, sw_num_channel, sw_pip;
+    // 🟢 移除：sw_epg, sw_auto_update, sw_num_channel
+    private SwitchCompat sw_boot, sw_reverse, sw_pip;
     private TextView tv_screen_ratio, tv_decoder_mode, tv_renderer_type, tv_redirect_setting, tv_boot_status;
     private TextView tv_channel_line;
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
@@ -55,7 +56,7 @@ public class SettingsActivity extends AppCompatActivity {
     private ScrollView scrollView;
     
     private BootStartManager bootStartManager;
-    private AutoUpdateManager autoUpdateManager;
+    // 🟢 移除：autoUpdateManager
     private SourceDialogManager sourceDialogManager;
     private QRCodeManager qrCodeManager;
     private WebServerManager webServerManager;
@@ -119,11 +120,12 @@ public class SettingsActivity extends AppCompatActivity {
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
         initRedirectDefaultConfig();
 
+        // 🟢 确保节目单和数字选台功能强制默认开启
+        sp.edit().putBoolean("epg_enable", true).apply();
+        sp.edit().putBoolean("number_channel_enable", true).apply();
+
         sw_boot = findViewById(R.id.sw_boot);
-        sw_epg = findViewById(R.id.sw_epg);
-        sw_auto_update = findViewById(R.id.sw_auto_update);
         sw_reverse = findViewById(R.id.sw_reverse);
-        sw_num_channel = findViewById(R.id.sw_num_channel);
         sw_pip = findViewById(R.id.sw_pip);
         tv_decoder_mode = findViewById(R.id.tv_decoder_mode);
         tv_renderer_type = findViewById(R.id.tv_renderer_type);
@@ -133,7 +135,6 @@ public class SettingsActivity extends AppCompatActivity {
         scrollView = findViewById(R.id.settings_content);
         
         bootStartManager = new BootStartManager(this, sp);
-        autoUpdateManager = new AutoUpdateManager(this);
         sourceDialogManager = new SourceDialogManager(this, sp);
         qrCodeManager = new QRCodeManager(this);
         webServerManager = new WebServerManager(this, WEB_SERVER_PORT);
@@ -162,28 +163,11 @@ public class SettingsActivity extends AppCompatActivity {
             bootStartManager.showBootStatusDialog();
             return true;
         });
-        sw_epg.setChecked(sp.getBoolean("epg_enable", true));
-        findViewById(R.id.item_epg).setOnClickListener(v -> {
-            boolean isChecked = !sw_epg.isChecked();
-            sw_epg.setChecked(isChecked);
-            sp.edit().putBoolean("epg_enable", isChecked).apply();
-            Toast.makeText(this, "节目单" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
-        });
-        sw_auto_update.setChecked(sp.getBoolean("auto_update_source", true));
-        findViewById(R.id.item_auto_update).setOnClickListener(v -> {
-            boolean isChecked = !sw_auto_update.isChecked();
-            sw_auto_update.setChecked(isChecked);
-            sp.edit().putBoolean("auto_update_source", isChecked).apply();
-            if (isChecked) {
-                autoUpdateManager.setAutoUpdateAlarm();
-            } else {
-                autoUpdateManager.cancelAutoUpdateAlarm();
-            }
-            Toast.makeText(this, "自动更新源" + (isChecked ? "已开启（每天凌晨4点）" : "已关闭"), Toast.LENGTH_SHORT).show();
-        });
-        if (sp.getBoolean("auto_update_source", true)) {
-            autoUpdateManager.setAutoUpdateAlarm();
-        }
+
+        // 🟢 已移除 sw_epg 开关及点击事件，默认一直为开启状态
+
+        // 🟢 已移除 sw_auto_update 开关及点击事件，相关类 AutoUpdateManager 已删除
+
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
         findViewById(R.id.item_reverse).setOnClickListener(v -> {
             boolean isChecked = !sw_reverse.isChecked();
@@ -191,13 +175,9 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putBoolean("channel_reverse", isChecked).apply();
             Toast.makeText(this, "换台反转" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
-        sw_num_channel.setChecked(sp.getBoolean("number_channel_enable", true));
-        findViewById(R.id.item_num_channel).setOnClickListener(v -> {
-            boolean isChecked = !sw_num_channel.isChecked();
-            sw_num_channel.setChecked(isChecked);
-            sp.edit().putBoolean("number_channel_enable", isChecked).apply();
-            Toast.makeText(this, "数字选台" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
-        });
+
+        // 🟢 已移除 sw_num_channel 开关及点击事件，默认一直为开启状态
+
         sw_pip.setChecked(sp.getBoolean("pip_enable", false));
         findViewById(R.id.item_pip).setOnClickListener(v -> {
             boolean isChecked = !sw_pip.isChecked();
@@ -358,10 +338,8 @@ public class SettingsActivity extends AppCompatActivity {
     private void initSettingsItemList() {
         settingsItemList.clear();
         settingsItemList.add(findViewById(R.id.item_boot));
-        settingsItemList.add(findViewById(R.id.item_epg));
-        settingsItemList.add(findViewById(R.id.item_auto_update));
+        // 🟢 移除了 item_epg, item_auto_update, item_num_channel
         settingsItemList.add(findViewById(R.id.item_reverse));
-        settingsItemList.add(findViewById(R.id.item_num_channel));
         settingsItemList.add(findViewById(R.id.item_pip));
         settingsItemList.add(findViewById(R.id.item_decoder));
         settingsItemList.add(findViewById(R.id.item_renderer));
