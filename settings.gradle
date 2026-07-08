@@ -8,9 +8,8 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        // 第一顺位：Google Maven（存放Media3全部包，必须放最前）
+        // Google Maven 必须第一顺位，Media3仅在此仓库分发
         google()
-        // 仅保留一个中央仓库，去除重复repo1.maven.org避免解析错乱
         mavenCentral()
     }
 }
