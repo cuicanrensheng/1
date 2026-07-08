@@ -2,14 +2,13 @@ plugins {
     id 'com.android.application'
 }
 
-// 全局强制锁定Media3、Okhttp，阻止AGP自动降级
 configurations.all {
     resolutionStrategy.eachDependency { DependencyResolveDetails details ->
         def group = details.requested.group
-        // 全部Media3强制1.7.1
+        // 全部Media3强制1.6.1（保留TrackGroupArray）
         if (group.startsWith("androidx.media3")) {
-            details.useVersion("1.7.1")
-            details.because("锁定Media3版本，修复TrackGroupArray找不到符号")
+            details.useVersion("1.6.1")
+            details.because("降级到1.6.1，保留TrackGroupArray类，兼容原有清晰度切换代码")
         }
         // 统一okhttp版本
         if (group == "com.squareup.okhttp3") {
@@ -17,7 +16,7 @@ configurations.all {
         }
         // 拦截老旧exoplayer
         if (group == "com.google.android.exoplayer") {
-            details.useTarget("androidx.media3:media3-exoplayer:1.7.1")
+            details.useTarget("androidx.media3:media3-exoplayer:1.6.1")
         }
     }
 }
@@ -109,14 +108,14 @@ dependencies {
     
     // ✅ 修复了 gson 的包名
     implementation 'com.google.code.gson:gson:2.10.1'
-
-    // Media3 全套 1.7.1
-    implementation "androidx.media3:media3-exoplayer:1.7.1"
-    implementation "androidx.media3:media3-ui:1.7.1"
-    implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
-    implementation "androidx.media3:media3-exoplayer-dash:1.7.1"
-    implementation "androidx.media3:media3-common:1.7.1"
-    implementation "androidx.media3:media3-datasource:1.7.1"
+    
+    // Media3 全套 1.6.1
+    implementation "androidx.media3:media3-exoplayer:1.6.1"
+    implementation "androidx.media3:media3-ui:1.6.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.6.1"
+    implementation "androidx.media3:media3-exoplayer-dash:1.6.1"
+    implementation "androidx.media3:media3-common:1.6.1"
+    implementation "androidx.media3:media3-datasource:1.6.1"
 
     // 仅保留4.12，删除4.9.3冲突
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
