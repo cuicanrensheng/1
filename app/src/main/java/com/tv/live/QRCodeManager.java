@@ -4,6 +4,8 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.ImageView;
 
 import com.google.zxing.BarcodeFormat;
@@ -18,6 +20,8 @@ public class QRCodeManager {
     // ====================== 成员变量 ======================
     /** 上下文 */
     private final Context context;
+    /** 🟢 新增：内置 UI 线程 Handler，用于将生成好的 Bitmap 传回主线程 */
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     // ====================== 构造函数 ======================
     public QRCodeManager(Context context) {
@@ -25,11 +29,24 @@ public class QRCodeManager {
     }
 
     // ====================================================================
-    // 1. 显示二维码对话框
+    // 1. 显示二维码对话框（已改为内部异步生成，100% 免疫主线程卡顿）
     // ====================================================================
     public void showQRCodeDialog(String content) {
-        ImageView iv = new ImageView(context);
-        iv.setImageBitmap(createQR(content, 250));
+        final ImageView iv = new ImageView(context);
+        iv.setBackgroundColor(Color.LTGRAY); // 生成前先给个灰色占位背景
+
+        // 在子线程生成 Bitmap
+        new Thread(() -> {
+            final Bitmap bitmap = createQR(content, 250);
+            // 切回主线程显示
+            mainHandler.post(() -> {
+                if (bitmap != null) {
+                    iv.setImageBitmap(bitmap);
+                } else {
+                    iv.setBackgroundColor(Color.LTGRAY);
+                }
+            });
+        }).start();
 
         new AlertDialog.Builder(context)
                 .setTitle("扫码管理")
@@ -56,7 +73,6 @@ public class QRCodeManager {
             // 遍历每一个像素，设置颜色
             for (int x = 0; x < size; x++) {
                 for (int y = 0; y < size; y++) {
-                    // get(x, y) 返回 true 表示黑色，false 表示白色
                     bmp.setPixel(x, y, m.get(x, y) ? Color.BLACK : Color.WHITE);
                 }
             }
