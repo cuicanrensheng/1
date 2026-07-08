@@ -25,7 +25,7 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 缓存 Gradle 分发文件，避免每次都下载
+      # 缓存 Gradle 分发文件（注意：只缓存 Wrapper，不缓存依赖 caches）
       - name: 缓存 Gradle 分发文件
         uses: actions/cache@v4
         with:
@@ -38,9 +38,15 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # ✅【终极修改】强制忽略 CI 缓存，重新拉取 1.7.1 纯净依赖
+      # ✅【终极绝杀】移除损坏的依赖缓存，强制重新下载纯净包
       - name: 编译 Release 签名版 APK
-        run: ./gradlew assembleRelease --no-build-cache --stacktrace
+        run: |
+          # 1. 物理删除损坏的依赖缓存（这是解决 TrackGroupArray 找不到的关键）
+          rm -rf ~/.gradle/caches/
+          # 2. 清理上一次残留的编译中间文件
+          ./gradlew clean
+          # 3. 强制刷新依赖并重新编译（无缓存，且重新下载所有 jar）
+          ./gradlew assembleRelease --no-build-cache --refresh-dependencies --stacktrace
 
       - name: 生成 update.json
         run: |
