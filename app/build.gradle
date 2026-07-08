@@ -103,6 +103,6 @@ dependencies {
     annotationProcessor "com.github.bumptech.glide:compiler:4.16.0"
 
     implementation "org.apache.commons:commons-lang3:3.14.0"
-    implementation "com.blankj:utilcodex:1.31.1"
-    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    //implementation "com.blankj:utilcodex:1.31.1"
+    //implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
