@@ -14,5 +14,5 @@ dependencyResolutionManagement {
         maven { url "./repo" }
     }
 }
-rootProject.name = "AH"
+rootProject.name = "1"
 include ':app'
