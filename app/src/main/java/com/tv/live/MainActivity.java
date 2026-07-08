@@ -36,8 +36,9 @@ import java.util.List;
  * 主活动类：直播APP的核心页面
  */
 public class MainActivity extends AppCompatActivity {
-    public static MainActivity mInstance;
-    // 🟢【优化】指定初始容量，避免 List 频繁扩容引发 GC
+    // 🟢【优化1】使用弱引用替换强引用，彻底解决静态变量导致的内存泄漏和空指针闪退
+    private static WeakReference<MainActivity> mInstanceRef;
+    
     public List<Channel> channelSourceList = new ArrayList<>(512);
     public int currentPlayIndex = 0;
 
@@ -59,16 +60,21 @@ public class MainActivity extends AppCompatActivity {
     private boolean number_channel_enable;
     private boolean isOpeningSettings = false;
 
-    // 🟢【核心修改】移除 LOG_BUFFER，彻底消灭 synchronized 锁导致的 UI 卡顿
-    // public static final FixedSizeLogBuffer LOG_BUFFER = new FixedSizeLogBuffer();
-
-    // 🟢【修复2】统一使用成员 Handler，避免匿名 Handler 泄漏
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
+
+    /**
+     * 🟢【新增】提供给外部（如 ChannelListActivity）安全获取当前实例的方法
+     */
+    public static MainActivity getRunningInstance() {
+        return mInstanceRef != null ? mInstanceRef.get() : null;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mInstance = this;
+        // 🟢【优化1】初始化弱引用
+        mInstanceRef = new WeakReference<>(this);
+        
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         displayManager = new DisplayManager(this);
         setContentView(R.layout.activity_main);
@@ -88,7 +94,6 @@ public class MainActivity extends AppCompatActivity {
 
         playerView = findViewById(R.id.player_view);
         playerView.setUseController(false);
-        // 🟢【修复2】兼容不同 Media3 版本，处理 setControllerVisibilityListener 歧义
         try {
             playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
         } catch (Exception e) {
@@ -113,7 +118,6 @@ public class MainActivity extends AppCompatActivity {
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
 
-        // 🟢【修复3】将耗时加载逻辑抛到子线程，防止 onCreate 阶段在主线程阻塞导致白屏
         new Thread(() -> {
             appCoreManager.loadLiveAndEpg();
         }).start();
@@ -226,7 +230,6 @@ public class MainActivity extends AppCompatActivity {
         channelPanelController.setOnChannelChangeListener((channel, index) -> playChannel(channel, index));
     }
 
-    // 🟢【修复4】静态内部类 + 弱引用，彻底消灭触摸监听导致的内存泄漏
     private static class PlayerTouchListener implements View.OnTouchListener {
         private final WeakReference<MainActivity> activityRef;
         private PlayerGestureHelper gestureHelper;
@@ -253,14 +256,12 @@ public class MainActivity extends AppCompatActivity {
         mPlayerManager = TVPlayerManager.getInstance(this);
         mPlayerManager.setOnPlayerViewRecreatedListener(newPlayerView -> {
             MainActivity.this.playerView = newPlayerView;
-            // 🟢【修复点】确保每次重建 PlayerView 时，都是用全新的 GestureManager 重新生成 GestureHelper
             gestureManager = new GestureManager(MainActivity.this);
             final PlayerGestureHelper newGestureHelper = gestureManager.create();
 
             if (touchListener == null) {
                 touchListener = new PlayerTouchListener(MainActivity.this);
             }
-            // 将新的 Helper 传递给静态监听器
             touchListener.updateGestureHelper(newGestureHelper);
             newPlayerView.setOnTouchListener(touchListener);
             newPlayerView.requestFocus();
@@ -289,16 +290,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onLiveSourceLoaded(List<Channel> channels, boolean fromCache) {
                 runOnUiThread(() -> {
-                    // 🟢【关键修改】必须从 AppCoreManager 内部获取已经合并好的最终列表
                     List<Channel> finalList = appCoreManager.getChannelList();
-                    
-                    // 🟢【性能优化】用临时变量一次性替换，减少主线程频繁 addAll 造成的掉帧
                     channelSourceList.clear();
                     channelSourceList.addAll(finalList);
-
-                    // ✅ 注意：调用 setChannels 已经包含了数据刷新，所以不需要再额外加 notifyDataSetChanged
                     channelPanelController.setChannels(channelSourceList);
-                    
                     if (remoteManager != null) {
                         remoteManager.setTotalChannelCount(channelSourceList.size());
                     }
@@ -396,15 +391,12 @@ public class MainActivity extends AppCompatActivity {
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
-        log("========================================");
+        // 🟢【优化2】移除超长 URL 的拼接打印，避免频繁快速切台时引起 GC 抖动
         log("【播放】频道名称：" + channel.getName());
-        log("【播放】播放地址：" + channel.getPlayUrl());
-        log("【播放】当前索引：" + index);
-        log("========================================");
+        // log("【播放】播放地址：" + channel.getPlayUrl()); // 已注释，需要调试时解开
 
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
-        // 🟢【关键修改】把 channel 对象完整传给播放器，以支持线路切换
         mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName(), channel);
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         infoDisplayManager.showInfoBar(channel, live);
@@ -437,26 +429,21 @@ public class MainActivity extends AppCompatActivity {
         super.onBackPressed();
     }
 
-    // ====================================================================
-    // ✅ 新增：在 dispatchKeyEvent 中直接拦截菜单/帮助键，并在 onKeyLongPress 中处理长按返回键
-    // ====================================================================
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
         int action = event.getAction();
-        // 优先拦截菜单键和帮助键（优先级最高，可绕过系统拦截）
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
             if (action == KeyEvent.ACTION_DOWN) {
                 openSettings();
             }
-            return true; // 消耗事件，不再传递
+            return true;
         }
         return super.dispatchKeyEvent(event);
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 单击事件（除菜单/帮助外）交给 remoteManager
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
@@ -465,18 +452,15 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        // 长按返回键 → 打开设置（优先级最高）
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             openSettings();
             return true;
         }
-        // 其他长按事件交给 remoteManager
         if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
             return true;
         }
         return super.onKeyLongPress(keyCode, event);
     }
-    // ====================================================================
 
     public void openSettings() {
         isOpeningSettings = true;
@@ -515,18 +499,17 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢【核心修改】移除了 LOG_BUFFER 的追加和同步锁，直接打印 Logcat
+    // 🟢【优化3】利用 BuildConfig.DEBUG 控制日志，线上发布版本连 Log.d 都不执行
     private void log(String msg) {
-        // 之前是 LOG_BUFFER.append(msg); 已被移除，彻底消灭因同步锁导致的 UI 卡顿。
-        Log.d("MainActivity", msg);
+        if (BuildConfig.DEBUG) {
+            Log.d("MainActivity", msg);
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        // 🟢【修复5】统一在 onPause 中清理排期任务，防止内存泄漏和空指针崩毁
         mMainHandler.removeCallbacksAndMessages(null);
-        
         appCoreManager.onPause();
         if (pipManager != null) {
             pipManager.handleOnPause(() -> {
@@ -551,7 +534,6 @@ public class MainActivity extends AppCompatActivity {
         screenRatioManager.apply();
         displayManager.reapplyFullScreen();
 
-        // 🟢【修复6】使用成员 mMainHandler 替代匿名 Handler，并严格判空
         if (pipManager == null || !pipManager.isInPipMode()) {
             mMainHandler.postDelayed(() -> {
                 if (pipManager != null && mPlayerManager != null) {
@@ -572,7 +554,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 🟢【修复7】销毁时完全清理资源和 Handler 消息
+        // 🟢【优化1】销毁时清空弱引用，释放所有资源
+        if (mInstanceRef != null) {
+            mInstanceRef.clear();
+            mInstanceRef = null;
+        }
+        
         mMainHandler.removeCallbacksAndMessages(null);
         if (infoDisplayManager != null) infoDisplayManager.release();
         if (remoteManager != null) remoteManager.release();
@@ -581,6 +568,5 @@ public class MainActivity extends AppCompatActivity {
         if (appCoreManager != null) appCoreManager.release();
         if (pipManager != null) pipManager.release();
         if (mPlayerManager != null) mPlayerManager.release();
-        mInstance = null;
     }
 }
