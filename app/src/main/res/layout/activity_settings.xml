@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
 设置页面布局（右侧滑出式菜单风格）
-【作用】设置页面的整体布局，以浮层形式显示在播放界面上方
-【效果】屏幕右侧显示，四个角圆角，半透明深色背景，能看到后面的播放界面
-【结构】FrameLayout（全屏透明）
-├── view_outside（左侧空白区域，点击关闭）
-└── ScrollView（右侧设置面板，包含所有设置项）
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -21,7 +16,7 @@
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- 设置面板：靠右显示，离右边有 20dp 距离，四个角圆角半透明背景 -->
+    <!-- 设置面板 -->
     <ScrollView
         android:id="@+id/settings_content"
         android:layout_width="240dp"
@@ -41,9 +36,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- ============================================================ -->
-            <!-- 开机自启（两行布局：文字+开关 + 状态文本）                  -->
-            <!-- ============================================================ -->
+            <!-- 开机自启 -->
             <LinearLayout
                 android:id="@+id/item_boot"
                 android:layout_width="match_parent"
@@ -85,11 +78,7 @@
                     android:textSize="12sp" />
             </LinearLayout>
 
-            <!-- 节目单、自动更新源 UI 已移除 -->
-
-            <!-- ============================================================ -->
-            <!-- 换台反转                                                    -->
-            <!-- ============================================================ -->
+            <!-- 换台反转 -->
             <LinearLayout
                 android:id="@+id/item_reverse"
                 android:layout_width="match_parent"
@@ -115,11 +104,7 @@
                     android:clickable="false" />
             </LinearLayout>
 
-            <!-- 数字选台 UI 已移除 -->
-
-            <!-- ============================================================ -->
-            <!-- 画中画开关                                                  -->
-            <!-- ============================================================ -->
+            <!-- 画中画 -->
             <LinearLayout
                 android:id="@+id/item_pip"
                 android:layout_width="match_parent"
@@ -145,9 +130,7 @@
                     android:clickable="false" />
             </LinearLayout>
 
-            <!-- ============================================================ -->
-            <!-- 🆕 频道线路选择（新增）                                     -->
-            <!-- ============================================================ -->
+            <!-- 频道线路选择 -->
             <LinearLayout
                 android:id="@+id/item_channel_line"
                 android:layout_width="match_parent"
@@ -174,9 +157,7 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
-            <!-- ============================================================ -->
-            <!-- 解码器选择                                                  -->
-            <!-- ============================================================ -->
+            <!-- 解码器选择 -->
             <LinearLayout
                 android:id="@+id/item_decoder"
                 android:layout_width="match_parent"
@@ -203,9 +184,7 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
-            <!-- ============================================================ -->
-            <!-- 🆕 渲染方式选择（2026-07-02 新增）                          -->
-            <!-- ============================================================ -->
+            <!-- 渲染方式 -->
             <LinearLayout
                 android:id="@+id/item_renderer"
                 android:layout_width="match_parent"
@@ -232,51 +211,7 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
-            <!-- ============================================================ -->
-            <!-- 🆕 HTTP重定向网络配置（隐藏右侧文字，只保留按钮） -->
-            <!-- ============================================================ -->
-            <LinearLayout
-                android:id="@+id/item_redirect"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="55dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-
-                <!-- 左侧标题：去掉 weight，采用 wrap_content，绝不被打压 -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="HTTP重定向网络配置"
-                    android:textColor="#FFFFFF"
-                    android:textSize="16sp" />
-
-                <!-- 右侧状态：完全隐藏，保留ID防止Java因 findViewById 抛空指针异常 -->
-                <TextView
-                    android:id="@+id/tv_redirect_setting"
-                    android:layout_width="0dp"
-                    android:layout_height="0dp"
-                    android:visibility="gone" />
-            </LinearLayout>
-
-            <!-- ============================================================ -->
-            <!-- 分隔线                                                      -->
-            <!-- ============================================================ -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:background="#33FFFFFF"/>
-
-            <!-- ============================================================ -->
-            <!-- 屏幕比例                                                    -->
-            <!-- ============================================================ -->
+            <!-- 屏幕比例 -->
             <TextView
                 android:id="@+id/tv_screen_ratio"
                 android:layout_width="match_parent"
@@ -292,8 +227,36 @@
                 android:clickable="true"/>
 
             <!-- ============================================================ -->
-            <!-- 分隔线                                                      -->
+            <!-- 🆕 新增：清晰度选择 -->
             <!-- ============================================================ -->
+            <LinearLayout
+                android:id="@+id/item_resolution"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:background="@drawable/setting_item_bg"
+                android:focusable="true"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="清晰度选择"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+                <TextView
+                    android:id="@+id/tv_resolution_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="自动"
+                    android:textColor="#999999"
+                    android:textSize="14sp" />
+            </LinearLayout>
+            <!-- ============================================================ -->
+
+            <!-- 分隔线 -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
@@ -301,9 +264,41 @@
                 android:layout_marginBottom="8dp"
                 android:background="#33FFFFFF"/>
 
-            <!-- ============================================================ -->
-            <!-- 🆕 直播源订阅（合并后的入口）                               -->
-            <!-- ============================================================ -->
+            <!-- HTTP重定向网络配置 -->
+            <LinearLayout
+                android:id="@+id/item_redirect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="55dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:background="@drawable/setting_item_bg"
+                android:focusable="true"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="HTTP重定向网络配置"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+                <TextView
+                    android:id="@+id/tv_redirect_setting"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- 分隔线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="#33FFFFFF"/>
+
+            <!-- 直播源订阅 -->
             <LinearLayout
                 android:id="@+id/item_live_subscribe"
                 android:layout_width="match_parent"
@@ -322,9 +317,7 @@
                     android:textSize="16sp" />
             </LinearLayout>
 
-            <!-- ============================================================ -->
-            <!-- 🆕 节目单订阅（合并后的入口）                               -->
-            <!-- ============================================================ -->
+            <!-- 节目单订阅 -->
             <LinearLayout
                 android:id="@+id/item_epg_subscribe"
                 android:layout_width="match_parent"
@@ -343,13 +336,15 @@
                     android:textSize="16sp" />
             </LinearLayout>
 
-            <!-- ============================================================ -->
-            <!-- 🗑️ 【已移除】查看解析日志及上方分隔线                       -->
-            <!-- ============================================================ -->
+            <!-- 分隔线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="#33FFFFFF"/>
 
-            <!-- ============================================================ -->
-            <!-- 检查更新                                                    -->
-            <!-- ============================================================ -->
+            <!-- 检查更新 -->
             <LinearLayout
                 android:id="@+id/item_check_update"
                 android:layout_width="match_parent"
@@ -376,9 +371,7 @@
                     android:clickable="false"/>
             </LinearLayout>
 
-            <!-- ============================================================ -->
-            <!-- 网页设置提示                                                -->
-            <!-- ============================================================ -->
+            <!-- 网页设置提示 -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
