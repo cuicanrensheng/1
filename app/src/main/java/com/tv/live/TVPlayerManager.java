@@ -18,10 +18,12 @@ import android.widget.TextView;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
 
+import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.TrackGroup;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -32,6 +34,8 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
+import androidx.media3.exoplayer.trackselection.MappingTrackSelector;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
@@ -112,7 +116,10 @@ public class TVPlayerManager {
 
     private final Map<String, String> reusableHeaderMap = new HashMap<>();
 
-    // 🟢【核心新增】记录当前设置的缩放比例，防止重建 PlayerView 时比例丢失
+    // 🟢【新增】轨道选择器（用于切换清晰度）
+    private DefaultTrackSelector trackSelector;
+
+    // 🟢 记录当前设置的缩放比例
     private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
     public interface OnPlayerViewRecreatedListener {
@@ -196,9 +203,13 @@ public class TVPlayerManager {
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
 
+        // 🟢【核心新增】初始化轨道选择器，用于清晰度切换
+        trackSelector = new DefaultTrackSelector(context);
+
         player = new ExoPlayer.Builder(context)
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
+                .setTrackSelector(trackSelector) // 绑定轨道选择器
                 .build();
 
         try {
@@ -497,7 +508,7 @@ public class TVPlayerManager {
         newPlayerView.setUseController(useController);
         newPlayerView.setKeepContentOnPlayerReset(true);
         
-        // 🟢【核心修复】将原本硬编码的 FIT 改为读取当前设置的 mCurrentScaleMode
+        // 恢复缩放比例
         int resizeMode;
         switch (mCurrentScaleMode) {
             case FILL:
@@ -737,11 +748,90 @@ public class TVPlayerManager {
         }
     }
 
+    // ====================================================================
+    // 🟢【新增】清晰度切换核心逻辑
+    // ====================================================================
+
+    /**
+     * 获取当前播放视频内所有可用的分辨率列表
+     */
+    public List<String> getAvailableResolutions() {
+        List<String> resolutionList = new ArrayList<>();
+        if (trackSelector == null || player == null) return resolutionList;
+
+        MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
+        if (trackInfo == null) return resolutionList;
+
+        for (int i = 0; i < trackInfo.getRendererCount(); i++) {
+            if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
+                TrackGroup[] trackGroups = trackInfo.getTrackGroups(i);
+                for (int j = 0; j < trackGroups.length; j++) {
+                    TrackGroup group = trackGroups[j];
+                    for (int k = 0; k < group.length; k++) {
+                        Format format = group.getFormat(k);
+                        if (format.height > 0) {
+                            // 转换为用户友好的分辨率名称
+                            String label;
+                            if (format.height >= 2160) label = "4K (2160p)";
+                            else if (format.height >= 1080) label = "1080p";
+                            else if (format.height >= 720) label = "720p";
+                            else label = format.height + "p";
+                            
+                            // 避免添加重复标签
+                            if (!resolutionList.contains(label)) {
+                                resolutionList.add(label);
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        return resolutionList;
+    }
+
+    /**
+     * 切换到指定的分辨率
+     * @param targetHeight 目标分辨率高度（如 1080 切 1080p，720 切 720p）
+     */
+    public void switchToResolution(int targetHeight) {
+        if (trackSelector == null || player == null) return;
+
+        MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
+        if (trackInfo == null) return;
+
+        DefaultTrackSelector.Parameters.Builder paramsBuilder = trackSelector.getParameters().buildUpon();
+
+        for (int i = 0; i < trackInfo.getRendererCount(); i++) {
+            if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
+                TrackGroup[] trackGroups = trackInfo.getTrackGroups(i);
+                for (int j = 0; j < trackGroups.length; j++) {
+                    TrackGroup group = trackGroups[j];
+                    for (int k = 0; k < group.length; k++) {
+                        Format format = group.getFormat(k);
+                        if (format.height == targetHeight) {
+                            // 强制选择这个特定的轨道
+                            paramsBuilder.setSelectionOverride(i, group, k);
+                            trackSelector.setParameters(paramsBuilder.build());
+                            Log.d(TAG, "已切换至分辨率: " + format.height + "p");
+                            return;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        // 如果找不到指定分辨率，重置为自适应
+        paramsBuilder.clearSelectionOverrides(i);
+        trackSelector.setParameters(paramsBuilder.build());
+        Log.d(TAG, "未找到指定分辨率，回退至自适应");
+    }
+    // ====================================================================
+
     public enum ScaleMode { FIT, FILL, ZOOM }
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
-            // 🟢 记录当前比例状态
             this.mCurrentScaleMode = mode;
             switch (mode) {
                 case FIT: playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT); break;
