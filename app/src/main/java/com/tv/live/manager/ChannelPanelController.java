@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * 频道面板控制器
  * 
- * 【2026-07-04 修改：移除收藏和最近观看功能】
+ * 【2026-07-08 修改：面板开启 5 秒防呆自动隐藏】
  */
 public class ChannelPanelController {
 
@@ -31,7 +31,7 @@ public class ChannelPanelController {
     private static final int MAX_AUTO_SKIP = 10;
 
     private static final long FIRST_LAUNCH_HIDE_DELAY_MS = 5000;
-    private static final long NORMAL_HIDE_DELAY_MS = 10000;
+    private static final long NORMAL_HIDE_DELAY_MS = 5000; // 🟢 修改为 5 秒防呆
 
     private Context context;
     private View panelLayout;
@@ -65,7 +65,9 @@ public class ChannelPanelController {
 
     private Handler mAutoHideHandler;
     private Runnable mAutoHideRunnable;
-    private long mAutoHideDelayMs = 5000;
+    private long mAutoHideDelayMs = 5000; // 🟢 默认为 5 秒
+    
+    // 🟢【恢复】开启自动隐藏功能
     private boolean mAutoHideEnabled = true;
 
     private boolean mIsFirstLaunch = true;
@@ -80,9 +82,6 @@ public class ChannelPanelController {
     private String lastSwitchDirection = "";
     private boolean isSwitchingChannel = false;
     private int autoSkipCount = 0;
-
-    // 🟢【新增缓存】记录上次在分组列表中的索引，避免循环遍历查找
-    private int cachedGroupSelectionIndex = 0;
 
     private OnChannelChangeListener channelChangeListener;
     private OnPanelStateListener panelStateListener;
@@ -265,6 +264,9 @@ public class ChannelPanelController {
                 hidePanel();
             }
         };
+        // 🟢【恢复】开启自动隐藏，并设定为 5 秒防呆
+        mAutoHideEnabled = true;
+        mAutoHideDelayMs = 5000;
     }
 
     private void clearAllFocusStyles() {
@@ -705,15 +707,22 @@ public class ChannelPanelController {
         return currentSelectedDateIndex;
     }
 
-    // 🟢【核心优化】使用缓存避免 O(N) 循环。只在 playChannel 中更新缓存变量
     private int getChannelListSelection() {
         if (GroupListManager.GROUP_ALL.equals(currentGroupName)
                 || currentGroupName.isEmpty()
                 || currentGroupChannelList.isEmpty()) {
             return currentPlayIndex;
         } else {
-            // 直接返回缓存的索引，无需遍历
-            return cachedGroupSelectionIndex;
+            if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
+                return 0;
+            }
+            Channel currentChannel = channelSourceList.get(currentPlayIndex);
+            for (int i = 0; i < currentGroupChannelList.size(); i++) {
+                if (currentGroupChannelList.get(i).getName().equals(currentChannel.getName())) {
+                    return i;
+                }
+            }
+            return 0;
         }
     }
 
