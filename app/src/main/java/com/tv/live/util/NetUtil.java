@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
 import android.util.Log;
+import okhttp3.Call;
 import okhttp3.Headers;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
@@ -64,12 +65,11 @@ public class NetUtil {
         if (sAppContext != null) {
             SharedPreferences sp = sAppContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
             
-            // 🟢【核心修改】优先读取网页后台推送的自定义 UA
+            // 🟢 优先读取网页后台推送的自定义 UA
             String customUA = sp.getString("custom_user_agent", "");
             if (!TextUtils.isEmpty(customUA)) {
                 userAgent = customUA;
             } else {
-                // 如果没有自定义 UA，则读取设置页面的 exo/vlc 开关
                 String uaMode = sp.getString("user_agent_mode", "exo"); 
                 if ("vlc".equals(uaMode)) {
                     userAgent = "VLC/3.0.18 LibVLC/3.0.18";
