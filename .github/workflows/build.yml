@@ -25,21 +25,15 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 移除gradle-wrapper缓存，避免旧包残留
-      # - name: 缓存 Gradle 分发文件
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ~/.gradle/wrapper
-      #     key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+      # 自动修复缺失 gradle-wrapper.jar 问题
+      - name: 修复Gradle Wrapper
+        run: |
+          sudo apt update
+          sudo apt install -y gradle
+          gradle wrapper --gradle-version 8.9
+          chmod +x gradlew
 
-      # 禁止自动修改gradle版本，防止不匹配
-      # - name: 自动生成 Gradle Wrapper
-      #   run: gradle wrapper --gradle-version 9.5.1
-
-      - name: 赋予gradlew执行权限
-        run: chmod +x gradlew
-
-      # 关键参数：禁用构建缓存 + 强制刷新远程依赖，杜绝低版本Media3缓存
+      # 编译Release，强制刷新依赖、关闭缓存、打印详细日志
       - name: 编译Release签名APK
         run: ./gradlew assembleRelease --no-build-cache --refresh-dependencies --stacktrace --info
 
@@ -69,7 +63,7 @@ jobs:
           name: update-config
           path: update.json
 
-      - name: 创建发布Release
+      - name: 创建发布
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
