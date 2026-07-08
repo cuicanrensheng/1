@@ -25,29 +25,22 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 缓存 Gradle 分发文件（仅缓存 Wrapper，不缓存依赖）
-      - name: 缓存 Gradle 分发文件
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/wrapper
-          key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
-
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # 🚀 终极清理与强制重编译（删除生成 Wrapper 的步骤）
+      # 🚀 终极清理与强制重编译（使用本地已存在的 wrapper 执行）
       - name: 终极清理与强制重编译
         run: |
-          echo "1. 强制终止可能卡住内存的老旧 Gradle 守护进程..."
+          echo "1. 停止残留守护进程..."
           ./gradlew --stop
 
-          echo "2. 物理删除硬盘上损坏的依赖缓存..."
+          echo "2. 删掉损坏的依赖缓存..."
           rm -rf ~/.gradle/caches/
 
-          echo "3. 清理项目残存的编译中间文件..."
+          echo "3. 清理中间文件..."
           ./gradlew clean
 
-          echo "4. 开始纯净编译（使用项目 Wrapper，自动下载兼容的 Gradle 9.5.1）..."
+          echo "4. 开始纯净构建..."
           ./gradlew assembleRelease --no-daemon --no-build-cache --stacktrace
 
       - name: 生成 update.json
