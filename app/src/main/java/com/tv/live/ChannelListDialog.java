@@ -43,7 +43,7 @@ public class ChannelListDialog extends Dialog {
         });
     }
 
-    // 🟢【核心优化】引入 ViewHolder 模式
+    // 🟢 核心优化：引入 ViewHolder 模式
     private class ChannelAdapter extends ArrayAdapter<String> {
         public ChannelAdapter(Context context, List<String> list) {
             super(context, R.layout.item_channel, list);
@@ -69,8 +69,8 @@ public class ChannelListDialog extends Dialog {
             return convertView;
         }
 
-        // 🟢 静态内部类，防止内存泄漏
-        private static class ViewHolder {
+        // 🟢 修复：去掉 static，改为普通内部类，解决编译报错
+        private class ViewHolder {
             TextView tvChannel;
         }
     }
