@@ -13,42 +13,37 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: 拉取仓库代码
+      - name: 拉取完整仓库代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 设置 JDK 17 + Gradle 缓存
+      - name: 配置JDK17 Temurin
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
 
-      # 缓存 Gradle 分发文件（注意：只缓存 Wrapper，不缓存依赖 caches）
-      - name: 缓存 Gradle 分发文件
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/wrapper
-          key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+      # 移除gradle-wrapper缓存，避免旧包残留
+      # - name: 缓存 Gradle 分发文件
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ~/.gradle/wrapper
+      #     key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
 
-      - name: 自动生成 Gradle Wrapper
-        run: gradle wrapper --gradle-version 9.5.1
+      # 禁止自动修改gradle版本，防止不匹配
+      # - name: 自动生成 Gradle Wrapper
+      #   run: gradle wrapper --gradle-version 9.5.1
 
-      - name: 赋予执行权限
+      - name: 赋予gradlew执行权限
         run: chmod +x gradlew
 
-      # ✅【终极绝杀】移除损坏的依赖缓存，强制重新下载纯净包
-      - name: 编译 Release 签名版 APK
-        run: |
-          # 1. 物理删除损坏的依赖缓存（这是解决 TrackGroupArray 找不到的关键）
-          rm -rf ~/.gradle/caches/
-          # 2. 清理上一次残留的编译中间文件
-          ./gradlew clean
-          # 3. 强制刷新依赖并重新编译（无缓存，且重新下载所有 jar）
-          ./gradlew assembleRelease --no-build-cache --refresh-dependencies --stacktrace
+      # 关键参数：禁用构建缓存 + 强制刷新远程依赖，杜绝低版本Media3缓存
+      - name: 编译Release签名APK
+        run: ./gradlew assembleRelease --no-build-cache --refresh-dependencies --stacktrace --info
 
-      - name: 生成 update.json
+      - name: 生成更新配置 update.json
         run: |
           VERSION_CODE=${{ github.run_number }}
           VERSION_NAME="1.0.$VERSION_CODE"
@@ -62,7 +57,7 @@ jobs:
           }
           EOF
 
-      - name: 上传成品 APK
+      - name: 上传成品APK
         uses: actions/upload-artifact@v4
         with:
           name: TVLive-直播APP
@@ -74,7 +69,7 @@ jobs:
           name: update-config
           path: update.json
 
-      - name: 创建发布
+      - name: 创建发布Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
