@@ -24,6 +24,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackGroup;
+import androidx.media3.common.TrackGroupArray; // ✅ 确保导入 TrackGroupArray
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -749,7 +750,7 @@ public class TVPlayerManager {
     }
 
     // ====================================================================
-    // 🟢【新增】清晰度切换核心逻辑
+    // 🟢【修复后】清晰度切换核心逻辑
     // ====================================================================
 
     /**
@@ -764,9 +765,10 @@ public class TVPlayerManager {
 
         for (int i = 0; i < trackInfo.getRendererCount(); i++) {
             if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
-                TrackGroup[] trackGroups = trackInfo.getTrackGroups(i);
+                // ✅ 修正：getTrackGroups() 返回的是 TrackGroupArray，不是 TrackGroup[]
+                TrackGroupArray trackGroups = trackInfo.getTrackGroups(i);
                 for (int j = 0; j < trackGroups.length; j++) {
-                    TrackGroup group = trackGroups[j];
+                    TrackGroup group = trackGroups.get(j); // 使用 get(j) 获取单个 TrackGroup
                     for (int k = 0; k < group.length; k++) {
                         Format format = group.getFormat(k);
                         if (format.height > 0) {
@@ -784,7 +786,7 @@ public class TVPlayerManager {
                         }
                     }
                 }
-                break;
+                break; // 视频轨道一般只有一个渲染器，找到后即可退出
             }
         }
         return resolutionList;
@@ -800,31 +802,45 @@ public class TVPlayerManager {
         MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
         if (trackInfo == null) return;
 
-        DefaultTrackSelector.Parameters.Builder paramsBuilder = trackSelector.getParameters().buildUpon();
-
+        // 先找到视频渲染器的索引
+        int videoRendererIndex = -1;
         for (int i = 0; i < trackInfo.getRendererCount(); i++) {
             if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
-                TrackGroup[] trackGroups = trackInfo.getTrackGroups(i);
-                for (int j = 0; j < trackGroups.length; j++) {
-                    TrackGroup group = trackGroups[j];
-                    for (int k = 0; k < group.length; k++) {
-                        Format format = group.getFormat(k);
-                        if (format.height == targetHeight) {
-                            // 强制选择这个特定的轨道
-                            paramsBuilder.setSelectionOverride(i, group, k);
-                            trackSelector.setParameters(paramsBuilder.build());
-                            Log.d(TAG, "已切换至分辨率: " + format.height + "p");
-                            return;
-                        }
-                    }
-                }
+                videoRendererIndex = i;
                 break;
             }
         }
-        // 如果找不到指定分辨率，重置为自适应
-        paramsBuilder.clearSelectionOverrides(i);
-        trackSelector.setParameters(paramsBuilder.build());
-        Log.d(TAG, "未找到指定分辨率，回退至自适应");
+        if (videoRendererIndex == -1) {
+            Log.w(TAG, "未找到视频渲染器");
+            return;
+        }
+
+        DefaultTrackSelector.Parameters.Builder paramsBuilder = trackSelector.getParameters().buildUpon();
+        TrackGroupArray trackGroups = trackInfo.getTrackGroups(videoRendererIndex);
+        boolean found = false;
+
+        for (int j = 0; j < trackGroups.length; j++) {
+            TrackGroup group = trackGroups.get(j);
+            for (int k = 0; k < group.length; k++) {
+                Format format = group.getFormat(k);
+                if (format.height == targetHeight) {
+                    // ✅ 修正：setSelectionOverride 接收的是 TrackGroupArray 对象，而不是单个 TrackGroup
+                    paramsBuilder.setSelectionOverride(videoRendererIndex, trackGroups, k);
+                    trackSelector.setParameters(paramsBuilder.build());
+                    Log.d(TAG, "已切换至分辨率: " + format.height + "p");
+                    found = true;
+                    return;
+                }
+            }
+        }
+
+        // 如果找不到指定分辨率，重置为自适应（清除该渲染器的覆盖）
+        if (!found) {
+            // ✅ 修正：clearSelectionOverride 是单数，且接收 int 参数（渲染器索引）
+            paramsBuilder.clearSelectionOverride(videoRendererIndex);
+            trackSelector.setParameters(paramsBuilder.build());
+            Log.d(TAG, "未找到指定分辨率，回退至自适应");
+        }
     }
     // ====================================================================
 
