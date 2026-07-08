@@ -54,11 +54,9 @@ public class TVPlayerManager {
     public static final int DECODER_MODE_HARD = 1;
     public static final int DECODER_MODE_SOFT = 2;
     private static final int MAX_RETRY_COUNT = 2;
-    // 🟢【优化】将卡顿检测时间拉长至 20 秒，避免弱网下频繁切台黑屏
     private static final long STUCK_TIMEOUT = 20000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
 
-    // ====================== 配置常量 ======================
     private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
     private static final String KEY_REDIRECT_CROSS_DOMAIN = "redirect_cross_domain";
     private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
@@ -113,6 +111,9 @@ public class TVPlayerManager {
     private boolean isRenderingSwitching = false;
 
     private final Map<String, String> reusableHeaderMap = new HashMap<>();
+
+    // 🟢【核心新增】记录当前设置的缩放比例，防止重建 PlayerView 时比例丢失
+    private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
     public interface OnPlayerViewRecreatedListener {
         void onPlayerViewRecreated(PlayerView newPlayerView);
@@ -190,7 +191,6 @@ public class TVPlayerManager {
                 break;
         }
 
-        // 🟢【核心修改】大幅减小缓冲值，实现“先播再补”，解决切台画面卡住几秒的痛点
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(2000, 45000, 800, 1500)
                 .setPrioritizeTimeOverSizeThresholds(true)
@@ -374,7 +374,6 @@ public class TVPlayerManager {
                 retryRunnable = null;
             }
         };
-        // 🟢【优化】重试间隔从 1 秒改为 3 秒，缓解连续重试造成的视觉闪烁
         mHandler.postDelayed(retryRunnable, 3000);
     }
 
@@ -392,7 +391,6 @@ public class TVPlayerManager {
         }
         isSwitching = true;
 
-        // 🟢【优化】保存当前播放进度，以便重建后续播
         long currentPosition = player != null ? player.getCurrentPosition() : 0;
         boolean wasPlaying = player != null && player.isPlaying();
 
@@ -497,8 +495,24 @@ public class TVPlayerManager {
         PlayerView newPlayerView = new PlayerView(themedContext);
         newPlayerView.setLayoutParams(layoutParams);
         newPlayerView.setUseController(useController);
-        newPlayerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
         newPlayerView.setKeepContentOnPlayerReset(true);
+        
+        // 🟢【核心修复】将原本硬编码的 FIT 改为读取当前设置的 mCurrentScaleMode
+        int resizeMode;
+        switch (mCurrentScaleMode) {
+            case FILL:
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL;
+                break;
+            case ZOOM:
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM;
+                break;
+            case FIT:
+            default:
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
+                break;
+        }
+        newPlayerView.setResizeMode(resizeMode);
+
         newPlayerView.setPlayer(player);
 
         parent.addView(newPlayerView, index, layoutParams);
@@ -509,7 +523,6 @@ public class TVPlayerManager {
         if (currentPosition > 0) player.seekTo(currentPosition);
         
         if (wasPlaying) {
-            // 🟢【修复】增加 null 检查，防止 player 被销毁后触发空指针崩溃
             mHandler.postDelayed(() -> {
                 if (player != null && !player.isPlaying()) {
                     player.play();
@@ -643,7 +656,6 @@ public class TVPlayerManager {
         playUrlInternal(url, 0);
     }
 
-    // 🟢【优化】重载方法，支持在播放时传入指定的 seek 进度
     private void playUrlInternal(String url, long initialSeekPosition) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
@@ -707,7 +719,6 @@ public class TVPlayerManager {
             player.setMediaSource(mediaSource, true);
             player.prepare();
             
-            // 🟢【优化】如果切换解码器时保存了进度，则跳转过去，避免从头播放
             if (initialSeekPosition > 0) {
                 player.seekTo(initialSeekPosition);
             }
@@ -730,6 +741,8 @@ public class TVPlayerManager {
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
+            // 🟢 记录当前比例状态
+            this.mCurrentScaleMode = mode;
             switch (mode) {
                 case FIT: playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT); break;
                 case FILL: playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL); break;
@@ -800,7 +813,6 @@ public class TVPlayerManager {
         try {
             stopStuckDetection();
             cancelRetry();
-            // 🟢【核心修复】强力清除 Handler 中所有排队的任务，杜绝闪退和泄漏
             mHandler.removeCallbacksAndMessages(null);
             
             updateWakeLock(false);
