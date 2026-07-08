@@ -24,65 +24,24 @@ import java.net.URL;
 
 /**
  * 应用更新管理器
- *
- * 【功能】
- * 1. 检查更新（请求服务器 JSON 配置）
- * 2. 版本号对比
- * 3. 显示更新对话框（含更新日志）
- * 4. 下载 APK（使用系统 DownloadManager）
- * 5. 下载完成后自动安装
- *
- * 【使用方式】
- * UpdateManager updateManager = new UpdateManager(context);
- * updateManager.checkUpdate();
- *
- * 【JSON 配置格式】
- * {
- *   "versionCode": 2,
- *   "versionName": "1.1.0",
- *   "downloadUrl": "https://xxx.com/app.apk",
- *   "updateLog": "1. 修复xxx\n2. 新增xxx",
- *   "forceUpdate": false
- * }
  */
 public class UpdateManager {
-    // ====================== 常量 ======================
-    /** 版本配置文件地址 */
     private static final String UPDATE_JSON_URL = "https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json";
-
-    /** 下载文件名称 */
     private static final String APK_FILE_NAME = "tv_live_update.apk";
-
-    // 🟢【修复1】全局主线程 Handler，彻底取代危险的 Activity 强转
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
-
-    // 🟢【修复2】状态锁，防止快速连续点击导致后台线程堆积
     private static boolean isChecking = false;
     private static boolean isDownloading = false;
 
-    // ====================== 成员变量 ======================
-    /** 上下文 */
     private final Context context;
-
-    /** 下载管理器 */
     private DownloadManager downloadManager;
-
-    /** 下载任务 ID */
     private long downloadId = -1;
-
-    /** 下载完成广播接收器 */
     private BroadcastReceiver downloadCompleteReceiver;
 
-    // ====================== 构造函数 ======================
     public UpdateManager(Context context) {
         this.context = context;
     }
 
-    // ====================================================================
-    // 1. 检查更新
-    // ====================================================================
     public void checkUpdate() {
-        // 🟢【修复2】防连点锁
         synchronized (UpdateManager.class) {
             if (isChecking) {
                 MAIN_HANDLER.post(() -> Toast.makeText(context, "正在检查更新中，请稍后...", Toast.LENGTH_SHORT).show());
@@ -140,19 +99,16 @@ public class UpdateManager {
                 final String finalUpdateLog = updateLog;
                 final boolean finalForceUpdate = forceUpdate;
 
-                // 🟢【修复1】切回主线程时使用 Handler，并释放锁
                 MAIN_HANDLER.post(() -> {
                     synchronized (UpdateManager.class) {
                         isChecking = false;
                     }
-                    // 🟢【修复3】检查 Activity 是否存活，防止 BadTokenException
                     if (context instanceof android.app.Activity) {
                         android.app.Activity activity = (android.app.Activity) context;
                         if (activity.isFinishing() || activity.isDestroyed()) {
                             return;
                         }
                     }
-
                     if (latestVersionCode > finalCurrentVersionCode) {
                         showUpdateDialog(
                                 finalCurrentVersionName,
@@ -174,7 +130,6 @@ public class UpdateManager {
                     synchronized (UpdateManager.class) {
                         isChecking = false;
                     }
-                    // 🟢【修复3】检查 Activity 是否存活
                     if (context instanceof android.app.Activity) {
                         android.app.Activity activity = (android.app.Activity) context;
                         if (activity.isFinishing() || activity.isDestroyed()) {
@@ -187,13 +142,9 @@ public class UpdateManager {
         }).start();
     }
 
-    // ====================================================================
-    // 2. 显示更新对话框
-    // ====================================================================
     private void showUpdateDialog(String currentVersion, String latestVersion,
                                    String updateLog, String downloadUrl,
                                    boolean forceUpdate) {
-        // 🟢【修复3】在弹窗前再次确认 Activity 存活
         if (context instanceof android.app.Activity) {
             android.app.Activity activity = (android.app.Activity) context;
             if (activity.isFinishing() || activity.isDestroyed()) {
@@ -221,11 +172,7 @@ public class UpdateManager {
         builder.show();
     }
 
-    // ====================================================================
-    // 3. 开始下载 APK
-    // ====================================================================
     private void startDownload(String downloadUrl) {
-        // 🟢【修复2】加入下载防并发锁
         synchronized (UpdateManager.class) {
             if (isDownloading) {
                 MAIN_HANDLER.post(() -> Toast.makeText(context, "正在下载中，请稍后...", Toast.LENGTH_SHORT).show());
@@ -236,7 +183,6 @@ public class UpdateManager {
 
         try {
             downloadManager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(downloadUrl));
             request.setTitle("电视直播 更新");
             request.setDescription("正在下载新版本...");
@@ -258,12 +204,10 @@ public class UpdateManager {
 
             downloadId = downloadManager.enqueue(request);
             registerDownloadCompleteReceiver();
-
             Toast.makeText(context, "开始下载，通知栏可查看进度", Toast.LENGTH_SHORT).show();
 
         } catch (Exception e) {
             e.printStackTrace();
-            // 🟢【修复2】下载失败释放锁
             synchronized (UpdateManager.class) {
                 isDownloading = false;
             }
@@ -272,7 +216,7 @@ public class UpdateManager {
     }
 
     // ====================================================================
-    // 4. 注册下载完成广播
+    // 🟢 【修复】你必须包含这个方法的定义，否则编译失败！
     // ====================================================================
     private void registerDownloadCompleteReceiver() {
         downloadCompleteReceiver = new BroadcastReceiver() {
@@ -294,9 +238,18 @@ public class UpdateManager {
         }
     }
 
-    // ====================================================================
-    // 5. 安装 APK
-    // ====================================================================
+    // 🟢 【修复】这个方法就是之前缺失的！请务必保留！
+    private void unregisterDownloadCompleteReceiver() {
+        if (downloadCompleteReceiver != null) {
+            try {
+                context.unregisterReceiver(downloadCompleteReceiver);
+                downloadCompleteReceiver = null;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     private void installApk() {
         try {
             DownloadManager.Query query = new DownloadManager.Query();
@@ -309,14 +262,11 @@ public class UpdateManager {
                     String uriString = cursor.getString(
                             cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI)
                     );
-                    
-                    // 🟢 增加判空防止 uri 为空时崩溃
                     if (uriString != null && !uriString.isEmpty()) {
                         Uri apkUri = Uri.parse(uriString);
                         Intent installIntent = new Intent(Intent.ACTION_VIEW);
                         installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
                         installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         }
@@ -331,22 +281,18 @@ public class UpdateManager {
             } else {
                 Toast.makeText(context, "未找到下载文件", Toast.LENGTH_SHORT).show();
             }
-
         } catch (Exception e) {
             e.printStackTrace();
             Toast.makeText(context, "安装失败：" + e.getMessage(), Toast.LENGTH_SHORT).show();
         } finally {
-            // 🟢【修复2】下载完成释放锁
             synchronized (UpdateManager.class) {
                 isDownloading = false;
             }
         }
     }
 
-    // ====================================================================
-    // 6. 释放资源
-    // ====================================================================
     public void release() {
+        // 🟢 释放时自动注销
         unregisterDownloadCompleteReceiver();
     }
 }
