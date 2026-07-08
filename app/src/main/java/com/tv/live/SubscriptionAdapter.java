@@ -17,7 +17,11 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
     private int selectedPosition = -1;
     private OnActionListener actionListener;
 
-    // 🟢 核心优化：将颜色提取为常量，避免在 getView 中反复解析
+    // 🟢【核心修复】直接将原生的默认地址写死，避免因为 UrlConfig 被动态覆盖导致保护失效
+    private static final String PROTECTED_LIVE_URL = "https://raw.githubusercontent.com/cuicanrensheng/IPTV/refs/heads/main/playlist1.m3u";
+    private static final String PROTECTED_EPG_URL = "https://e.erw.cc/all.xml.gz";
+
+    // 🟢 颜色常量优化，避免重复解析
     private static final int COLOR_SELECTED = 0xFF40A9FF;
     private static final int COLOR_SELECTED_BG = 0x3340A9FF;
     private static final int COLOR_NORMAL = 0xFFFFFFFF;
@@ -45,33 +49,6 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         this.actionListener = listener;
     }
 
-    // 🟢 单例监听器：在适配器层面只创建一次，极大减少 GC 抖动
-    private final View.OnClickListener clickListener = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            // 通过 Tag 获取绑定的位置
-            Object tag = v.getTag();
-            if (!(tag instanceof Integer)) return;
-            int pos = (Integer) tag;
-            if (pos < 0 || pos >= getCount()) return;
-
-            int id = v.getId();
-            if (id == R.id.btn_delete) {
-                if (actionListener != null) actionListener.onDelete(pos);
-            } else if (id == R.id.btn_copy) {
-                SourceManager.SourceItem item = getItem(pos);
-                if (item != null && item.url != null) {
-                    ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-                    cm.setPrimaryClip(ClipData.newPlainText("source_url", item.url));
-                    android.widget.Toast.makeText(getContext(), "已复制地址", android.widget.Toast.LENGTH_SHORT).show();
-                }
-            } else {
-                // 默认整行点击切换
-                if (actionListener != null) actionListener.onSwitch(pos);
-            }
-        }
-    };
-
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         ViewHolder holder;
@@ -83,24 +60,12 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
             holder.btnCopy = convertView.findViewById(R.id.btn_copy);
             holder.btnDelete = convertView.findViewById(R.id.btn_delete);
             convertView.setTag(holder);
-
-            // 🟢 将单例监听器绑定到各个视图，仅此一次
-            holder.btnCopy.setOnClickListener(clickListener);
-            holder.btnDelete.setOnClickListener(clickListener);
-            convertView.setOnClickListener(clickListener);
         } else {
             holder = (ViewHolder) convertView.getTag();
         }
 
         SourceManager.SourceItem item = getItem(position);
-        if (item == null) {
-            return convertView;
-        }
-
-        // 🟢 将当前位置存储在 View 的 Tag 中，供单例监听器读取
-        holder.btnCopy.setTag(position);
-        holder.btnDelete.setTag(position);
-        convertView.setTag(position);
+        if (item == null) return convertView;
 
         String displayText = item.name;
         if (item.url != null && !item.url.isEmpty()) {
@@ -111,10 +76,10 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         holder.tvUrl.setText(displayText);
 
         // =================================================================
-        // 🛡️ 核心逻辑：只要是 UrlConfig 里的地址，永远不显示删除按钮
+        // 🛡️ 核心修复：只要匹配到硬编码的原生地址，无论如何都保护（隐藏删除按钮）
         // =================================================================
         boolean isProtected = item.url != null && !item.url.isEmpty() &&
-                (item.url.equals(UrlConfig.LIVE_URL) || item.url.equals(UrlConfig.EPG_URL));
+                (item.url.equals(PROTECTED_LIVE_URL) || item.url.equals(PROTECTED_EPG_URL));
 
         if (isProtected) {
             holder.btnDelete.setVisibility(View.GONE);
@@ -133,10 +98,28 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
             convertView.setBackgroundColor(COLOR_NORMAL_BG);
         }
 
+        // 视图点击/复制/删除事件绑定
+        holder.btnCopy.setOnClickListener(v -> {
+            ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText("source_url", item.url));
+            android.widget.Toast.makeText(getContext(), "已复制地址", android.widget.Toast.LENGTH_SHORT).show();
+        });
+
+        holder.btnDelete.setOnClickListener(v -> {
+            if (actionListener != null && position >= 0 && position < getCount()) {
+                actionListener.onDelete(position);
+            }
+        });
+
+        convertView.setOnClickListener(v -> {
+            if (actionListener != null && position >= 0 && position < getCount()) {
+                actionListener.onSwitch(position);
+            }
+        });
+
         return convertView;
     }
 
-    // 🟢 静态内部类 ViewHolder，彻底杜绝 findViewById 的重复调用
     private static class ViewHolder {
         TextView tvCheck;
         TextView tvUrl;
