@@ -46,9 +46,9 @@ jobs:
       - name: 校验Media3依赖是否加载成功
         run: ./gradlew :app:dependencies --configuration releaseCompileClasspath | grep media3
 
-      # 🎯 强制联网重下所有依赖，禁用缓存、守护进程、构建缓存
+      # 🎯 修正：移除非法参数 --no-offline
       - name: 强制刷新依赖并打包Release
-        run: ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --no-offline --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --stacktrace
 
       - name: 生成 update.json
         run: |
