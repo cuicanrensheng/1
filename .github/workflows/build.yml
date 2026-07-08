@@ -28,7 +28,7 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # 🚀 终极清理与强制重编译（使用本地已存在的 wrapper 执行）
+      # 🚀 终极清理与强制重编译
       - name: 终极清理与强制重编译
         run: |
           echo "1. 停止残留守护进程..."
@@ -41,7 +41,8 @@ jobs:
           ./gradlew clean
 
           echo "4. 开始纯净构建..."
-          ./gradlew assembleRelease --no-daemon --no-build-cache --stacktrace
+          # ✅ 关键修复：加上 --refresh-dependencies，彻底刷新依赖索引
+          ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --stacktrace
 
       - name: 生成 update.json
         run: |
