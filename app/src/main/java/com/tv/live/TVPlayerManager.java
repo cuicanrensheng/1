@@ -38,13 +38,16 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector;
-import androidx.media3.exoplayer.trackselection.TrackSelectionOverride;  // ✅ 修改1：替换为TrackSelectionOverride
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
 import com.tv.live.util.NetUtil;
 import com.tv.live.exception.RedirectFailedException;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -52,6 +55,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.net.ssl.HttpsURLConnection;
 
 import okhttp3.Headers;
 
@@ -123,6 +130,31 @@ public class TVPlayerManager {
 
     private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
+    // 清晰度相关
+    private List<Variant> variantList = new ArrayList<>();
+    private boolean isParsingMasterPlaylist = false;
+
+    // 清晰度实体类
+    public static class Variant {
+        public String url;
+        public int bandwidth;
+        public int width;
+        public int height;
+        public String resolutionLabel; // 如 "720p", "1080p"
+
+        Variant(String url, int bandwidth, int width, int height) {
+            this.url = url;
+            this.bandwidth = bandwidth;
+            this.width = width;
+            this.height = height;
+            if (height >= 2160) resolutionLabel = "4K (2160p)";
+            else if (height >= 1080) resolutionLabel = "1080p";
+            else if (height >= 720) resolutionLabel = "720p";
+            else if (height > 0) resolutionLabel = height + "p";
+            else resolutionLabel = "自适应";
+        }
+    }
+
     public interface OnPlayerViewRecreatedListener {
         void onPlayerViewRecreated(PlayerView newPlayerView);
     }
@@ -146,12 +178,7 @@ public class TVPlayerManager {
         this.context = context;
         mHandler = new Handler(Looper.getMainLooper());
 
-        hideChannelRunnable = new Runnable() {
-            @Override
-            public void run() {
-                hideChannelNum();
-            }
-        };
+        hideChannelRunnable = () -> hideChannelNum();
 
         stuckCheckRunnable = new Runnable() {
             @Override
@@ -217,7 +244,8 @@ public class TVPlayerManager {
             List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos("video/avc", false, false);
             int softCount = 0, hardCount = 0;
             for (MediaCodecInfo codec : h264Codecs) {
-                if (isSoftwareDecoder(codec)) softCount++; else hardCount++;
+                if (isSoftwareDecoder(codec)) softCount++;
+                else hardCount++;
             }
             Log.d(TAG, "【解码器】软解 " + softCount + " 个，硬解 " + hardCount + " 个");
         } catch (Exception ignored) {
@@ -255,9 +283,7 @@ public class TVPlayerManager {
 
                 if (!isRedirectError) {
                     boolean switched = trySwitchBackup();
-                    if (switched) {
-                        return;
-                    }
+                    if (switched) return;
                 }
 
                 if (sourceFailedListener != null) {
@@ -275,11 +301,9 @@ public class TVPlayerManager {
                     retryCount = 0;
                     isRetrying = false;
                     startStuckDetection();
-
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
-
                 } else if (state == Player.STATE_BUFFERING) {
                     if (listener != null) listener.onBuffering();
                     lastPositionUpdateTime = System.currentTimeMillis();
@@ -323,19 +347,16 @@ public class TVPlayerManager {
         if (currentChannel == null || currentChannel.getBackupUrls().isEmpty()) {
             return false;
         }
-
         if (backupRetryIndex < 0) {
             backupRetryIndex = 0;
         } else {
             backupRetryIndex++;
         }
-
         List<String> backups = currentChannel.getBackupUrls();
         if (backupRetryIndex >= backups.size()) {
             backupRetryIndex = -1;
             return false;
         }
-
         String backupUrl = backups.get(backupRetryIndex);
         Log.d(TAG, "尝试切换到备用源：" + backupUrl);
         playUrlInternal(backupUrl);
@@ -376,15 +397,12 @@ public class TVPlayerManager {
         isRetrying = true;
         retryCount++;
         Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
-        retryRunnable = new Runnable() {
-            @Override
-            public void run() {
-                isRetrying = false;
-                if (!TextUtils.isEmpty(currentUrl)) {
-                    playUrlInternal(currentUrl);
-                }
-                retryRunnable = null;
+        retryRunnable = () -> {
+            isRetrying = false;
+            if (!TextUtils.isEmpty(currentUrl)) {
+                playUrlInternal(currentUrl);
             }
+            retryRunnable = null;
         };
         mHandler.postDelayed(retryRunnable, 3000);
     }
@@ -402,7 +420,6 @@ public class TVPlayerManager {
             return;
         }
         isSwitching = true;
-
         long currentPosition = player != null ? player.getCurrentPosition() : 0;
         boolean wasPlaying = player != null && player.isPlaying();
 
@@ -410,7 +427,6 @@ public class TVPlayerManager {
             mHandler.removeCallbacks(stuckCheckRunnable);
             mHandler.removeCallbacks(retryRunnable);
             mHandler.removeCallbacks(hideChannelRunnable);
-
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -424,7 +440,6 @@ public class TVPlayerManager {
         }
 
         initPlayer();
-
         if (playerView != null) {
             mHandler.post(() -> {
                 if (playerView != null && player != null) {
@@ -432,13 +447,11 @@ public class TVPlayerManager {
                 }
             });
         }
-
         if (!TextUtils.isEmpty(currentUrl)) {
             retryCount = 0;
             isRetrying = false;
             playUrlInternal(currentUrl, currentPosition);
         }
-
         isSwitching = false;
     }
 
@@ -485,7 +498,6 @@ public class TVPlayerManager {
 
     private void switchRenderer(boolean useTexture) {
         if (playerView == null || context == null) return;
-
         FrameLayout parent = (FrameLayout) playerView.getParent();
         if (parent == null) return;
 
@@ -525,7 +537,6 @@ public class TVPlayerManager {
                 break;
         }
         newPlayerView.setResizeMode(resizeMode);
-
         newPlayerView.setPlayer(player);
 
         parent.addView(newPlayerView, index, layoutParams);
@@ -534,12 +545,9 @@ public class TVPlayerManager {
         playerView = newPlayerView;
 
         if (currentPosition > 0) player.seekTo(currentPosition);
-
         if (wasPlaying) {
             mHandler.postDelayed(() -> {
-                if (player != null && !player.isPlaying()) {
-                    player.play();
-                }
+                if (player != null && !player.isPlaying()) player.play();
             }, 200);
         }
 
@@ -549,13 +557,7 @@ public class TVPlayerManager {
         playerView.requestFocus();
 
         playerView.postDelayed(() -> {
-            blackMask.animate()
-                    .alpha(0f)
-                    .setDuration(250)
-                    .withEndAction(() -> {
-                        parent.removeView(blackMask);
-                    })
-                    .start();
+            blackMask.animate().alpha(0f).setDuration(250).withEndAction(() -> parent.removeView(blackMask)).start();
         }, 100);
 
         isRenderingSwitching = false;
@@ -570,9 +572,7 @@ public class TVPlayerManager {
                     if ("com.tv.live.RENDERER_TYPE_CHANGED".equals(intent.getAction())) {
                         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
                         String mode = sp.getString("renderer_type", "surface");
-                        if (playerView != null) {
-                            switchRenderer("texture".equals(mode));
-                        }
+                        if (playerView != null) switchRenderer("texture".equals(mode));
                     }
                 }
             };
@@ -645,7 +645,6 @@ public class TVPlayerManager {
         if (channel != null && TextUtils.isEmpty(this.currentChannelName)) {
             this.currentChannelName = channel.getName();
         }
-
         cancelRetry();
         retryCount = 0;
         isRetrying = false;
@@ -685,7 +684,6 @@ public class TVPlayerManager {
             if (currentChannel != null) {
                 SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
                 int lineIndex = sp.getInt("channel_line_index", 0);
-
                 if (lineIndex == 0) {
                     playUrl = currentChannel.getMainPlayUrl();
                 } else {
@@ -704,9 +702,15 @@ public class TVPlayerManager {
                 currentUrl = playUrl;
             }
 
+            // 异步解析直播源（主播放列表）
+            if (currentUrl.toLowerCase().contains("m3u8")) {
+                fetchAndParseMasterPlaylist(currentUrl);
+            } else {
+                variantList.clear();
+            }
+
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
-
             reusableHeaderMap.clear();
             for (String name : globalHeaders.names()) {
                 reusableHeaderMap.put(name, globalHeaders.get(name));
@@ -739,11 +743,7 @@ public class TVPlayerManager {
 
             player.setMediaSource(mediaSource, true);
             player.prepare();
-
-            if (initialSeekPosition > 0) {
-                player.seekTo(initialSeekPosition);
-            }
-
+            if (initialSeekPosition > 0) player.seekTo(initialSeekPosition);
             player.play();
             startStuckDetection();
 
@@ -757,75 +757,123 @@ public class TVPlayerManager {
         }
     }
 
-    public List<String> getAvailableResolutions() {
-        List<String> resolutionList = new ArrayList<>();
-        if (trackSelector == null || player == null) return resolutionList;
+    // ********** 新增：解析主播放列表，获取多码率子流 **********
+    private void fetchAndParseMasterPlaylist(String masterUrl) {
+        if (isParsingMasterPlaylist) return;
+        isParsingMasterPlaylist = true;
+        new Thread(() -> {
+            try {
+                URL url = new URL(masterUrl);
+                HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10)");
+                // 携带 cookie
+                String cookies = CookieManager.getInstance().getCookie(masterUrl);
+                if (cookies != null) connection.setRequestProperty("Cookie", cookies);
 
-        MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
-        if (trackInfo == null) return resolutionList;
+                InputStream is = connection.getInputStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+                reader.close();
+                connection.disconnect();
 
-        for (int rendererIdx = 0; rendererIdx < trackInfo.getRendererCount(); rendererIdx++) {
-            if (player.getRendererType(rendererIdx) != C.TRACK_TYPE_VIDEO) continue;
-            TrackGroupArray trackGroups = trackInfo.getTrackGroups(rendererIdx);
-            for (int gIdx = 0; gIdx < trackGroups.length; gIdx++) {
-                TrackGroup group = trackGroups.get(gIdx);
-                for (int tIdx = 0; tIdx < group.length; tIdx++) {
-                    Format fmt = group.getFormat(tIdx);
-                    if (fmt.height <= 0) continue;
-                    String label;
-                    if (fmt.height >= 2160) label = "4K (2160p)";
-                    else if (fmt.height >= 1080) label = "1080p";
-                    else if (fmt.height >= 720) label = "720p";
-                    else label = fmt.height + "p";
-                    if (!resolutionList.contains(label)) resolutionList.add(label);
+                String playlist = content.toString();
+                parseMasterPlaylist(playlist, masterUrl);
+            } catch (Exception e) {
+                Log.e(TAG, "解析主播放列表失败", e);
+                variantList.clear();
+            } finally {
+                isParsingMasterPlaylist = false;
+            }
+        }).start();
+    }
+
+    private void parseMasterPlaylist(String playlist, String baseUrl) {
+        List<Variant> list = new ArrayList<>();
+        Pattern streamPattern = Pattern.compile("#EXT-X-STREAM-INF:.*BANDWIDTH=(\\d+).*RESOLUTION=(\\d+x\\d+).*");
+        String[] lines = playlist.split("\\r?\\n");
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            Matcher matcher = streamPattern.matcher(line);
+            if (matcher.find()) {
+                int bandwidth = Integer.parseInt(matcher.group(1));
+                String resolution = matcher.group(2);
+                String[] wh = resolution.split("x");
+                int width = Integer.parseInt(wh[0]);
+                int height = Integer.parseInt(wh[1]);
+
+                // 下一个非空行通常就是 URI
+                String uri = null;
+                for (int j = i + 1; j < lines.length; j++) {
+                    String next = lines[j].trim();
+                    if (!next.isEmpty() && !next.startsWith("#")) {
+                        uri = next;
+                        break;
+                    }
+                }
+                if (uri != null) {
+                    // 处理相对路径
+                    if (!uri.startsWith("http")) {
+                        uri = resolveUrl(baseUrl, uri);
+                    }
+                    list.add(new Variant(uri, bandwidth, width, height));
                 }
             }
         }
-        return resolutionList;
+        // 按分辨率从低到高排序
+        list.sort((a, b) -> Integer.compare(a.height, b.height));
+        this.variantList = list;
+        if (!list.isEmpty()) {
+            Log.d(TAG, "解析到 " + list.size() + " 个清晰度");
+        }
     }
 
+    private String resolveUrl(String base, String relative) {
+        try {
+            URL baseUrl = new URL(base);
+            URL resolved = new URL(baseUrl, relative);
+            return resolved.toString();
+        } catch (Exception e) {
+            return relative;
+        }
+    }
+
+    // ********** 清晰度列表（基于直播源解析） **********
+    public List<String> getAvailableResolutions() {
+        List<String> resolutions = new ArrayList<>();
+        for (Variant v : variantList) {
+            if (!resolutions.contains(v.resolutionLabel)) {
+                resolutions.add(v.resolutionLabel);
+            }
+        }
+        return resolutions;
+    }
+
+    // ********** 切换清晰度：重新加载对应子流 **********
     public void switchToResolution(int targetHeight) {
-        if (trackSelector == null || player == null) return;
-        MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
-        if (trackInfo == null) {
-            Log.w(TAG, "暂无轨道信息");
+        if (variantList.isEmpty()) {
+            Log.w(TAG, "无多码率信息，无法切换清晰度");
             return;
         }
-
-        int videoRenderer = -1;
-        for (int i = 0; i < trackInfo.getRendererCount(); i++) {
-            if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
-                videoRenderer = i;
+        // 寻找分辨率最接近的变体（>= targetHeight 的最小一个，或者最高那个）
+        Variant selected = null;
+        for (Variant v : variantList) {
+            if (v.height >= targetHeight) {
+                selected = v;
                 break;
             }
         }
-        if (videoRenderer == -1) {
-            Log.w(TAG, "未找到视频渲染器");
-            return;
+        if (selected == null) {
+            selected = variantList.get(variantList.size() - 1); // 最高
         }
-
-        TrackGroupArray trackGroups = trackInfo.getTrackGroups(videoRenderer);
-        DefaultTrackSelector.Parameters.Builder builder = trackSelector.getParameters().buildUpon();
-
-        for (int g = 0; g < trackGroups.length; g++) {
-            TrackGroup group = trackGroups.get(g);
-            for (int t = 0; t < group.length; t++) {
-                Format fmt = group.getFormat(t);
-                if (fmt.height == targetHeight) {
-                    // ✅ 修改2：使用 TrackSelectionOverride 替换 SelectionOverride
-                    builder.setSelectionOverride(videoRenderer, trackGroups,
-                            new TrackSelectionOverride(group, t));
-                    trackSelector.setParameters(builder.build());
-                    Log.d(TAG, "清晰度切换成功：" + targetHeight + "p");
-                    return;
-                }
-            }
-        }
-
-        // 无匹配则清除覆盖，恢复自适应
-        builder.clearSelectionOverride(videoRenderer);
-        trackSelector.setParameters(builder.build());
-        Log.d(TAG, "无匹配清晰度，恢复自适应");
+        Log.d(TAG, "切换清晰度到：" + selected.resolutionLabel + "，URL=" + selected.url);
+        // 重新播放该子流
+        playUrlInternal(selected.url);
     }
 
     public enum ScaleMode {FIT, FILL, ZOOM}
@@ -929,15 +977,13 @@ public class TVPlayerManager {
     public void pause() {
         try {
             if (player != null) player.pause();
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     public void resume() {
         try {
             if (player != null) player.play();
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     public void release() {
@@ -945,11 +991,9 @@ public class TVPlayerManager {
             stopStuckDetection();
             cancelRetry();
             mHandler.removeCallbacksAndMessages(null);
-
             updateWakeLock(false);
             unregisterDecoderModeReceiver();
             unregisterRendererModeReceiver();
-
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -959,7 +1003,6 @@ public class TVPlayerManager {
                 player = null;
             }
             instance = null;
-
             if (playerView != null) {
                 playerView.setPlayer(null);
                 playerView = null;
@@ -1002,4 +1045,4 @@ public class TVPlayerManager {
             }
         }
     }
- }
+}
