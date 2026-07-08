@@ -24,7 +24,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackGroup;
-import androidx.media3.common.TrackGroupArray; // ✅ 确保导入 TrackGroupArray
+import androidx.media3.common.TrackGroupArray;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -117,10 +117,8 @@ public class TVPlayerManager {
 
     private final Map<String, String> reusableHeaderMap = new HashMap<>();
 
-    // 🟢【新增】轨道选择器（用于切换清晰度）
     private DefaultTrackSelector trackSelector;
 
-    // 🟢 记录当前设置的缩放比例
     private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
     public interface OnPlayerViewRecreatedListener {
@@ -204,13 +202,12 @@ public class TVPlayerManager {
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
 
-        // 🟢【核心新增】初始化轨道选择器，用于清晰度切换
         trackSelector = new DefaultTrackSelector(context);
 
         player = new ExoPlayer.Builder(context)
                 .setRenderersFactory(renderersFactory)
                 .setLoadControl(loadControl)
-                .setTrackSelector(trackSelector) // 绑定轨道选择器
+                .setTrackSelector(trackSelector)
                 .build();
 
         try {
@@ -246,7 +243,6 @@ public class TVPlayerManager {
                 while (rootCause != null) {
                     if (rootCause instanceof RedirectFailedException) {
                         isRedirectError = true;
-                        RedirectFailedException redirectErr = (RedirectFailedException) rootCause;
                         break;
                     }
                     rootCause = rootCause.getCause();
@@ -509,7 +505,6 @@ public class TVPlayerManager {
         newPlayerView.setUseController(useController);
         newPlayerView.setKeepContentOnPlayerReset(true);
         
-        // 恢复缩放比例
         int resizeMode;
         switch (mCurrentScaleMode) {
             case FILL:
@@ -741,7 +736,6 @@ public class TVPlayerManager {
         } catch (Exception e) {
             Log.e(TAG, "播放异常", e);
             if (e instanceof RedirectFailedException) {
-                RedirectFailedException redirectErr = (RedirectFailedException) e;
                 if (listener != null) listener.onPlayError("源跳转失败：" + e.getMessage());
                 return;
             }
@@ -749,13 +743,6 @@ public class TVPlayerManager {
         }
     }
 
-    // ====================================================================
-    // 🟢【修复后】清晰度切换核心逻辑
-    // ====================================================================
-
-    /**
-     * 获取当前播放视频内所有可用的分辨率列表
-     */
     public List<String> getAvailableResolutions() {
         List<String> resolutionList = new ArrayList<>();
         if (trackSelector == null || player == null) return resolutionList;
@@ -765,44 +752,36 @@ public class TVPlayerManager {
 
         for (int i = 0; i < trackInfo.getRendererCount(); i++) {
             if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
-                // ✅ 修正：getTrackGroups() 返回的是 TrackGroupArray，不是 TrackGroup[]
                 TrackGroupArray trackGroups = trackInfo.getTrackGroups(i);
                 for (int j = 0; j < trackGroups.length; j++) {
-                    TrackGroup group = trackGroups.get(j); // 使用 get(j) 获取单个 TrackGroup
+                    TrackGroup group = trackGroups.get(j);
                     for (int k = 0; k < group.length; k++) {
                         Format format = group.getFormat(k);
                         if (format.height > 0) {
-                            // 转换为用户友好的分辨率名称
                             String label;
                             if (format.height >= 2160) label = "4K (2160p)";
                             else if (format.height >= 1080) label = "1080p";
                             else if (format.height >= 720) label = "720p";
                             else label = format.height + "p";
                             
-                            // 避免添加重复标签
                             if (!resolutionList.contains(label)) {
                                 resolutionList.add(label);
                             }
                         }
                     }
                 }
-                break; // 视频轨道一般只有一个渲染器，找到后即可退出
+                break;
             }
         }
         return resolutionList;
     }
 
-    /**
-     * 切换到指定的分辨率
-     * @param targetHeight 目标分辨率高度（如 1080 切 1080p，720 切 720p）
-     */
     public void switchToResolution(int targetHeight) {
         if (trackSelector == null || player == null) return;
 
         MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
         if (trackInfo == null) return;
 
-        // 先找到视频渲染器的索引
         int videoRendererIndex = -1;
         for (int i = 0; i < trackInfo.getRendererCount(); i++) {
             if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
@@ -824,7 +803,6 @@ public class TVPlayerManager {
             for (int k = 0; k < group.length; k++) {
                 Format format = group.getFormat(k);
                 if (format.height == targetHeight) {
-                    // ✅ 修正：setSelectionOverride 接收的是 TrackGroupArray 对象，而不是单个 TrackGroup
                     paramsBuilder.setSelectionOverride(videoRendererIndex, trackGroups, k);
                     trackSelector.setParameters(paramsBuilder.build());
                     Log.d(TAG, "已切换至分辨率: " + format.height + "p");
@@ -834,15 +812,12 @@ public class TVPlayerManager {
             }
         }
 
-        // 如果找不到指定分辨率，重置为自适应（清除该渲染器的覆盖）
         if (!found) {
-            // ✅ 修正：clearSelectionOverride 是单数，且接收 int 参数（渲染器索引）
             paramsBuilder.clearSelectionOverride(videoRendererIndex);
             trackSelector.setParameters(paramsBuilder.build());
             Log.d(TAG, "未找到指定分辨率，回退至自适应");
         }
     }
-    // ====================================================================
 
     public enum ScaleMode { FIT, FILL, ZOOM }
     public void setScaleMode(ScaleMode mode) {
