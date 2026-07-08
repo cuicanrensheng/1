@@ -9,8 +9,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap; // 🟢 改为并发安全的 Map
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import okhttp3.Headers;
@@ -20,11 +19,14 @@ import okhttp3.Response;
  * 虎牙解析工具，全部网络请求统一调用NetUtil，与播放器请求头完全一致
  */
 public class HuyaParser {
-    private static final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
+    // 🟢【修复1】改用支持并发的 CachedThreadPool，解决串行排队导致的等待卡顿
+    private static final ExecutorService mExecutor = Executors.newCachedThreadPool();
     private static final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private static final String API_ROOM_INFO = "https://www.huya.com/cache.mini-global-%d.json";
     private static final String API_PLAY_URL = "https://api.huya.com/m_push/%d";
-    private static final Map<Integer, CacheItem> SOURCE_CACHE = new HashMap<>();
+    
+    // 🟢【修复2】改为 ConcurrentHashMap，避免并发读写崩溃
+    private static final Map<Integer, CacheItem> SOURCE_CACHE = new ConcurrentHashMap<>();
     private static final long CACHE_VALID_MS = 110 * 1000;
 
     public interface OnParseResultListener {
