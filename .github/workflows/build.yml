@@ -18,30 +18,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 设置 JDK 17 + Gradle 缓存
+      # 🟢 注意：这里去掉了 cache: gradle，因为我们后面会彻底清空 ~/.gradle/
+      - name: 设置 JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # 🚀 终极清理与强制重编译
+      # 🚀 核弹级清理与强制重编译（彻底隔绝所有旧缓存污染）
       - name: 终极清理与强制重编译
         run: |
-          echo "1. 停止残留守护进程..."
-          ./gradlew --stop
+          echo "1. 彻底删除 Gradle 用户目录（包括损坏的依赖缓存和守护进程状态）..."
+          rm -rf ~/.gradle/
 
-          echo "2. 删掉损坏的依赖缓存..."
-          rm -rf ~/.gradle/caches/
-
-          echo "3. 清理中间文件..."
+          echo "2. 清理项目中间文件..."
           ./gradlew clean
 
-          echo "4. 开始纯净构建..."
-          # ✅ 关键修复：加上 --refresh-dependencies，彻底刷新依赖索引
+          echo "3. 开始从零构建（强制远程重新下载纯净依赖）..."
           ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --stacktrace
 
       - name: 生成 update.json
