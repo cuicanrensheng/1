@@ -8,9 +8,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.text.Editable;
 import android.text.TextUtils;
+import android.util.Log; // 🟢 添加原生日志
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.Toast;
 import java.util.ArrayList;
@@ -40,6 +40,9 @@ import java.util.ArrayList;
  * dialogManager.showHistoryDialog("直播源历史", "live_history");
  */
 public class SourceDialogManager {
+    // 🟢 添加 TAG 常量，用于原生日志记录
+    private static final String TAG = "SourceDialogManager";
+    
     // ====================== 常量 ======================
     /** 自定义直播源地址 Key */
     private static final String KEY_CUSTOM_LIVE = "custom_live_url";
@@ -105,7 +108,8 @@ public class SourceDialogManager {
                         sourceManager.removeSource(realPos);
                         refreshDisplayList(sourceManager, displayItems, adapter, "");
                         adapter.setSelectedPosition(-1);
-                        LogManager.logOperation("【设置】删除源：" + item.name);
+                        // 🟢 替换为原生日志
+                        Log.d(TAG, "【设置】删除源：" + item.name);
                         Toast.makeText(context, "已删除", Toast.LENGTH_SHORT).show();
                     })
                     .setNegativeButton("取消", null)
@@ -178,32 +182,37 @@ public class SourceDialogManager {
                             case 1: // 设为默认
                                 sourceManager.setDefault(realPos);
                                 refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
-                                LogManager.logOperation("【设置】设为默认源：" + selectedItem.name);
+                                // 🟢 替换为原生日志
+                                Log.d(TAG, "【设置】设为默认源：" + selectedItem.name);
                                 Toast.makeText(context, "已设为默认源", Toast.LENGTH_SHORT).show();
                                 break;
                             case 2: // 移到顶部
                                 sourceManager.moveToTop(realPos);
                                 refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
                                 adapter.setSelectedPosition(0);
-                                LogManager.logOperation("【设置】移到顶部：" + selectedItem.name);
+                                // 🟢 替换为原生日志
+                                Log.d(TAG, "【设置】移到顶部：" + selectedItem.name);
                                 Toast.makeText(context, "已移到顶部", Toast.LENGTH_SHORT).show();
                                 break;
                             case 3: // 移到底部
                                 sourceManager.moveToBottom(realPos);
                                 refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
-                                LogManager.logOperation("【设置】移到底部：" + selectedItem.name);
+                                // 🟢 替换为原生日志
+                                Log.d(TAG, "【设置】移到底部：" + selectedItem.name);
                                 Toast.makeText(context, "已移到底部", Toast.LENGTH_SHORT).show();
                                 break;
                             case 4: // 刷新此源
                                 sp.edit().putString(key.contains("live") ? KEY_CUSTOM_LIVE : KEY_CUSTOM_EPG, selectedItem.url).apply();
                                 context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
-                                LogManager.logOperation("【设置】刷新单个源：" + selectedItem.name);
+                                // 🟢 替换为原生日志
+                                Log.d(TAG, "【设置】刷新单个源：" + selectedItem.name);
                                 Toast.makeText(context, "正在刷新…", Toast.LENGTH_SHORT).show();
                                 break;
                             case 5: // 切换自动更新
                                 boolean newState = sourceManager.toggleAutoUpdate(realPos);
                                 refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
-                                LogManager.logOperation("【设置】" + selectedItem.name + " 自动更新：" + (newState ? "开启" : "关闭"));
+                                // 🟢 替换为原生日志
+                                Log.d(TAG, "【设置】" + selectedItem.name + " 自动更新：" + (newState ? "开启" : "关闭"));
                                 Toast.makeText(context, "自动更新已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
                                 break;
                             case 6: // 删除
@@ -214,7 +223,8 @@ public class SourceDialogManager {
                                             sourceManager.removeSource(realPos);
                                             refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
                                             adapter.setSelectedPosition(-1);
-                                            LogManager.logOperation("【设置】删除源：" + selectedItem.name);
+                                            // 🟢 替换为原生日志
+                                            Log.d(TAG, "【设置】删除源：" + selectedItem.name);
                                             Toast.makeText(context, "已删除", Toast.LENGTH_SHORT).show();
                                         })
                                         .setNegativeButton("取消", null)
@@ -224,7 +234,8 @@ public class SourceDialogManager {
                                 String exportText = sourceManager.exportToText();
                                 ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
                                 cm.setPrimaryClip(ClipData.newPlainText("sources", exportText));
-                                LogManager.logOperation("【设置】导出 " + sourceManager.size() + " 个源到剪贴板");
+                                // 🟢 替换为原生日志
+                                Log.d(TAG, "【设置】导出 " + sourceManager.size() + " 个源到剪贴板");
                                 Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show();
                                 break;
                             case 8: // 导入
@@ -238,7 +249,8 @@ public class SourceDialogManager {
                                             sourceManager.clearAll();
                                             displayItems.clear();
                                             adapter.notifyDataSetChanged();
-                                            LogManager.logOperation("【设置】清空全部" + title);
+                                            // 🟢 替换为原生日志
+                                            Log.d(TAG, "【设置】清空全部" + title);
                                             Toast.makeText(context, "已全部清空", Toast.LENGTH_SHORT).show();
                                         })
                                         .setNegativeButton("取消", null)
@@ -278,7 +290,8 @@ public class SourceDialogManager {
             context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
             refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
             adapter.setSelectedPosition(0);
-            LogManager.logOperation("【设置】切换" + title + "：" + item.name);
+            // 🟢 替换为原生日志
+            Log.d(TAG, "【设置】切换" + title + "：" + item.name);
             Toast.makeText(context, "已切换，正在刷新…", Toast.LENGTH_SHORT).show();
         });
     }
