@@ -1,34 +1,38 @@
-name: 一键清空所有制品Artifact
+name: 一键清理所有构建记录&制品
 on:
-  workflow_dispatch: # 手动触发按钮
+  workflow_dispatch:
 
 jobs:
-  clear:
+  cleanAll:
     runs-on: ubuntu-latest
     steps:
-      - name: 删除仓库全部Artifact
+      - name: 删除全部Workflow运行记录（自动释放制品存储）
         uses: actions/github-script@v7
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             let page = 1;
-            let allArtifacts = [];
-            // 分页拉取仓库全部制品
-            while(true) {
-              const res = await github.rest.actions.listArtifacts({
-                owner, repo, per_page: 100, page
+            do {
+              // 分页获取所有运行记录
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                per_page: 100,
+                page
               });
-              if(res.data.length === 0) break;
-              allArtifacts = allArtifacts.concat(res.data);
+              const runs = data.workflow_runs;
+              if (runs.length === 0) break;
+              
+              // 逐条删除运行记录
+              for (const run of runs) {
+                await github.rest.actions.deleteWorkflowRun({
+                  owner,
+                  repo,
+                  run_id: run.id
+                });
+                console.log(`已删除运行记录 #${run.id}`);
+              }
               page++;
-            }
-            console.log(`总计待删除制品数量：${allArtifacts.length}`);
-            // 循环删除每一个制品
-            for(const art of allArtifacts) {
-              await github.rest.actions.deleteArtifact({
-                owner, repo, artifact_id: art.id
-              });
-              console.log(`✅ 已删除：${art.name} | ID: ${art.id}`);
-            }
-            console.log("🎉 全部制品清理完成！存储已释放");
+            } while (true);
+            console.log("✅ 全部历史构建记录+绑定制品清理完成");
