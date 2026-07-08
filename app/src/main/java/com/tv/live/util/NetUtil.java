@@ -14,9 +14,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 统一网络工具
- */
 public class NetUtil {
     private static volatile NetUtil sInstance;
     private static Context sAppContext;
