@@ -87,13 +87,13 @@ dependencies {
     
     implementation 'com.google.code.gson:gson:2.10.1'
     
-    // Media3 全套严格统一成 1.6.1
-    implementation "androidx.media3:media3-exoplayer:1.6.1"
-    implementation "androidx.media3:media3-ui:1.6.1"
-    implementation "androidx.media3:media3-exoplayer-hls:1.6.1"
-    implementation "androidx.media3:media3-exoplayer-dash:1.6.1"
-    implementation "androidx.media3:media3-common:1.6.1"
-    implementation "androidx.media3:media3-datasource:1.6.1"
+    // ✅ Media3 全套升级为 1.7.0（解决 1.6.1 AAR 包损坏问题）
+    implementation "androidx.media3:media3-exoplayer:1.7.0"
+    implementation "androidx.media3:media3-ui:1.7.0"
+    implementation "androidx.media3:media3-exoplayer-hls:1.7.0"
+    implementation "androidx.media3:media3-exoplayer-dash:1.7.0"
+    implementation "androidx.media3:media3-common:1.7.0"
+    implementation "androidx.media3:media3-datasource:1.7.0"
     
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "com.squareup.retrofit2:retrofit:2.11.0"
