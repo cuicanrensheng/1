@@ -8,7 +8,7 @@ public class ScreenRatioManager {
     private final TVPlayerManager mPlayerManager;
     private final AppConfig appConfig;
     
-    // 🟢【优化】缓存当前生效的比例，避免重复调用播放器
+    // 🟢 缓存当前生效的比例，避免重复调用播放器
     private String currentAppliedRatio = "";
 
     public ScreenRatioManager(TVPlayerManager playerManager, AppConfig config) {
@@ -26,12 +26,19 @@ public class ScreenRatioManager {
         
         switch (ratio) {
             case "原始":
+                // 🟢 原始：保持视频原始比例，如果不符合屏幕比例会出现黑边
                 mPlayerManager.setScaleMode(TVPlayerManager.ScaleMode.FIT);
                 break;
             case "填充":
+                // 🟢 填充：等比放大填满屏幕，可能会有部分画面被裁剪（类似 ZOOM 效果）
+                mPlayerManager.setScaleMode(TVPlayerManager.ScaleMode.ZOOM);
+                break;
+            case "全屏":
+                // 🟢 全屏：等比缩放到满屏（画面完整显示，填满屏幕底部），无黑边
                 mPlayerManager.setScaleMode(TVPlayerManager.ScaleMode.FILL);
                 break;
-            default: // 默认全屏/填充
+            default:
+                // 🟢 默认兜底：全屏模式
                 mPlayerManager.setScaleMode(TVPlayerManager.ScaleMode.FILL);
                 break;
         }
