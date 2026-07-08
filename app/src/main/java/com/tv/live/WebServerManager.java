@@ -17,6 +17,7 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 网页后台管理器
@@ -31,15 +32,15 @@ import java.util.Map;
 public class WebServerManager {
 
     // ====================== 常量 ======================
-
-    /** SP 存储的 key */
     private static final String KEY_CUSTOM_LIVE = "custom_live_url";
     private static final String KEY_CUSTOM_EPG = "custom_epg_url";
     private static final String KEY_CUSTOM_UA = "custom_user_agent";
     private static final String SP_NAME = "app_settings";
 
-    // ====================== 成员变量 ======================
+    // 🟢 防刷新冷却时间
+    private static final long SUBMIT_COOLDOWN = 2000; 
 
+    // ====================== 成员变量 ======================
     private Context context;
     private int port;
     private ServerSocket serverSocket;
@@ -48,15 +49,16 @@ public class WebServerManager {
 
     private static WebServerManager runningInstance;
 
-    // ====================== 构造函数 ======================
+    // 🟢 记录最后一次提交配置的时间，用于防连点锁
+    private long lastSubmitTime = 0;
 
+    // ====================== 构造函数 ======================
     public WebServerManager(Context context, int port) {
         this.context = context.getApplicationContext();
         this.port = port;
     }
 
     // ====================== 公共方法 ======================
-
     public void start() {
         if (isRunning) return;
 
@@ -108,6 +110,7 @@ public class WebServerManager {
                     runningInstance = null;
                 }
             }
+            handler.removeCallbacksAndMessages(null);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -145,7 +148,6 @@ public class WebServerManager {
     }
 
     // ====================== HTTP 请求处理 ======================
-
     private void handleHttpRequest(Socket socket) {
         try {
             BufferedReader reader = new BufferedReader(
@@ -207,6 +209,14 @@ public class WebServerManager {
             } else if ("GET".equals(method) && "/log".equals(purePath)) {
                 responseBody = buildLogPage();
             } else if ("POST".equals(method) && "/submit".equals(purePath)) {
+                // 防连点锁
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastSubmitTime < SUBMIT_COOLDOWN) {
+                    sendResponse(socket, "429 Too Many Requests", "text/plain", "操作过于频繁，请稍后再试！");
+                    return;
+                }
+                lastSubmitTime = currentTime;
+
                 Map<String, String> params = parseFormData(body);
                 final String liveUrl = params.get("live_url");
                 final String epgUrl = params.get("epg_url");
@@ -287,6 +297,10 @@ public class WebServerManager {
 
     // ====================== HTML 页面构建 ======================
 
+    /**
+     * 构建配置页面 HTML
+     * 🟢【新增】更新为远程/文件/静态三选一 UI
+     */
     private String buildConfigPage() {
         SharedPreferences sp = context.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
         String currentLive = sp.getString(KEY_CUSTOM_LIVE, "");
@@ -309,7 +323,8 @@ public class WebServerManager {
                 "        .item { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #f0f0f0; min-height: 48px; }\n" +
                 "        .item:last-child { border-bottom: none; }\n" +
                 "        .item-label { flex-shrink: 0; width: 70px; color: #333; font-size: 15px; }\n" +
-                "        .item input[type=text] { flex: 1; text-align: right; border: none; outline: none; font-size: 14px; color: #333; background: transparent; }\n" +
+                "        .item input[type=text], .item textarea { flex: 1; text-align: right; border: none; outline: none; font-size: 14px; color: #333; background: transparent; }\n" +
+                "        .item textarea { text-align: left; resize: none; height: 50px; }\n" +
                 "        .item input[type=text]::placeholder { color: #ccc; }\n" +
                 "        .header-item { flex-direction: column; align-items: flex-start; padding: 16px; }\n" +
                 "        .header-title { font-size: 17px; color: #333; font-weight: 500; margin-bottom: 4px; }\n" +
@@ -317,7 +332,7 @@ public class WebServerManager {
                 "        .btn-blue { display: block; margin: 12px 12px 0; padding: 8px 20px; background: #40A9FF; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; float: right; }\n" +
                 "        .btn-blue:active { background: #1890FF; }\n" +
                 "        .btn-wrap { overflow: hidden; padding: 0 0 12px; }\n" +
-                "        .upload-box { width: 80px; height: 80px; border: 1px solid #eee; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #ccc; cursor: pointer; margin-left: auto; }\n" +
+                "        .upload-box { width: 80px; height: 80px; border: 1px solid #eee; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #ccc; cursor: pointer; margin-left: auto; margin-top: 10px; }\n" +
                 "        .upload-icon { font-size: 24px; }\n" +
                 "        .upload-text { font-size: 11px; }\n" +
                 "        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; display: flex; border-top: 1px solid #eee; padding: 8px 0 calc(8px + env(safe-area-inset-bottom)); }\n" +
@@ -328,7 +343,7 @@ public class WebServerManager {
                 "</head>\n" +
                 "<body>\n" +
                 "\n" +
-                "    <!-- 1. 直播源分组 -->\n" +
+                "    <!-- 1. 直播源分组 (适配远程/文件/静态) -->\n" +
                 "    <div class=\"section-title\">直播源</div>\n" +
                 "    <div class=\"card\">\n" +
                 "        <div class=\"item header-item\">\n" +
@@ -337,8 +352,34 @@ public class WebServerManager {
                 "        </div>\n" +
                 "        <form method=\"post\" action=\"/submit\">\n" +
                 "            <div class=\"item\">\n" +
+                "                <div class=\"item-label\">类型</div>\n" +
+                "                <div style=\"flex:1; display: flex; gap: 20px;\">\n" +
+                "                    <label><input type=\"radio\" name=\"live_type\" value=\"remote\" checked onchange=\"toggleLiveInput('remote')\"> 远程</label>\n" +
+                "                    <label><input type=\"radio\" name=\"live_type\" value=\"file\" onchange=\"toggleLiveInput('file')\"> 文件</label>\n" +
+                "                    <label><input type=\"radio\" name=\"live_type\" value=\"static\" onchange=\"toggleLiveInput('static')\"> 静态</label>\n" +
+                "                </div>\n" +
+                "            </div>\n" +
+                "            <div class=\"item\">\n" +
+                "                <div class=\"item-label\">名称</div>\n" +
+                "                <input type=\"text\" name=\"live_name\" placeholder=\"添加于 " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(new java.util.Date()) + "\" value=\"\">\n" +
+                "            </div>\n" +
+                "            <div id=\"live_remote_div\" class=\"item\">\n" +
                 "                <div class=\"item-label\">链接</div>\n" +
                 "                <input type=\"text\" name=\"live_url\" placeholder=\"直播源链接\" value=\"" + currentLive + "\">\n" +
+                "            </div>\n" +
+                "            <div id=\"live_file_div\" class=\"item\" style=\"display:none;\">\n" +
+                "                <div class=\"item-label\">文件路径</div>\n" +
+                "                <input type=\"text\" name=\"live_url\" placeholder=\"直播源文件路径\">\n" +
+                "            </div>\n" +
+                "            <div id=\"live_static_div\" class=\"item\" style=\"display:none;\">\n" +
+                "                <div class=\"item-label\">内容</div>\n" +
+                "                <div style=\"flex:1; display: flex; flex-direction: column; align-items: flex-end;\">\n" +
+                "                    <textarea name=\"live_url\" placeholder=\"直播源内容\"></textarea>\n" +
+                "                    <div class=\"upload-box\" onclick='alert(\"文件上传功能待实现\")'>\n" +
+                "                        <div class=\"upload-icon\">📷</div>\n" +
+                "                        <div class=\"upload-text\">上传</div>\n" +
+                "                    </div>\n" +
+                "                </div>\n" +
                 "            </div>\n" +
                 "            <div class=\"btn-wrap\">\n" +
                 "                <button type=\"submit\" class=\"btn-blue\">推送直播源</button>\n" +
@@ -355,8 +396,34 @@ public class WebServerManager {
                 "        </div>\n" +
                 "        <form method=\"post\" action=\"/submit\">\n" +
                 "            <div class=\"item\">\n" +
+                "                <div class=\"item-label\">类型</div>\n" +
+                "                <div style=\"flex:1; display: flex; gap: 20px;\">\n" +
+                "                    <label><input type=\"radio\" name=\"epg_type\" value=\"remote\" checked onchange=\"toggleEpgInput('remote')\"> 远程</label>\n" +
+                "                    <label><input type=\"radio\" name=\"epg_type\" value=\"file\" onchange=\"toggleEpgInput('file')\"> 文件</label>\n" +
+                "                    <label><input type=\"radio\" name=\"epg_type\" value=\"static\" onchange=\"toggleEpgInput('static')\"> 静态</label>\n" +
+                "                </div>\n" +
+                "            </div>\n" +
+                "            <div class=\"item\">\n" +
+                "                <div class=\"item-label\">名称</div>\n" +
+                "                <input type=\"text\" name=\"epg_name\" placeholder=\"添加于 " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(new java.util.Date()) + "\">\n" +
+                "            </div>\n" +
+                "            <div id=\"epg_remote_div\" class=\"item\">\n" +
                 "                <div class=\"item-label\">链接</div>\n" +
                 "                <input type=\"text\" name=\"epg_url\" placeholder=\"节目单链接\" value=\"" + currentEpg + "\">\n" +
+                "            </div>\n" +
+                "            <div id=\"epg_file_div\" class=\"item\" style=\"display:none;\">\n" +
+                "                <div class=\"item-label\">文件路径</div>\n" +
+                "                <input type=\"text\" name=\"epg_url\" placeholder=\"节目单文件路径\">\n" +
+                "            </div>\n" +
+                "            <div id=\"epg_static_div\" class=\"item\" style=\"display:none;\">\n" +
+                "                <div class=\"item-label\">内容</div>\n" +
+                "                <div style=\"flex:1; display: flex; flex-direction: column; align-items: flex-end;\">\n" +
+                "                    <textarea name=\"epg_url\" placeholder=\"节目单内容\"></textarea>\n" +
+                "                    <div class=\"upload-box\" onclick='alert(\"文件上传功能待实现\")'>\n" +
+                "                        <div class=\"upload-icon\">📷</div>\n" +
+                "                        <div class=\"upload-text\">上传</div>\n" +
+                "                    </div>\n" +
+                "                </div>\n" +
                 "            </div>\n" +
                 "            <div class=\"btn-wrap\">\n" +
                 "                <button type=\"submit\" class=\"btn-blue\">推送节目单</button>\n" +
@@ -406,15 +473,35 @@ public class WebServerManager {
                 "        </a>\n" +
                 "    </div>\n" +
                 "\n" +
+                "    <!-- 🟢 新增：动态切换输入框的脚本 -->\n" +
+                "    <script>\n" +
+                "        function toggleLiveInput(type) {\n" +
+                "            document.getElementById('live_remote_div').style.display = 'none';\n" +
+                "            document.getElementById('live_file_div').style.display = 'none';\n" +
+                "            document.getElementById('live_static_div').style.display = 'none';\n" +
+                "            if (type === 'remote') document.getElementById('live_remote_div').style.display = 'flex';\n" +
+                "            else if (type === 'file') document.getElementById('live_file_div').style.display = 'flex';\n" +
+                "            else if (type === 'static') document.getElementById('live_static_div').style.display = 'flex';\n" +
+                "        }\n" +
+                "        function toggleEpgInput(type) {\n" +
+                "            document.getElementById('epg_remote_div').style.display = 'none';\n" +
+                "            document.getElementById('epg_file_div').style.display = 'none';\n" +
+                "            document.getElementById('epg_static_div').style.display = 'none';\n" +
+                "            if (type === 'remote') document.getElementById('epg_remote_div').style.display = 'flex';\n" +
+                "            else if (type === 'file') document.getElementById('epg_file_div').style.display = 'flex';\n" +
+                "            else if (type === 'static') document.getElementById('epg_static_div').style.display = 'flex';\n" +
+                "        }\n" +
+                "        // 默认直播源选中远程，防止页面回显时样式错乱\n" +
+                "        toggleLiveInput('remote');\n" +
+                "        toggleEpgInput('remote');\n" +
+                "    </script>\n" +
                 "</body>\n" +
                 "</html>";
     }
 
-    // ============================================================
-    // 🟢【核心修改】直接调用原生日志 Logcat，去除 SettingsActivity 依赖
-    // ============================================================
+    // ====================== 日志页面 (不变) ======================
     private String buildLogPage() {
-        String playLogContent = getSystemLogs(); // 从 logcat 抓取原生日志
+        String playLogContent = getSystemLogs();
 
         String[] playLines = playLogContent.split("\n");
         StringBuilder playLogHtml = new StringBuilder();
@@ -425,7 +512,6 @@ public class WebServerManager {
             String time = "";
             String content = line;
             if (line.contains(" ") && line.length() > 15) {
-                // 提取简化的时间 (logcat格式: 12-30 15:22:33.123)
                 int timeStart = line.indexOf(" ");
                 int timeEnd = line.indexOf(" ", timeStart + 1);
                 if (timeStart > 0 && timeEnd > timeStart) {
@@ -540,42 +626,6 @@ public class WebServerManager {
                 "</html>";
     }
 
-    // ============================================================
-    // 🟢【新增方法】调用原生 logcat -d 抓取系统日志
-    // ============================================================
-    private String getSystemLogs() {
-        StringBuilder logResult = new StringBuilder();
-        try {
-            // 执行 logcat -d 转储日志，-t 500 限制最新 500 行，-v time 显示时间
-            Process process = Runtime.getRuntime().exec("logcat -d -v time -t 500");
-            BufferedReader bufferedReader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()));
-
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                logResult.append(line).append("\n");
-            }
-            process.waitFor();
-        } catch (Exception e) {
-            // 抓取出错则返回空
-        }
-        return logResult.toString();
-    }
-
-    // ============================================================
-    // 🟢【工具方法】HTML 转义，防止特殊字符破坏网页排版
-    // ============================================================
-    private String escapeHtml(String str) {
-        if (str == null) return "";
-        return str.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#x27;");
-    }
-
-    // ============================================================
-
     private String buildSuccessPage() {
         return "<!DOCTYPE html>\n" +
                 "<html lang=\"zh-CN\">\n" +
@@ -604,7 +654,40 @@ public class WebServerManager {
                 "</html>";
     }
 
-    // ====================== 工具方法 ======================
+    // ============================================================
+    // 🟢【优化】调用原生 logcat 抓取系统日志，增加超时保护
+    // ============================================================
+    private String getSystemLogs() {
+        StringBuilder logResult = new StringBuilder();
+        try {
+            Process process = Runtime.getRuntime().exec("logcat -d -v time -t 500");
+            boolean completed = process.waitFor(2000, TimeUnit.MILLISECONDS);
+            if (!completed) {
+                process.destroy();
+                return "日志抓取超时，请稍后重试...";
+            }
+
+            BufferedReader bufferedReader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()));
+
+            String line;
+            while ((line = bufferedReader.readLine()) != null) {
+                logResult.append(line).append("\n");
+            }
+        } catch (Exception e) {
+            return "加载日志失败：" + e.getMessage();
+        }
+        return logResult.toString();
+    }
+
+    private String escapeHtml(String str) {
+        if (str == null) return "";
+        return str.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#x27;");
+    }
 
     private String getDeviceIPAddress() {
         try {
