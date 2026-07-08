@@ -3,15 +3,17 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
-        //maven { url "./repo" }
+        // maven { url "./repo" }
     }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
+        // 🔥 添加主仓库源，强制从海外主站完整下载，规避镜像缓存损坏
+        maven { url "https://repo1.maven.org/maven2/" }
         mavenCentral()
-        //maven { url "./repo" }
+        // maven { url "./repo" }
     }
 }
 rootProject.name = "1"
