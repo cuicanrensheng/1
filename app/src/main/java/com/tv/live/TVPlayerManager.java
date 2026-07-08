@@ -24,6 +24,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackGroup;
+import androidx.media3.common.TrackGroupArray;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.DefaultLoadControl;
@@ -755,25 +756,26 @@ public class TVPlayerManager {
         }
     }
 
-    // 完全适配Media3 1.7.1 无TrackGroupArray版本
     public List<String> getAvailableResolutions() {
         List<String> resolutionList = new ArrayList<>();
         if (trackSelector == null || player == null) return resolutionList;
 
-        Tracks allTracks = player.getCurrentTracks();
-        List<Tracks.Group> groupList = allTracks.getGroups();
+        MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
+        if (trackInfo == null) return resolutionList;
 
-        for (Tracks.Group trackGroupInfo : groupList) {
-            if (trackGroupInfo.getType() != C.TRACK_TYPE_VIDEO) continue;
-            TrackGroup group = trackGroupInfo.getMediaTrackGroup();
-            for (int k = 0; k < group.length; k++) {
-                Format format = group.getFormat(k);
-                if (format.height > 0) {
+        for (int rendererIdx = 0; rendererIdx < trackInfo.getRendererCount(); rendererIdx++) {
+            if (player.getRendererType(rendererIdx) != C.TRACK_TYPE_VIDEO) continue;
+            TrackGroupArray trackGroups = trackInfo.getTrackGroups(rendererIdx);
+            for (int gIdx = 0; gIdx < trackGroups.length; gIdx++) {
+                TrackGroup group = trackGroups.get(gIdx);
+                for (int tIdx = 0; tIdx < group.length; tIdx++) {
+                    Format fmt = group.getFormat(tIdx);
+                    if (fmt.height <= 0) continue;
                     String label;
-                    if (format.height >= 2160) label = "4K (2160p)";
-                    else if (format.height >= 1080) label = "1080p";
-                    else if (format.height >= 720) label = "720p";
-                    else label = format.height + "p";
+                    if (fmt.height >= 2160) label = "4K (2160p)";
+                    else if (fmt.height >= 1080) label = "1080p";
+                    else if (fmt.height >= 720) label = "720p";
+                    else label = fmt.height + "p";
                     if (!resolutionList.contains(label)) resolutionList.add(label);
                 }
             }
@@ -783,36 +785,50 @@ public class TVPlayerManager {
 
     public void switchToResolution(int targetHeight) {
         if (trackSelector == null || player == null) return;
-        Tracks allTracks = player.getCurrentTracks();
-        List<Tracks.Group> groupList = allTracks.getGroups();
-        DefaultTrackSelector.Parameters.Builder paramsBuilder = trackSelector.getParameters().buildUpon();
-        boolean found = false;
+        MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
+        if (trackInfo == null) {
+            Log.w(TAG, "暂无轨道信息");
+            return;
+        }
 
-        // 遍历所有视频轨道，使用新版API选择轨道
-        for (Tracks.Group trackGroupInfo : groupList) {
-            if (trackGroupInfo.getType() != C.TRACK_TYPE_VIDEO) continue;
-            TrackGroup group = trackGroupInfo.getMediaTrackGroup();
-            for (int k = 0; k < group.length; k++) {
-                Format format = group.getFormat(k);
-                if (format.height == targetHeight) {
-                    paramsBuilder.setSelectionOverride(trackGroupInfo, k);
-                    trackSelector.setParameters(paramsBuilder.build());
-                    Log.d(TAG, "已切换至分辨率: " + format.height + "p");
-                    found = true;
+        int videoRenderer = -1;
+        // 找到视频渲染器索引
+        for (int i = 0; i < trackInfo.getRendererCount(); i++) {
+            if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
+                videoRenderer = i;
+                break;
+            }
+        }
+        if (videoRenderer == -1) {
+            Log.w(TAG, "未找到视频渲染器");
+            return;
+        }
+
+        TrackGroupArray trackGroups = trackInfo.getTrackGroups(videoRenderer);
+        DefaultTrackSelector.Parameters.Builder builder = trackSelector.getParameters().buildUpon();
+        boolean match = false;
+
+        // 遍历轨道匹配目标高度
+        for (int g = 0; g < trackGroups.length; g++) {
+            TrackGroup group = trackGroups.get(g);
+            for (int t = 0; t < group.length; t++) {
+                Format fmt = group.getFormat(t);
+                if (fmt.height == targetHeight) {
+                    // 合法三参数重载：int rendererIndex, TrackGroupArray groups, int trackIndex
+                    builder.setSelectionOverride(videoRenderer, trackGroups, t);
+                    trackSelector.setParameters(builder.build());
+                    Log.d(TAG, "清晰度切换成功：" + targetHeight + "p");
+                    match = true;
                     return;
                 }
             }
         }
 
-        // 清除所有视频轨道手动选择，恢复自动自适应
-        if (!found) {
-            for (Tracks.Group g : groupList) {
-                if (g.getType() == C.TRACK_TYPE_VIDEO) {
-                    paramsBuilder.clearSelectionOverride(g);
-                }
-            }
-            trackSelector.setParameters(paramsBuilder.build());
-            Log.d(TAG, "未找到指定分辨率，回退至自适应");
+        if (!match) {
+            // 合法双参数重载：int rendererIndex, TrackGroupArray groups
+            builder.clearSelectionOverride(videoRenderer, trackGroups);
+            trackSelector.setParameters(builder.build());
+            Log.d(TAG, "无匹配清晰度，恢复自适应");
         }
     }
 
