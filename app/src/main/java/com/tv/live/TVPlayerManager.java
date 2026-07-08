@@ -25,7 +25,7 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.VideoSize;
-import androidx.media3.exoplayer.trackselection.TrackGroupArray;
+import androidx.media3.common.TrackGroupArray; // ✅ 正确路径
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
