@@ -36,11 +36,14 @@ public class ChannelListDialog extends Dialog {
         listView.setAdapter(adapter);
 
         listView.setOnItemClickListener((parent, view1, position, id) -> {
-            listener.onSelect(position);
+            if (listener != null) {
+                listener.onSelect(position);
+            }
             dismiss();
         });
     }
 
+    // 🟢【核心优化】引入 ViewHolder 模式
     private class ChannelAdapter extends ArrayAdapter<String> {
         public ChannelAdapter(Context context, List<String> list) {
             super(context, R.layout.item_channel, list);
@@ -48,10 +51,27 @@ public class ChannelListDialog extends Dialog {
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            View v = LayoutInflater.from(getContext()).inflate(R.layout.item_channel, parent, false);
-            TextView tv = v.findViewById(R.id.tv_channel);
-            tv.setText(getItem(position));
-            return v;
+            ViewHolder holder;
+            if (convertView == null) {
+                // 1. 只有第一次创建时才 Inflate 布局
+                convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_channel, parent, false);
+                holder = new ViewHolder();
+                holder.tvChannel = convertView.findViewById(R.id.tv_channel);
+                convertView.setTag(holder); // 🟢 把 Holder 存入 Tag
+            } else {
+                // 2. 后续直接复用，不再执行 findViewById 和 Inflate
+                holder = (ViewHolder) convertView.getTag();
+            }
+
+            // 3. 更新数据
+            holder.tvChannel.setText(getItem(position));
+
+            return convertView;
+        }
+
+        // 🟢 静态内部类，防止内存泄漏
+        private static class ViewHolder {
+            TextView tvChannel;
         }
     }
 }
