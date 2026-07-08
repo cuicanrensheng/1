@@ -1,0 +1,34 @@
+name: 一键清空所有制品Artifact
+on:
+  workflow_dispatch: # 手动触发按钮
+
+jobs:
+  clear:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 删除仓库全部Artifact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            let page = 1;
+            let allArtifacts = [];
+            // 分页拉取仓库全部制品
+            while(true) {
+              const res = await github.rest.actions.listArtifacts({
+                owner, repo, per_page: 100, page
+              });
+              if(res.data.length === 0) break;
+              allArtifacts = allArtifacts.concat(res.data);
+              page++;
+            }
+            console.log(`总计待删除制品数量：${allArtifacts.length}`);
+            // 循环删除每一个制品
+            for(const art of allArtifacts) {
+              await github.rest.actions.deleteArtifact({
+                owner, repo, artifact_id: art.id
+              });
+              console.log(`✅ 已删除：${art.name} | ID: ${art.id}`);
+            }
+            console.log("🎉 全部制品清理完成！存储已释放");
