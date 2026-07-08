@@ -2,6 +2,7 @@ package com.tv.live;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -9,11 +10,34 @@ import java.util.List;
 import java.util.Map;
 
 public class PlaylistParser {
+
+    /**
+     * 从网络 URL 解析直播源
+     * (内部会发起网络请求下载 M3U 文件)
+     */
     public static List<Channel> parse(String url) throws Exception {
-        // 🟢 修复1：使用 LinkedHashMap 保证频道按直播源的解析顺序排列，避免乱序
         Map<String, Channel> channelMap = new LinkedHashMap<>();
-        
         BufferedReader br = new BufferedReader(new InputStreamReader(new URL(url).openStream()));
+        return parseInternal(br, channelMap);
+    }
+
+    /**
+     * 🟢【新增】从字符串内容解析直播源
+     * (推荐 LiveSourceLoader 使用此方法，避免重复网络请求)
+     */
+    public static List<Channel> parseContent(String content) throws Exception {
+        if (content == null || content.isEmpty()) {
+            return new ArrayList<>();
+        }
+        Map<String, Channel> channelMap = new LinkedHashMap<>();
+        BufferedReader br = new BufferedReader(new StringReader(content));
+        return parseInternal(br, channelMap);
+    }
+
+    // ============================================================
+    // 🟢【核心抽取】将原有逻辑提取为通用内部方法
+    // ============================================================
+    private static List<Channel> parseInternal(BufferedReader br, Map<String, Channel> channelMap) throws Exception {
         String line;
         String currentGroup = "未分类";
 
