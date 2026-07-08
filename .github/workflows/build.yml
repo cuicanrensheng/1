@@ -21,17 +21,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      # ========== 修复后的清理步骤（已解决 // 导致的 404 错误） ==========
+      # ========== 再次修复：跳过当前 Workflow 本身，防止 403 错误 ==========
       - name: 删除全部历史Workflow（自动清空绑定的Artifact）
         uses: actions/github-script@v7
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const currentRunId = context.runId; // 🟢 获取当前运行的 ID
             let page = 1;
             const pageSize = 100;
             while (true) {
-              // 🟢 关键修复：使用 listWorkflowRunsForRepo 避免 workflow_id 为空导致 // 404
               const res = await github.rest.actions.listWorkflowRunsForRepo({
                 owner,
                 repo,
@@ -40,13 +40,25 @@ jobs:
               });
               const runs = res.data.workflow_runs;
               if (runs.length === 0) break;
+              
               for (const run of runs) {
-                await github.rest.actions.deleteWorkflowRun({
-                  owner,
-                  repo,
-                  run_id: run.id
-                });
-                console.log(`已清理旧构建记录 #${run.id}，对应制品已释放`);
+                // 🟢 核心修复：如果是当前正在执行的任务，绝对不能删除！
+                if (run.id === currentRunId) {
+                  console.log(`⏭️ 跳过当前正在执行的工作流 #${run.id}`);
+                  continue;
+                }
+
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner,
+                    repo,
+                    run_id: run.id
+                  });
+                  console.log(`✅ 已清理旧构建记录 #${run.id}，对应制品已释放`);
+                } catch (error) {
+                  // 个别记录可能已被其他操作删除，捕获异常避免中断整个流程
+                  console.warn(`⚠️ 删除工作流 #${run.id} 失败: ${error.message}`);
+                }
               }
               page++;
             }
@@ -73,7 +85,7 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # ✅【终极修改】强制忽略 CI 缓存，重新拉取 1.7.1 纯净依赖
+      # ✅ 强制忽略 CI 缓存，重新拉取纯净依赖
       - name: 编译 Release 签名版 APK
         run: ./gradlew assembleRelease --no-build-cache --stacktrace
 
