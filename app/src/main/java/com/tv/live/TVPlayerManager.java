@@ -190,8 +190,9 @@ public class TVPlayerManager {
                 break;
         }
 
+        // 🟢【核心修改】大幅减小缓冲值，实现“先播再补”，解决切台画面卡住几秒的痛点
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(5000, 45000, 2500, 5000)
+                .setBufferDurationsMs(1000, 30000, 500, 2000)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
 
@@ -508,8 +509,11 @@ public class TVPlayerManager {
         if (currentPosition > 0) player.seekTo(currentPosition);
         
         if (wasPlaying) {
+            // 🟢【修复】增加 null 检查，防止 player 被销毁后触发空指针崩溃
             mHandler.postDelayed(() -> {
-                if (player != null && !player.isPlaying()) player.play();
+                if (player != null && !player.isPlaying()) {
+                    player.play();
+                }
             }, 200);
         }
 
@@ -796,7 +800,8 @@ public class TVPlayerManager {
         try {
             stopStuckDetection();
             cancelRetry();
-            mHandler.removeCallbacks(hideChannelRunnable);
+            // 🟢【核心修复】强力清除 Handler 中所有排队的任务，杜绝闪退和泄漏
+            mHandler.removeCallbacksAndMessages(null);
             
             updateWakeLock(false);
             unregisterDecoderModeReceiver();
