@@ -38,6 +38,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector;
+import androidx.media3.exoplayer.trackselection.SelectionOverride;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
@@ -814,8 +815,8 @@ public class TVPlayerManager {
             for (int t = 0; t < group.length; t++) {
                 Format fmt = group.getFormat(t);
                 if (fmt.height == targetHeight) {
-                    // 合法三参数重载：int rendererIndex, TrackGroupArray groups, int trackIndex
-                    builder.setSelectionOverride(videoRenderer, trackGroups, t);
+                    // ✅ 修复1：正确构造 SelectionOverride 对象
+                    builder.setSelectionOverride(videoRenderer, trackGroups, new SelectionOverride(trackGroups, g, t));
                     trackSelector.setParameters(builder.build());
                     Log.d(TAG, "清晰度切换成功：" + targetHeight + "p");
                     match = true;
@@ -825,8 +826,8 @@ public class TVPlayerManager {
         }
 
         if (!match) {
-            // 合法双参数重载：int rendererIndex, TrackGroupArray groups
-            builder.clearSelectionOverride(videoRenderer, trackGroups);
+            // ✅ 修复2：清除覆盖时，只需传入渲染器索引
+            builder.clearSelectionOverride(videoRenderer);
             trackSelector.setParameters(builder.build());
             Log.d(TAG, "无匹配清晰度，恢复自适应");
         }
