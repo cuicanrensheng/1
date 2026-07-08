@@ -18,7 +18,7 @@
 -keep class androidx.media3.exoplayer.DefaultTrackSelector
 -keep class androidx.media3.exoplayer.mediacodec.** {*;}
 -keep class androidx.media3.exoplayer.hls.** {*;}
--keep class androidx.media3.exoplayer.source.** {*;}
+-keep class androidx.media3.exoplayer.source.** {*}
 
 # ===================== 通用基础 =====================
 -keepattributes Signature,InnerClasses,SourceFile,LineNumberTable,Exceptions
