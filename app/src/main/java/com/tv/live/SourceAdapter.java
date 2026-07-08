@@ -48,22 +48,44 @@ public class SourceAdapter extends ArrayAdapter<SourceManager.SourceItem> {
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
+        ViewHolder holder;
+        // 🟢【核心修复】引入 ViewHolder 模式，彻底消除重复 findViewById
         if (convertView == null) {
             convertView = LayoutInflater.from(context).inflate(R.layout.item_settings, parent, false);
+            holder = new ViewHolder();
+            holder.tv = convertView.findViewById(R.id.tv_setting_item);
+            holder.indexTv = convertView.findViewById(R.id.tv_index);
+            holder.deleteBtn = convertView.findViewById(R.id.btn_delete);
+
+            // 🟢 这些样式属性只需在创建时设置一次
+            holder.tv.setTextSize(14);
+            holder.tv.setLineSpacing(4, 1);
+            holder.tv.setSingleLine(false);
+            holder.tv.setEllipsize(null);
+
+            // 绑定通用的删除按钮点击事件
+            holder.deleteBtn.setOnClickListener(v -> {
+                if (onDeleteClickListener != null) {
+                    // 通过 Tag 获取当前绑定的位置
+                    Object tag = v.getTag();
+                    if (tag instanceof Integer) {
+                        onDeleteClickListener.onDelete((Integer) tag);
+                    }
+                }
+            });
+
+            convertView.setTag(holder);
+        } else {
+            holder = (ViewHolder) convertView.getTag();
         }
 
         SourceManager.SourceItem item = getItem(position);
-        
         // 🟢 优化：增加空指针保护，防止在列表数据刷新时偶发崩溃
         if (item == null) {
             return convertView;
         }
 
-        TextView tv = convertView.findViewById(R.id.tv_setting_item);
-        TextView indexTv = convertView.findViewById(R.id.tv_index);
-        Button deleteBtn = convertView.findViewById(R.id.btn_delete);
-
-        indexTv.setText((position + 1) + ". ");
+        holder.indexTv.setText((position + 1) + ". ");
 
         StringBuilder displayText = new StringBuilder();
         displayText.append(item.name);
@@ -71,34 +93,34 @@ public class SourceAdapter extends ArrayAdapter<SourceManager.SourceItem> {
         displayText.append("\n").append(item.url);
         if (!item.autoUpdate) displayText.append("  🔕");
 
-        tv.setText(displayText.toString());
-        tv.setTextSize(14);
-        tv.setLineSpacing(4, 1);
-        tv.setSingleLine(false);
-        tv.setEllipsize(null);
-
-        final int pos = position;
-        deleteBtn.setOnClickListener(v -> {
-            if (onDeleteClickListener != null) onDeleteClickListener.onDelete(pos);
-        });
-        deleteBtn.setClickable(true);
-        deleteBtn.setFocusable(false);
+        holder.tv.setText(displayText.toString());
+        // 🟢 将当前行的位置存入删除按钮的 Tag，供点击事件回调使用
+        holder.deleteBtn.setTag(position);
+        holder.deleteBtn.setClickable(true);
+        holder.deleteBtn.setFocusable(false);
 
         // 设置选中/高亮/普通三种状态的样式
         if (position == selectedPosition) {
-            tv.setTextColor(COLOR_FOCUS);
-            indexTv.setTextColor(COLOR_FOCUS);
+            holder.tv.setTextColor(COLOR_FOCUS);
+            holder.indexTv.setTextColor(COLOR_FOCUS);
             convertView.setBackgroundColor(COLOR_FOCUS_BG);
         } else if (convertView.isFocused()) {
-            tv.setTextColor(COLOR_FOCUS);
-            indexTv.setTextColor(COLOR_FOCUS);
+            holder.tv.setTextColor(COLOR_FOCUS);
+            holder.indexTv.setTextColor(COLOR_FOCUS);
             convertView.setBackgroundColor(COLOR_HOVER_BG);
         } else {
-            tv.setTextColor(Color.WHITE);
-            indexTv.setTextColor(Color.WHITE);
+            holder.tv.setTextColor(Color.WHITE);
+            holder.indexTv.setTextColor(Color.WHITE);
             convertView.setBackgroundColor(Color.TRANSPARENT);
         }
 
         return convertView;
+    }
+
+    // 🟢 静态内部类 ViewHolder，不持有外部适配器引用，防止内存泄漏
+    private static class ViewHolder {
+        TextView tv;
+        TextView indexTv;
+        Button deleteBtn;
     }
 }
