@@ -27,22 +27,21 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # 🚀 核心诊断 + 强制刷新 + 打包
-      - name: 终极清理、依赖诊断与强制打包
+      # 🚀 深度清扫 + 依赖完整性诊断 + 强制打包
+      - name: 深度清扫、依赖诊断与强制打包
         run: |
           echo "1. 彻底铲除 Gradle 和 Maven 本地缓存..."
-          # 增加 sudo 和 mkdir 修复权限遗留问题
           sudo rm -rf ~/.gradle/ ~/.m2/ && mkdir -p ~/.gradle/
 
-          echo "2. 清理项目残留编译文件..."
+          echo "2. 清理项目残留编译文件与构建目录（防止增量编译缓存干扰）..."
           ./gradlew clean
+          rm -rf app/build  # 🔴 这步是解决你错误的核心：删掉整个编译输出目录
 
-          echo "3. 🔍【关键】打印 Release 编译路径依赖树（检查 media3-common 是否存在）"
-          # 强制刷新索引，打印完整树状图
-          ./gradlew app:dependencies --configuration releaseCompileClasspath --refresh-dependencies --no-daemon
+          echo "3. 🔍【关键诊断】检查下载的 media3-common AAR 里是否真的包含 TrackGroupArray.class"
+          find ~/.gradle/caches/ -name "media3-common-1.6.1.aar" -exec unzip -l {} \; | grep "TrackGroupArray" || echo "⚠️ 警告：AAR 中缺失 TrackGroupArray.class！需要重新下载"
 
-          echo "4. 🎯 强制刷新所有依赖索引并正式打包 Release..."
-          ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --stacktrace
+          echo "4. 🎯 以 --info 详细日志模式强制刷新所有依赖并打包 Release..."
+          ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --info --stacktrace
 
       - name: 生成 update.json
         run: |
