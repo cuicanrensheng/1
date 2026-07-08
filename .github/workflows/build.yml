@@ -27,20 +27,28 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # 🚀 精准清理损坏AAR + 强制刷新 + 打包
-      - name: 精准清理损坏缓存与强制打包
+      # 🚀 彻底清理所有Gradle缓存，根除残缺Media3 AAR
+      - name: 全局清理全部Gradle缓存
         run: |
-          echo "1. 🔴 精准删除损坏的 Media3 缓存目录（防止重新下载仍损坏）..."
-          sudo rm -rf ~/.gradle/caches/modules-2/files-2.1/androidx.media3/media3-common/
+          echo "1. 删除全部 androidx.media3 缓存文件"
+          sudo rm -rf ~/.gradle/caches/modules-2/files-2.1/androidx.media3
+          sudo rm -rf ~/.gradle/caches/modules-2/modules-2.0/androidx.media3
           sudo rm -rf ~/.gradle/caches/transforms-3/
+          sudo rm -rf ~/.gradle/wrapper/dists
           sudo rm -rf ~/.m2/
-
-          echo "2. 清理项目残留编译文件与构建目录..."
+          
+          echo "2. 清理项目构建产物"
+          rm -rf .gradle
           ./gradlew clean
           rm -rf app/build
 
-          echo "3. 🎯 强制刷新所有依赖并打包 Release..."
-          ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --stacktrace
+      # 新增：诊断依赖树，确认media3-common被正常加载
+      - name: 校验Media3依赖是否加载成功
+        run: ./gradlew :app:dependencies --configuration releaseCompileClasspath | grep media3
+
+      # 🎯 强制联网重下所有依赖，禁用缓存、守护进程、构建缓存
+      - name: 强制刷新依赖并打包Release
+        run: ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --no-offline --stacktrace
 
       - name: 生成 update.json
         run: |
