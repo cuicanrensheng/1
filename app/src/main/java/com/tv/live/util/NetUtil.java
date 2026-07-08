@@ -2,8 +2,8 @@ package com.tv.live.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log; // 🟢 替换为原生日志
-import okhttp3.Call;
+import android.text.TextUtils;
+import android.util.Log;
 import okhttp3.Headers;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
@@ -15,12 +15,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 统一网络工具（合并HttpUtil + RequestHeaderUtil）
- * 全局统一ExoPlayer UA，解析器、播放器共用一套请求指纹，降低403拦截
+ * 统一网络工具
  */
 public class NetUtil {
     private static volatile NetUtil sInstance;
-    // 🟢 用于读取 SharedPreferences 的全局上下文
     private static Context sAppContext;
     private final OkHttpClient mClient;
     
@@ -28,7 +26,6 @@ public class NetUtil {
     private static final long READ_TIMEOUT = 15000L;
     private static final long WRITE_TIMEOUT = 10000L;
 
-    // 🟢 静态初始化方法，在 Application 中调用
     public static void init(Context context) {
         sAppContext = context.getApplicationContext();
     }
@@ -39,8 +36,6 @@ public class NetUtil {
                 .readTimeout(READ_TIMEOUT, TimeUnit.MILLISECONDS)
                 .writeTimeout(WRITE_TIMEOUT, TimeUnit.MILLISECONDS)
                 .retryOnConnectionFailure(true)
-                // 🟢【关键】拦截器强制发送 "Accept-Encoding: identity" 
-                // 防止虎牙 Tengine 因为默认的 gzip 编码而拦截 ExoPlayer 请求
                 .addNetworkInterceptor(new Interceptor() {
                     @Override
                     public Response intercept(Chain chain) throws IOException {
@@ -65,23 +60,26 @@ public class NetUtil {
         return sInstance;
     }
 
-    /** 根据URL自动生成虎牙/斗鱼适配请求头 */
     public Headers createCommonHeaders(String url) {
         Map<String, String> headerMap = new HashMap<>();
 
-        // 🟢 核心新增：从设置中动态读取 UA，默认 "exo" (ExoPlayer)
         String userAgent = "ExoPlayer";
         if (sAppContext != null) {
             SharedPreferences sp = sAppContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-            String uaMode = sp.getString("user_agent_mode", "exo"); 
-            if ("vlc".equals(uaMode)) {
-                userAgent = "VLC/3.0.18 LibVLC/3.0.18";
+            
+            // 🟢【核心修改】优先读取网页后台推送的自定义 UA
+            String customUA = sp.getString("custom_user_agent", "");
+            if (!TextUtils.isEmpty(customUA)) {
+                userAgent = customUA;
+            } else {
+                // 如果没有自定义 UA，则读取设置页面的 exo/vlc 开关
+                String uaMode = sp.getString("user_agent_mode", "exo"); 
+                if ("vlc".equals(uaMode)) {
+                    userAgent = "VLC/3.0.18 LibVLC/3.0.18";
+                }
             }
         }
         
-        // 🟢 【删除原日志代码】去除对 SettingsActivity.log 的依赖
-        // SettingsActivity.log("【UA检测】当前正在使用的请求头 User-Agent: " + userAgent);
-        // 如果需要调试，可以保留下方 Logcat 打印:
         Log.d("NetUtil", "【UA检测】当前正在使用的请求头 User-Agent: " + userAgent);
 
         headerMap.put("User-Agent", userAgent);
@@ -106,12 +104,10 @@ public class NetUtil {
         return Headers.of(headerMap);
     }
 
-    /** 虎牙专用固定请求头，HuyaParser直接调用 */
     public Headers createHuyaFixedHeaders() {
         return createCommonHeaders("https://www.huya.com");
     }
 
-    /** 同步GET，返回原始Response对象 */
     public Response syncGet(String url) throws IOException {
         Headers headers = createCommonHeaders(url);
         Request request = new Request.Builder()
@@ -123,7 +119,6 @@ public class NetUtil {
         return call.execute();
     }
 
-    /** GET请求，自动判断403并抛出拦截异常 */
     public String syncGetText(String url) throws IOException {
         try (Response response = syncGet(url)) {
             int code = response.code();
@@ -137,7 +132,6 @@ public class NetUtil {
         }
     }
 
-    /** 对外暴露全局OkHttpClient，供扩展使用 */
     public OkHttpClient getClient() {
         return mClient;
     }
