@@ -24,7 +24,6 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackGroup;
-import androidx.media3.common.TrackGroupArray;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.DefaultLoadControl;
@@ -94,20 +93,20 @@ public class TVPlayerManager {
     private int retryCount = 0;
     private boolean isRetrying = false;
     private Runnable retryRunnable;
-    
+
     private long lastPositionUpdateTime = 0;
     private long lastPosition = 0;
     private Runnable stuckCheckRunnable;
-    
+
     private Handler mHandler;
     private Runnable hideChannelRunnable;
-    
+
     private OnPlayStateListener listener;
     private OnSourceFailedListener sourceFailedListener;
     private OnLiveInfoUpdateListener liveInfoUpdateListener;
     private boolean isPlaying = false;
     private SimpleDateFormat logSdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
-    
+
     private BroadcastReceiver decoderModeReceiver;
     private boolean decoderReceiverRegistered = false;
     private BroadcastReceiver rendererModeReceiver;
@@ -125,6 +124,7 @@ public class TVPlayerManager {
     public interface OnPlayerViewRecreatedListener {
         void onPlayerViewRecreated(PlayerView newPlayerView);
     }
+
     public void setOnPlayerViewRecreatedListener(OnPlayerViewRecreatedListener listener) {
         this.onPlayerViewRecreatedListener = listener;
     }
@@ -143,7 +143,7 @@ public class TVPlayerManager {
     private TVPlayerManager(Context context) {
         this.context = context;
         mHandler = new Handler(Looper.getMainLooper());
-        
+
         hideChannelRunnable = new Runnable() {
             @Override
             public void run() {
@@ -218,7 +218,8 @@ public class TVPlayerManager {
                 if (isSoftwareDecoder(codec)) softCount++; else hardCount++;
             }
             Log.d(TAG, "【解码器】软解 " + softCount + " 个，硬解 " + hardCount + " 个");
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         initPlayerListener();
         CookieSyncManager.createInstance(context);
@@ -272,7 +273,7 @@ public class TVPlayerManager {
                     retryCount = 0;
                     isRetrying = false;
                     startStuckDetection();
-                    
+
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
@@ -439,7 +440,9 @@ public class TVPlayerManager {
         isSwitching = false;
     }
 
-    public int getDecoderMode() { return mDecoderMode; }
+    public int getDecoderMode() {
+        return mDecoderMode;
+    }
 
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
@@ -505,7 +508,7 @@ public class TVPlayerManager {
         newPlayerView.setLayoutParams(layoutParams);
         newPlayerView.setUseController(useController);
         newPlayerView.setKeepContentOnPlayerReset(true);
-        
+
         int resizeMode;
         switch (mCurrentScaleMode) {
             case FILL:
@@ -529,7 +532,7 @@ public class TVPlayerManager {
         playerView = newPlayerView;
 
         if (currentPosition > 0) player.seekTo(currentPosition);
-        
+
         if (wasPlaying) {
             mHandler.postDelayed(() -> {
                 if (player != null && !player.isPlaying()) {
@@ -625,8 +628,13 @@ public class TVPlayerManager {
         if (playerView != null) playerView.setKeepScreenOn(enable);
     }
 
-    public void playUrl(String url) { playUrl(url, null, null); }
-    public void playUrl(String url, String channelName) { playUrl(url, channelName, null); }
+    public void playUrl(String url) {
+        playUrl(url, null, null);
+    }
+
+    public void playUrl(String url, String channelName) {
+        playUrl(url, channelName, null);
+    }
 
     public void playUrl(String url, String channelName, Channel channel) {
         if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
@@ -648,7 +656,10 @@ public class TVPlayerManager {
         return currentChannel;
     }
 
-    public interface OnSourceFailedListener { void onSourceFailed(); }
+    public interface OnSourceFailedListener {
+        void onSourceFailed();
+    }
+
     public void setOnSourceFailedListener(OnSourceFailedListener listener) {
         this.sourceFailedListener = listener;
     }
@@ -667,12 +678,12 @@ public class TVPlayerManager {
     private void playUrlInternal(String url, long initialSeekPosition) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
-            
+
             String playUrl = url.trim();
             if (currentChannel != null) {
                 SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
                 int lineIndex = sp.getInt("channel_line_index", 0);
-                
+
                 if (lineIndex == 0) {
                     playUrl = currentChannel.getMainPlayUrl();
                 } else {
@@ -726,7 +737,7 @@ public class TVPlayerManager {
 
             player.setMediaSource(mediaSource, true);
             player.prepare();
-            
+
             if (initialSeekPosition > 0) {
                 player.seekTo(initialSeekPosition);
             }
@@ -744,43 +755,27 @@ public class TVPlayerManager {
         }
     }
 
-    // ====================================================================
-    // ✅【纯 Tracks API 重构】彻底摒弃手动 new TrackGroupArray
-    // ====================================================================
-
+    // 完全适配Media3 1.7.1 无TrackGroupArray版本
     public List<String> getAvailableResolutions() {
         List<String> resolutionList = new ArrayList<>();
         if (trackSelector == null || player == null) return resolutionList;
 
-        MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
-        if (trackInfo == null) return resolutionList;
+        Tracks allTracks = player.getCurrentTracks();
+        List<Tracks.Group> groupList = allTracks.getGroups();
 
-        for (int i = 0; i < trackInfo.getRendererCount(); i++) {
-            if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
-                // ✅ 使用 Tracks API 替代直接获取 TrackGroupArray
-                Tracks tracks = trackInfo.getTracks(i);
-                List<Tracks.Group> groupList = tracks.getGroups();
-
-                for (Tracks.Group trackGroupInfo : groupList) {
-                    if (!trackGroupInfo.isSelected()) continue; // 仅当该轨道组可用时
-
-                    TrackGroup group = trackGroupInfo.getMediaTrackGroup();
-                    for (int k = 0; k < group.length; k++) {
-                        Format format = group.getFormat(k);
-                        if (format.height > 0) {
-                            String label;
-                            if (format.height >= 2160) label = "4K (2160p)";
-                            else if (format.height >= 1080) label = "1080p";
-                            else if (format.height >= 720) label = "720p";
-                            else label = format.height + "p";
-
-                            if (!resolutionList.contains(label)) {
-                                resolutionList.add(label);
-                            }
-                        }
-                    }
+        for (Tracks.Group trackGroupInfo : groupList) {
+            if (trackGroupInfo.getType() != C.TRACK_TYPE_VIDEO) continue;
+            TrackGroup group = trackGroupInfo.getMediaTrackGroup();
+            for (int k = 0; k < group.length; k++) {
+                Format format = group.getFormat(k);
+                if (format.height > 0) {
+                    String label;
+                    if (format.height >= 2160) label = "4K (2160p)";
+                    else if (format.height >= 1080) label = "1080p";
+                    else if (format.height >= 720) label = "720p";
+                    else label = format.height + "p";
+                    if (!resolutionList.contains(label)) resolutionList.add(label);
                 }
-                break;
             }
         }
         return resolutionList;
@@ -788,33 +783,19 @@ public class TVPlayerManager {
 
     public void switchToResolution(int targetHeight) {
         if (trackSelector == null || player == null) return;
-
-        MappingTrackSelector.MappedTrackInfo trackInfo = trackSelector.getCurrentMappedTrackInfo();
-        if (trackInfo == null) return;
-
-        int videoRendererIndex = -1;
-        for (int i = 0; i < trackInfo.getRendererCount(); i++) {
-            if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
-                videoRendererIndex = i;
-                break;
-            }
-        }
-        if (videoRendererIndex == -1) {
-            Log.w(TAG, "未找到视频渲染器");
-            return;
-        }
-
+        Tracks allTracks = player.getCurrentTracks();
+        List<Tracks.Group> groupList = allTracks.getGroups();
         DefaultTrackSelector.Parameters.Builder paramsBuilder = trackSelector.getParameters().buildUpon();
-        // ✅ 直接拿系统提供的 TrackGroupArray（绝对不允许手动 new）
-        TrackGroupArray trackGroups = trackInfo.getTrackGroups(videoRendererIndex);
         boolean found = false;
 
-        for (int j = 0; j < trackGroups.length; j++) {
-            TrackGroup group = trackGroups.get(j);
+        // 遍历所有视频轨道，使用新版API选择轨道
+        for (Tracks.Group trackGroupInfo : groupList) {
+            if (trackGroupInfo.getType() != C.TRACK_TYPE_VIDEO) continue;
+            TrackGroup group = trackGroupInfo.getMediaTrackGroup();
             for (int k = 0; k < group.length; k++) {
                 Format format = group.getFormat(k);
                 if (format.height == targetHeight) {
-                    paramsBuilder.setSelectionOverride(videoRendererIndex, trackGroups, k);
+                    paramsBuilder.setSelectionOverride(trackGroupInfo, k);
                     trackSelector.setParameters(paramsBuilder.build());
                     Log.d(TAG, "已切换至分辨率: " + format.height + "p");
                     found = true;
@@ -823,29 +804,47 @@ public class TVPlayerManager {
             }
         }
 
+        // 清除所有视频轨道手动选择，恢复自动自适应
         if (!found) {
-            paramsBuilder.clearSelectionOverride(videoRendererIndex);
+            for (Tracks.Group g : groupList) {
+                if (g.getType() == C.TRACK_TYPE_VIDEO) {
+                    paramsBuilder.clearSelectionOverride(g);
+                }
+            }
             trackSelector.setParameters(paramsBuilder.build());
             Log.d(TAG, "未找到指定分辨率，回退至自适应");
         }
     }
-    // ====================================================================
 
-    public enum ScaleMode { FIT, FILL, ZOOM }
+    public enum ScaleMode {FIT, FILL, ZOOM}
+
     public void setScaleMode(ScaleMode mode) {
         try {
             if (playerView == null) return;
             this.mCurrentScaleMode = mode;
             switch (mode) {
-                case FIT: playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT); break;
-                case FILL: playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL); break;
-                case ZOOM: playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM); break;
+                case FIT:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                    break;
+                case FILL:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                    break;
+                case ZOOM:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                    break;
             }
-        } catch (Exception e) { Log.e(TAG, "设置缩放模式异常", e); }
+        } catch (Exception e) {
+            Log.e(TAG, "设置缩放模式异常", e);
+        }
     }
 
-    public void setCurrentChannelNumber(int num) { currentChannelNumber = num; }
-    public void bindChannelText(TextView textView) { channelNumberTextView = textView; }
+    public void setCurrentChannelNumber(int num) {
+        currentChannelNumber = num;
+    }
+
+    public void bindChannelText(TextView textView) {
+        channelNumberTextView = textView;
+    }
 
     private void showChannelAndAutoHide() {
         if (channelNumberTextView != null && currentChannelNumber > 0) {
@@ -855,6 +854,7 @@ public class TVPlayerManager {
             mHandler.postDelayed(hideChannelRunnable, CHANNEL_NUM_HIDE_DELAY);
         }
     }
+
     private void hideChannelNum() {
         if (channelNumberTextView != null) channelNumberTextView.setVisibility(View.GONE);
     }
@@ -875,7 +875,8 @@ public class TVPlayerManager {
                     int width = videoFormat.width, height = videoFormat.height;
                     if (width > 0 && height > 0) info.resolution = width + "×" + height;
                     info.format = videoFormat.sampleMimeType;
-                    if (videoFormat.bitrate > 0) info.bitrate = String.format(Locale.getDefault(), "%.1f Mbps", videoFormat.bitrate / 1000000f);
+                    if (videoFormat.bitrate > 0)
+                        info.bitrate = String.format(Locale.getDefault(), "%.1f Mbps", videoFormat.bitrate / 1000000f);
                 }
                 Format audioFormat = player.getAudioFormat();
                 if (audioFormat != null) {
@@ -883,7 +884,9 @@ public class TVPlayerManager {
                     if (audioFormat.sampleRate > 0) info.audio += " " + (audioFormat.sampleRate / 1000) + "kHz";
                 }
             }
-        } catch (Exception e) { Log.e(TAG, "获取直播信息异常", e); }
+        } catch (Exception e) {
+            Log.e(TAG, "获取直播信息异常", e);
+        }
         return info;
     }
 
@@ -892,22 +895,45 @@ public class TVPlayerManager {
     }
 
     public interface OnPlayStateListener {
-        void onIdle(); void onBuffering(); void onPlayReady(); void onPlayEnd(); void onPlayError(String msg);
+        void onIdle();
+        void onBuffering();
+        void onPlayReady();
+        void onPlayEnd();
+        void onPlayError(String msg);
     }
-    public void setOnPlayStateListener(OnPlayStateListener l) { listener = l; }
 
-    public interface OnLiveInfoUpdateListener { void onLiveInfoUpdate(LiveInfo info); }
-    public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) { liveInfoUpdateListener = listener; }
+    public void setOnPlayStateListener(OnPlayStateListener l) {
+        listener = l;
+    }
 
-    public void pause() { try { if (player != null) player.pause(); } catch (Exception ignored) {} }
-    public void resume() { try { if (player != null) player.play(); } catch (Exception ignored) {} }
+    public interface OnLiveInfoUpdateListener {
+        void onLiveInfoUpdate(LiveInfo info);
+    }
+
+    public void setOnLiveInfoUpdateListener(OnLiveInfoUpdateListener listener) {
+        liveInfoUpdateListener = listener;
+    }
+
+    public void pause() {
+        try {
+            if (player != null) player.pause();
+        } catch (Exception ignored) {
+        }
+    }
+
+    public void resume() {
+        try {
+            if (player != null) player.play();
+        } catch (Exception ignored) {
+        }
+    }
 
     public void release() {
         try {
             stopStuckDetection();
             cancelRetry();
             mHandler.removeCallbacksAndMessages(null);
-            
+
             updateWakeLock(false);
             unregisterDecoderModeReceiver();
             unregisterRendererModeReceiver();
@@ -921,7 +947,7 @@ public class TVPlayerManager {
                 player = null;
             }
             instance = null;
-            
+
             if (playerView != null) {
                 playerView.setPlayer(null);
                 playerView = null;
@@ -933,7 +959,10 @@ public class TVPlayerManager {
 
     private static class SoftwareFirstMediaCodecSelector implements MediaCodecSelector {
         private final int decoderMode;
-        public SoftwareFirstMediaCodecSelector(int mode) { this.decoderMode = mode; }
+
+        public SoftwareFirstMediaCodecSelector(int mode) {
+            this.decoderMode = mode;
+        }
 
         @Override
         public List<MediaCodecInfo> getDecoderInfos(String mimeType, boolean requiresSecureDecoder, boolean requiresTunnelingDecoder) throws MediaCodecUtil.DecoderQueryException {
