@@ -192,7 +192,7 @@ public class TVPlayerManager {
 
         // 🟢【核心修改】大幅减小缓冲值，实现“先播再补”，解决切台画面卡住几秒的痛点
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(1000, 30000, 500, 2000)
+                .setBufferDurationsMs(2000, 45000, 800, 1500)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
 
