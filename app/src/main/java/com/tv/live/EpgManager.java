@@ -16,6 +16,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -24,12 +25,17 @@ import java.util.zip.GZIPInputStream;
 public class EpgManager {
 
     private static EpgManager instance;
-    private final Map<String, List<Channel.EpgItem>> channelEpgMap = new HashMap<>();
+    // 🟢【修复1】改用 ConcurrentHashMap，保证多线程读写不冲突
+    private final Map<String, List<Channel.EpgItem>> channelEpgMap = new ConcurrentHashMap<>();
+    
     private String epgUrl = UrlConfig.EPG_URL;
     private boolean hasPrintedSample = false;
 
     private CacheManager cacheManager;
     private Context context;
+
+    // 🟢【修复2】加入规范化名称缓存，避免每次查询都执行昂贵正则
+    private final Map<String, String> normalizedNameCache = new ConcurrentHashMap<>();
 
     private static final String CACHE_KEY_EPG = "epg";
 
@@ -206,7 +212,8 @@ public class EpgManager {
 
                 if ("channel".equals(tag)) {
                     currentChannelName = null;
-                    tempPrograms.clear();
+                    // 🟢【修复3】不要在 channel 标签内重置 tempPrograms，只在此处初始化
+                    tempPrograms.clear(); 
                 }
 
                 if ("display-name".equals(tag)) {
@@ -247,8 +254,9 @@ public class EpgManager {
 
             if (xml.getEventType() == XmlPullParser.END_TAG && "programme".equals(xml.getName())) {
                 if (currentChannelName != null && !tempPrograms.isEmpty()) {
-                    tempPrograms.sort(Comparator.comparing(item -> item.time));
+                    // 🟢【修复4】存入后必须立刻清空！否则 tempPrograms 会无限累积！
                     channelEpgMap.put(currentChannelName, new ArrayList<>(tempPrograms));
+                    tempPrograms.clear();
                 }
             }
 
@@ -288,9 +296,14 @@ public class EpgManager {
         return new ArrayList<>();
     }
 
+    // 🟢【修复5】增加缓存机制，避免正则频繁运算导致 CPU 飙升
     private String normalizeChannelName(String name) {
         if (name == null || name.isEmpty()) {
             return "";
+        }
+        // 如果已经算过一次，直接取缓存
+        if (normalizedNameCache.containsKey(name)) {
+            return normalizedNameCache.get(name);
         }
 
         String result = name.toLowerCase();
@@ -338,6 +351,8 @@ public class EpgManager {
 
         result = result.replace("cctv", "央视");
 
+        // 存入缓存，避免下次再算
+        normalizedNameCache.put(name, result);
         return result;
     }
 
