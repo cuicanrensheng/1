@@ -25,7 +25,6 @@ import java.util.zip.GZIPInputStream;
 public class EpgManager {
 
     private static EpgManager instance;
-    // 🟢【修复1】改用 ConcurrentHashMap，保证多线程读写不冲突
     private final Map<String, List<Channel.EpgItem>> channelEpgMap = new ConcurrentHashMap<>();
     
     private String epgUrl = UrlConfig.EPG_URL;
@@ -34,7 +33,6 @@ public class EpgManager {
     private CacheManager cacheManager;
     private Context context;
 
-    // 🟢【修复2】加入规范化名称缓存，避免每次查询都执行昂贵正则
     private final Map<String, String> normalizedNameCache = new ConcurrentHashMap<>();
 
     private static final String CACHE_KEY_EPG = "epg";
@@ -193,6 +191,9 @@ public class EpgManager {
         }
     }
 
+    // ====================================================================
+    // 🟢【核心修复】parseXml 方法，修复了节目单被逐条覆盖导致空白的问题
+    // ====================================================================
     private void parseXml(InputStream is) throws Exception {
         XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
         XmlPullParser xml = factory.newPullParser();
@@ -211,9 +212,12 @@ public class EpgManager {
                 String tag = xml.getName();
 
                 if ("channel".equals(tag)) {
+                    // 🟢【关键修复】检测到新频道时，先保存前一个频道的完整节目列表
+                    if (currentChannelName != null && !tempPrograms.isEmpty()) {
+                        channelEpgMap.put(currentChannelName, new ArrayList<>(tempPrograms));
+                        tempPrograms.clear();
+                    }
                     currentChannelName = null;
-                    // 🟢【修复3】不要在 channel 标签内重置 tempPrograms，只在此处初始化
-                    tempPrograms.clear(); 
                 }
 
                 if ("display-name".equals(tag)) {
@@ -252,15 +256,14 @@ public class EpgManager {
                 }
             }
 
-            if (xml.getEventType() == XmlPullParser.END_TAG && "programme".equals(xml.getName())) {
-                if (currentChannelName != null && !tempPrograms.isEmpty()) {
-                    // 🟢【修复4】存入后必须立刻清空！否则 tempPrograms 会无限累积！
-                    channelEpgMap.put(currentChannelName, new ArrayList<>(tempPrograms));
-                    tempPrograms.clear();
-                }
-            }
-
+            // 🟢【移除】去掉了原来 END_TAG 为 "programme" 时立即保存并清空的逻辑，
+            // 避免每读一个节目就覆盖一次之前的数据。
             xml.next();
+        }
+
+        // 🟢【关键修复】解析结束后，保存最后一个频道的节目列表
+        if (currentChannelName != null && !tempPrograms.isEmpty()) {
+            channelEpgMap.put(currentChannelName, new ArrayList<>(tempPrograms));
         }
     }
 
@@ -296,12 +299,10 @@ public class EpgManager {
         return new ArrayList<>();
     }
 
-    // 🟢【修复5】增加缓存机制，避免正则频繁运算导致 CPU 飙升
     private String normalizeChannelName(String name) {
         if (name == null || name.isEmpty()) {
             return "";
         }
-        // 如果已经算过一次，直接取缓存
         if (normalizedNameCache.containsKey(name)) {
             return normalizedNameCache.get(name);
         }
@@ -351,7 +352,6 @@ public class EpgManager {
 
         result = result.replace("cctv", "央视");
 
-        // 存入缓存，避免下次再算
         normalizedNameCache.put(name, result);
         return result;
     }
