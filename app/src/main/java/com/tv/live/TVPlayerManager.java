@@ -38,7 +38,7 @@ import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector;
-import androidx.media3.exoplayer.trackselection.SelectionOverride;
+import androidx.media3.exoplayer.trackselection.TrackSelectionOverride;  // ✅ 修改1：替换为TrackSelectionOverride
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
@@ -793,7 +793,6 @@ public class TVPlayerManager {
         }
 
         int videoRenderer = -1;
-        // 找到视频渲染器索引
         for (int i = 0; i < trackInfo.getRendererCount(); i++) {
             if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO) {
                 videoRenderer = i;
@@ -807,30 +806,26 @@ public class TVPlayerManager {
 
         TrackGroupArray trackGroups = trackInfo.getTrackGroups(videoRenderer);
         DefaultTrackSelector.Parameters.Builder builder = trackSelector.getParameters().buildUpon();
-        boolean match = false;
 
-        // 遍历轨道匹配目标高度
         for (int g = 0; g < trackGroups.length; g++) {
             TrackGroup group = trackGroups.get(g);
             for (int t = 0; t < group.length; t++) {
                 Format fmt = group.getFormat(t);
                 if (fmt.height == targetHeight) {
-                    // ✅ 修复1：正确构造 SelectionOverride 对象
-                    builder.setSelectionOverride(videoRenderer, trackGroups, new SelectionOverride(trackGroups, g, t));
+                    // ✅ 修改2：使用 TrackSelectionOverride 替换 SelectionOverride
+                    builder.setSelectionOverride(videoRenderer, trackGroups,
+                            new TrackSelectionOverride(group, t));
                     trackSelector.setParameters(builder.build());
                     Log.d(TAG, "清晰度切换成功：" + targetHeight + "p");
-                    match = true;
                     return;
                 }
             }
         }
 
-        if (!match) {
-            // ✅ 修复2：清除覆盖时，只需传入渲染器索引
-            builder.clearSelectionOverride(videoRenderer);
-            trackSelector.setParameters(builder.build());
-            Log.d(TAG, "无匹配清晰度，恢复自适应");
-        }
+        // 无匹配则清除覆盖，恢复自适应
+        builder.clearSelectionOverride(videoRenderer);
+        trackSelector.setParameters(builder.build());
+        Log.d(TAG, "无匹配清晰度，恢复自适应");
     }
 
     public enum ScaleMode {FIT, FILL, ZOOM}
@@ -1007,4 +1002,4 @@ public class TVPlayerManager {
             }
         }
     }
-}
+ }
