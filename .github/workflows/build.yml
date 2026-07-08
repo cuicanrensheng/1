@@ -27,16 +27,16 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # 🚀 彻底连根拔起，强制验证并打包
+      # 🚀 深度清理 + 阿里云镜像强制拉取
       - name: 终极清理、依赖验证与打包
         run: |
-          echo "1. 彻底清除所有本地缓存（包括 Wrapper 缓存）..."
+          echo "1. 彻底清除所有本地缓存（清除旧损坏包）..."
           rm -rf ~/.gradle/ ~/.m2/
 
           echo "2. 清理项目残留文件..."
           ./gradlew clean
 
-          echo "3. 【关键步】打印完整的依赖树，请检查日志中是否有 androidx.media3:media3-common:1.7.1"
+          echo "3. 【诊断】打印依赖树（请检查日志中是否有 androidx.media3:media3-common:1.7.1）"
           ./gradlew :app:dependencies --no-daemon --refresh-dependencies
 
           echo "4. 依赖正常，开始正式编译打包..."
