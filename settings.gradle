@@ -1,17 +1,20 @@
 pluginManagement {
     repositories {
+        // 优先项目本地仓库，再走官方源
+        maven { url "./repo" }
         google()
         mavenCentral()
         gradlePluginPortal()
     }
 }
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // 全局统一使用 settings 仓库，消除冲突
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
-        // Google Maven 必须第一顺位，Media3仅在此仓库分发
+        maven { url "./repo" }
         google()
         mavenCentral()
     }
 }
-rootProject.name = "1"
+rootProject.name = "AH"
 include ':app'
