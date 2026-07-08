@@ -96,7 +96,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             syncResponseCookies(connection, dataSpec.uri.toString());
             if (responseCode < 200 || responseCode > 299) {
                 String responseMessage = connection.getResponseMessage();
-                // 🟢 修改：原 SettingsActivity.log 替换为 Log.e
                 Log.e(TAG, "[" + getTimeStr() + "] ❌ 失败: HTTP " + responseMessage);
                 throw new HttpDataSource.HttpDataSourceException(
                         "HTTP " + responseCode + " " + responseMessage,
@@ -148,9 +147,20 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         String currentUrl = originalUrl;
         int redirectCount = 0;
         Map<String, String> originHeaders = new HashMap<>(defaultRequestProperties);
+        
+        // 🟢【新增优化】记录整个重定向过程的开始时间
+        long startTime = System.currentTimeMillis();
+        final long MAX_TOTAL_DELAY = 15000; // 限制总耗时 15 秒
+
         while (true) {
+            // 🟢【新增优化】如果总耗时超过 15 秒，直接切断死循环，不再等待
+            if (System.currentTimeMillis() - startTime > MAX_TOTAL_DELAY) {
+                String logMsg = "[" + getTimeStr() + "] ❌ 失败: 重定向总耗时超时 (超过 " + MAX_TOTAL_DELAY + "ms)";
+                Log.e(TAG, logMsg);
+                throw new RedirectFailedException("重定向总耗时超时", -1, originalUrl, currentUrl);
+            }
+
             if (redirectCount > maxRedirects) {
-                // 🟢 修改：原 SettingsActivity.log 替换为 Log.e
                 String logMsg = "[" + getTimeStr() + "] ❌ 失败: 重定向次数超过限制(" + maxRedirects + "次)";
                 Log.e(TAG, logMsg);
                 throw new RedirectFailedException("重定向次数超限", -1, originalUrl, currentUrl);
@@ -187,7 +197,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             redirectCount++;
             String location = conn.getHeaderField("Location");
             if (TextUtils.isEmpty(location)) {
-                // 🟢 修改：原 SettingsActivity.log 替换为 Log.e
                 String errLog = "[" + getTimeStr() + "] ❌ 失败: 第" + redirectCount + "次重定向无Location头";
                 Log.e(TAG, errLog);
                 conn.disconnect();
@@ -199,7 +208,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             // 跨协议校验
             boolean crossProtocol = !Objects.equals(baseUri.getScheme(), targetUri.getScheme());
             if (crossProtocol && !allowCrossProtocolRedirects) {
-                // 🟢 修改：原 SettingsActivity.log 替换为 Log.e
                 Log.e(TAG, "[" + getTimeStr() + "] ❌ 失败: 禁止跨协议跳转");
                 conn.disconnect();
                 throw new RedirectFailedException("跨协议重定向被禁用", respCode, originalUrl, redirectUrl);
@@ -208,7 +216,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             boolean crossDomain = !Objects.equals(baseUri.getHost(), targetUri.getHost());
             boolean isInner = isInnerIp(targetUri.getHost());
             if (crossDomain && !allowCrossDomainRedirects && !isInner) {
-                // 🟢 修改：原 SettingsActivity.log 替换为 Log.e
                 Log.e(TAG, "[" + getTimeStr() + "] ❌ 失败: 禁止跨域名跳转");
                 conn.disconnect();
                 throw new RedirectFailedException("跨域名重定向被禁用", respCode, originalUrl, redirectUrl);
