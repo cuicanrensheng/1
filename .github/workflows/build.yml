@@ -27,20 +27,16 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # 🚀 终极清理、官方源验证与强制刷新打包
-      - name: 终极清理、依赖验证与打包
+      # 🚀 清理 + 强制刷新依赖 + 正式打包
+      - name: 终极清理与强制打包
         run: |
-          echo "1. 彻底铲除所有本地缓存..."
+          echo "1. 彻底铲除 Gradle 和 Maven 本地缓存..."
           rm -rf ~/.gradle/ ~/.m2/
 
-          echo "2. 清理项目残留文件..."
+          echo "2. 清理项目残留编译文件..."
           ./gradlew clean
 
-          echo "3. 【诊断】打印依赖树（确保看到 androidx.media3:media3-common:1.7.1）"
-          ./gradlew :app:dependencies --no-daemon --refresh-dependencies
-
-          echo "4. 🎯【核弹级修复】刷新所有依赖索引，开始正式打包..."
-          # 必须加上 --refresh-dependencies，让 Gradle 忘记所有旧索引！
+          echo "3. 🎯 强制刷新所有依赖索引并打包 Release..."
           ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --stacktrace
 
       - name: 生成 update.json
