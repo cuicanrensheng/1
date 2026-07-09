@@ -88,17 +88,21 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     
     // ================================================================
-    // ✅ 终极可靠：直接枚举每个 AAR 文件，不依赖通配符！
-    implementation files(
-        'libs/media3-common-1.6.1.aar',
-        'libs/media3-exoplayer-1.6.1.aar',
-        'libs/media3-ui-1.6.1.aar',
-        'libs/media3-exoplayer-hls-1.6.1.aar',
-        'libs/media3-exoplayer-dash-1.6.1.aar',
-        'libs/media3-datasource-1.6.1.aar'
-    )
+    // ✅ 混合方案：本地 AAR 优先，远程 Maven 作为后备
+    // 1. 本地文件（Gradle 会优先读取它们）
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
     
-    // ✅ 必须手动补上 AAR 的传递依赖
+    // 2. 远程 BOM 依赖（如果本地文件缺失，自动从 google() 仓库拉取）
+    def media3_version = '1.6.1'
+    implementation platform("androidx.media3:media3-bom:$media3_version")
+    implementation "androidx.media3:media3-exoplayer"
+    implementation "androidx.media3:media3-ui"
+    implementation "androidx.media3:media3-exoplayer-hls"
+    implementation "androidx.media3:media3-exoplayer-dash"
+    implementation "androidx.media3:media3-common"
+    implementation "androidx.media3:media3-datasource"
+    
+    // 3. 补全 AAR 包缺失的底层依赖
     implementation 'com.google.guava:guava:33.3.1-android'
     implementation 'androidx.annotation:annotation:1.6.0'
     // ================================================================
@@ -115,5 +119,4 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
 
-// 🔥 请务必确认：你的文件里绝对不能有 `configurations.all` 这个代码块！
-// 如果还有，请务必删掉，否则会干扰本地文件编译！
+// 🔴 再次强调：千万别加 `configurations.all` 的锁定代码！
