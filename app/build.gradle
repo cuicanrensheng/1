@@ -88,13 +88,9 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     
     // ================================================================
-    // ✅ 最终完美方案：本地优先，远程兜底，抛弃 BOM！
-    
-    // 1. 本地 AAR（Gradle 会优先读取它们，100% 完整）
+    // ✅ 核心：本地 AAR 优先 + 远程兜底，绝不使用 BOM！
     implementation fileTree(dir: 'libs', include: ['*.aar'])
     
-    // 2. 远程版本兜底（如果本地 AAR 意外丢失，会自动从 google() 下载）
-    // 不使用 BOM，直接写死版本号 1.6.1
     implementation "androidx.media3:media3-exoplayer:1.6.1"
     implementation "androidx.media3:media3-ui:1.6.1"
     implementation "androidx.media3:media3-exoplayer-hls:1.6.1"
@@ -102,7 +98,7 @@ dependencies {
     implementation "androidx.media3:media3-common:1.6.1"
     implementation "androidx.media3:media3-datasource:1.6.1"
     
-    // 3. 补全传递依赖
+    // ✅ 补全底层依赖
     implementation 'com.google.guava:guava:33.3.1-android'
     implementation 'androidx.annotation:annotation:1.6.0'
     // ================================================================
@@ -118,5 +114,4 @@ dependencies {
     implementation "com.blankj:utilcodex:1.31.1"
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
-
-// 🔥 确认文件里没有 `configurations.all` 和 `platform()`，已经全部删除！
+// 🔥 强烈确认：你的 app/build.gradle 里绝对不能有 `configurations.all` 这个代码块！
