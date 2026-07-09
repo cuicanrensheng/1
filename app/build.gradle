@@ -87,13 +87,14 @@ dependencies {
     
     implementation 'com.google.code.gson:gson:2.10.1'
     
-    // ✅ Media3 全部降回 1.6.1（因为 1.7.0 在仓库里不存在，会报 404）
-    implementation "androidx.media3:media3-exoplayer:1.6.1"
-    implementation "androidx.media3:media3-ui:1.6.1"
-    implementation "androidx.media3:media3-exoplayer-hls:1.6.1"
-    implementation "androidx.media3:media3-exoplayer-dash:1.6.1"
-    implementation "androidx.media3:media3-common:1.6.1"
-    implementation "androidx.media3:media3-datasource:1.6.1"
+    // ================================================================
+    // ✅ 核心改动：直接引用你下载好的本地 AAR，再也不碰远程 Maven
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
+    
+    // ⚠️ 必须手动补充缺失的传递依赖，否则会报 Guava 找不到
+    implementation 'com.google.guava:guava:33.3.1-android'
+    implementation 'androidx.annotation:annotation:1.6.0'
+    // ================================================================
     
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "com.squareup.retrofit2:retrofit:2.11.0"
@@ -107,16 +108,5 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
 
-// 强制锁定Media3全部版本为 1.6.1，防止依赖树拉低版本导致类缺失
-configurations.all {
-    resolutionStrategy {
-        force "androidx.media3:media3-common:1.6.1"
-        force "androidx.media3:media3-exoplayer:1.6.1"
-        force "androidx.media3:media3-ui:1.6.1"
-        force "androidx.media3:media3-exoplayer-hls:1.6.1"
-        force "androidx.media3:media3-exoplayer-dash:1.6.1"
-        force "androidx.media3:media3-datasource:1.6.1"
-    }
-    // 不缓存动态版本，每次构建重新校验依赖完整性
-    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
-}
+// 🔴 这一整块 `configurations.all` 现在完全多余！本地 AAR 优先级最高，不需要 force，请直接删掉！
+// 如果你不想删，请把它注释掉。这里我直接给你删干净了。
