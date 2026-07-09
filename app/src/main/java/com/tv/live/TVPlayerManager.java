@@ -131,6 +131,9 @@ public class TVPlayerManager {
     private List<Variant> variantList = new ArrayList<>();
     private boolean isParsingMasterPlaylist = false;
 
+    // 🔴【新增】用于控制日志开关的 SharedPreferences
+    private SharedPreferences sp;
+
     // 清晰度实体类
     public static class Variant {
         public String url;
@@ -173,6 +176,7 @@ public class TVPlayerManager {
 
     private TVPlayerManager(Context context) {
         this.context = context;
+        this.sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE); // 🔴 绑定 SharedPreferences
         mHandler = new Handler(Looper.getMainLooper());
 
         hideChannelRunnable = () -> hideChannelNum();
@@ -206,6 +210,13 @@ public class TVPlayerManager {
         initPlayer();
     }
 
+    // 🔴【新增】辅助方法：仅当用户开启日志时才打印调试信息
+    private void dLog(String msg) {
+        if (sp.getBoolean("log_enable", false)) {
+            Log.d(TAG, msg);
+        }
+    }
+
     private void initPlayer() {
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
         SoftwareFirstMediaCodecSelector codecSelector = new SoftwareFirstMediaCodecSelector(mDecoderMode);
@@ -213,14 +224,14 @@ public class TVPlayerManager {
 
         switch (mDecoderMode) {
             case DECODER_MODE_SOFT:
-                Log.d(TAG, "【解码器】软解模式");
+                dLog("【解码器】软解模式");
                 break;
             case DECODER_MODE_HARD:
-                Log.d(TAG, "【解码器】硬解模式");
+                dLog("【解码器】硬解模式");
                 break;
             case DECODER_MODE_AUTO:
             default:
-                Log.d(TAG, "【解码器】自动模式");
+                dLog("【解码器】自动模式");
                 break;
         }
 
@@ -244,7 +255,7 @@ public class TVPlayerManager {
                 if (isSoftwareDecoder(codec)) softCount++;
                 else hardCount++;
             }
-            Log.d(TAG, "【解码器】软解 " + softCount + " 个，硬解 " + hardCount + " 个");
+            dLog("【解码器】软解 " + softCount + " 个，硬解 " + hardCount + " 个");
         } catch (Exception ignored) {
         }
 
@@ -326,14 +337,14 @@ public class TVPlayerManager {
                         isStalled = false;
                         long stallDuration = System.currentTimeMillis() - lastStallStartTime;
                         totalStallTime += stallDuration;
-                        Log.d(TAG, "【性能】卡顿结束，时长：" + stallDuration + "ms");
+                        dLog("【性能】卡顿结束，时长：" + stallDuration + "ms");
                     }
                 }
             }
 
             @Override
             public void onVideoSizeChanged(VideoSize videoSize) {
-                Log.d(TAG, "视频分辨率变化：" + videoSize.width + "×" + videoSize.height);
+                dLog("视频分辨率变化：" + videoSize.width + "×" + videoSize.height);
                 notifyLiveInfoUpdate();
             }
         };
@@ -355,7 +366,7 @@ public class TVPlayerManager {
             return false;
         }
         String backupUrl = backups.get(backupRetryIndex);
-        Log.d(TAG, "尝试切换到备用源：" + backupUrl);
+        dLog("尝试切换到备用源：" + backupUrl);
         playUrlInternal(backupUrl);
         return true;
     }
@@ -407,7 +418,7 @@ public class TVPlayerManager {
     public void setDecoderMode(int mode) {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
-        Log.d(TAG, "手动切换解码器模式：" + mode);
+        dLog("手动切换解码器模式：" + mode);
         if (player != null) performDecoderSwitch();
     }
 
@@ -694,7 +705,7 @@ public class TVPlayerManager {
                     }
                 }
                 currentUrl = playUrl;
-                Log.d(TAG, "切换线路后播放：" + currentUrl);
+                dLog("切换线路后播放：" + currentUrl);
             } else {
                 currentUrl = playUrl;
             }
@@ -754,12 +765,13 @@ public class TVPlayerManager {
         }
     }
 
-    // ********** 新增：解析主播放列表，获取多码率子流 **********
+    // ********** 解析主播放列表，获取多码率子流 **********
     private void fetchAndParseMasterPlaylist(String masterUrl) {
         if (isParsingMasterPlaylist) return;
         isParsingMasterPlaylist = true;
         new Thread(() -> {
             try {
+                dLog("开始解析主播放列表: " + masterUrl);
                 URL url = new URL(masterUrl);
                 HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
                 connection.setConnectTimeout(5000);
@@ -780,9 +792,10 @@ public class TVPlayerManager {
                 connection.disconnect();
 
                 String playlist = content.toString();
+                dLog("播放列表内容长度: " + playlist.length());
                 parseMasterPlaylist(playlist, masterUrl);
             } catch (Exception e) {
-                Log.e(TAG, "解析主播放列表失败", e);
+                Log.e(TAG, "解析主播放列表失败: ", e);
                 variantList.clear();
             } finally {
                 isParsingMasterPlaylist = false;
@@ -792,7 +805,8 @@ public class TVPlayerManager {
 
     private void parseMasterPlaylist(String playlist, String baseUrl) {
         List<Variant> list = new ArrayList<>();
-        Pattern streamPattern = Pattern.compile("#EXT-X-STREAM-INF:.*BANDWIDTH=(\\d+).*RESOLUTION=(\\d+x\\d+).*");
+        // 🔴【修复】改进了正则表达式，允许 BANDWIDTH 和 RESOLUTION 之间出现任何非换行字符，兼容性更强
+        Pattern streamPattern = Pattern.compile("#EXT-X-STREAM-INF:[^\\r\\n]*BANDWIDTH=(\\d+)[^\\r\\n]*RESOLUTION=(\\d+x\\d+)");
         String[] lines = playlist.split("\\r?\\n");
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
@@ -819,6 +833,7 @@ public class TVPlayerManager {
                         uri = resolveUrl(baseUrl, uri);
                     }
                     list.add(new Variant(uri, bandwidth, width, height));
+                    dLog("解析到清晰度: " + resolution + " -> " + uri);
                 }
             }
         }
@@ -826,7 +841,9 @@ public class TVPlayerManager {
         list.sort((a, b) -> Integer.compare(a.height, b.height));
         this.variantList = list;
         if (!list.isEmpty()) {
-            Log.d(TAG, "解析到 " + list.size() + " 个清晰度");
+            dLog("解析到 " + list.size() + " 个清晰度");
+        } else {
+            Log.w(TAG, "未解析到任何清晰度流，可能是直播源本身不支持多码率或网络被拦截");
         }
     }
 
@@ -868,7 +885,7 @@ public class TVPlayerManager {
         if (selected == null) {
             selected = variantList.get(variantList.size() - 1); // 最高
         }
-        Log.d(TAG, "切换清晰度到：" + selected.resolutionLabel + "，URL=" + selected.url);
+        dLog("切换清晰度到：" + selected.resolutionLabel + "，URL=" + selected.url);
         // 重新播放该子流
         playUrlInternal(selected.url);
     }
