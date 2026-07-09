@@ -226,9 +226,7 @@
                 android:focusable="true"
                 android:clickable="true"/>
 
-            <!-- ============================================================ -->
-            <!-- 🆕 新增：清晰度选择 -->
-            <!-- ============================================================ -->
+            <!-- 清晰度选择 -->
             <LinearLayout
                 android:id="@+id/item_resolution"
                 android:layout_width="match_parent"
@@ -254,7 +252,6 @@
                     android:textColor="#999999"
                     android:textSize="14sp" />
             </LinearLayout>
-            <!-- ============================================================ -->
 
             <!-- 分隔线 -->
             <View
@@ -370,6 +367,36 @@
                     android:focusable="false"
                     android:clickable="false"/>
             </LinearLayout>
+
+            <!-- ============================================================ -->
+            <!-- 🆕 新增：日志输出 -->
+            <!-- ============================================================ -->
+            <LinearLayout
+                android:id="@+id/item_log"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:background="@drawable/setting_item_bg"
+                android:focusable="true"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="日志输出"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+                <TextView
+                    android:id="@+id/tv_log_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="关闭"
+                    android:textColor="#999999"
+                    android:textSize="14sp" />
+            </LinearLayout>
+            <!-- ============================================================ -->
 
             <!-- 网页设置提示 -->
             <TextView
