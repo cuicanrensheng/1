@@ -88,12 +88,17 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     
     // ================================================================
-    // ✅ 最终绝杀：只保留本地 AAR，彻底删除所有远程 Media3 依赖！
-    implementation fileTree(dir: 'libs', include: ['*.aar'])
+    // ✅ 核心：使用 BOM 统一锁定 Media3 为 1.7.1（完全兼容 minSdk 21）
+    def media3_version = '1.7.1'
+    implementation platform("androidx.media3:media3-bom:$media3_version")
     
-    // ✅ 补全 AAR 缺失的底层依赖（Guava 和 Annotation）
-    implementation 'com.google.guava:guava:33.3.1-android'
-    implementation 'androidx.annotation:annotation:1.6.0'
+    // 自动对齐版本为 1.7.1
+    implementation "androidx.media3:media3-exoplayer"
+    implementation "androidx.media3:media3-ui"
+    implementation "androidx.media3:media3-exoplayer-hls"
+    implementation "androidx.media3:media3-exoplayer-dash"
+    implementation "androidx.media3:media3-common"
+    implementation "androidx.media3:media3-datasource"
     // ================================================================
     
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
@@ -107,3 +112,25 @@ dependencies {
     implementation "com.blankj:utilcodex:1.31.1"
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
+
+// ================================================================
+// 🔒 终极防御锁：防止旧版 ExoPlayer 混入，强制 Media3 为 1.7.1
+// ================================================================
+configurations.all {
+    resolutionStrategy {
+        force "androidx.media3:media3-common:1.7.1"
+        force "androidx.media3:media3-exoplayer:1.7.1"
+        force "androidx.media3:media3-ui:1.7.1"
+        force "androidx.media3:media3-exoplayer-hls:1.7.1"
+        force "androidx.media3:media3-exoplayer-dash:1.7.1"
+        force "androidx.media3:media3-datasource:1.7.1"
+        force "androidx.media3:media3-decoder:1.7.1"
+        force "androidx.media3:media3-extractor:1.7.1"
+    }
+    all {
+        if (it.requested.group == 'com.google.android.exoplayer2') {
+            it.exclude group: 'com.google.android.exoplayer2'
+        }
+    }
+}
+// ================================================================
