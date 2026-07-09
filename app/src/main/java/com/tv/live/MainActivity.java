@@ -218,6 +218,19 @@ public class MainActivity extends AppCompatActivity {
         this.isInCatchUpMode = enabled;
     }
 
+    // 🔴【新增】公共访问器，供外部关闭设置页和操作面板
+    public boolean isOpeningSettings() {
+        return isOpeningSettings;
+    }
+
+    public void setOpeningSettings(boolean opening) {
+        this.isOpeningSettings = opening;
+    }
+
+    public ChannelPanelController getChannelPanelController() {
+        return channelPanelController;
+    }
+
     // 🔴【联动升级】触发显示 ExoPlayer 原生控制栏，并隐藏底部信息栏
     public void showExoController() {
         if (playerView == null) return;
