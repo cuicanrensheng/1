@@ -1,17 +1,14 @@
 pluginManagement {
     repositories {
-        // 优先项目本地仓库，再走官方源
-        maven { url "./repo" }
         google()
         mavenCentral()
         gradlePluginPortal()
     }
 }
 dependencyResolutionManagement {
-    // 全局统一使用 settings 仓库，消除冲突
-    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    // 强制使用 Settings 定义的仓库，防止项目内配置冲突
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        maven { url "./repo" }
         google()
         mavenCentral()
     }
