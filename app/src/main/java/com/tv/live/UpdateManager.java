@@ -27,6 +27,7 @@ import java.net.URL;
  * 应用更新管理器
  */
 public class UpdateManager {
+    // 🔥 保持您指定的 URL 不变
     private static final String UPDATE_JSON_URL = "https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json";
     private static final String APK_FILE_NAME = "tv_live_update.apk";
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
@@ -34,22 +35,22 @@ public class UpdateManager {
     private static boolean isDownloading = false;
 
     private final Context context;
-    private final SharedPreferences sp; // 🔴 新增：用于保存更新日志
+    private final SharedPreferences sp; 
     private DownloadManager downloadManager;
     private long downloadId = -1;
     private BroadcastReceiver downloadCompleteReceiver;
 
     public UpdateManager(Context context) {
         this.context = context;
-        this.sp = context.getSharedPreferences("app_update", Context.MODE_PRIVATE); // 🔴 初始化
+        this.sp = context.getSharedPreferences("app_update", Context.MODE_PRIVATE);
     }
 
-    // 🔴 新增：保存更新日志到本地
+    // 保存更新日志到本地
     public void saveUpdateMessage(String message) {
         sp.edit().putString("update_message", message).apply();
     }
 
-    // 🔴 新增：读取已保存的更新日志（供设置页弹窗使用）
+    // 读取已保存的更新日志
     public String getUpdateMessage() {
         return sp.getString("update_message", "暂无更新内容");
     }
@@ -91,11 +92,12 @@ public class UpdateManager {
                 int latestVersionCode = json.getInt("versionCode");
                 String latestVersionName = json.getString("versionName");
                 String downloadUrl = json.getString("downloadUrl");
-                String updateLog = json.optString("updateLog", "");
+                // 🟢【核心修复】将 "updateLog" 改为 "message"，并设置默认值防止为 null
+                String updateMessage = json.optString("message", "暂无更新内容");
                 boolean forceUpdate = json.optBoolean("forceUpdate", false);
 
-                // 🔴 保存更新日志，供设置页弹窗使用
-                saveUpdateMessage(updateLog);
+                // 保存更新日志
+                saveUpdateMessage(updateMessage);
 
                 int currentVersionCode = 0;
                 String currentVersionName = "未知";
@@ -112,7 +114,8 @@ public class UpdateManager {
                 final String finalCurrentVersionName = currentVersionName;
                 final String finalLatestVersionName = latestVersionName;
                 final String finalDownloadUrl = downloadUrl;
-                final String finalUpdateLog = updateLog;
+                // 修改变量传递
+                final String finalUpdateMessage = updateMessage;
                 final boolean finalForceUpdate = forceUpdate;
 
                 MAIN_HANDLER.post(() -> {
@@ -129,7 +132,7 @@ public class UpdateManager {
                         showUpdateDialog(
                                 finalCurrentVersionName,
                                 finalLatestVersionName,
-                                finalUpdateLog,
+                                finalUpdateMessage, // 🟢 传递正确的消息
                                 finalDownloadUrl,
                                 finalForceUpdate
                         );
@@ -146,12 +149,6 @@ public class UpdateManager {
                     synchronized (UpdateManager.class) {
                         isChecking = false;
                     }
-                    if (context instanceof android.app.Activity) {
-                        android.app.Activity activity = (android.app.Activity) context;
-                        if (activity.isFinishing() || activity.isDestroyed()) {
-                            return;
-                        }
-                    }
                     Toast.makeText(context, "检查更新失败：" + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
@@ -159,7 +156,7 @@ public class UpdateManager {
     }
 
     private void showUpdateDialog(String currentVersion, String latestVersion,
-                                   String updateLog, String downloadUrl,
+                                   String updateMessage, String downloadUrl,
                                    boolean forceUpdate) {
         if (context instanceof android.app.Activity) {
             android.app.Activity activity = (android.app.Activity) context;
@@ -168,11 +165,12 @@ public class UpdateManager {
             }
         }
 
-        String message = "发现新版本！\n\n"
+        // 🟢 优化弹窗文字排版，更美观
+        String message = "📱 发现新版本！\n\n"
                 + "当前版本：" + currentVersion + "\n"
                 + "最新版本：" + latestVersion + "\n\n"
-                + "【更新内容】\n"
-                + updateLog;
+                + "━━━━━━ 更新内容 ━━━━━━\n"
+                + updateMessage;
 
         AlertDialog.Builder builder = new AlertDialog.Builder(context)
                 .setTitle("📥 发现新版本")
