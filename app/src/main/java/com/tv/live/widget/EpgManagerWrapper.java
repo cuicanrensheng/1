@@ -281,15 +281,16 @@ public class EpgManagerWrapper {
                         if (ctx instanceof MainActivity) {
                             MainActivity activity = (MainActivity) ctx;
 
-                            // 🔥【联动 1】关闭设置页（如果开着）
-                            if (activity.isOpeningSettings) {
+                            // 🔥【联动 1】关闭设置页（通过公共访问器）
+                            if (activity.isOpeningSettings()) {
                                 activity.sendBroadcast(new Intent("com.tv.live.CLOSE_SETTINGS"));
-                                activity.isOpeningSettings = false;
+                                activity.setOpeningSettings(false);
                             }
 
-                            // 🔥【联动 2】关闭频道面板（如果开着）
-                            if (activity.channelPanelController != null && activity.channelPanelController.isPanelOpen()) {
-                                activity.channelPanelController.hidePanel();
+                            // 🔥【联动 2】关闭频道面板（通过公共访问器）
+                            ChannelPanelController controller = activity.getChannelPanelController();
+                            if (controller != null && controller.isPanelOpen()) {
+                                controller.hidePanel();
                             }
 
                             // 🔴【联动 3】标记当前进入了回看模式
