@@ -1,4 +1,5 @@
 name: Build TV Live APK
+
 on:
   push:
     branches: [ main ]
@@ -36,11 +37,9 @@ jobs:
       - name: 解码签名证书并注入密钥
         run: |
           echo "🔑 正在解码签名证书..."
-          # 必须生成到 app/ 目录下
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
 
           echo "🔍 正在静默验证依赖版本..."
-          # 强制刷新依赖，避免旧缓存干扰
           DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --refresh-dependencies --no-daemon 2>&1 || true)
           
           if echo "$DEPS_OUTPUT" | grep -q "androidx.media3:media3-common:1.7.1"; then
@@ -59,7 +58,6 @@ jobs:
           fi
 
           echo "🎯 开始执行 Release 打包..."
-          # 🔥 移除 -PstoreFile，因为已在 build.gradle 中硬编码路径，只传入密码和别名！
           ./gradlew assembleRelease \
             --no-daemon \
             --stacktrace \
