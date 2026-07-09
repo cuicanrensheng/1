@@ -278,12 +278,29 @@ public class EpgManagerWrapper {
                         String catchUrl = liveUrl.contains("PLTV") ? liveUrl.replace("PLTV", "TVOD") : liveUrl;
                         catchUrl += catchUrl.contains("?") ? "&playseek=" + startStr + "-" + endStr : "?playseek=" + startStr + "-" + endStr;
 
-                        // 🔥【新增】在回看播放前，触发显示 Exo 原生控制栏
                         if (ctx instanceof MainActivity) {
-                            ((MainActivity) ctx).showExoController();
-                        }
+                            MainActivity activity = (MainActivity) ctx;
 
-                        ((MainActivity) ctx).mPlayerManager.playUrl(catchUrl);
+                            // 🔥【联动 1】关闭设置页（如果开着）
+                            if (activity.isOpeningSettings) {
+                                activity.sendBroadcast(new Intent("com.tv.live.CLOSE_SETTINGS"));
+                                activity.isOpeningSettings = false;
+                            }
+
+                            // 🔥【联动 2】关闭频道面板（如果开着）
+                            if (activity.channelPanelController != null && activity.channelPanelController.isPanelOpen()) {
+                                activity.channelPanelController.hidePanel();
+                            }
+
+                            // 🔴【联动 3】标记当前进入了回看模式
+                            activity.setCatchUpMode(true);
+
+                            // 🔥【联动 4】触发 ExoPlayer 原生控制栏
+                            activity.showExoController();
+
+                            // 播放回看流
+                            activity.mPlayerManager.playUrl(catchUrl);
+                        }
                         Toast.makeText(ctx, "回看：" + item.title, Toast.LENGTH_SHORT).show();
                     } catch (Exception e) {
                         Toast.makeText(ctx, "回看失败", Toast.LENGTH_SHORT).show();
