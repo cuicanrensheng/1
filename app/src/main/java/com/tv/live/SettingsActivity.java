@@ -33,7 +33,6 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
-import androidx.media3.common.util.MediaLibraryInfo; // 🔴 新增：引入 Media3 版本库
 
 import com.tv.live.manager.TvRemoteManager;
 
@@ -244,8 +243,8 @@ public class SettingsActivity extends AppCompatActivity {
         // 4. SDK 版本 (自动读取)
         String sdkVersion = "Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")";
 
-        // 5. 播放器版本 (自动读取 Media3 库真实版本)
-        String playerVersion = MediaLibraryInfo.VERSION;
+        // 5. 播放器版本 (直接写死 1.7.1，项目里已经强制锁死这个版本，绝对安全)
+        String playerVersion = "androidx.media3 1.7.1";
 
         // 拼接成要显示的文本 (排版)
         String message = "版本信息: v" + versionName + " (" + versionCode + ")\n\n" +
