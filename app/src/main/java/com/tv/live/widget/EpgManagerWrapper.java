@@ -1,5 +1,5 @@
 package com.tv.live.widget;
-
+import com.tv.live.manager.ChannelPanelController;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
