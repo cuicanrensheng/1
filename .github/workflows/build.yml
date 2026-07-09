@@ -27,7 +27,6 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # 🚀 彻底清理所有缓存
       - name: 全局清理全部缓存
         run: |
           echo "1. 删除全部 androidx.media3 缓存文件"
@@ -43,28 +42,24 @@ jobs:
           rm -rf app/build
           rm -rf app/libs
 
-      # 🎯 物理注入：下载100%完整的本地AAR并修改Gradle配置
       - name: 注入本地完整AAR（规避远程缓存损坏）
         run: |
-          echo "3. 创建 app/libs 目录并下载完整的 Media3 1.7.0 AAR..."
+          echo "3. 创建 app/libs 目录并下载完整的 Media3 1.6.1 AAR..."
           mkdir -p app/libs
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-common/1.7.0/media3-common-1.7.0.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-exoplayer/1.7.0/media3-exoplayer-1.7.0.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-ui/1.7.0/media3-ui-1.7.0.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-exoplayer-hls/1.7.0/media3-exoplayer-hls-1.7.0.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-exoplayer-dash/1.7.0/media3-exoplayer-dash-1.7.0.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-datasource/1.7.0/media3-datasource-1.7.0.aar
+          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-common/1.6.1/media3-common-1.6.1.aar
+          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-exoplayer/1.6.1/media3-exoplayer-1.6.1.aar
+          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-ui/1.6.1/media3-ui-1.6.1.aar
+          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-exoplayer-hls/1.6.1/media3-exoplayer-hls-1.6.1.aar
+          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-exoplayer-dash/1.6.1/media3-exoplayer-dash-1.6.1.aar
+          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-datasource/1.6.1/media3-datasource-1.6.1.aar
 
           echo "4. 自动修改 app/build.gradle 注入本地文件树..."
-          # 如果 dependencies 里没有 fileTree 就自动加上
           grep -q "fileTree(dir: 'libs'" app/build.gradle || sed -i '/dependencies {/a \    implementation fileTree(dir: '\''libs'\'', include: ['\''*.aar'\''])' app/build.gradle
 
-      # 🔍 诊断依赖树
       - name: 校验依赖树
         run: ./gradlew :app:dependencies --configuration releaseCompileClasspath | grep media3
 
-      # 🎯 正式打包（此刻Gradle只会从app/libs读取完整AAR）
-      - name: 强制刷新依赖并打包Release
+      - name: 正式打包
         run: ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --stacktrace
 
       - name: 生成 update.json
