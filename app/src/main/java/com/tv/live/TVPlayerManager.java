@@ -64,6 +64,9 @@ public class TVPlayerManager {
     public static final int DECODER_MODE_AUTO = 0;
     public static final int DECODER_MODE_HARD = 1;
     public static final int DECODER_MODE_SOFT = 2;
+    // 🔴【新增】FFmpeg 扩展模式常量
+    public static final int DECODER_MODE_FFMPEG = 3;
+    
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 20000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
@@ -176,7 +179,7 @@ public class TVPlayerManager {
 
     private TVPlayerManager(Context context) {
         this.context = context;
-        this.sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE); // 🔴 绑定 SharedPreferences
+        this.sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         mHandler = new Handler(Looper.getMainLooper());
 
         hideChannelRunnable = () -> hideChannelNum();
@@ -210,11 +213,10 @@ public class TVPlayerManager {
         initPlayer();
     }
     
-        // 🔴【修改】将日志同时写入 LogCollector，实现弹窗查看
+    // 🔴【修改】将日志同时写入 LogCollector，实现弹窗查看
     private void dLog(String msg) {
         if (sp.getBoolean("log_enable", false)) {
             Log.d(TAG, msg);
-            // 把日志也存到内存里
             com.tv.live.util.LogCollector.getInstance().addLog(TAG, msg);
         }
     }
@@ -230,6 +232,10 @@ public class TVPlayerManager {
                 break;
             case DECODER_MODE_HARD:
                 dLog("【解码器】硬解模式");
+                break;
+            case DECODER_MODE_FFMPEG:
+                dLog("【解码器】FFmpeg 软解扩展模式");
+                renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
                 break;
             case DECODER_MODE_AUTO:
             default:
@@ -280,6 +286,18 @@ public class TVPlayerManager {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
+                
+                // 🔴【新增】检测 FFmpeg 解码失败的情况
+                if (mDecoderMode == DECODER_MODE_FFMPEG) {
+                    String errMsg = error.getMessage();
+                    if (errMsg != null && (errMsg.contains("DecoderInitializationException") 
+                            || errMsg.contains("FFmpeg") 
+                            || errMsg.contains("soft decoder"))) {
+                        Toast.makeText(context, "FFmpeg 解码不支持该视频格式，已自动切换回系统解码", Toast.LENGTH_LONG).show();
+                        dLog("【FFmpeg 提示】解码失败，回退系统解码：\n" + errMsg);
+                    }
+                }
+
                 Throwable rootCause = error.getCause();
                 boolean isRedirectError = false;
                 while (rootCause != null) {
@@ -460,6 +478,18 @@ public class TVPlayerManager {
         if (!TextUtils.isEmpty(currentUrl)) {
             retryCount = 0;
             isRetrying = false;
+            
+            // 🔴【新增】切换成功提示
+            if (mDecoderMode == DECODER_MODE_FFMPEG) {
+                Toast.makeText(context, "已切换至 FFmpeg 软解扩展模式", Toast.LENGTH_SHORT).show();
+            } else if (mDecoderMode == DECODER_MODE_SOFT) {
+                Toast.makeText(context, "已切换至 软解模式", Toast.LENGTH_SHORT).show();
+            } else if (mDecoderMode == DECODER_MODE_HARD) {
+                Toast.makeText(context, "已切换至 硬解模式", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(context, "已切换至 自动模式", Toast.LENGTH_SHORT).show();
+            }
+
             playUrlInternal(currentUrl, currentPosition);
         }
         isSwitching = false;
@@ -481,6 +511,7 @@ public class TVPlayerManager {
                         int mode = DECODER_MODE_AUTO;
                         if ("hard".equals(modeStr)) mode = DECODER_MODE_HARD;
                         else if ("soft".equals(modeStr)) mode = DECODER_MODE_SOFT;
+                        else if ("ffmpeg".equals(modeStr)) mode = DECODER_MODE_FFMPEG;
                         setDecoderMode(mode);
                     }
                 }
@@ -779,7 +810,6 @@ public class TVPlayerManager {
                 connection.setConnectTimeout(5000);
                 connection.setReadTimeout(5000);
                 connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10)");
-                // 携带 cookie
                 String cookies = CookieManager.getInstance().getCookie(masterUrl);
                 if (cookies != null) connection.setRequestProperty("Cookie", cookies);
 
@@ -807,12 +837,9 @@ public class TVPlayerManager {
 
     private void parseMasterPlaylist(String playlist, String baseUrl) {
         List<Variant> list = new ArrayList<>();
-        // 🔴【终极修复】允许RESOLUTION可选，并兼容属性顺序和CODECS等参数
         Pattern streamPattern = Pattern.compile(
             "#EXT-X-STREAM-INF:[^\\r\\n]*BANDWIDTH=(\\d+)(?:[^\\r\\n]*RESOLUTION=(\\d+x\\d+))?[^\\r\\n]*"
         );
-        
-        // 🔴【调试】将M3U8内容前500字符输出到悬浮窗，方便检查源格式
         dLog("播放列表内容（截取前500字符）：\n" + playlist.substring(0, Math.min(playlist.length(), 500)));
 
         String[] lines = playlist.split("\\r?\\n");
@@ -821,7 +848,7 @@ public class TVPlayerManager {
             Matcher matcher = streamPattern.matcher(line);
             if (matcher.find()) {
                 int bandwidth = Integer.parseInt(matcher.group(1));
-                String resolutionStr = matcher.group(2); // 可能为 null
+                String resolutionStr = matcher.group(2);
                 int width = 0, height = 0;
 
                 if (resolutionStr != null && !resolutionStr.isEmpty()) {
@@ -830,7 +857,6 @@ public class TVPlayerManager {
                     height = Integer.parseInt(wh[1]);
                 }
 
-                // 下一个非空行通常就是 URI
                 String uri = null;
                 for (int j = i + 1; j < lines.length; j++) {
                     String next = lines[j].trim();
@@ -867,7 +893,6 @@ public class TVPlayerManager {
         }
     }
 
-    // ********** 清晰度列表（基于直播源解析） **********
     public List<String> getAvailableResolutions() {
         List<String> resolutions = new ArrayList<>();
         for (Variant v : variantList) {
@@ -878,13 +903,11 @@ public class TVPlayerManager {
         return resolutions;
     }
 
-    // ********** 切换清晰度：重新加载对应子流 **********
     public void switchToResolution(int targetHeight) {
         if (variantList.isEmpty()) {
             Log.w(TAG, "无多码率信息，无法切换清晰度");
             return;
         }
-        // 寻找分辨率最接近的变体（>= targetHeight 的最小一个，或者最高那个）
         Variant selected = null;
         for (Variant v : variantList) {
             if (v.height >= targetHeight) {
@@ -893,10 +916,9 @@ public class TVPlayerManager {
             }
         }
         if (selected == null) {
-            selected = variantList.get(variantList.size() - 1); // 最高
+            selected = variantList.get(variantList.size() - 1);
         }
         dLog("切换清晰度到：" + selected.resolutionLabel + "，URL=" + selected.url);
-        // 重新播放该子流
         playUrlInternal(selected.url);
     }
 
