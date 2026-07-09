@@ -1,5 +1,4 @@
 name: Build TV Live APK
-
 on:
   push:
     branches: [ main ]
@@ -37,9 +36,11 @@ jobs:
       - name: 解码签名证书并注入密钥
         run: |
           echo "🔑 正在解码签名证书..."
+          # 必须生成到 app/ 目录下
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
 
           echo "🔍 正在静默验证依赖版本..."
+          # 强制刷新依赖，避免旧缓存干扰
           DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --refresh-dependencies --no-daemon 2>&1 || true)
           
           if echo "$DEPS_OUTPUT" | grep -q "androidx.media3:media3-common:1.7.1"; then
@@ -58,6 +59,7 @@ jobs:
           fi
 
           echo "🎯 开始执行 Release 打包..."
+          # 🔥 移除 -PstoreFile，因为已在 build.gradle 中硬编码路径，只传入密码和别名！
           ./gradlew assembleRelease \
             --no-daemon \
             --stacktrace \
@@ -65,40 +67,16 @@ jobs:
             -PkeyAlias=${{ secrets.KEY_ALIAS }} \
             -PkeyPassword=${{ secrets.KEY_PASSWORD }}
 
-      # 🟢 从 build.gradle 中读取版本号
-      - name: 读取 build.gradle 版本号
-        id: version_info
-        run: |
-          VERSION_CODE=$(grep -m 1 "versionCode" app/build.gradle | grep -o '[0-9]*')
-          VERSION_NAME=$(grep -m 1 "versionName" app/build.gradle | grep -o '".*"' | sed 's/"//g')
-          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_OUTPUT
-          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
-          echo "✅ 读取成功：versionCode=$VERSION_CODE, versionName=$VERSION_NAME"
-
-      # 🟢 读取 release_notes.txt 的内容作为更新日志
-      - name: 获取更新日志内容
-        id: get_update_message
-        run: |
-          if [ -f "release_notes.txt" ]; then
-            MSG=$(cat release_notes.txt | sed 's/"/\\"/g' | tr '\n' ' ')
-            echo "message=$MSG" >> $GITHUB_OUTPUT
-            echo "✅ 读取到更新日志：$MSG"
-          else
-            echo "⚠️ 未找到 release_notes.txt，使用默认消息"
-            echo "message=自动更新版本" >> $GITHUB_OUTPUT
-          fi
-
       - name: 生成 update.json
         run: |
-          VERSION_CODE="${{ steps.version_info.outputs.VERSION_CODE }}"
-          VERSION_NAME="${{ steps.version_info.outputs.VERSION_NAME }}"
+          VERSION_CODE=${{ github.run_number }}
+          VERSION_NAME="1.0.$VERSION_CODE"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION_CODE/app-release.apk"
-          RELEASE_MSG="${{ steps.get_update_message.outputs.message }}"
           cat > update.json << EOF
           {
             "versionCode": $VERSION_CODE,
             "versionName": "$VERSION_NAME",
-            "message": "$RELEASE_MSG",
+            "message": "自动更新版本",
             "downloadUrl": "$DOWNLOAD_URL"
           }
           EOF
@@ -118,28 +96,10 @@ jobs:
       - name: 创建发布
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version_info.outputs.VERSION_CODE }}
-          name: 自动发布 ${{ steps.version_info.outputs.VERSION_NAME }}
-          body: ${{ steps.get_update_message.outputs.message }}
+          tag_name: v${{ github.run_number }}
+          name: 自动发布 v${{ github.run_number }}
           files: |
             app/build/outputs/apk/release/app-release.apk
             update.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 🟢 自动将最新 update.json 推送回 main 分支
-      - name: 自动提交 update.json 到 main 分支
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout main
-          # 仅当 update.json 发生变更时才提交
-          if git diff --quiet -- update.json && git diff --cached --quiet -- update.json; then
-            echo "✅ update.json 无变更，跳过提交"
-          else
-            git add update.json
-            git commit -m "[skip ci] 自动更新 update.json 到 v${{ steps.version_info.outputs.VERSION_CODE }}"
-            git push
-          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
