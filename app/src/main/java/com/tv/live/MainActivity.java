@@ -62,6 +62,9 @@ public class MainActivity extends AppCompatActivity {
 
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
 
+    // 🔴【新增】统一读取日志开关的 SharedPreferences
+    private SharedPreferences sp;
+
     /**
      * 🟢【新增】提供给外部（如 ChannelListActivity）安全获取当前实例的方法
      */
@@ -74,6 +77,9 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         // 🟢【优化1】初始化弱引用
         mInstanceRef = new WeakReference<>(this);
+        
+        // 🔴【新增】初始化 SharedPreferences
+        sp = getSharedPreferences("app_settings", MODE_PRIVATE);
         
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         displayManager = new DisplayManager(this);
@@ -357,7 +363,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadSettings() {
-        SharedPreferences sp = getSharedPreferences("app_settings", MODE_PRIVATE);
+        // 🔴 直接使用 onCreate 中初始化的 sp，无需重复获取
         boolean epg_enable = sp.getBoolean("epg_enable", true);
         channel_reverse = sp.getBoolean("channel_reverse", false);
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
@@ -499,9 +505,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢【优化3】利用 BuildConfig.DEBUG 控制日志，线上发布版本连 Log.d 都不执行
+    // 🔴【核心改动】让 log() 读取 app_settings 里的 "log_enable"，代替 BuildConfig.DEBUG
     private void log(String msg) {
-        if (BuildConfig.DEBUG) {
+        if (sp.getBoolean("log_enable", false)) {
             Log.d("MainActivity", msg);
         }
     }
