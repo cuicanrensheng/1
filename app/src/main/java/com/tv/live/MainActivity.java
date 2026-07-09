@@ -132,6 +132,23 @@ public class MainActivity extends AppCompatActivity {
             // 高版本 Media3 直接忽略即可，不影响功能
         }
 
+        // 🔴【新增】绑定 ExoPlayer 控制栏显隐监听器
+        playerView.setControllerVisibilityListener(visibility -> {
+            if (!visibility) {
+                // 当控制栏隐藏时（无论是超时还是用户点击隐藏）
+                mMainHandler.removeCallbacks(hideControllerRunnable);
+                isControllerShowing = false;
+                if (touchListener != null) {
+                    if (gestureManager != null) {
+                        final PlayerGestureHelper newGestureHelper = gestureManager.create();
+                        touchListener.updateGestureHelper(newGestureHelper);
+                    }
+                    // 立即将触摸控制权交还给我们的自定义手势监听
+                    playerView.setOnTouchListener(touchListener);
+                }
+            }
+        });
+
         initChannelPanelController();
         initRemoteManager();
         initPictureInPicture();
@@ -423,6 +440,14 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public boolean onTouch(View v, MotionEvent event) {
+            MainActivity activity = activityRef.get();
+            if (activity != null) {
+                // 🔴【新增】回看模式下，如果控制栏已隐藏，点击屏幕中间立即重新唤起控制栏
+                if (activity.isInCatchUpMode && !activity.isControllerShowing && event.getAction() == MotionEvent.ACTION_UP) {
+                    activity.showExoController();
+                    return true;
+                }
+            }
             if (gestureHelper != null) {
                 gestureHelper.handleTouch(event);
             }
