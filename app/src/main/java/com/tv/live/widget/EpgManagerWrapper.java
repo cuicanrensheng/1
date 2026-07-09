@@ -1,4 +1,5 @@
 package com.tv.live.widget;
+
 import com.tv.live.manager.ChannelPanelController;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -6,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -217,6 +219,7 @@ public class EpgManagerWrapper {
                 Calendar.getInstance().get(Calendar.MINUTE));
     }
 
+    // 🟢【关键修复】针对 Android 13+ 的广播注册安全限制
     private void registerReminderReceiver() {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
@@ -227,7 +230,13 @@ public class EpgManagerWrapper {
                 }
             }
         };
-        context.registerReceiver(receiver, new IntentFilter(ACTION_REMINDER));
+        IntentFilter filter = new IntentFilter(ACTION_REMINDER);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ 必须显式声明 RECEIVER_NOT_EXPORTED，否则会引发 SecurityException 崩溃
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            context.registerReceiver(receiver, filter);
+        }
     }
 
     // ================= 🛠️ 核心优化的 Adapter 部分 =================
