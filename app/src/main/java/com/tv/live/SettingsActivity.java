@@ -427,13 +427,44 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
         
-        // 🔴【新增】日志点击事件（切换日志开关状态）
+        // 🔴【修改】日志点击事件：切换开关 + 弹窗显示收集的日志
         itemLog.setOnClickListener(v -> {
             boolean logEnabled = sp.getBoolean("log_enable", false);
             boolean newState = !logEnabled;
             sp.edit().putBoolean("log_enable", newState).apply();
             tv_log_status.setText(newState ? "开启" : "关闭");
             Toast.makeText(SettingsActivity.this, "日志已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
+
+            // 🔥 获取收集到的日志并弹窗显示
+            String logs = com.tv.live.util.LogCollector.getInstance().getAllLogs();
+            if (logs.isEmpty()) {
+                logs = "暂无日志，请先开启日志并切换几个频道后再来查看。";
+            }
+
+            // 创建可滚动的大黑框
+            TextView textView = new TextView(SettingsActivity.this);
+            textView.setText(logs);
+            textView.setTextColor(Color.WHITE);
+            textView.setTextSize(12f);
+            textView.setTypeface(Typeface.MONOSPACE);
+            textView.setPadding(16, 16, 16, 16);
+            textView.setBackgroundColor(0xFF1E1E1E);
+            int maxHeight = (int) (getResources().getDisplayMetrics().heightPixels * 0.6);
+            textView.setMaxHeight(maxHeight);
+            textView.setScrollbarFadingEnabled(false);
+
+            ScrollView scrollViewLog = new ScrollView(SettingsActivity.this);
+            scrollViewLog.addView(textView);
+
+            new AlertDialog.Builder(SettingsActivity.this)
+                    .setTitle("📱 实时日志 (" + (newState ? "记录中" : "已暂停") + ")")
+                    .setView(scrollViewLog)
+                    .setPositiveButton("清空日志", (dialog, which) -> {
+                        com.tv.live.util.LogCollector.getInstance().clearLogs();
+                        Toast.makeText(SettingsActivity.this, "日志已清空", Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton("关闭", null)
+                    .show();
         });
     }
 
