@@ -88,10 +88,10 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     
     // ================================================================
-    // ✅ 核心改动：直接引用你下载好的本地 AAR，再也不碰远程 Maven
+    // ✅ 必须：直接读取你 app/libs 目录下的 6 个完整 AAR 文件
     implementation fileTree(dir: 'libs', include: ['*.aar'])
     
-    // ⚠️ 必须手动补充缺失的传递依赖，否则会报 Guava 找不到
+    // ✅ 必须：手动补齐 AAR 底层依赖（否则编译器找不到 Guava）
     implementation 'com.google.guava:guava:33.3.1-android'
     implementation 'androidx.annotation:annotation:1.6.0'
     // ================================================================
@@ -108,5 +108,7 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
 
-// 🔴 这一整块 `configurations.all` 现在完全多余！本地 AAR 优先级最高，不需要 force，请直接删掉！
-// 如果你不想删，请把它注释掉。这里我直接给你删干净了。
+// 🔴 请务必删除这个 `configurations.all` 整个代码块！
+// 我们已经使用本地 fileTree，不再需要强制远程版本。
+// 它只会干扰 Gradle 的编译过程。
+// configurations.all { ... }
