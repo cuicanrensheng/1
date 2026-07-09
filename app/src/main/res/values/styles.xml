@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- ================================================ -->
-    <!-- 🟢【已删除】别名 Theme.TVLive，不再使用 -->
-    <!-- ================================================ -->
-
-    <!-- ================================================ -->
     <!-- 主主题：兼容模式（手机+电视都能用） -->
-    <!-- ================================================ -->
     <style name="Theme.TVLive.NoTitle" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
@@ -16,7 +10,7 @@
         <item name="android:windowBackground">@android:color/black</item>
     </style>
 
-    <!-- 透明主题和动画样式保持原样不变 -->
+    <!-- SettingsActivity 透明主题（浮层效果） -->
     <style name="TransparentTheme" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
@@ -29,6 +23,7 @@
         <item name="android:fitsSystemWindows">false</item>
     </style>
 
+    <!-- 右侧滑入动画样式 -->
     <style name="RightSlideAnimation">
         <item name="android:activityOpenEnterAnimation">@anim/slide_in_right</item>
         <item name="android:activityOpenExitAnimation">@anim/slide_out_left</item>
