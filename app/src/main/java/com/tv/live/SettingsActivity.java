@@ -427,7 +427,7 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
         
-        // 🔴【最终修改】点击日志项时，调用 MainActivity 控制居中悬浮窗，不再弹窗！
+        // 🔴 最终版：点击日志项，只控制开关和调用 MainActivity 的悬浮窗
         itemLog.setOnClickListener(v -> {
             boolean logEnabled = sp.getBoolean("log_enable", false);
             boolean newState = !logEnabled;
@@ -435,7 +435,7 @@ public class SettingsActivity extends AppCompatActivity {
             tv_log_status.setText(newState ? "开启" : "关闭");
             Toast.makeText(SettingsActivity.this, "日志已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
 
-            // 🔥 调用 MainActivity 的静态方法，控制播放器中间的透明悬浮窗
+            // 调用 MainActivity 的静态方法，控制播放器中间的透明悬浮窗
             MainActivity.toggleLogWindow(newState);
         });
     }
