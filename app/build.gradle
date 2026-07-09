@@ -87,13 +87,13 @@ dependencies {
     
     implementation 'com.google.code.gson:gson:2.10.1'
     
-    // Media3 统一版本1.7.0，包含 media3-common（TrackGroupArray所在包）
-    implementation "androidx.media3:media3-exoplayer:1.7.0"
-    implementation "androidx.media3:media3-ui:1.7.0"
-    implementation "androidx.media3:media3-exoplayer-hls:1.7.0"
-    implementation "androidx.media3:media3-exoplayer-dash:1.7.0"
-    implementation "androidx.media3:media3-common:1.7.0"
-    implementation "androidx.media3:media3-datasource:1.7.0"
+    // ✅ Media3 全部降回 1.6.1（因为 1.7.0 在仓库里不存在，会报 404）
+    implementation "androidx.media3:media3-exoplayer:1.6.1"
+    implementation "androidx.media3:media3-ui:1.6.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.6.1"
+    implementation "androidx.media3:media3-exoplayer-dash:1.6.1"
+    implementation "androidx.media3:media3-common:1.6.1"
+    implementation "androidx.media3:media3-datasource:1.6.1"
     
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "com.squareup.retrofit2:retrofit:2.11.0"
@@ -107,15 +107,15 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
 
-// 新增：强制锁定Media3全部版本，防止依赖树拉低版本导致类缺失
+// 强制锁定Media3全部版本为 1.6.1，防止依赖树拉低版本导致类缺失
 configurations.all {
     resolutionStrategy {
-        force "androidx.media3:media3-common:1.7.0"
-        force "androidx.media3:media3-exoplayer:1.7.0"
-        force "androidx.media3:media3-ui:1.7.0"
-        force "androidx.media3:media3-exoplayer-hls:1.7.0"
-        force "androidx.media3:media3-exoplayer-dash:1.7.0"
-        force "androidx.media3:media3-datasource:1.7.0"
+        force "androidx.media3:media3-common:1.6.1"
+        force "androidx.media3:media3-exoplayer:1.6.1"
+        force "androidx.media3:media3-ui:1.6.1"
+        force "androidx.media3:media3-exoplayer-hls:1.6.1"
+        force "androidx.media3:media3-exoplayer-dash:1.6.1"
+        force "androidx.media3:media3-datasource:1.6.1"
     }
     // 不缓存动态版本，每次构建重新校验依赖完整性
     resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
