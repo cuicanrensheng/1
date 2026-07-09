@@ -92,7 +92,6 @@ public class UpdateManager {
                 int latestVersionCode = json.getInt("versionCode");
                 String latestVersionName = json.getString("versionName");
                 String downloadUrl = json.getString("downloadUrl");
-                // 🟢【核心修复】将 "updateLog" 改为 "message"，并设置默认值防止为 null
                 String updateMessage = json.optString("message", "暂无更新内容");
                 boolean forceUpdate = json.optBoolean("forceUpdate", false);
 
@@ -114,7 +113,6 @@ public class UpdateManager {
                 final String finalCurrentVersionName = currentVersionName;
                 final String finalLatestVersionName = latestVersionName;
                 final String finalDownloadUrl = downloadUrl;
-                // 修改变量传递
                 final String finalUpdateMessage = updateMessage;
                 final boolean finalForceUpdate = forceUpdate;
 
@@ -132,7 +130,7 @@ public class UpdateManager {
                         showUpdateDialog(
                                 finalCurrentVersionName,
                                 finalLatestVersionName,
-                                finalUpdateMessage, // 🟢 传递正确的消息
+                                finalUpdateMessage,
                                 finalDownloadUrl,
                                 finalForceUpdate
                         );
@@ -165,7 +163,6 @@ public class UpdateManager {
             }
         }
 
-        // 🟢 优化弹窗文字排版，更美观
         String message = "📱 发现新版本！\n\n"
                 + "当前版本：" + currentVersion + "\n"
                 + "最新版本：" + latestVersion + "\n\n"
@@ -229,6 +226,7 @@ public class UpdateManager {
         }
     }
 
+    // 🟢【关键修复】针对 Android 13+ 下载广播的安全注册
     private void registerDownloadCompleteReceiver() {
         downloadCompleteReceiver = new BroadcastReceiver() {
             @Override
@@ -243,7 +241,11 @@ public class UpdateManager {
 
         IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
         try {
-            context.registerReceiver(downloadCompleteReceiver, filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                context.registerReceiver(downloadCompleteReceiver, filter);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
