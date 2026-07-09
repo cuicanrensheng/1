@@ -47,15 +47,12 @@ public class SettingsActivity extends AppCompatActivity {
     private SwitchCompat sw_boot, sw_reverse, sw_pip;
     private TextView tv_screen_ratio, tv_decoder_mode, tv_renderer_type, tv_redirect_setting, tv_boot_status;
     private TextView tv_channel_line;
-    // 🟢【新增】清晰度控件
     private TextView tv_resolution_status;
     private View itemResolution;
     
-    // 🔴【新增】日志控件
     private View itemLog;
     private TextView tv_log_status;
 
-    // 🔴【新增】版本信息控件
     private View itemVersionInfo;
     private TextView tv_version_short;
     
@@ -130,15 +127,12 @@ public class SettingsActivity extends AppCompatActivity {
         tv_boot_status = findViewById(R.id.tv_boot_status);
         scrollView = findViewById(R.id.settings_content);
         
-        // 🟢【新增】初始化清晰度控件
         itemResolution = findViewById(R.id.item_resolution);
         tv_resolution_status = findViewById(R.id.tv_resolution_status);
 
-        // 🔴【新增】初始化日志控件
         itemLog = findViewById(R.id.item_log);
         tv_log_status = findViewById(R.id.tv_log_status);
 
-        // 🔴【新增】初始化版本信息控件
         itemVersionInfo = findViewById(R.id.item_version_info);
         tv_version_short = findViewById(R.id.tv_version_short);
         
@@ -200,10 +194,8 @@ public class SettingsActivity extends AppCompatActivity {
         findViewById(R.id.item_redirect).setOnClickListener(v -> showRedirectConfigDialog());
         findViewById(R.id.item_check_update).setOnClickListener(v -> updateManager.checkUpdate());
         
-        // 🟢【新增】绑定清晰度点击事件
         itemResolution.setOnClickListener(v -> showResolutionDialog());
 
-        // 🟢【新增】绑定版本信息点击事件
         itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
         
         initListeners();
@@ -220,16 +212,11 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢【新增】显示版本信息弹窗（全自动获取）
+    // 🟢 显示版本信息弹窗
     private void showVersionInfoDialog() {
-        // 1. 版本信息
         String versionName = BuildConfig.VERSION_NAME;
         int versionCode = BuildConfig.VERSION_CODE;
-
-        // 2. 更新内容（从 UpdateManager 的 SharedPreferences 自动读取）
         String updateNotes = updateManager.getUpdateMessage();
-
-        // 3. UA (从 SharedPreferences 自动读取)
         String userAgent = sp.getString("custom_user_agent", "");
         if (TextUtils.isEmpty(userAgent)) {
             String uaMode = sp.getString(KEY_USER_AGENT_MODE, "exo");
@@ -239,21 +226,15 @@ public class SettingsActivity extends AppCompatActivity {
                 userAgent = "ExoPlayer";
             }
         }
-
-        // 4. SDK 版本 (自动读取)
         String sdkVersion = "Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")";
-
-        // 5. 播放器版本 (直接写死 1.7.1，项目里已经强制锁死这个版本，绝对安全)
         String playerVersion = "androidx.media3 1.7.1";
 
-        // 拼接成要显示的文本 (排版)
         String message = "版本信息: v" + versionName + " (" + versionCode + ")\n\n" +
                          "更新内容: \n" + updateNotes + "\n\n" +
                          "UA: " + userAgent + "\n\n" +
                          "SDK 版本: " + sdkVersion + "\n\n" +
                          "播放器版本: " + playerVersion;
 
-        // 给标题加粗
         SpannableString spannableString = new SpannableString(message);
         spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, 5, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         int startUc = message.indexOf("更新内容:");
@@ -273,7 +254,6 @@ public class SettingsActivity extends AppCompatActivity {
         return "源" + index;
     }
 
-    // ================= 🔥 统一深色风格的单选弹窗（已移除“取消”按钮） =================
     private void showDarkSingleChoiceDialog(String title, String[] items, int checkedItem, java.util.function.Consumer<Integer> onSelected) {
         ListView listView = new ListView(this);
         listView.setBackgroundColor(0xFF272B3A);
@@ -402,15 +382,12 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.item_decoder));
         settingsItemList.add(findViewById(R.id.item_renderer));
         settingsItemList.add(findViewById(R.id.tv_screen_ratio));
-        // 🟢【新增】清晰度选项加入焦点管理列表
         settingsItemList.add(itemResolution);
         settingsItemList.add(findViewById(R.id.item_redirect));
         settingsItemList.add(itemLiveSubscribe);
         settingsItemList.add(itemEpgSubscribe);
         settingsItemList.add(findViewById(R.id.item_check_update));
-        // 🔴【新增】日志选项加入焦点管理列表
         settingsItemList.add(itemLog);
-        // 🔴【新增】版本信息选项加入焦点管理列表
         settingsItemList.add(itemVersionInfo);
 
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
@@ -488,7 +465,6 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
         
-        // 🔴 最终版：点击日志项，只控制开关和调用 MainActivity 的悬浮窗
         itemLog.setOnClickListener(v -> {
             boolean logEnabled = sp.getBoolean("log_enable", false);
             boolean newState = !logEnabled;
@@ -496,17 +472,12 @@ public class SettingsActivity extends AppCompatActivity {
             tv_log_status.setText(newState ? "开启" : "关闭");
             Toast.makeText(SettingsActivity.this, "日志已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
 
-            // 调用 MainActivity 的静态方法，控制播放器中间的透明悬浮窗
             MainActivity.toggleLogWindow(newState);
         });
 
-        // 🔴【新增】版本信息点击事件
         itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
     }
 
-    // ====================================================================
-    // 🟢【新增】清晰度选择弹窗逻辑
-    // ====================================================================
     private void showResolutionDialog() {
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         if (playerManager == null) return;
@@ -516,14 +487,12 @@ public class SettingsActivity extends AppCompatActivity {
             return;
         }
         
-        // 将 List 转为数组供选择器使用
         String[] items = resolutions.toArray(new String[0]);
 
         new AlertDialog.Builder(this)
                 .setTitle("选择清晰度")
                 .setItems(items, (dialog, which) -> {
                     String selectedLabel = items[which];
-                    // 从标签中提取分辨率高度值
                     int targetHeight = 0;
                     if (selectedLabel.contains("4K")) targetHeight = 2160;
                     else if (selectedLabel.contains("1080p")) targetHeight = 1080;
@@ -536,7 +505,6 @@ public class SettingsActivity extends AppCompatActivity {
 
                     if (targetHeight > 0) {
                         playerManager.switchToResolution(targetHeight);
-                        // 更新设置页面显示当前选中的清晰度
                         tv_resolution_status.setText(selectedLabel);
                         Toast.makeText(SettingsActivity.this, "已切换至: " + selectedLabel, Toast.LENGTH_SHORT).show();
                     }
@@ -544,13 +512,17 @@ public class SettingsActivity extends AppCompatActivity {
                 .setNegativeButton("取消", null)
                 .show();
     }
-    // ====================================================================
 
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(this, spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
 
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_subscription, null);
+        // 🟢【修复1】使用正确的 LayoutInflater 上下文，彻底解决 layout_width 缺少的 InflateException
+        android.view.LayoutInflater inflater = android.view.LayoutInflater.from(
+                new android.view.ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog)
+        );
+        View dialogView = inflater.inflate(R.layout.dialog_subscription, null);
+
         ListView lvSourceList = dialogView.findViewById(R.id.lv_source_list);
         ImageView ivQrCode = dialogView.findViewById(R.id.iv_qr_code);
         TextView tvIpAddress = dialogView.findViewById(R.id.tv_ip_address);
@@ -616,6 +588,7 @@ public class SettingsActivity extends AppCompatActivity {
 
             @Override
             public void onDelete(int position) {
+                // 🟢【修复2】添加边界和 index 安全检查，彻底解决 ArrayIndexOutOfBoundsException 闪退
                 if (position < 0 || position >= sources.size()) {
                     return;
                 }
@@ -625,11 +598,18 @@ public class SettingsActivity extends AppCompatActivity {
                         .setTitle("确认删除")
                         .setMessage("确定要删除「" + item.name + "」吗？")
                         .setPositiveButton("删除", (d, w) -> {
-                            sourceManager.removeSource(sourceManager.indexOfUrl(item.url));
-                            sources.clear();
-                            sources.addAll(sourceManager.getAllSources());
-                            adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
-                            adapter.notifyDataSetChanged();
+                            // 先找真实索引，防止 indexOfUrl 返回 -1 导致崩溃
+                            int realIndex = sourceManager.indexOfUrl(item.url);
+                            if (realIndex >= 0 && realIndex < sourceManager.size()) {
+                                sourceManager.removeSource(realIndex);
+                                sources.clear();
+                                sources.addAll(sourceManager.getAllSources());
+                                adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
+                                adapter.notifyDataSetChanged();
+                                Toast.makeText(SettingsActivity.this, "已删除", Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(SettingsActivity.this, "删除失败，源未找到", Toast.LENGTH_SHORT).show();
+                            }
                         })
                         .create();
                         
@@ -796,7 +776,6 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
-    // ================= 🔴【修改】解码器选择弹窗（增加 FFmpeg 选项） =================
     private void showDecoderModeDialog() {
         final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）", "FFmpeg 软解扩展"};
         final String[] modeValues = {"auto", "hard", "soft", "ffmpeg"};
@@ -817,7 +796,6 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
-    // ================= 🔴【修改】更新解码器模式显示文本（支持 FFmpeg） =================
     private void updateDecoderModeText(String mode) {
         if (tv_decoder_mode == null) return;
         switch (mode) {
