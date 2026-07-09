@@ -807,18 +807,28 @@ public class TVPlayerManager {
 
     private void parseMasterPlaylist(String playlist, String baseUrl) {
         List<Variant> list = new ArrayList<>();
-        // 🔴【修复】改进了正则表达式，允许 BANDWIDTH 和 RESOLUTION 之间出现任何非换行字符，兼容性更强
-        Pattern streamPattern = Pattern.compile("#EXT-X-STREAM-INF:[^\\r\\n]*BANDWIDTH=(\\d+)[^\\r\\n]*RESOLUTION=(\\d+x\\d+)");
+        // 🔴【终极修复】允许RESOLUTION可选，并兼容属性顺序和CODECS等参数
+        Pattern streamPattern = Pattern.compile(
+            "#EXT-X-STREAM-INF:[^\\r\\n]*BANDWIDTH=(\\d+)(?:[^\\r\\n]*RESOLUTION=(\\d+x\\d+))?[^\\r\\n]*"
+        );
+        
+        // 🔴【调试】将M3U8内容前500字符输出到悬浮窗，方便检查源格式
+        dLog("播放列表内容（截取前500字符）：\n" + playlist.substring(0, Math.min(playlist.length(), 500)));
+
         String[] lines = playlist.split("\\r?\\n");
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
             Matcher matcher = streamPattern.matcher(line);
             if (matcher.find()) {
                 int bandwidth = Integer.parseInt(matcher.group(1));
-                String resolution = matcher.group(2);
-                String[] wh = resolution.split("x");
-                int width = Integer.parseInt(wh[0]);
-                int height = Integer.parseInt(wh[1]);
+                String resolutionStr = matcher.group(2); // 可能为 null
+                int width = 0, height = 0;
+
+                if (resolutionStr != null && !resolutionStr.isEmpty()) {
+                    String[] wh = resolutionStr.split("x");
+                    width = Integer.parseInt(wh[0]);
+                    height = Integer.parseInt(wh[1]);
+                }
 
                 // 下一个非空行通常就是 URI
                 String uri = null;
@@ -830,16 +840,14 @@ public class TVPlayerManager {
                     }
                 }
                 if (uri != null) {
-                    // 处理相对路径
                     if (!uri.startsWith("http")) {
                         uri = resolveUrl(baseUrl, uri);
                     }
                     list.add(new Variant(uri, bandwidth, width, height));
-                    dLog("解析到清晰度: " + resolution + " -> " + uri);
+                    dLog("解析到清晰度: " + (height > 0 ? resolutionStr : "自适应") + " -> " + uri);
                 }
             }
         }
-        // 按分辨率从低到高排序
         list.sort((a, b) -> Integer.compare(a.height, b.height));
         this.variantList = list;
         if (!list.isEmpty()) {
