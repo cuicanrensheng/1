@@ -773,6 +773,11 @@ public class MainActivity extends AppCompatActivity {
                 if (pipManager != null && mPlayerManager != null) {
                     pipManager.resumePlayback(mPlayerManager);
                 }
+                
+                // 🟢【新增】切回前台后，强制隐藏可能被 ExoPlayer 自动弹出的控制栏
+                if (playerView != null && !isControllerShowing) {
+                    hideExoController();
+                }
             }, 200);
         }
         remoteManager.syncMode();
