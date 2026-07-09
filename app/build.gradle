@@ -100,8 +100,11 @@ dependencies {
     
     implementation 'com.google.code.gson:gson:2.10.1'
 
-    // ✅【方案 A】先引入本地 libs 文件夹下的所有 AAR（包含你的 FFmpeg 扩展）
-    implementation fileTree(dir: 'libs', include: ['*.aar'])
+    // 🟢【重要修改】注释掉本地 AAR 引入，避免与远程的 Media3 1.7.1 冲突！
+    // implementation fileTree(dir: 'libs', include: ['*.aar'])
+    
+    // 🟢【新增】加入官方的 Media3 FFmpeg 软解扩展，版本锁定为 1.7.1
+    implementation "androidx.media3:media3-exoplayer-ffmpeg:1.7.1"
     
     // ✅ 远程 Media3 模块（版本锁定为 1.7.1）
     implementation "androidx.media3:media3-exoplayer:1.7.1"
@@ -131,19 +134,3 @@ dependencies {
     }
 }
 
-// ================================================================
-// 🔒 只保留 force，无全局 exclude（避免 AGP 死锁）
-// ================================================================
-configurations.all {
-    resolutionStrategy {
-        force "androidx.media3:media3-common:1.7.1"
-        force "androidx.media3:media3-exoplayer:1.7.1"
-        force "androidx.media3:media3-ui:1.7.1"
-        force "androidx.media3:media3-exoplayer-hls:1.7.1"
-        force "androidx.media3:media3-exoplayer-dash:1.7.1"
-        force "androidx.media3:media3-datasource:1.7.1"
-        force "androidx.media3:media3-decoder:1.7.1"
-        force "androidx.media3:media3-extractor:1.7.1"
-    }
-}
-// ================================================================
