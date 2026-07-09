@@ -418,13 +418,14 @@
         android:padding="24dp"
         android:visibility="gone">
 
+        <!-- ✅【关键修改】android:scrollbars 已改为 "none"，彻底解决 mutate() 空指针崩溃 -->
         <ScrollView
             android:id="@+id/log_scroll_view"
             android:layout_width="340dp"
             android:layout_height="450dp"
             android:background="#B3000000"
             android:padding="12dp"
-            android:scrollbars="vertical">
+            android:scrollbars="none">
 
             <TextView
                 android:id="@+id/tv_log_content"
