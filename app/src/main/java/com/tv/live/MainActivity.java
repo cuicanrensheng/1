@@ -125,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
 
         playerView = findViewById(R.id.player_view);
-        playerView.setUseController(false);
+        playerView.setUseController(true);
         try {
             playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
         } catch (Exception e) {
