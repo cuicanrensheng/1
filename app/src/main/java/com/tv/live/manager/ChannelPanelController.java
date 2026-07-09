@@ -31,7 +31,7 @@ public class ChannelPanelController {
     private static final int MAX_AUTO_SKIP = 10;
 
     private static final long FIRST_LAUNCH_HIDE_DELAY_MS = 5000;
-    private static final long NORMAL_HIDE_DELAY_MS = 15000; // 🟢 修改为 15 秒防呆
+    private static final long NORMAL_HIDE_DELAY_MS = 20000; // 🟢 修改为 20 秒防呆
 
     private Context context;
     private View panelLayout;
