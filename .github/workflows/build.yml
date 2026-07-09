@@ -65,16 +65,30 @@ jobs:
             -PkeyAlias=${{ secrets.KEY_ALIAS }} \
             -PkeyPassword=${{ secrets.KEY_PASSWORD }}
 
+      # 🟢【关键步骤】读取 release_notes.txt 的内容作为更新日志
+      - name: 获取更新日志内容
+        id: get_update_message
+        run: |
+          if [ -f "release_notes.txt" ]; then
+            MSG=$(cat release_notes.txt | sed 's/"/\\"/g' | tr '\n' ' ')
+            echo "message=$MSG" >> $GITHUB_OUTPUT
+            echo "✅ 读取到更新日志：$MSG"
+          else
+            echo "⚠️ 未找到 release_notes.txt，使用默认消息"
+            echo "message=自动更新版本" >> $GITHUB_OUTPUT
+          fi
+
       - name: 生成 update.json
         run: |
           VERSION_CODE=${{ github.run_number }}
           VERSION_NAME="1.0.$VERSION_CODE"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION_CODE/app-release.apk"
+          RELEASE_MSG="${{ steps.get_update_message.outputs.message }}"
           cat > update.json << EOF
           {
             "versionCode": $VERSION_CODE,
             "versionName": "$VERSION_NAME",
-            "message": "自动更新版本",
+            "message": "$RELEASE_MSG",
             "downloadUrl": "$DOWNLOAD_URL"
           }
           EOF
@@ -96,6 +110,7 @@ jobs:
         with:
           tag_name: v${{ github.run_number }}
           name: 自动发布 v${{ github.run_number }}
+          body: ${{ steps.get_update_message.outputs.message }}
           files: |
             app/build/outputs/apk/release/app-release.apk
             update.json
