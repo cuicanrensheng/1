@@ -732,9 +732,10 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
+    // ================= 🔴【修改】解码器选择弹窗（增加 FFmpeg 选项） =================
     private void showDecoderModeDialog() {
-        final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
-        final String[] modeValues = {"auto", "hard", "soft"};
+        final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）", "FFmpeg 软解扩展"};
+        final String[] modeValues = {"auto", "hard", "soft", "ffmpeg"};
         String currentMode = sp.getString("decoder_mode", "auto");
         int checkedItem = 0;
         for (int i = 0; i < modes.length; i++) {
@@ -752,11 +753,13 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
+    // ================= 🔴【修改】更新解码器模式显示文本（支持 FFmpeg） =================
     private void updateDecoderModeText(String mode) {
         if (tv_decoder_mode == null) return;
         switch (mode) {
             case "hard": tv_decoder_mode.setText("硬解"); break;
             case "soft": tv_decoder_mode.setText("软解"); break;
+            case "ffmpeg": tv_decoder_mode.setText("FFmpeg 扩展"); break;
             case "auto": default: tv_decoder_mode.setText("自动"); break;
         }
     }
