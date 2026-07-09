@@ -218,7 +218,7 @@ public class MainActivity extends AppCompatActivity {
         this.isInCatchUpMode = enabled;
     }
 
-    // 🔴【新增】触发显示 ExoPlayer 原生控制栏并拿走触摸权
+    // 🔴【联动升级】触发显示 ExoPlayer 原生控制栏，并隐藏底部信息栏
     public void showExoController() {
         if (playerView == null) return;
         mMainHandler.removeCallbacks(hideControllerRunnable);
@@ -229,6 +229,11 @@ public class MainActivity extends AppCompatActivity {
         playerView.showController();
         isControllerShowing = true;
         mMainHandler.postDelayed(hideControllerRunnable, 5000);
+
+        // 🔥【关键】进入回看时，强制隐藏底部信息栏，防止和控制栏抢占底部空间！
+        if (infoDisplayManager != null) {
+            infoDisplayManager.hideInfoBar();
+        }
     }
 
     // 🔴【新增】隐藏控制栏并归还触摸权
@@ -247,16 +252,25 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 🔴【新增】退出回看逻辑（切回直播流，关闭控制栏，重置标记）
+    // 🔴【联动升级】退出回看逻辑（切回直播流，关闭控制栏，重置标记，恢复信息栏）
     private void exitPlaybackMode() {
         if (isInCatchUpMode) {
             if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                 Channel ch = channelSourceList.get(currentPlayIndex);
                 if (ch != null && mPlayerManager != null) {
+                    // 1. 切回当前频道的直播流
                     mPlayerManager.playUrl(ch.getPlayUrl(), ch.getName(), ch);
+
+                    // 🔥【关键】退出回看时，立即获取当前直播信息并恢复底部信息栏！
+                    TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
+                    if (infoDisplayManager != null && live != null) {
+                        infoDisplayManager.showInfoBar(ch, live);
+                    }
                 }
             }
+            // 2. 隐藏控制栏并归还触摸权
             hideExoController();
+            // 3. 重置回看标记
             isInCatchUpMode = false;
         } else {
             if (isControllerShowing) {
