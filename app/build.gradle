@@ -44,7 +44,6 @@ android {
             def keyAliasName = project.findProperty("keyAlias")
             def keyPwd = project.findProperty("keyPassword")
 
-            // 如果参数缺失，Gradle 会抛出异常，从而强制要求 CI 必须传入
             storeFile file(storeFilePath)
             storePassword storePwd
             keyAlias keyAliasName
