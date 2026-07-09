@@ -133,9 +133,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // ================================================================
-        // 🚀 【终极修复】使用 Lambda 显式声明 int 类型，彻底解决所有歧义
+        // 🚀 【修复后】强制指定为 VisibilityListener 新接口，消除歧义
         // ================================================================
-        playerView.setControllerVisibilityListener((int visibility) -> {
+        playerView.setControllerVisibilityListener((PlayerView.VisibilityListener) visibility -> {
             if (visibility == View.GONE) {
                 mMainHandler.removeCallbacks(hideControllerRunnable);
                 isControllerShowing = false;
