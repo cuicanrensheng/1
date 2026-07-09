@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    <!-- 这个文件只有 Android 8.1 (API 28) 及以上的系统会读取 -->
+    <style name="Theme.TVLive.NoTitle">
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+    <style name="TransparentTheme">
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
 </resources>
