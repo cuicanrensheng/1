@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -661,7 +662,18 @@ public class WebServerManager {
         StringBuilder logResult = new StringBuilder();
         try {
             Process process = Runtime.getRuntime().exec("logcat -d -v time -t 500");
-            boolean completed = process.waitFor(2000, TimeUnit.MILLISECONDS);
+            
+            // 🟢【修复】区分 Android 版本，解决 API 26 以下崩溃问题
+            boolean completed = false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // API 26+ 使用带超时参数的方法
+                completed = process.waitFor(2000, TimeUnit.MILLISECONDS);
+            } else {
+                // API 21-25 使用不带超时参数的方法（防止 NoSuchMethodError）
+                process.waitFor();
+                completed = true;
+            }
+
             if (!completed) {
                 process.destroy();
                 return "日志抓取超时，请稍后重试...";
