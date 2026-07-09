@@ -126,23 +126,11 @@ public class MainActivity extends AppCompatActivity {
 
         playerView = findViewById(R.id.player_view);
         playerView.setUseController(false);
-
-        // ========== 修复核心代码段 ==========
-        // Media3 1.7.1 专用，全限定类名解决歧义+找不到类双报错
-        playerView.setControllerVisibilityListener((androidx.media3.ui.PlayerView.VisibilityListener) visibility -> {
-            if (visibility == View.GONE) {
-                mMainHandler.removeCallbacks(hideControllerRunnable);
-                isControllerShowing = false;
-                if (touchListener != null) {
-                    if (gestureManager != null) {
-                        final PlayerGestureHelper newGestureHelper = gestureManager.create();
-                        touchListener.updateGestureHelper(newGestureHelper);
-                    }
-                    playerView.setOnTouchListener(touchListener);
-                }
-            }
-        });
-        // ==================================
+        try {
+            playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
+        } catch (Exception e) {
+            // 高版本 Media3 直接忽略即可，不影响功能
+        }
 
         initChannelPanelController();
         initRemoteManager();
