@@ -369,6 +369,44 @@
             </LinearLayout>
 
             <!-- ============================================================ -->
+            <!-- 🆕 新增：版本信息 -->
+            <!-- ============================================================ -->
+            <LinearLayout
+                android:id="@+id/item_version_info"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:background="@drawable/setting_item_bg"
+                android:focusable="true"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="版本信息"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"/>
+                <TextView
+                    android:id="@+id/tv_version_short"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="v2.0"
+                    android:textColor="#999999"
+                    android:textSize="14sp" />
+            </LinearLayout>
+            <!-- ============================================================ -->
+
+            <!-- 分隔线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="#33FFFFFF"/>
+
+            <!-- ============================================================ -->
             <!-- 🆕 新增：日志输出 -->
             <!-- ============================================================ -->
             <LinearLayout
