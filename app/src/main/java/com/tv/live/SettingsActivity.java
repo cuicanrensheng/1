@@ -212,7 +212,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢 显示版本信息弹窗
+    // 🟢 显示版本信息弹窗 (已替换为深色背景、透明窗口风格)
     private void showVersionInfoDialog() {
         String versionName = BuildConfig.VERSION_NAME;
         int versionCode = BuildConfig.VERSION_CODE;
@@ -242,11 +242,33 @@ public class SettingsActivity extends AppCompatActivity {
             spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), startUc, startUc + 5, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
 
-        new AlertDialog.Builder(this)
-                .setTitle("📱 应用详情")
-                .setMessage(spannableString)
-                .setPositiveButton("确定", null)
-                .show();
+        // 🟢【UI 调整】按照深色弹窗标准构建自定义视图
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundColor(0xFF272B3A); // 与设置页其他弹窗一致
+        layout.setPadding(24, 24, 24, 24);
+
+        TextView titleView = new TextView(this);
+        titleView.setText("📱 应用详情");
+        titleView.setTextColor(Color.WHITE);
+        titleView.setTextSize(20);
+        titleView.setTypeface(null, Typeface.BOLD);
+        layout.addView(titleView);
+
+        TextView msgView = new TextView(this);
+        msgView.setText(spannableString);
+        msgView.setTextColor(Color.WHITE);
+        msgView.setTextSize(16);
+        msgView.setPadding(0, 16, 0, 0);
+        layout.addView(msgView);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(layout)
+                .create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
     }
 
     private String getLineName(int index) {
