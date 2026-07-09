@@ -93,6 +93,11 @@ public class MainActivity extends AppCompatActivity {
         return mInstanceRef != null ? mInstanceRef.get() : null;
     }
 
+    // 🟢【新增】提供回看模式状态查询
+    public boolean isInCatchUpMode() {
+        return isInCatchUpMode;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
