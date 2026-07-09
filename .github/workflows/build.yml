@@ -27,39 +27,25 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      - name: 全局清理全部缓存
+      - name: 清理缓存与构建产物（保留 AAR）
         run: |
-          echo "1. 删除全部 androidx.media3 缓存文件"
+          echo "1. 删除远程 Gradle 缓存（防止拉取旧包）..."
           sudo rm -rf ~/.gradle/caches/modules-2/files-2.1/androidx.media3
           sudo rm -rf ~/.gradle/caches/modules-2/modules-2.0/androidx.media3
           sudo rm -rf ~/.gradle/caches/transforms-3/
           sudo rm -rf ~/.gradle/wrapper/dists
           sudo rm -rf ~/.m2/
           
-          echo "2. 清理项目构建产物"
+          echo "2. 清理项目构建产物，但保留本地 libs 文件夹..."
           rm -rf .gradle
           ./gradlew clean
           rm -rf app/build
-          rm -rf app/libs
+          # 🔴 注意！这里绝对不能有 rm -rf app/libs！否则前功尽弃！
 
-      - name: 注入本地完整AAR（规避远程缓存损坏）
-        run: |
-          echo "3. 创建 app/libs 目录并下载完整的 Media3 1.6.1 AAR..."
-          mkdir -p app/libs
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-common/1.6.1/media3-common-1.6.1.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-exoplayer/1.6.1/media3-exoplayer-1.6.1.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-ui/1.6.1/media3-ui-1.6.1.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-exoplayer-hls/1.6.1/media3-exoplayer-hls-1.6.1.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-exoplayer-dash/1.6.1/media3-exoplayer-dash-1.6.1.aar
-          wget -P app/libs/ https://repo1.maven.org/maven2/androidx/media3/media3-datasource/1.6.1/media3-datasource-1.6.1.aar
+      - name: 校验依赖树（确认本地 AAR 已加载）
+        run: ./gradlew :app:dependencies --configuration releaseCompileClasspath | grep -E "media3-common|media3-exoplayer"
 
-          echo "4. 自动修改 app/build.gradle 注入本地文件树..."
-          grep -q "fileTree(dir: 'libs'" app/build.gradle || sed -i '/dependencies {/a \    implementation fileTree(dir: '\''libs'\'', include: ['\''*.aar'\''])' app/build.gradle
-
-      - name: 校验依赖树
-        run: ./gradlew :app:dependencies --configuration releaseCompileClasspath | grep media3
-
-      - name: 正式打包
+      - name: 正式打包（直接使用 app/libs 下的本地 AAR）
         run: ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --stacktrace
 
       - name: 生成 update.json
