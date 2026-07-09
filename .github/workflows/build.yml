@@ -27,9 +27,29 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # ✅ 不再干预任何缓存，不再清空 app/libs，直接信任本地文件
-      - name: 直接打包 Release
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+      - name: 静默依赖检查与打包
+        run: |
+          echo "🔍 正在静默验证依赖版本（不打印完整树）..."
+          DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --no-daemon 2>&1)
+          
+          # 检查 1：Media3 版本是否为 1.7.1
+          if echo "$DEPS_OUTPUT" | grep -q "androidx.media3:media3-common:1.7.1"; then
+            echo "✅ 版本检查通过：Media3 已锁定为 1.7.1"
+          else
+            echo "❌ 版本检查失败：未检测到 Media3 1.7.1，请检查 BOM 或 force 配置"
+            exit 1
+          fi
+          
+          # 检查 2：是否混入旧版 ExoPlayer
+          if echo "$DEPS_OUTPUT" | grep -q "com.google.android.exoplayer"; then
+            echo "❌ 安全警告：检测到旧版 ExoPlayer 依赖混入！"
+            exit 1
+          else
+            echo "✅ 安全检查通过：未发现旧版 ExoPlayer 依赖"
+          fi
+
+          echo "🎯 开始执行标准 Release 打包..."
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: 生成 update.json
         run: |
