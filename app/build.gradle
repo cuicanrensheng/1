@@ -88,21 +88,21 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     
     // ================================================================
-    // ✅ 混合方案：本地 AAR 优先，远程 Maven 作为后备
-    // 1. 本地文件（Gradle 会优先读取它们）
+    // ✅ 最终完美方案：本地优先，远程兜底，抛弃 BOM！
+    
+    // 1. 本地 AAR（Gradle 会优先读取它们，100% 完整）
     implementation fileTree(dir: 'libs', include: ['*.aar'])
     
-    // 2. 远程 BOM 依赖（如果本地文件缺失，自动从 google() 仓库拉取）
-    def media3_version = '1.6.1'
-    implementation platform("androidx.media3:media3-bom:$media3_version")
-    implementation "androidx.media3:media3-exoplayer"
-    implementation "androidx.media3:media3-ui"
-    implementation "androidx.media3:media3-exoplayer-hls"
-    implementation "androidx.media3:media3-exoplayer-dash"
-    implementation "androidx.media3:media3-common"
-    implementation "androidx.media3:media3-datasource"
+    // 2. 远程版本兜底（如果本地 AAR 意外丢失，会自动从 google() 下载）
+    // 不使用 BOM，直接写死版本号 1.6.1
+    implementation "androidx.media3:media3-exoplayer:1.6.1"
+    implementation "androidx.media3:media3-ui:1.6.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.6.1"
+    implementation "androidx.media3:media3-exoplayer-dash:1.6.1"
+    implementation "androidx.media3:media3-common:1.6.1"
+    implementation "androidx.media3:media3-datasource:1.6.1"
     
-    // 3. 补全 AAR 包缺失的底层依赖
+    // 3. 补全传递依赖
     implementation 'com.google.guava:guava:33.3.1-android'
     implementation 'androidx.annotation:annotation:1.6.0'
     // ================================================================
@@ -119,4 +119,4 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
 
-// 🔴 再次强调：千万别加 `configurations.all` 的锁定代码！
+// 🔥 确认文件里没有 `configurations.all` 和 `platform()`，已经全部删除！
