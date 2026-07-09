@@ -27,7 +27,8 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      - name: 构建 Release APK（直接使用本地 AAR）
+      # ✅ 不过度干预缓存，让 Gradle 自主决定最优解析
+      - name: 打包 Release
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: 生成 update.json
