@@ -51,6 +51,10 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView tv_resolution_status;
     private View itemResolution;
     
+    // 🔴【新增】日志控件
+    private View itemLog;
+    private TextView tv_log_status;
+    
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
     
     private SharedPreferences sp;
@@ -125,6 +129,10 @@ public class SettingsActivity extends AppCompatActivity {
         // 🟢【新增】初始化清晰度控件
         itemResolution = findViewById(R.id.item_resolution);
         tv_resolution_status = findViewById(R.id.tv_resolution_status);
+
+        // 🔴【新增】初始化日志控件
+        itemLog = findViewById(R.id.item_log);
+        tv_log_status = findViewById(R.id.tv_log_status);
         
         bootStartManager = new BootStartManager(this, sp);
         sourceDialogManager = new SourceDialogManager(this, sp);
@@ -335,12 +343,14 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.item_decoder));
         settingsItemList.add(findViewById(R.id.item_renderer));
         settingsItemList.add(findViewById(R.id.tv_screen_ratio));
-        // 🟢【新增】将清晰度选项加入焦点管理列表
+        // 🟢【新增】清晰度选项加入焦点管理列表
         settingsItemList.add(itemResolution);
         settingsItemList.add(findViewById(R.id.item_redirect));
         settingsItemList.add(itemLiveSubscribe);
         settingsItemList.add(itemEpgSubscribe);
         settingsItemList.add(findViewById(R.id.item_check_update));
+        // 🔴【新增】日志选项加入焦点管理列表
+        settingsItemList.add(itemLog);
 
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) {
@@ -414,9 +424,17 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void initListeners() {
         tv_screen_ratio.setOnClickListener(v -> showRatioDialog());
-        // 🟢【新增】清晰度点击事件已在 onCreate 里提前绑定
         itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
+        
+        // 🔴【新增】日志点击事件（切换日志开关状态）
+        itemLog.setOnClickListener(v -> {
+            boolean logEnabled = sp.getBoolean("log_enable", false);
+            boolean newState = !logEnabled;
+            sp.edit().putBoolean("log_enable", newState).apply();
+            tv_log_status.setText(newState ? "开启" : "关闭");
+            Toast.makeText(SettingsActivity.this, "日志已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
+        });
     }
 
     // ====================================================================
