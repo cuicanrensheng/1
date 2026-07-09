@@ -445,13 +445,18 @@ public class MainActivity extends AppCompatActivity {
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
+        
+        // 🔴【修正】确保 ffmpeg 模式在应用重启时也能被正确读取！
         String decoderMode = sp.getString("decoder_mode", "auto");
         int mode = TVPlayerManager.DECODER_MODE_AUTO;
         if ("hard".equals(decoderMode)) {
             mode = TVPlayerManager.DECODER_MODE_HARD;
         } else if ("soft".equals(decoderMode)) {
             mode = TVPlayerManager.DECODER_MODE_SOFT;
+        } else if ("ffmpeg".equals(decoderMode)) {
+            mode = TVPlayerManager.DECODER_MODE_FFMPEG;
         }
+        
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
         if (remoteManager != null) remoteManager.setNumberChannelEnable(number_channel_enable);
         if (channelPanelController != null) {
