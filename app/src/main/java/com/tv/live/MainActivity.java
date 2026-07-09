@@ -14,6 +14,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ListView;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -23,6 +24,7 @@ import androidx.media3.ui.PlayerView;
 import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
 import com.tv.live.manager.*;
+import com.tv.live.util.LogCollector;
 import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
@@ -65,6 +67,13 @@ public class MainActivity extends AppCompatActivity {
     // 🔴【新增】统一读取日志开关的 SharedPreferences
     private SharedPreferences sp;
 
+    // 🔴【新增】居中日志悬浮窗相关控件
+    private View logWindowContainer;
+    private ScrollView logScrollView;
+    private TextView tvLogContent;
+    private boolean logWindowVisible = false;
+    private Runnable logUpdateRunnable;
+
     /**
      * 🟢【新增】提供给外部（如 ChannelListActivity）安全获取当前实例的方法
      */
@@ -86,6 +95,11 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         displayManager.applyFullScreen();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // 🔴【新增】绑定居中日志悬浮窗控件
+        logWindowContainer = findViewById(R.id.log_window_container);
+        logScrollView = findViewById(R.id.log_scroll_view);
+        tvLogContent = findViewById(R.id.tv_log_content);
 
         initInfoDisplayManager();
         appConfig = AppConfig.getInstance(this);
@@ -128,6 +142,68 @@ public class MainActivity extends AppCompatActivity {
             appCoreManager.loadLiveAndEpg();
         }).start();
     }
+
+    // 🔴【新增】显示居中日志悬浮窗
+    public void showLogWindow() {
+        if (logWindowVisible) return;
+        logWindowVisible = true;
+        logWindowContainer.setVisibility(View.VISIBLE);
+        startLogUpdate();
+    }
+
+    // 🔴【新增】隐藏居中日志悬浮窗
+    public void hideLogWindow() {
+        if (!logWindowVisible) return;
+        logWindowVisible = false;
+        logWindowContainer.setVisibility(View.GONE);
+        stopLogUpdate();
+    }
+
+    // 🔴【新增】启动日志实时刷新
+    private void startLogUpdate() {
+        if (logUpdateRunnable != null) return;
+        logUpdateRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!logWindowVisible) {
+                    stopLogUpdate();
+                    return;
+                }
+                // 获取 LogCollector 中收集的所有日志
+                String logs = LogCollector.getInstance().getAllLogs();
+                tvLogContent.setText(logs);
+                // 自动滚动到最新日志（底部）
+                logScrollView.post(() -> logScrollView.fullScroll(View.FOCUS_DOWN));
+                // 每 300ms 刷新一次
+                mMainHandler.postDelayed(this, 300);
+            }
+        };
+        mMainHandler.post(logUpdateRunnable);
+    }
+
+    // 🔴【新增】停止日志实时刷新
+    private void stopLogUpdate() {
+        if (logUpdateRunnable != null) {
+            mMainHandler.removeCallbacks(logUpdateRunnable);
+            logUpdateRunnable = null;
+        }
+    }
+
+    // 🔴【新增】供 SettingsActivity 调用的日志开关
+    public static void toggleLogWindow(boolean enable) {
+        MainActivity activity = getRunningInstance();
+        if (activity != null) {
+            if (enable) {
+                activity.showLogWindow();
+            } else {
+                activity.hideLogWindow();
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------------
+    // 以下保持原有代码不变
+    // ----------------------------------------------------------------------
 
     private void initPictureInPicture() {
         try {
@@ -509,6 +585,8 @@ public class MainActivity extends AppCompatActivity {
     private void log(String msg) {
         if (sp.getBoolean("log_enable", false)) {
             Log.d("MainActivity", msg);
+            // 🔴 同时写入 LogCollector，让悬浮窗能显示
+            LogCollector.getInstance().addLog("MainActivity", msg);
         }
     }
 
