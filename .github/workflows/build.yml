@@ -27,19 +27,27 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
+      - name: 清理缓存并强制刷新依赖
+        run: |
+          echo "🧹 清理 Gradle 缓存..."
+          rm -rf ~/.gradle/caches/
+          ./gradlew clean
+
       - name: 解码签名证书并注入密钥
         run: |
           echo "🔑 正在解码签名证书..."
-          # ✅ 必须生成到 app/ 目录下，这样 Gradle 才能直接在 app 模块中找到它
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
 
           echo "🔍 正在静默验证依赖版本..."
-          DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --no-daemon 2>&1 || true)
+          # 强制刷新依赖并捕获输出
+          DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --refresh-dependencies --no-daemon 2>&1 || true)
           
           if echo "$DEPS_OUTPUT" | grep -q "androidx.media3:media3-common:1.7.1"; then
             echo "✅ 版本检查通过：Media3 已锁定为 1.7.1"
           else
             echo "❌ 版本检查失败：未检测到 Media3 1.7.1"
+            echo "⚠️ 以下是依赖解析的详细输出（前20行）："
+            echo "$DEPS_OUTPUT" | head -n 20
             exit 1
           fi
           
