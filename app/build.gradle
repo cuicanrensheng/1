@@ -99,8 +99,11 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.1'
     
     implementation 'com.google.code.gson:gson:2.10.1'
+
+    // ✅【方案 A】先引入本地 libs 文件夹下的所有 AAR（包含你的 FFmpeg 扩展）
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
     
-    // ✅ 显式写出 1.7.1，不使用 BOM
+    // ✅ 远程 Media3 模块（版本锁定为 1.7.1）
     implementation "androidx.media3:media3-exoplayer:1.7.1"
     implementation "androidx.media3:media3-ui:1.7.1"
     implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
