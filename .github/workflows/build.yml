@@ -27,8 +27,8 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      # ✅ 不过度干预缓存，让 Gradle 自主决定最优解析
-      - name: 打包 Release
+      # ✅ 不再干预任何缓存，不再清空 app/libs，直接信任本地文件
+      - name: 直接打包 Release
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: 生成 update.json
