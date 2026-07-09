@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -33,12 +34,24 @@ public class UpdateManager {
     private static boolean isDownloading = false;
 
     private final Context context;
+    private final SharedPreferences sp; // 🔴 新增：用于保存更新日志
     private DownloadManager downloadManager;
     private long downloadId = -1;
     private BroadcastReceiver downloadCompleteReceiver;
 
     public UpdateManager(Context context) {
         this.context = context;
+        this.sp = context.getSharedPreferences("app_update", Context.MODE_PRIVATE); // 🔴 初始化
+    }
+
+    // 🔴 新增：保存更新日志到本地
+    public void saveUpdateMessage(String message) {
+        sp.edit().putString("update_message", message).apply();
+    }
+
+    // 🔴 新增：读取已保存的更新日志（供设置页弹窗使用）
+    public String getUpdateMessage() {
+        return sp.getString("update_message", "暂无更新内容");
     }
 
     public void checkUpdate() {
@@ -80,6 +93,9 @@ public class UpdateManager {
                 String downloadUrl = json.getString("downloadUrl");
                 String updateLog = json.optString("updateLog", "");
                 boolean forceUpdate = json.optBoolean("forceUpdate", false);
+
+                // 🔴 保存更新日志，供设置页弹窗使用
+                saveUpdateMessage(updateLog);
 
                 int currentVersionCode = 0;
                 String currentVersionName = "未知";
@@ -215,9 +231,6 @@ public class UpdateManager {
         }
     }
 
-    // ====================================================================
-    // 🟢 【修复】你必须包含这个方法的定义，否则编译失败！
-    // ====================================================================
     private void registerDownloadCompleteReceiver() {
         downloadCompleteReceiver = new BroadcastReceiver() {
             @Override
@@ -238,7 +251,6 @@ public class UpdateManager {
         }
     }
 
-    // 🟢 【修复】这个方法就是之前缺失的！请务必保留！
     private void unregisterDownloadCompleteReceiver() {
         if (downloadCompleteReceiver != null) {
             try {
@@ -292,7 +304,6 @@ public class UpdateManager {
     }
 
     public void release() {
-        // 🟢 释放时自动注销
         unregisterDownloadCompleteReceiver();
     }
 }
