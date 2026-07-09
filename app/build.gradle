@@ -38,16 +38,14 @@ android {
 
     signingConfigs {
         release {
-            // 强制从 -P 参数获取，无默认回退
-            def storeFilePath = project.findProperty("storeFile")
-            def storePwd = project.findProperty("storePassword")
-            def keyAliasName = project.findProperty("keyAlias")
-            def keyPwd = project.findProperty("keyPassword")
-
-            storeFile file(storeFilePath)
-            storePassword storePwd
-            keyAlias keyAliasName
-            keyPassword keyPwd
+            // 🔥 直接硬编码路径，因为 CI 会将密钥库解码到 app/release.keystore
+            storeFile file("release.keystore")
+            
+            // 从 -P 参数读取密码和别名
+            storePassword project.findProperty("storePassword")
+            keyAlias project.findProperty("keyAlias")
+            keyPassword project.findProperty("keyPassword")
+            
             v1SigningEnabled true
             v2SigningEnabled true
         }
