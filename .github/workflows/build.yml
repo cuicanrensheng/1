@@ -27,24 +27,22 @@ jobs:
       - name: 赋予执行权限
         run: chmod +x gradlew
 
-      - name: 静默依赖检查与打包
+      - name: 解码签名证书并注入密钥
         run: |
+          echo "🔑 正在解码签名证书..."
+          # 把 base64 还原成 release.keystore 文件
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+
           echo "🔍 正在静默验证依赖版本..."
-          
-          # 1. 即使 gradlew 失败也继续执行，防止脚本瞬间崩溃
           DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --no-daemon 2>&1 || true)
           
-          # 2. 检查依赖树是否包含 1.7.1
           if echo "$DEPS_OUTPUT" | grep -q "androidx.media3:media3-common:1.7.1"; then
             echo "✅ 版本检查通过：Media3 已锁定为 1.7.1"
           else
-            echo "❌ 版本检查失败：未检测到 Media3 1.7.1！可能依赖解析失败。"
-            echo "⚠️ 下面是依赖解析失败的具体报错信息（只打印错误提示）："
-            echo "$DEPS_OUTPUT" | grep -E "(FAILED|Failed|not found|resolve|Could not)" | head -n 10 || echo "⚠️ 未捕获到详细错误，可能是其他构建任务出错。"
+            echo "❌ 版本检查失败：未检测到 Media3 1.7.1"
             exit 1
           fi
           
-          # 3. 检查是否混入旧版 ExoPlayer
           if echo "$DEPS_OUTPUT" | grep -q "com.google.android.exoplayer"; then
             echo "❌ 安全警告：检测到旧版 ExoPlayer 依赖混入！"
             exit 1
@@ -52,8 +50,14 @@ jobs:
             echo "✅ 安全检查通过：未发现旧版 ExoPlayer 依赖"
           fi
 
-          echo "🎯 开始执行标准 Release 打包..."
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          echo "🎯 开始执行 Release 打包（使用流水线密钥签名）..."
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --stacktrace \
+            -PstoreFile=release.keystore \
+            -PstorePassword=${{ secrets.STORE_PASSWORD }} \
+            -PkeyAlias=${{ secrets.KEY_ALIAS }} \
+            -PkeyPassword=${{ secrets.KEY_PASSWORD }}
 
       - name: 生成 update.json
         run: |
