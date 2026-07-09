@@ -88,17 +88,10 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     
     // ================================================================
-    // ✅ 核心：本地 AAR 优先 + 远程兜底，绝不使用 BOM！
+    // ✅ 最终绝杀：只保留本地 AAR，彻底删除所有远程 Media3 依赖！
     implementation fileTree(dir: 'libs', include: ['*.aar'])
     
-    implementation "androidx.media3:media3-exoplayer:1.6.1"
-    implementation "androidx.media3:media3-ui:1.6.1"
-    implementation "androidx.media3:media3-exoplayer-hls:1.6.1"
-    implementation "androidx.media3:media3-exoplayer-dash:1.6.1"
-    implementation "androidx.media3:media3-common:1.6.1"
-    implementation "androidx.media3:media3-datasource:1.6.1"
-    
-    // ✅ 补全底层依赖
+    // ✅ 补全 AAR 缺失的底层依赖（Guava 和 Annotation）
     implementation 'com.google.guava:guava:33.3.1-android'
     implementation 'androidx.annotation:annotation:1.6.0'
     // ================================================================
@@ -114,4 +107,3 @@ dependencies {
     implementation "com.blankj:utilcodex:1.31.1"
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
-// 🔥 强烈确认：你的 app/build.gradle 里绝对不能有 `configurations.all` 这个代码块！
