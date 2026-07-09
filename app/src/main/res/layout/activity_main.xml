@@ -257,7 +257,7 @@
                 android:paddingEnd="16dp" />
         </LinearLayout>
     </FrameLayout>
-      
+
     <!-- ==================================================================== -->
     <!-- 底部信息栏（切台时显示，5 秒后自动隐藏）背景改为完全透明 -->
     <!-- ==================================================================== -->
@@ -406,5 +406,35 @@
                 android:maxLines="1" />
         </LinearLayout>
     </LinearLayout>
+
+    <!-- ==================================================================== -->
+    <!-- 🔴【新增】居中悬浮日志窗口（位于播放器正中间）                       -->
+    <!-- ==================================================================== -->
+    <FrameLayout
+        android:id="@+id/log_window_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <ScrollView
+            android:id="@+id/log_scroll_view"
+            android:layout_width="340dp"
+            android:layout_height="450dp"
+            android:background="#B3000000"
+            android:padding="12dp"
+            android:scrollbars="vertical">
+
+            <TextView
+                android:id="@+id/tv_log_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:typeface="monospace"
+                android:text="日志将在此显示..." />
+        </ScrollView>
+    </FrameLayout>
 
 </FrameLayout>
