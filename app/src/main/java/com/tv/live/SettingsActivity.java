@@ -777,8 +777,9 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void showDecoderModeDialog() {
-        final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）", "FFmpeg 软解扩展"};
-        final String[] modeValues = {"auto", "hard", "soft", "ffmpeg"};
+        // ✅【已移除 FFmpeg】将选项从 4 个变为 3 个
+        final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
+        final String[] modeValues = {"auto", "hard", "soft"};
         String currentMode = sp.getString("decoder_mode", "auto");
         int checkedItem = 0;
         for (int i = 0; i < modes.length; i++) {
@@ -801,8 +802,9 @@ public class SettingsActivity extends AppCompatActivity {
         switch (mode) {
             case "hard": tv_decoder_mode.setText("硬解"); break;
             case "soft": tv_decoder_mode.setText("软解"); break;
-            case "ffmpeg": tv_decoder_mode.setText("FFmpeg 扩展"); break;
-            case "auto": default: tv_decoder_mode.setText("自动"); break;
+            // ✅【已移除 FFmpeg】删除了 case "ffmpeg"
+            case "auto": 
+            default: tv_decoder_mode.setText("自动"); break;
         }
     }
 
