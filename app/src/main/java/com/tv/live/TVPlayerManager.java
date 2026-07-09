@@ -209,14 +209,16 @@ public class TVPlayerManager {
         };
         initPlayer();
     }
-
-    // 🔴【新增】辅助方法：仅当用户开启日志时才打印调试信息
+    
+        // 🔴【修改】将日志同时写入 LogCollector，实现弹窗查看
     private void dLog(String msg) {
         if (sp.getBoolean("log_enable", false)) {
             Log.d(TAG, msg);
+            // 把日志也存到内存里
+            com.tv.live.util.LogCollector.getInstance().addLog(TAG, msg);
         }
     }
-
+    
     private void initPlayer() {
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
         SoftwareFirstMediaCodecSelector codecSelector = new SoftwareFirstMediaCodecSelector(mDecoderMode);
