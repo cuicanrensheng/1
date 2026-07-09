@@ -133,9 +133,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // 🔴【新增】绑定 ExoPlayer 控制栏显隐监听器
-        // 🔥【修复】显式声明参数为 boolean，消除歧义并解决 ! 运算符错误
-        playerView.setControllerVisibilityListener((boolean visibility) -> {
-            if (!visibility) {
+        // 🔥【终极修复】使用 int 接收视图状态，并判断是否为 View.GONE
+        playerView.setControllerVisibilityListener((int visibility) -> {
+            if (visibility == View.GONE) {
                 // 当控制栏隐藏时（无论是超时还是用户点击隐藏）
                 mMainHandler.removeCallbacks(hideControllerRunnable);
                 isControllerShowing = false;
