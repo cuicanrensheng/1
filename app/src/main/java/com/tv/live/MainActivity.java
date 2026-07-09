@@ -133,21 +133,18 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // ================================================================
-        // 🚀 【终极修复】使用匿名内部类显式实现 ControllerVisibilityListener
+        // 🚀 【终极修复】使用 Lambda 显式声明 int 类型，彻底解决所有歧义
         // ================================================================
-        playerView.setControllerVisibilityListener(new PlayerView.ControllerVisibilityListener() {
-            @Override
-            public void onVisibilityChanged(boolean isVisible) {
-                if (!isVisible) {
-                    mMainHandler.removeCallbacks(hideControllerRunnable);
-                    isControllerShowing = false;
-                    if (touchListener != null) {
-                        if (gestureManager != null) {
-                            final PlayerGestureHelper newGestureHelper = gestureManager.create();
-                            touchListener.updateGestureHelper(newGestureHelper);
-                        }
-                        playerView.setOnTouchListener(touchListener);
+        playerView.setControllerVisibilityListener((int visibility) -> {
+            if (visibility == View.GONE) {
+                mMainHandler.removeCallbacks(hideControllerRunnable);
+                isControllerShowing = false;
+                if (touchListener != null) {
+                    if (gestureManager != null) {
+                        final PlayerGestureHelper newGestureHelper = gestureManager.create();
+                        touchListener.updateGestureHelper(newGestureHelper);
                     }
+                    playerView.setOnTouchListener(touchListener);
                 }
             }
         });
