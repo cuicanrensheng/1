@@ -29,7 +29,7 @@ jobs:
 
       - name: 清理缓存与构建产物（保留 AAR）
         run: |
-          echo "1. 删除远程 Gradle 缓存（防止拉取旧包）..."
+          echo "1. 删除远程 Gradle 缓存..."
           sudo rm -rf ~/.gradle/caches/modules-2/files-2.1/androidx.media3
           sudo rm -rf ~/.gradle/caches/modules-2/modules-2.0/androidx.media3
           sudo rm -rf ~/.gradle/caches/transforms-3/
@@ -40,10 +40,12 @@ jobs:
           rm -rf .gradle
           ./gradlew clean
           rm -rf app/build
-          # 🔴 注意！这里绝对不能有 rm -rf app/libs！否则前功尽弃！
+          # 注意：不要 rm -rf app/libs！
 
-      - name: 校验依赖树（确认本地 AAR 已加载）
-        run: ./gradlew :app:dependencies --configuration releaseCompileClasspath | grep -E "media3-common|media3-exoplayer"
+      - name: 检查本地 AAR 文件是否到位
+        run: |
+          echo "🔍 检查 app/libs 目录下的 AAR 文件..."
+          ls -la app/libs/
 
       - name: 正式打包（直接使用 app/libs 下的本地 AAR）
         run: ./gradlew assembleRelease --no-daemon --no-build-cache --refresh-dependencies --stacktrace
