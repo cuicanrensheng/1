@@ -36,17 +36,17 @@ jobs:
       - name: 解码签名证书并注入密钥
         run: |
           echo "🔑 正在解码签名证书..."
+          # 必须生成到 app/ 目录下
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
 
           echo "🔍 正在静默验证依赖版本..."
-          # 强制刷新依赖并捕获输出
+          # 强制刷新依赖，避免旧缓存干扰
           DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --refresh-dependencies --no-daemon 2>&1 || true)
           
           if echo "$DEPS_OUTPUT" | grep -q "androidx.media3:media3-common:1.7.1"; then
             echo "✅ 版本检查通过：Media3 已锁定为 1.7.1"
           else
             echo "❌ 版本检查失败：未检测到 Media3 1.7.1"
-            echo "⚠️ 以下是依赖解析的详细输出（前20行）："
             echo "$DEPS_OUTPUT" | head -n 20
             exit 1
           fi
@@ -58,11 +58,11 @@ jobs:
             echo "✅ 安全检查通过：未发现旧版 ExoPlayer 依赖"
           fi
 
-          echo "🎯 开始执行 Release 打包（使用流水线密钥签名）..."
+          echo "🎯 开始执行 Release 打包..."
+          # 🔥 移除 -PstoreFile，因为已在 build.gradle 中硬编码路径，只传入密码和别名！
           ./gradlew assembleRelease \
             --no-daemon \
             --stacktrace \
-            -PstoreFile=release.keystore \
             -PstorePassword=${{ secrets.STORE_PASSWORD }} \
             -PkeyAlias=${{ secrets.KEY_ALIAS }} \
             -PkeyPassword=${{ secrets.KEY_PASSWORD }}
