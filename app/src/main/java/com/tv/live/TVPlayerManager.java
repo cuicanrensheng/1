@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.os.Build; // 🟢【新增】必须导入这个包，否则 Build.VERSION.SDK_INT 会报错
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -480,6 +481,7 @@ public class TVPlayerManager {
         return mDecoderMode;
     }
 
+    // 🟢【关键修复】针对 Android 13+ 解码器广播的安全注册
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
         try {
@@ -498,7 +500,11 @@ public class TVPlayerManager {
                 }
             };
             IntentFilter filter = new IntentFilter("com.tv.live.DECODER_MODE_CHANGED");
-            context.registerReceiver(decoderModeReceiver, filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(decoderModeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                context.registerReceiver(decoderModeReceiver, filter);
+            }
             decoderReceiverRegistered = true;
         } catch (Exception e) {
             Log.e(TAG, "注册解码器广播失败", e);
@@ -585,6 +591,7 @@ public class TVPlayerManager {
         isRenderingSwitching = false;
     }
 
+    // 🟢【关键修复】针对 Android 13+ 渲染器广播的安全注册
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -599,7 +606,11 @@ public class TVPlayerManager {
                 }
             };
             IntentFilter filter = new IntentFilter("com.tv.live.RENDERER_TYPE_CHANGED");
-            context.registerReceiver(rendererModeReceiver, filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(rendererModeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                context.registerReceiver(rendererModeReceiver, filter);
+            }
             rendererReceiverRegistered = true;
         } catch (Exception e) {
             Log.e(TAG, "注册渲染方式广播失败", e);
