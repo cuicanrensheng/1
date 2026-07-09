@@ -74,6 +74,18 @@ public class MainActivity extends AppCompatActivity {
     private boolean logWindowVisible = false;
     private Runnable logUpdateRunnable;
 
+    // 🔴【新增】回看模式状态与控制栏自动隐藏
+    private boolean isInCatchUpMode = false;
+    private boolean isControllerShowing = false;
+    private final Runnable hideControllerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (playerView != null && isControllerShowing) {
+                hideExoController();
+            }
+        }
+    };
+
     /**
      * 🟢【新增】提供给外部（如 ChannelListActivity）安全获取当前实例的方法
      */
@@ -201,6 +213,58 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 🔴【新增】回看模式标记
+    public void setCatchUpMode(boolean enabled) {
+        this.isInCatchUpMode = enabled;
+    }
+
+    // 🔴【新增】触发显示 ExoPlayer 原生控制栏并拿走触摸权
+    public void showExoController() {
+        if (playerView == null) return;
+        mMainHandler.removeCallbacks(hideControllerRunnable);
+        if (touchListener != null) {
+            playerView.setOnTouchListener(null);
+        }
+        playerView.setUseController(true);
+        playerView.showController();
+        isControllerShowing = true;
+        mMainHandler.postDelayed(hideControllerRunnable, 5000);
+    }
+
+    // 🔴【新增】隐藏控制栏并归还触摸权
+    public void hideExoController() {
+        if (playerView == null) return;
+        mMainHandler.removeCallbacks(hideControllerRunnable);
+        playerView.hideController();
+        playerView.setUseController(false);
+        isControllerShowing = false;
+        if (touchListener != null) {
+            if (gestureManager != null) {
+                final PlayerGestureHelper newGestureHelper = gestureManager.create();
+                touchListener.updateGestureHelper(newGestureHelper);
+            }
+            playerView.setOnTouchListener(touchListener);
+        }
+    }
+
+    // 🔴【新增】退出回看逻辑（切回直播流，关闭控制栏，重置标记）
+    private void exitPlaybackMode() {
+        if (isInCatchUpMode) {
+            if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                Channel ch = channelSourceList.get(currentPlayIndex);
+                if (ch != null && mPlayerManager != null) {
+                    mPlayerManager.playUrl(ch.getPlayUrl(), ch.getName(), ch);
+                }
+            }
+            hideExoController();
+            isInCatchUpMode = false;
+        } else {
+            if (isControllerShowing) {
+                hideExoController();
+            }
+        }
+    }
+
     // ----------------------------------------------------------------------
     // 以下保持原有代码不变
     // ----------------------------------------------------------------------
@@ -227,8 +291,14 @@ public class MainActivity extends AppCompatActivity {
         remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
         remoteManager.setChannelPanelController(channelPanelController);
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
-            @Override public void onPlayChannelUp() { channelPanelController.switchUp(); }
-            @Override public void onPlayChannelDown() { channelPanelController.switchDown(); }
+            @Override public void onPlayChannelUp() {
+                exitPlaybackMode(); // 🔥 联动：切台先退出回看并收回触摸权
+                channelPanelController.switchUp();
+            }
+            @Override public void onPlayChannelDown() {
+                exitPlaybackMode(); // 🔥 联动：切台先退出回看并收回触摸权
+                channelPanelController.switchDown();
+            }
             @Override public void onPlayTogglePanel() { togglePanel(); remoteManager.syncMode(); }
             @Override public void onPlayOpenSettings() { openSettings(); }
             @Override public boolean onPlayBack() { return false; }
@@ -478,9 +548,12 @@ public class MainActivity extends AppCompatActivity {
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
-        // 🟢【优化2】移除超长 URL 的拼接打印，避免频繁快速切台时引起 GC 抖动
         log("【播放】频道名称：" + channel.getName());
-        // log("【播放】播放地址：" + channel.getPlayUrl()); // 已注释，需要调试时解开
+
+        // 🔥 联动：只要切台，立刻强制退出回看模式
+        if (isInCatchUpMode) {
+            exitPlaybackMode();
+        }
 
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
@@ -503,6 +576,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void togglePanel() {
+        // 🔥 联动：如果当前设置页是打开的，发送广播关闭它
+        if (isOpeningSettings) {
+            sendBroadcast(new Intent("com.tv.live.CLOSE_SETTINGS"));
+            isOpeningSettings = false;
+        }
         channelPanelController.togglePanel();
         remoteManager.syncMode();
     }
@@ -512,6 +590,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        // 🔥 联动：如果处于回看模式且控制栏可见，按返回键优先退出回看
+        if (isInCatchUpMode && isControllerShowing) {
+            exitPlaybackMode();
+            return;
+        }
         if (remoteManager != null && remoteManager.handleBackPressed()) return;
         super.onBackPressed();
     }
@@ -552,6 +635,20 @@ public class MainActivity extends AppCompatActivity {
     public void openSettings() {
         isOpeningSettings = true;
         appCoreManager.beforeOpenSettings();
+        
+        // 🔥 联动：打开设置时，如果频道面板开着，自动隐藏
+        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+            channelPanelController.hidePanel();
+        }
+        
+        // 🔥 联动：收起 ExoPlayer 控制栏
+        hideExoController();
+        
+        // 🔥 联动：打开设置时暂停播放
+        if (mPlayerManager != null) {
+            mPlayerManager.pause();
+        }
+
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
