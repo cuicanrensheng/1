@@ -244,7 +244,7 @@ public class TVPlayerManager {
         }
 
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(5000, 10000, 3000, 5000)
+                .setBufferDurationsMs(2000, 45000, 800, 1500)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
 
