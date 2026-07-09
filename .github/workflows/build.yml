@@ -1,4 +1,5 @@
 name: Build TV Live APK
+
 on:
   push:
     branches: [ main ]
@@ -36,11 +37,9 @@ jobs:
       - name: 解码签名证书并注入密钥
         run: |
           echo "🔑 正在解码签名证书..."
-          # 必须生成到 app/ 目录下
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
 
           echo "🔍 正在静默验证依赖版本..."
-          # 强制刷新依赖，避免旧缓存干扰
           DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --refresh-dependencies --no-daemon 2>&1 || true)
           
           if echo "$DEPS_OUTPUT" | grep -q "androidx.media3:media3-common:1.7.1"; then
@@ -58,8 +57,31 @@ jobs:
             echo "✅ 安全检查通过：未发现旧版 ExoPlayer 依赖"
           fi
 
+      # 🟢【新增 1】运行 Android Lint 静态代码检查（不阻断构建，发现错误也会继续打包）
+      - name: Run Lint
+        run: ./gradlew lintRelease -Pandroid.lint.abortOnError=false
+
+      # 🟢【新增 2】运行单元测试（发现失败会阻断构建，确保业务逻辑正确）
+      - name: Run Unit Tests
+        run: ./gradlew testRelease --no-daemon --stacktrace
+
+      # 🟢【新增 3】上传 Lint 报告，方便查看所有代码问题
+      - name: Upload Lint Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-release.html
+
+      # 🟢【新增 4】上传单元测试报告
+      - name: Upload Test Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: app/build/reports/tests/testReleaseUnitTest/index.html
+
+      - name: 开始执行 Release 打包...
+        run: |
           echo "🎯 开始执行 Release 打包..."
-          # 🔥 移除 -PstoreFile，因为已在 build.gradle 中硬编码路径，只传入密码和别名！
           ./gradlew assembleRelease \
             --no-daemon \
             --stacktrace \
