@@ -254,7 +254,6 @@ public class MainActivity extends AppCompatActivity {
         if (playerView == null) return;
         mMainHandler.removeCallbacks(hideControllerRunnable);
         playerView.hideController();
-        playerView.setUseController(false);
         isControllerShowing = false;
         if (touchListener != null) {
             if (gestureManager != null) {
