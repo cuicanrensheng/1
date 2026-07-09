@@ -29,18 +29,22 @@ jobs:
 
       - name: 静默依赖检查与打包
         run: |
-          echo "🔍 正在静默验证依赖版本（不打印完整树）..."
-          DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --no-daemon 2>&1)
+          echo "🔍 正在静默验证依赖版本..."
           
-          # 检查 1：Media3 版本是否为 1.7.1
+          # 1. 即使 gradlew 失败也继续执行，防止脚本瞬间崩溃
+          DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --no-daemon 2>&1 || true)
+          
+          # 2. 检查依赖树是否包含 1.7.1
           if echo "$DEPS_OUTPUT" | grep -q "androidx.media3:media3-common:1.7.1"; then
             echo "✅ 版本检查通过：Media3 已锁定为 1.7.1"
           else
-            echo "❌ 版本检查失败：未检测到 Media3 1.7.1，请检查 BOM 或 force 配置"
+            echo "❌ 版本检查失败：未检测到 Media3 1.7.1！可能依赖解析失败。"
+            echo "⚠️ 下面是依赖解析失败的具体报错信息（只打印错误提示）："
+            echo "$DEPS_OUTPUT" | grep -E "(FAILED|Failed|not found|resolve|Could not)" | head -n 10 || echo "⚠️ 未捕获到详细错误，可能是其他构建任务出错。"
             exit 1
           fi
           
-          # 检查 2：是否混入旧版 ExoPlayer
+          # 3. 检查是否混入旧版 ExoPlayer
           if echo "$DEPS_OUTPUT" | grep -q "com.google.android.exoplayer"; then
             echo "❌ 安全警告：检测到旧版 ExoPlayer 依赖混入！"
             exit 1
