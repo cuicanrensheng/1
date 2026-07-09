@@ -1,4 +1,5 @@
 package com.tv.live;
+
 import android.widget.Toast;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -64,8 +65,7 @@ public class TVPlayerManager {
     public static final int DECODER_MODE_AUTO = 0;
     public static final int DECODER_MODE_HARD = 1;
     public static final int DECODER_MODE_SOFT = 2;
-    // 🔴【新增】FFmpeg 扩展模式常量
-    public static final int DECODER_MODE_FFMPEG = 3;
+    // 🔴【已移除】FFmpeg 扩展模式常量已删除
     
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 20000;
@@ -134,7 +134,6 @@ public class TVPlayerManager {
     private List<Variant> variantList = new ArrayList<>();
     private boolean isParsingMasterPlaylist = false;
 
-    // 🔴【新增】用于控制日志开关的 SharedPreferences
     private SharedPreferences sp;
 
     // 清晰度实体类
@@ -213,7 +212,6 @@ public class TVPlayerManager {
         initPlayer();
     }
     
-    // 🔴【修改】将日志同时写入 LogCollector，实现弹窗查看
     private void dLog(String msg) {
         if (sp.getBoolean("log_enable", false)) {
             Log.d(TAG, msg);
@@ -232,10 +230,6 @@ public class TVPlayerManager {
                 break;
             case DECODER_MODE_HARD:
                 dLog("【解码器】硬解模式");
-                break;
-            case DECODER_MODE_FFMPEG:
-                dLog("【解码器】FFmpeg 软解扩展模式");
-                renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
                 break;
             case DECODER_MODE_AUTO:
             default:
@@ -286,17 +280,6 @@ public class TVPlayerManager {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
-                
-                // 🔴【新增】检测 FFmpeg 解码失败的情况
-                if (mDecoderMode == DECODER_MODE_FFMPEG) {
-                    String errMsg = error.getMessage();
-                    if (errMsg != null && (errMsg.contains("DecoderInitializationException") 
-                            || errMsg.contains("FFmpeg") 
-                            || errMsg.contains("soft decoder"))) {
-                        Toast.makeText(context, "FFmpeg 解码不支持该视频格式，已自动切换回系统解码", Toast.LENGTH_LONG).show();
-                        dLog("【FFmpeg 提示】解码失败，回退系统解码：\n" + errMsg);
-                    }
-                }
 
                 Throwable rootCause = error.getCause();
                 boolean isRedirectError = false;
@@ -479,10 +462,8 @@ public class TVPlayerManager {
             retryCount = 0;
             isRetrying = false;
             
-            // 🔴【新增】切换成功提示
-            if (mDecoderMode == DECODER_MODE_FFMPEG) {
-                Toast.makeText(context, "已切换至 FFmpeg 软解扩展模式", Toast.LENGTH_SHORT).show();
-            } else if (mDecoderMode == DECODER_MODE_SOFT) {
+            // 切换成功提示（FFmpeg 相关已移除）
+            if (mDecoderMode == DECODER_MODE_SOFT) {
                 Toast.makeText(context, "已切换至 软解模式", Toast.LENGTH_SHORT).show();
             } else if (mDecoderMode == DECODER_MODE_HARD) {
                 Toast.makeText(context, "已切换至 硬解模式", Toast.LENGTH_SHORT).show();
@@ -511,7 +492,7 @@ public class TVPlayerManager {
                         int mode = DECODER_MODE_AUTO;
                         if ("hard".equals(modeStr)) mode = DECODER_MODE_HARD;
                         else if ("soft".equals(modeStr)) mode = DECODER_MODE_SOFT;
-                        else if ("ffmpeg".equals(modeStr)) mode = DECODER_MODE_FFMPEG;
+                        // FFmpeg 分支已移除
                         setDecoderMode(mode);
                     }
                 }
