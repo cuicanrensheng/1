@@ -127,10 +127,7 @@ configurations.all {
         force "androidx.media3:media3-decoder:1.7.1"
         force "androidx.media3:media3-extractor:1.7.1"
     }
-    all {
-        if (it.requested.group == 'com.google.android.exoplayer2') {
-            it.exclude group: 'com.google.android.exoplayer2'
-        }
-    }
+        // ✅ 直接排除旧包，不触发内部 all() 迭代崩溃
+    exclude group: 'com.google.android.exoplayer2'
 }
 // ================================================================
