@@ -33,6 +33,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
+import androidx.media3.common.util.MediaLibraryInfo; // 🔴 新增：引入 Media3 版本库
 
 import com.tv.live.manager.TvRemoteManager;
 
@@ -54,6 +55,10 @@ public class SettingsActivity extends AppCompatActivity {
     // 🔴【新增】日志控件
     private View itemLog;
     private TextView tv_log_status;
+
+    // 🔴【新增】版本信息控件
+    private View itemVersionInfo;
+    private TextView tv_version_short;
     
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
     
@@ -133,6 +138,10 @@ public class SettingsActivity extends AppCompatActivity {
         // 🔴【新增】初始化日志控件
         itemLog = findViewById(R.id.item_log);
         tv_log_status = findViewById(R.id.tv_log_status);
+
+        // 🔴【新增】初始化版本信息控件
+        itemVersionInfo = findViewById(R.id.item_version_info);
+        tv_version_short = findViewById(R.id.tv_version_short);
         
         bootStartManager = new BootStartManager(this, sp);
         sourceDialogManager = new SourceDialogManager(this, sp);
@@ -194,6 +203,9 @@ public class SettingsActivity extends AppCompatActivity {
         
         // 🟢【新增】绑定清晰度点击事件
         itemResolution.setOnClickListener(v -> showResolutionDialog());
+
+        // 🟢【新增】绑定版本信息点击事件
+        itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
         
         initListeners();
         webServerManager.start();
@@ -207,6 +219,54 @@ public class SettingsActivity extends AppCompatActivity {
         if (epgManager.size() == 0) {
             epgManager.addSource("默认节目单", UrlConfig.EPG_URL);
         }
+    }
+
+    // 🟢【新增】显示版本信息弹窗（全自动获取）
+    private void showVersionInfoDialog() {
+        // 1. 版本信息
+        String versionName = BuildConfig.VERSION_NAME;
+        int versionCode = BuildConfig.VERSION_CODE;
+
+        // 2. 更新内容（从 UpdateManager 的 SharedPreferences 自动读取）
+        String updateNotes = updateManager.getUpdateMessage();
+
+        // 3. UA (从 SharedPreferences 自动读取)
+        String userAgent = sp.getString("custom_user_agent", "");
+        if (TextUtils.isEmpty(userAgent)) {
+            String uaMode = sp.getString(KEY_USER_AGENT_MODE, "exo");
+            if ("vlc".equals(uaMode)) {
+                userAgent = "VLC/3.0.21 LibVLC/3.0.21";
+            } else {
+                userAgent = "ExoPlayer";
+            }
+        }
+
+        // 4. SDK 版本 (自动读取)
+        String sdkVersion = "Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")";
+
+        // 5. 播放器版本 (自动读取 Media3 库真实版本)
+        String playerVersion = MediaLibraryInfo.VERSION;
+
+        // 拼接成要显示的文本 (排版)
+        String message = "版本信息: v" + versionName + " (" + versionCode + ")\n\n" +
+                         "更新内容: \n" + updateNotes + "\n\n" +
+                         "UA: " + userAgent + "\n\n" +
+                         "SDK 版本: " + sdkVersion + "\n\n" +
+                         "播放器版本: " + playerVersion;
+
+        // 给标题加粗
+        SpannableString spannableString = new SpannableString(message);
+        spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, 5, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        int startUc = message.indexOf("更新内容:");
+        if (startUc != -1) {
+            spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), startUc, startUc + 5, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("📱 应用详情")
+                .setMessage(spannableString)
+                .setPositiveButton("确定", null)
+                .show();
     }
 
     private String getLineName(int index) {
@@ -351,6 +411,8 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList.add(findViewById(R.id.item_check_update));
         // 🔴【新增】日志选项加入焦点管理列表
         settingsItemList.add(itemLog);
+        // 🔴【新增】版本信息选项加入焦点管理列表
+        settingsItemList.add(itemVersionInfo);
 
         for (int i = settingsItemList.size() - 1; i >= 0; i--) {
             if (settingsItemList.get(i) == null) {
@@ -438,6 +500,9 @@ public class SettingsActivity extends AppCompatActivity {
             // 调用 MainActivity 的静态方法，控制播放器中间的透明悬浮窗
             MainActivity.toggleLogWindow(newState);
         });
+
+        // 🔴【新增】版本信息点击事件
+        itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
     }
 
     // ====================================================================
