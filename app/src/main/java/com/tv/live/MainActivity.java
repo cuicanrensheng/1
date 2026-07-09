@@ -603,6 +603,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void togglePanel() {
+        // 🔥【回看模式禁用面板】
+        if (isInCatchUpMode) {
+            // 如果处于回看模式，禁止打开面板
+            return;
+        }
         // 🔥 联动：如果当前设置页是打开的，发送广播关闭它
         if (isOpeningSettings) {
             sendBroadcast(new Intent("com.tv.live.CLOSE_SETTINGS"));
@@ -632,6 +637,10 @@ public class MainActivity extends AppCompatActivity {
         int action = event.getAction();
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
             if (action == KeyEvent.ACTION_DOWN) {
+                // 🔥【回看模式禁用菜单键打开设置】
+                if (isInCatchUpMode) {
+                    return true; // 直接拦截，不处理
+                }
                 openSettings();
             }
             return true;
@@ -649,6 +658,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        // 🔥【回看模式禁用长按返回键打开设置】
+        if (isInCatchUpMode && keyCode == KeyEvent.KEYCODE_BACK) {
+            return true; // 拦截并消费事件
+        }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             openSettings();
             return true;
@@ -660,6 +673,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void openSettings() {
+        // 🔥【防止重复打开设置】
+        if (isOpeningSettings) return;
+        // 🔥【回看模式禁用设置】
+        if (isInCatchUpMode) return;
+
         isOpeningSettings = true;
         appCoreManager.beforeOpenSettings();
         
@@ -671,10 +689,10 @@ public class MainActivity extends AppCompatActivity {
         // 🔥 联动：收起 ExoPlayer 控制栏
         hideExoController();
         
-        // 🔥 联动：打开设置时暂停播放
-        if (mPlayerManager != null) {
-            mPlayerManager.pause();
-        }
+        // 🔥【已移除】打开设置时暂停播放（去除自动暂停）
+        // if (mPlayerManager != null) {
+        //     mPlayerManager.pause();
+        // }
 
         startActivity(new Intent(this, SettingsActivity.class));
     }
