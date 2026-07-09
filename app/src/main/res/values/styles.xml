@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- ================================================ -->
+    <!-- 🟢【重要修复】创建别名指向 NoTitle，解决 AAPT 找不到 Theme.TVLive 的报错 -->
+    <!-- ================================================ -->
+    <style name="Theme.TVLive" parent="Theme.TVLive.NoTitle" />
+
+    <!-- ================================================ -->
     <!-- 主主题：兼容模式（手机+电视都能用） -->
     <!-- ================================================ -->
     <style name="Theme.TVLive.NoTitle" parent="Theme.AppCompat.Light.NoActionBar">
@@ -40,7 +45,7 @@
     </style>
 
     <!-- ============================================================== -->
-    <!-- ✅ 新增：PlayerView 渲染类型样式（依赖 1.3.1 的 XML 属性） -->
+    <!-- ✅ PlayerView 渲染类型样式 -->
     <!-- ============================================================== -->
     <style name="PlayerView_Surface">
         <item name="surface_type">surface_view</item>
