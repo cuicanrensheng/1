@@ -277,6 +277,12 @@ public class EpgManagerWrapper {
                         String endStr = sdfFull.format(endCal.getTime());
                         String catchUrl = liveUrl.contains("PLTV") ? liveUrl.replace("PLTV", "TVOD") : liveUrl;
                         catchUrl += catchUrl.contains("?") ? "&playseek=" + startStr + "-" + endStr : "?playseek=" + startStr + "-" + endStr;
+
+                        // 🔥【新增】在回看播放前，触发显示 Exo 原生控制栏
+                        if (ctx instanceof MainActivity) {
+                            ((MainActivity) ctx).showExoController();
+                        }
+
                         ((MainActivity) ctx).mPlayerManager.playUrl(catchUrl);
                         Toast.makeText(ctx, "回看：" + item.title, Toast.LENGTH_SHORT).show();
                     } catch (Exception e) {
