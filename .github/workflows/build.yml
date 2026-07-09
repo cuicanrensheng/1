@@ -65,7 +65,7 @@ jobs:
             -PkeyAlias=${{ secrets.KEY_ALIAS }} \
             -PkeyPassword=${{ secrets.KEY_PASSWORD }}
 
-      # 🟢【关键步骤】读取 release_notes.txt 的内容作为更新日志
+      # 🟢 读取 release_notes.txt 的内容作为更新日志
       - name: 获取更新日志内容
         id: get_update_message
         run: |
@@ -114,5 +114,20 @@ jobs:
           files: |
             app/build/outputs/apk/release/app-release.apk
             update.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 🟢【新增】自动将最新 update.json 推送回 main 分支
+      - name: 自动提交 update.json 到 main 分支
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          # 将当前目录生成的 update.json 复制到工作区
+          cp update.json update.json
+          git add update.json
+          # 🔥 加上 [skip ci] 防止触发死循环构建
+          git commit -m "[skip ci] 自动更新 update.json 到 v${{ github.run_number }}" || echo "无变更跳过"
+          git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
