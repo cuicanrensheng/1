@@ -1,5 +1,6 @@
 package com.tv.live;
 
+import android.annotation.SuppressLint; // 🟢【新增】必须导入这个包
 import android.widget.Toast;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -26,7 +27,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
-import androidx.media3.common.util.UnstableApi; // 🟢 导入 UnstableApi
+import androidx.media3.common.util.UnstableApi; // 保留这个导入
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -62,9 +63,8 @@ import javax.net.ssl.HttpsURLConnection;
 
 import okhttp3.Headers;
 
-// 🟢【关键修复】添加文件级 OptIn 注解，一劳永逸解决 98 个 UnsafeOptInUsageError
-@file:OptIn(UnstableApi::class)
-
+// 🟢【关键修复】删除 Kotlin 的 @file:OptIn，替换为 Java 支持的 @SuppressLint("UnsafeOptInUsageError")
+@SuppressLint("UnsafeOptInUsageError")
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
     public static final int DECODER_MODE_AUTO = 0;
@@ -274,7 +274,6 @@ public class TVPlayerManager {
         if (codec == null) return false;
         String name = codec.name;
         if (name == null) return false;
-        // 🟢【优化】避免默认地区问题
         String lowerName = name.toLowerCase(Locale.ROOT);
         return lowerName.startsWith("omx.google.") || lowerName.startsWith("c2.android.");
     }
@@ -735,7 +734,6 @@ public class TVPlayerManager {
                 currentUrl = playUrl;
             }
 
-            // 异步解析直播源（主播放列表）
             if (currentUrl.toLowerCase(Locale.ROOT).contains("m3u8")) {
                 fetchAndParseMasterPlaylist(currentUrl);
             } else {
@@ -790,7 +788,6 @@ public class TVPlayerManager {
         }
     }
 
-    // ********** 解析主播放列表，获取多码率子流 **********
     private void fetchAndParseMasterPlaylist(String masterUrl) {
         if (isParsingMasterPlaylist) return;
         isParsingMasterPlaylist = true;
