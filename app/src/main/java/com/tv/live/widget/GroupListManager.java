@@ -90,19 +90,22 @@ public class GroupListManager {
             public View getView(int position, View convertView, ViewGroup parent) {
                 View view = super.getView(position, convertView, parent);
                 TextView tv = view.findViewById(android.R.id.text1);
-                tv.setTextSize(16);
-                tv.setPadding(20, 15, 20, 15);
-                tv.setText(groupDisplayList.get(position));
 
-                // =========================================================
-                // ✅【补充：加粗逻辑】
-                // 当列表拥有焦点，且当前条目为选中项时，字体加粗
-                // =========================================================
-                boolean hasFocus = lvGroup.hasFocus();
-                if (position == selectedPosition && hasFocus) {
-                    tv.setTypeface(null, Typeface.BOLD);
-                } else {
-                    tv.setTypeface(null, Typeface.NORMAL);
+                // ✅【修复】判空保护，防止因 findById 失败导致的 NPE 崩溃
+                if (tv != null) {
+                    // 移除 setTextSize 和 setPadding，它们已在 XML 中定义
+                    tv.setText(groupDisplayList.get(position));
+
+                    // =========================================================
+                    // ✅【加粗逻辑】
+                    // 当列表拥有焦点，且当前条目为选中项时，字体加粗
+                    // =========================================================
+                    boolean hasFocus = lvGroup.hasFocus();
+                    if (position == selectedPosition && hasFocus) {
+                        tv.setTypeface(null, Typeface.BOLD);
+                    } else {
+                        tv.setTypeface(null, Typeface.NORMAL);
+                    }
                 }
 
                 // 颜色和背景完全由 R.layout.item_group 中的选择器自动控制
