@@ -15,6 +15,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
 
+import androidx.core.content.ContextCompat; // 🔧 新增导入
+
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -240,15 +242,8 @@ public class UpdateManager {
         };
 
         IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            } else {
-                context.registerReceiver(downloadCompleteReceiver, filter);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 RECEIVER_NOT_EXPORTED
+        ContextCompat.registerReceiver(context, downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
     }
 
     private void unregisterDownloadCompleteReceiver() {
