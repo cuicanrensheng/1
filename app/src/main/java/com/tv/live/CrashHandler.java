@@ -1,5 +1,6 @@
 package com.tv.live;
 
+import android.annotation.SuppressLint; // 🟢 新增导入
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -45,6 +46,7 @@ import java.util.Locale;
  * 如果需要自动重启，可以调用：
  * CrashHandler.getInstance().setAutoRestartEnabled(true);
  */
+@SuppressLint("StaticFieldLeak") // 🟢【关键修复】忽略 Lint 的静态 Context 持有警告（此处为 ApplicationContext，无内存泄漏风险）
 public class CrashHandler implements Thread.UncaughtExceptionHandler {
 
     private static final String TAG = "CrashHandler";
@@ -52,7 +54,7 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
     // 单例
     private static CrashHandler instance;
 
-    // 上下文
+    // 上下文（ApplicationContext，生命周期与进程一致，安全）
     private Context context;
 
     // 系统默认的异常处理器（兜底用）
