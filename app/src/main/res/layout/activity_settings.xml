@@ -17,7 +17,6 @@
         android:focusable="true" />
 
     <!-- 设置面板 -->
-    <!-- ✅【关键修改】新增 android:scrollbars="none"，彻底解决设置页 ScrollView 的 mutate() 空指针崩溃 -->
     <ScrollView
         android:id="@+id/settings_content"
         android:layout_width="240dp"
@@ -38,7 +37,9 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- ============================================================ -->
             <!-- 开机自启 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_boot"
                 android:layout_width="match_parent"
@@ -48,7 +49,7 @@
                 android:paddingEnd="8dp"
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <LinearLayout
@@ -61,7 +62,7 @@
                         android:layout_weight="1"
                         android:layout_height="wrap_content"
                         android:text="开机自启"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/item_text_selector"
                         android:textSize="16sp" />
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/sw_boot"
@@ -80,7 +81,9 @@
                     android:textSize="12sp" />
             </LinearLayout>
 
+            <!-- ============================================================ -->
             <!-- 换台反转 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_reverse"
                 android:layout_width="match_parent"
@@ -88,7 +91,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
@@ -96,7 +99,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="换台反转"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_reverse"
@@ -106,7 +109,9 @@
                     android:clickable="false" />
             </LinearLayout>
 
+            <!-- ============================================================ -->
             <!-- 画中画 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_pip"
                 android:layout_width="match_parent"
@@ -114,7 +119,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
@@ -122,7 +127,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="画中画"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_pip"
@@ -132,7 +137,9 @@
                     android:clickable="false" />
             </LinearLayout>
 
+            <!-- ============================================================ -->
             <!-- 频道线路选择 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_channel_line"
                 android:layout_width="match_parent"
@@ -140,7 +147,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
@@ -148,7 +155,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="频道线路选择"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_channel_line"
@@ -159,7 +166,9 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
+            <!-- ============================================================ -->
             <!-- 解码器选择 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_decoder"
                 android:layout_width="match_parent"
@@ -167,7 +176,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
@@ -175,7 +184,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="解码器选择"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_decoder_mode"
@@ -186,7 +195,9 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
+            <!-- ============================================================ -->
             <!-- 渲染方式 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_renderer"
                 android:layout_width="match_parent"
@@ -194,7 +205,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
@@ -202,7 +213,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="渲染方式"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_renderer_type"
@@ -213,7 +224,9 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
+            <!-- ============================================================ -->
             <!-- 屏幕比例 -->
+            <!-- ============================================================ -->
             <TextView
                 android:id="@+id/tv_screen_ratio"
                 android:layout_width="match_parent"
@@ -222,13 +235,15 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:text="屏幕比例"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/item_text_selector"
                 android:textSize="16sp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true"/>
 
+            <!-- ============================================================ -->
             <!-- 清晰度选择 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_resolution"
                 android:layout_width="match_parent"
@@ -236,7 +251,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
@@ -244,7 +259,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="清晰度选择"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_resolution_status"
@@ -263,7 +278,9 @@
                 android:layout_marginBottom="8dp"
                 android:background="#33FFFFFF"/>
 
+            <!-- ============================================================ -->
             <!-- HTTP重定向网络配置 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_redirect"
                 android:layout_width="match_parent"
@@ -273,14 +290,14 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="HTTP重定向网络配置"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_redirect_setting"
@@ -297,7 +314,9 @@
                 android:layout_marginBottom="8dp"
                 android:background="#33FFFFFF"/>
 
+            <!-- ============================================================ -->
             <!-- 直播源订阅 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_live_subscribe"
                 android:layout_width="match_parent"
@@ -305,18 +324,20 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="直播源订阅"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
             </LinearLayout>
 
+            <!-- ============================================================ -->
             <!-- 节目单订阅 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_epg_subscribe"
                 android:layout_width="match_parent"
@@ -324,14 +345,14 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="节目单订阅"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
             </LinearLayout>
 
@@ -343,7 +364,9 @@
                 android:layout_marginBottom="8dp"
                 android:background="#33FFFFFF"/>
 
+            <!-- ============================================================ -->
             <!-- 检查更新 -->
+            <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_check_update"
                 android:layout_width="match_parent"
@@ -351,7 +374,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
@@ -359,7 +382,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="检查更新"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp"/>
                 <Button
                     android:id="@+id/btn_check_update"
@@ -371,7 +394,7 @@
             </LinearLayout>
 
             <!-- ============================================================ -->
-            <!-- 🆕 新增：版本信息 -->
+            <!-- 版本信息 -->
             <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_version_info"
@@ -380,7 +403,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
@@ -388,7 +411,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="版本信息"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp"/>
                 <TextView
                     android:id="@+id/tv_version_short"
@@ -398,7 +421,6 @@
                     android:textColor="#999999"
                     android:textSize="14sp" />
             </LinearLayout>
-            <!-- ============================================================ -->
 
             <!-- 分隔线 -->
             <View
@@ -409,7 +431,7 @@
                 android:background="#33FFFFFF"/>
 
             <!-- ============================================================ -->
-            <!-- 🆕 新增：日志输出 -->
+            <!-- 日志输出 -->
             <!-- ============================================================ -->
             <LinearLayout
                 android:id="@+id/item_log"
@@ -418,7 +440,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
+                android:background="@drawable/item_bg_selector"
                 android:focusable="true"
                 android:clickable="true">
                 <TextView
@@ -426,7 +448,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="日志输出"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_log_status"
@@ -436,7 +458,6 @@
                     android:textColor="#999999"
                     android:textSize="14sp" />
             </LinearLayout>
-            <!-- ============================================================ -->
 
             <!-- 网页设置提示 -->
             <TextView
