@@ -243,7 +243,10 @@ public class WebServerManager {
                     }
 
                     if (hasUpdate) {
-                        context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                        // 🔧 修复：发送显式 Intent
+                        Intent refreshIntent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                        refreshIntent.setPackage(context.getPackageName());
+                        context.sendBroadcast(refreshIntent);
                     }
                 });
 
