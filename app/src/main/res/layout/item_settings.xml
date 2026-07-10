@@ -4,15 +4,23 @@
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:padding="8dp"
-    android:background="@drawable/setting_item_bg"
+    android:background="@drawable/item_bg_selector"
     android:focusable="true"
-    android:clickable="true">
+    android:clickable="false">
+    <!-- 
+      ✏️【修改点详解】
+      1. background: 改用了统一的 @drawable/item_bg_selector，实现“聚焦浅蓝/未聚焦透明”的切换
+      2. clickable: 改为 "false" (移除 "true")，防止在 ListView 中拦截 onItemClick 事件
+    -->
+
     <TextView
         android:id="@+id/tv_index"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="@color/setting_item_text"
+        android:textColor="@color/item_text_selector"
         android:textSize="14sp"/>
+        <!-- ✏️ 将 @color/setting_item_text 替换为统一的 @color/item_text_selector -->
+
     <TextView
         android:id="@+id/tv_setting_item"
         android:layout_width="0dp"
@@ -20,8 +28,10 @@
         android:layout_height="wrap_content"
         android:singleLine="true"
         android:ellipsize="middle"
-        android:textColor="@color/setting_item_text"
+        android:textColor="@color/item_text_selector"
         android:textSize="13sp"/>
+        <!-- ✏️ 将 @color/setting_item_text 替换为统一的 @color/item_text_selector -->
+
     <Button
         android:id="@+id/btn_delete"
         android:layout_width="wrap_content"
@@ -30,4 +40,5 @@
         android:textSize="12sp"
         android:focusable="false"
         android:clickable="true"/>
+        <!-- 按钮无需调整，保持与布局原文一致 -->
 </LinearLayout>
