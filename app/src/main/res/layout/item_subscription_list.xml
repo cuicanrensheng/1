@@ -5,28 +5,33 @@
     android:orientation="horizontal"
     android:padding="10dp"
     android:gravity="center_vertical"
-    android:background="#333545"
+    android:background="@drawable/item_bg_selector"
     android:layout_marginBottom="4dp"
     android:focusable="true"
-    android:clickable="true">
+    android:clickable="false">
+    <!-- 
+      ✏️【修改点详解】
+      1. background: 去掉 #333545，改为 @drawable/item_bg_selector，实现聚焦浅蓝/未聚焦透明的自动切换。
+      2. clickable: 改为 "false"，防止在 ListView 中拦截 onItemClick 事件。
+    -->
 
-    <!-- ✅ 选中时的打勾标记（未选中时隐藏） -->
+    <!-- ✅ 选中时的打勾标记（未选中时隐藏，颜色改用选择器） -->
     <TextView
         android:id="@+id/tv_check"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="✓"
-        android:textColor="#40A9FF"
+        android:textColor="@color/item_text_selector"
         android:textSize="16sp"
         android:visibility="gone" />
 
-    <!-- 🔽 修改了这里：把 maxLines="1" 改为 maxLines="2"，并增加了 paddingTop -->
+    <!-- 🔽 节目源名称/地址 -->
     <TextView
         android:id="@+id/tv_url"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/item_text_selector"
         android:textSize="14sp"
         android:maxLines="2"
         android:ellipsize="end"
@@ -34,7 +39,7 @@
         android:layout_marginStart="8dp"
         android:layout_marginEnd="8dp" />
 
-    <!-- 📋 复制按钮 -->
+    <!-- 📋 复制按钮（🔧 取消聚焦，防止干扰整行导航） -->
     <Button
         android:id="@+id/btn_copy"
         android:layout_width="40dp"
@@ -43,10 +48,10 @@
         android:textSize="14sp"
         android:background="#55576A"
         android:layout_marginEnd="8dp"
-        android:focusable="true"
+        android:focusable="false"
         android:clickable="true" />
 
-    <!-- 🗑️ 删除按钮 -->
+    <!-- 🗑️ 删除按钮（🔧 取消聚焦，防止干扰整行导航） -->
     <Button
         android:id="@+id/btn_delete"
         android:layout_width="40dp"
@@ -54,6 +59,6 @@
         android:text="🗑️"
         android:textSize="14sp"
         android:background="#55576A"
-        android:focusable="true"
+        android:focusable="false"
         android:clickable="true" />
 </LinearLayout>
