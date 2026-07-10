@@ -1,6 +1,7 @@
 package com.tv.live.widget;
 
 import android.content.Context;
+import android.graphics.Typeface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -89,8 +90,18 @@ public class DateListManager {
                 tv.setTextSize(14);
                 tv.setGravity(android.view.Gravity.CENTER);
 
-                // 样式完全由 XML 选择器（state_focused / state_selected）自动控制，
-                // 此处不再手动设置颜色、背景或字体
+                // =========================================================
+                // ✅【补充：加粗逻辑】
+                // 当列表拥有焦点，且当前条目为选中项时，字体加粗
+                // =========================================================
+                boolean hasFocus = lvDate.hasFocus();
+                if (position == selectedPosition && hasFocus) {
+                    tv.setTypeface(null, Typeface.BOLD);
+                } else {
+                    tv.setTypeface(null, Typeface.NORMAL);
+                }
+
+                // 样式完全由 XML 选择器（state_focused / state_selected）自动控制
                 return tv;
             }
         };
