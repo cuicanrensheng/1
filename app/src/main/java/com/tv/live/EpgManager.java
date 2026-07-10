@@ -1,5 +1,6 @@
 package com.tv.live;
 
+import android.annotation.SuppressLint; // 🟢 新增导入
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -22,6 +23,7 @@ import java.util.zip.GZIPInputStream;
 /**
  * ✅ EPG节目单管理器（带缓存 + 智能匹配 + 内存优化版）
  */
+@SuppressLint("StaticFieldLeak") // 🟢 忽略 Lint 静态字段持有 ApplicationContext 的安全警告
 public class EpgManager {
 
     private static EpgManager instance;
@@ -199,7 +201,8 @@ public class EpgManager {
         XmlPullParser xml = factory.newPullParser();
         xml.setInput(is, "UTF-8");
 
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
+        // 🟢【关键修复】添加 Locale.US，解决 SimpleDateFormat 区域设置警告
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US);
         sdf.setLenient(true);
 
         Calendar todayCheck = Calendar.getInstance();
@@ -307,7 +310,8 @@ public class EpgManager {
             return normalizedNameCache.get(name);
         }
 
-        String result = name.toLowerCase();
+        // 🟢【关键修复】添加 Locale.ROOT，解决 toLowerCase 区域设置警告
+        String result = name.toLowerCase(Locale.ROOT);
 
         result = result.replaceAll("(?i)hd", "");
         result = result.replaceAll("(?i)fhd", "");
