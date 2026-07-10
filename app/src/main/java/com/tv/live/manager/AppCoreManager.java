@@ -10,6 +10,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
+import androidx.core.content.ContextCompat; // 🔧 新增导入
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.UrlConfig;
@@ -295,18 +296,12 @@ public class AppCoreManager {
         };
         try {
             IntentFilter filterToggle = new IntentFilter("com.tv.live.TOGGLE_CONTROL");
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(toggleControllerReceiver, filterToggle, Context.RECEIVER_NOT_EXPORTED);
-            } else {
-                context.registerReceiver(toggleControllerReceiver, filterToggle);
-            }
+            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 RECEIVER_NOT_EXPORTED
+            ContextCompat.registerReceiver(context, toggleControllerReceiver, filterToggle, Context.RECEIVER_NOT_EXPORTED);
 
             IntentFilter filterRefresh = new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG");
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(refreshReceiver, filterRefresh, Context.RECEIVER_NOT_EXPORTED);
-            } else {
-                context.registerReceiver(refreshReceiver, filterRefresh);
-            }
+            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 RECEIVER_NOT_EXPORTED
+            ContextCompat.registerReceiver(context, refreshReceiver, filterRefresh, Context.RECEIVER_NOT_EXPORTED);
 
             receiversRegistered = true;
         } catch (Exception e) {
