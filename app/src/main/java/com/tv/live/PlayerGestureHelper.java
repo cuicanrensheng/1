@@ -10,8 +10,10 @@ public class PlayerGestureHelper {
     private final GestureDetector gestureDetector;
     private final GestureCallback callback;
 
-    // 🟢【核心修复1】引入防连击锁，防止 onScroll 连续触发导致的卡顿
+    // 防连击锁
     private boolean isScrollLocked = false;
+    // 长按标志：防止长按时误触发滑动切台
+    private boolean isLongPress = false;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static final long SCROLL_LOCK_DELAY = 500; // 锁定 500ms
 
@@ -21,32 +23,39 @@ public class PlayerGestureHelper {
     }
 
     public void handleTouch(MotionEvent event) {
+        // 手指抬起或取消时重置长按标志
+        int action = event.getAction();
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            isLongPress = false;
+        }
         gestureDetector.onTouchEvent(event);
     }
 
-    // 🟢【优化2】加上防连击锁和方向判定
     private class MyGestureListener extends GestureDetector.SimpleOnGestureListener {
         @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
+            isLongPress = false;
             callback.onOk();
             return true;
         }
 
         @Override
         public boolean onDoubleTap(MotionEvent e) {
+            isLongPress = false;
             callback.onMenu();
             return true;
         }
 
         @Override
         public void onLongPress(MotionEvent e) {
+            isLongPress = true; // 标记长按，阻止滑动
             callback.onLongOk();
         }
 
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
-            // 如果处于锁定状态，直接忽略后续滑动事件
-            if (isScrollLocked) {
+            // 如果正在长按 或 处于防连击锁，忽略滑动
+            if (isLongPress || isScrollLocked) {
                 return true;
             }
 
@@ -66,7 +75,7 @@ public class PlayerGestureHelper {
             return true;
         }
 
-        // 🟢 锁定逻辑：锁定期间阻止再次触发，500ms 后自动解锁
+        // 锁定逻辑：锁定期间阻止再次触发，500ms 后自动解锁
         private void lockScroll() {
             isScrollLocked = true;
             mainHandler.removeCallbacksAndMessages(null);
