@@ -19,6 +19,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.common.util.UnstableApi; // 🟢 导入 UnstableApi
 import androidx.media3.ui.PlayerView;
 
 import com.tv.live.config.AppConfig;
@@ -33,6 +34,9 @@ import com.tv.live.widget.GroupListManager;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+
+// 🟢【关键修复】添加文件级 OptIn 注解，消除本文件所有的 UnsafeOptInUsageError 报错
+@file:OptIn(UnstableApi::class)
 
 /**
  * 主活动类：直播APP的核心页面
