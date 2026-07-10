@@ -505,7 +505,7 @@ public class TVPlayerManager {
                 }
             };
             IntentFilter filter = new IntentFilter("com.tv.live.DECODER_MODE_CHANGED");
-            ContextCompat.registerReceiver(context, decoderModeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            ContextCompat.registerReceiver(context, decoderModeReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
             decoderReceiverRegistered = true;
         } catch (Exception e) {
             Log.e(TAG, "注册解码器广播失败", e);
@@ -607,7 +607,7 @@ public class TVPlayerManager {
                 }
             };
             IntentFilter filter = new IntentFilter("com.tv.live.RENDERER_TYPE_CHANGED");
-            ContextCompat.registerReceiver(context, rendererModeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            ContextCompat.registerReceiver(context, rendererModeReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
             rendererReceiverRegistered = true;
         } catch (Exception e) {
             Log.e(TAG, "注册渲染方式广播失败", e);
