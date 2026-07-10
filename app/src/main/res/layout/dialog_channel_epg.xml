@@ -5,25 +5,31 @@
     android:orientation="horizontal"
     android:background="#cc101420">
 
+    <!-- 分组列表 -->
     <ListView
         android:id="@+id/lv_group"
         android:layout_width="140dp"
         android:layout_height="match_parent"
-        android:background="#cc0f131e"
-        android:divider="#22ffffff" />
+        android:background="@android:color/transparent"
+        android:divider="#22ffffff"
+        android:descendantFocusability="blocksDescendants" />
 
+    <!-- 频道列表 -->
     <ListView
         android:id="@+id/lv_channel"
         android:layout_width="320dp"
         android:layout_height="match_parent"
-        android:background="#cc141824"
-        android:divider="#22ffffff" />
+        android:background="@android:color/transparent"
+        android:divider="#22ffffff"
+        android:descendantFocusability="blocksDescendants" />
 
+    <!-- 节目单列表 -->
     <ListView
         android:id="@+id/lv_epg"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#cc191d2a"
-        android:divider="#22ffffff" />
+        android:background="@android:color/transparent"
+        android:divider="#22ffffff"
+        android:descendantFocusability="blocksDescendants" />
 
 </LinearLayout>
