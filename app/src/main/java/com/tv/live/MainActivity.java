@@ -267,9 +267,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ================================================================
-    //  🔥 修复：删除 onPanelFocusChanged 回调，解决编译错误
-    // ================================================================
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
@@ -681,6 +678,9 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.setStopCalled(true);
     }
 
+    // ================================================================
+    //  🔥 修复：onResume 中强制隐藏控制栏，防止从后台返回时意外弹出
+    // ================================================================
     @Override
     protected void onResume() {
         super.onResume();
@@ -696,13 +696,12 @@ public class MainActivity extends AppCompatActivity {
                 if (pipManager != null && mPlayerManager != null) {
                     pipManager.resumePlayback(mPlayerManager);
                 }
-                if (playerView != null && !isControllerShowing) {
-                    hideExoController();
-                }
+                // 🔥 强制隐藏控制栏，无论当前状态如何，避免从后台返回时控制栏弹出
+                hideExoController();
             }, 200);
         }
 
-        // 自愈逻辑：如果回看模式卡住且当前没有频道，强制退出
+        // 自愈逻辑：如果回看模式卡住且当前没有频道，强制退出（保留原逻辑）
         if (isInCatchUpMode) {
             boolean shouldExit = false;
             if (mPlayerManager.getCurrentChannel() == null) {
