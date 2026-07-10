@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 有焦点 + 选中：蓝色文字 -->
+    <!-- 触屏手指按下时：蓝色文字 -->
+    <item android:state_pressed="true" android:color="#40A9FF" />
+    <!-- 有焦点 + 选中（遥控器选中）：蓝色文字 -->
     <item android:state_focused="true" android:state_selected="true" android:color="#40A9FF" />
-    <!-- 有焦点（未选中时也应该蓝色，但实际场景中焦点通常伴随选中） -->
+    <!-- 有焦点（遥控器悬停）：蓝色文字 -->
     <item android:state_focused="true" android:color="#40A9FF" />
-    <!-- 无焦点 + 选中：蓝色文字 -->
+    <!-- 无焦点 + 选中（遥控器或触屏选中后）：蓝色文字 -->
     <item android:state_selected="true" android:color="#40A9FF" />
     <!-- 未选中：白色文字 -->
     <item android:color="#FFFFFF" />
