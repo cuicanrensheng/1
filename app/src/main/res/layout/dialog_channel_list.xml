@@ -9,21 +9,24 @@
         android:id="@+id/lv_group"
         android:layout_width="120dp"
         android:layout_height="450dp"
-        android:background="#333333" />
+        android:background="@android:color/transparent"
+        android:descendantFocusability="blocksDescendants" />
 
     <!-- 频道列表 -->
     <ListView
         android:id="@+id/lv_channel_list"
         android:layout_width="150dp"
         android:layout_height="450dp"
-        android:background="#444444" />
+        android:background="@android:color/transparent"
+        android:descendantFocusability="blocksDescendants" />
 
     <!-- 日期栏 -->
     <ListView
         android:id="@+id/lv_date"
         android:layout_width="120dp"
         android:layout_height="450dp"
-        android:background="#555555" />
+        android:background="@android:color/transparent"
+        android:descendantFocusability="blocksDescendants" />
 
     <!-- 节目单：占满剩余宽度 -->
     <ListView
@@ -31,6 +34,7 @@
         android:layout_width="0dp"
         android:layout_height="450dp"
         android:layout_weight="1"
-        android:background="#666666" />
+        android:background="@android:color/transparent"
+        android:descendantFocusability="blocksDescendants" />
 
 </LinearLayout>
