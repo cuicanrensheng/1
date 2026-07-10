@@ -1,5 +1,6 @@
 package com.tv.live;
 
+import android.annotation.SuppressLint; // 🟢【新增】必须导入这个包
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -19,7 +20,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.media3.common.util.UnstableApi; // 🟢 导入 UnstableApi
+import androidx.media3.common.util.UnstableApi; // 保留这个导入
 import androidx.media3.ui.PlayerView;
 
 import com.tv.live.config.AppConfig;
@@ -35,9 +36,8 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
-// 🟢【关键修复】添加文件级 OptIn 注解，消除本文件所有的 UnsafeOptInUsageError 报错
-@file:OptIn(UnstableApi::class)
-
+// 🟢【关键修复】删除 Kotlin 的 @file:OptIn，替换为 Java 支持的 @SuppressLint("UnsafeOptInUsageError")
+@SuppressLint("UnsafeOptInUsageError")
 /**
  * 主活动类：直播APP的核心页面
  */
