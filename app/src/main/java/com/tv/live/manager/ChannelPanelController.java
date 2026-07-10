@@ -24,6 +24,7 @@ import java.util.List;
  * 频道面板控制器
  * 
  * 【2026-07-08 修改：面板开启 5 秒防呆自动隐藏】
+ * 【2026-07-10 修复：遥控器焦点移动完整支持】
  */
 public class ChannelPanelController {
 
@@ -31,7 +32,7 @@ public class ChannelPanelController {
     private static final int MAX_AUTO_SKIP = 10;
 
     private static final long FIRST_LAUNCH_HIDE_DELAY_MS = 5000;
-    private static final long NORMAL_HIDE_DELAY_MS = 20000; // 🟢 修改为 20 秒防呆
+    private static final long NORMAL_HIDE_DELAY_MS = 20000;
 
     private Context context;
     private View panelLayout;
@@ -65,9 +66,8 @@ public class ChannelPanelController {
 
     private Handler mAutoHideHandler;
     private Runnable mAutoHideRunnable;
-    private long mAutoHideDelayMs = 5000; // 🟢 默认为 5 秒
+    private long mAutoHideDelayMs = 5000;
     
-    // 🟢【恢复】开启自动隐藏功能
     private boolean mAutoHideEnabled = true;
 
     private boolean mIsFirstLaunch = true;
@@ -264,7 +264,6 @@ public class ChannelPanelController {
                 hidePanel();
             }
         };
-        // 🟢【恢复】开启自动隐藏，并设定为 5 秒防呆
         mAutoHideEnabled = true;
         mAutoHideDelayMs = 5000;
     }
@@ -778,40 +777,190 @@ public class ChannelPanelController {
         return isReverse;
     }
 
+    // ===================== 修复后的 dispatchKeyEvent =====================
     public boolean dispatchKeyEvent(int keyCode) {
         View currentFocus = panelLayout.findFocus();
         if (currentFocus == null) return false;
 
-        if (rightPanelOpen) return false;
-
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                if (currentFocus == lvGroup) {
-                    int selectedPos = lvGroup.getSelectedItemPosition();
-                    if (selectedPos == lvGroup.getAdapter().getCount() - 1) {
-                        lvChannelList.requestFocus();
-                        return true;
-                    }
-                }
-                break;
-            case KeyEvent.KEYCODE_DPAD_UP:
-                if (currentFocus == lvChannelList) {
-                    int selectedPos = lvChannelList.getSelectedItemPosition();
-                    if (selectedPos == 0) {
-                        lvGroup.requestFocus();
-                        return true;
-                    }
-                }
-                break;
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                if (currentFocus == btnShowEpg) {
-                    lvChannelList.requestFocus();
+        if (rightPanelOpen) {
+            // 右侧面板按键处理
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    return moveFocusRightUp(currentFocus);
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    return moveFocusRightDown(currentFocus);
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    return moveFocusRightLeft(currentFocus);
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    return moveFocusRightRight(currentFocus);
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    performRightItemClick(currentFocus);
                     return true;
-                }
-                break;
+                default:
+                    return false;
+            }
+        } else {
+            // 左侧面板按键处理
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    return moveFocusLeftUp(currentFocus);
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    return moveFocusLeftDown(currentFocus);
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    return moveFocusLeftLeft(currentFocus);
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    return moveFocusLeftRight(currentFocus);
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    performLeftItemClick(currentFocus);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    // ---------- 左侧面板焦点移动 ----------
+    private boolean moveFocusLeftUp(View current) {
+        if (current == lvChannelList) {
+            lvGroup.requestFocus();
+            syncFocusStyle();
+            return true;
         }
         return false;
     }
+
+    private boolean moveFocusLeftDown(View current) {
+        if (current == lvGroup) {
+            lvChannelList.requestFocus();
+            syncFocusStyle();
+            return true;
+        } else if (current == lvChannelList) {
+            btnShowEpg.requestFocus();
+            syncFocusStyle();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean moveFocusLeftLeft(View current) {
+        if (current == btnShowEpg) {
+            lvChannelList.requestFocus();
+            syncFocusStyle();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean moveFocusLeftRight(View current) {
+        if (current == lvChannelList) {
+            btnShowEpg.requestFocus();
+            syncFocusStyle();
+            return true;
+        }
+        return false;
+    }
+
+    private void performLeftItemClick(View current) {
+        if (current == lvGroup) {
+            int pos = lvGroup.getSelectedItemPosition();
+            onGroupClicked(pos);
+        } else if (current == lvChannelList) {
+            int pos = lvChannelList.getSelectedItemPosition();
+            onChannelClicked(pos);
+        } else if (current == btnShowEpg) {
+            onEpgButtonClicked();
+        }
+    }
+
+    // ---------- 右侧面板焦点移动 ----------
+    private boolean moveFocusRightUp(View current) {
+        if (current == lvEpg) {
+            lvDate.requestFocus();
+            syncFocusStyle();
+            return true;
+        } else if (current == lvDate) {
+            lvChannelListEpg.requestFocus();
+            syncFocusStyle();
+            return true;
+        } else if (current == btnBackGroup) {
+            lvChannelListEpg.requestFocus();
+            syncFocusStyle();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean moveFocusRightDown(View current) {
+        if (current == lvChannelListEpg) {
+            lvDate.requestFocus();
+            syncFocusStyle();
+            return true;
+        } else if (current == lvDate) {
+            lvEpg.requestFocus();
+            syncFocusStyle();
+            return true;
+        } else if (current == lvEpg) {
+            btnBackGroup.requestFocus();
+            syncFocusStyle();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean moveFocusRightLeft(View current) {
+        if (current == btnBackGroup) {
+            lvChannelListEpg.requestFocus();
+            syncFocusStyle();
+            return true;
+        } else if (current == lvEpg) {
+            lvDate.requestFocus();
+            syncFocusStyle();
+            return true;
+        } else if (current == lvDate) {
+            lvChannelListEpg.requestFocus();
+            syncFocusStyle();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean moveFocusRightRight(View current) {
+        if (current == lvChannelListEpg) {
+            lvDate.requestFocus();
+            syncFocusStyle();
+            return true;
+        } else if (current == lvDate) {
+            lvEpg.requestFocus();
+            syncFocusStyle();
+            return true;
+        } else if (current == lvEpg) {
+            btnBackGroup.requestFocus();
+            syncFocusStyle();
+            return true;
+        }
+        return false;
+    }
+
+    private void performRightItemClick(View current) {
+        if (current == lvChannelListEpg) {
+            int pos = lvChannelListEpg.getSelectedItemPosition();
+            onChannelClicked(pos);
+        } else if (current == lvDate) {
+            int pos = lvDate.getSelectedItemPosition();
+            setCurrentDateIndex(pos);
+        } else if (current == lvEpg) {
+            View focused = lvEpg.getSelectedView();
+            if (focused != null) {
+                lvEpg.performItemClick(focused, lvEpg.getSelectedItemPosition(), lvEpg.getSelectedItemId());
+            }
+        } else if (current == btnBackGroup) {
+            onBackGroupClicked();
+        }
+    }
+
+    // ===================== 以上为新增辅助方法 =====================
 
     public void setOnChannelChangeListener(OnChannelChangeListener listener) {
         this.channelChangeListener = listener;
