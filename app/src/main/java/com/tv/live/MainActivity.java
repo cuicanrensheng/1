@@ -267,6 +267,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ================================================================
+    //  🔥 修复：删除 onPanelFocusChanged 回调，解决编译错误
+    // ================================================================
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
@@ -295,7 +298,7 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override public void onPanelMenu() { channelPanelController.toggleCurrentFavorite(); }
             @Override public void onPanelNumber(int number) {}
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
+            // 删除了 onPanelFocusChanged(TvRemoteManager.PanelFocus) 回调
             @Override public void onSettingsMoveUp() {}
             @Override public void onSettingsMoveDown() {}
             @Override public void onSettingsConfirm() {}
