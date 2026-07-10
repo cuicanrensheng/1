@@ -7,7 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
-import android.os.Build; // 🟢【新增】必须导入这个包，否则 Build.VERSION.SDK_INT 会报错
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -26,6 +26,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
+import androidx.media3.common.util.UnstableApi; // 🟢 导入 UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -61,12 +62,14 @@ import javax.net.ssl.HttpsURLConnection;
 
 import okhttp3.Headers;
 
+// 🟢【关键修复】添加文件级 OptIn 注解，一劳永逸解决 98 个 UnsafeOptInUsageError
+@file:OptIn(UnstableApi::class)
+
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
     public static final int DECODER_MODE_AUTO = 0;
     public static final int DECODER_MODE_HARD = 1;
     public static final int DECODER_MODE_SOFT = 2;
-    // 🔴【已移除】FFmpeg 扩展模式常量已删除
     
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 20000;
@@ -271,7 +274,8 @@ public class TVPlayerManager {
         if (codec == null) return false;
         String name = codec.name;
         if (name == null) return false;
-        String lowerName = name.toLowerCase();
+        // 🟢【优化】避免默认地区问题
+        String lowerName = name.toLowerCase(Locale.ROOT);
         return lowerName.startsWith("omx.google.") || lowerName.startsWith("c2.android.");
     }
 
@@ -463,7 +467,6 @@ public class TVPlayerManager {
             retryCount = 0;
             isRetrying = false;
             
-            // 切换成功提示（FFmpeg 相关已移除）
             if (mDecoderMode == DECODER_MODE_SOFT) {
                 Toast.makeText(context, "已切换至 软解模式", Toast.LENGTH_SHORT).show();
             } else if (mDecoderMode == DECODER_MODE_HARD) {
@@ -481,7 +484,6 @@ public class TVPlayerManager {
         return mDecoderMode;
     }
 
-    // 🟢【关键修复】针对 Android 13+ 解码器广播的安全注册
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
         try {
@@ -494,7 +496,6 @@ public class TVPlayerManager {
                         int mode = DECODER_MODE_AUTO;
                         if ("hard".equals(modeStr)) mode = DECODER_MODE_HARD;
                         else if ("soft".equals(modeStr)) mode = DECODER_MODE_SOFT;
-                        // FFmpeg 分支已移除
                         setDecoderMode(mode);
                     }
                 }
@@ -591,7 +592,6 @@ public class TVPlayerManager {
         isRenderingSwitching = false;
     }
 
-    // 🟢【关键修复】针对 Android 13+ 渲染器广播的安全注册
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -736,7 +736,7 @@ public class TVPlayerManager {
             }
 
             // 异步解析直播源（主播放列表）
-            if (currentUrl.toLowerCase().contains("m3u8")) {
+            if (currentUrl.toLowerCase(Locale.ROOT).contains("m3u8")) {
                 fetchAndParseMasterPlaylist(currentUrl);
             } else {
                 variantList.clear();
@@ -768,7 +768,7 @@ public class TVPlayerManager {
 
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
             MediaSource mediaSource;
-            if (currentUrl.toLowerCase().contains("m3u8")) {
+            if (currentUrl.toLowerCase(Locale.ROOT).contains("m3u8")) {
                 mediaSource = new HlsMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             } else {
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
