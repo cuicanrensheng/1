@@ -6,11 +6,11 @@
     android:padding="8dp"
     android:background="@drawable/item_bg_selector"
     android:focusable="true"
-    android:clickable="false">
+    android:clickable="true"> <!-- 🔥 改成 true，触屏点击按下去瞬间变色 -->
     <!-- 
       ✏️【修改点详解】
-      1. background: 改用了统一的 @drawable/item_bg_selector，实现“聚焦浅蓝/未聚焦透明”的切换
-      2. clickable: 改为 "false" (移除 "true")，防止在 ListView 中拦截 onItemClick 事件
+      1. clickable: 改回 "true"，保证手机触屏按下时能触发 state_pressed，立刻出高亮
+      2. 由于内部 Button 自身已经 clickable="true"，点击事件依然可以正常向上冒泡给 ListView
     -->
 
     <TextView
@@ -19,7 +19,6 @@
         android:layout_height="wrap_content"
         android:textColor="@color/item_text_selector"
         android:textSize="14sp"/>
-        <!-- ✏️ 将 @color/setting_item_text 替换为统一的 @color/item_text_selector -->
 
     <TextView
         android:id="@+id/tv_setting_item"
@@ -30,7 +29,6 @@
         android:ellipsize="middle"
         android:textColor="@color/item_text_selector"
         android:textSize="13sp"/>
-        <!-- ✏️ 将 @color/setting_item_text 替换为统一的 @color/item_text_selector -->
 
     <Button
         android:id="@+id/btn_delete"
@@ -40,5 +38,4 @@
         android:textSize="12sp"
         android:focusable="false"
         android:clickable="true"/>
-        <!-- 按钮无需调整，保持与布局原文一致 -->
 </LinearLayout>
