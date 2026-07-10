@@ -1,6 +1,7 @@
 package com.tv.live.widget;
 
 import android.content.Context;
+import android.graphics.Typeface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -9,6 +10,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import com.tv.live.Channel;
+import com.tv.live.R;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -81,8 +83,9 @@ public class GroupListManager {
             groupDisplayList.add(group);
         }
 
+        // 🔥【关键修改】将布局加载从 android.R.layout.simple_list_item_1 改为 R.layout.item_group
         adapter = new ArrayAdapter<String>(lvGroup.getContext(),
-                android.R.layout.simple_list_item_1, groupDisplayList) {
+                R.layout.item_group, groupDisplayList) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
                 View view = super.getView(position, convertView, parent);
@@ -90,13 +93,24 @@ public class GroupListManager {
                 tv.setTextSize(16);
                 tv.setPadding(20, 15, 20, 15);
                 tv.setText(groupDisplayList.get(position));
-                // 删除所有手动样式设置
+
+                // =========================================================
+                // ✅【补充：加粗逻辑】
+                // 当列表拥有焦点，且当前条目为选中项时，字体加粗
+                // =========================================================
+                boolean hasFocus = lvGroup.hasFocus();
+                if (position == selectedPosition && hasFocus) {
+                    tv.setTypeface(null, Typeface.BOLD);
+                } else {
+                    tv.setTypeface(null, Typeface.NORMAL);
+                }
+
+                // 颜色和背景完全由 R.layout.item_group 中的选择器自动控制
                 return view;
             }
         };
         lvGroup.setAdapter(adapter);
         selectedPosition = 0;
-        // 数据变化时仍需刷新
         adapter.notifyDataSetChanged();
     }
 
@@ -108,7 +122,6 @@ public class GroupListManager {
         selectedPosition = position;
         lvGroup.setItemChecked(position, true);
         lvGroup.setSelection(position);
-        // 需要刷新数据以更新选中标记（如播放指示或选中高亮）
         adapter.notifyDataSetChanged();
         if (listener != null) {
             listener.onGroupSelected(position, groupNameList.get(position));
