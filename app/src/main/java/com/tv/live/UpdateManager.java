@@ -242,8 +242,8 @@ public class UpdateManager {
         };
 
         IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-        // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 RECEIVER_NOT_EXPORTED
-        ContextCompat.registerReceiver(context, downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
+        ContextCompat.registerReceiver(context, downloadCompleteReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void unregisterDownloadCompleteReceiver() {
