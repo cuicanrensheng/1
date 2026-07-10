@@ -30,7 +30,8 @@ public class ChannelListDialog extends Dialog {
     private void initView() {
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_channel_list, null);
         setContentView(view);
-        listView = view.findViewById(R.id.lv_channel);
+        // 🟢【关键修复】把 lv_channel 改成 lv_channel_list，与 XML 完全一致
+        listView = view.findViewById(R.id.lv_channel_list);
 
         ChannelAdapter adapter = new ChannelAdapter(getContext(), channelNames);
         listView.setAdapter(adapter);
