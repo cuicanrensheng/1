@@ -8,12 +8,7 @@
     android:background="@drawable/item_bg_selector"
     android:layout_marginBottom="4dp"
     android:focusable="true"
-    android:clickable="false">
-    <!-- 
-      ✏️【修改点详解】
-      1. background: 去掉 #333545，改为 @drawable/item_bg_selector，实现聚焦浅蓝/未聚焦透明的自动切换。
-      2. clickable: 改为 "false"，防止在 ListView 中拦截 onItemClick 事件。
-    -->
+    android:clickable="true"> <!-- 🔥 改成 true，触屏点击按下去瞬间变色 -->
 
     <!-- ✅ 选中时的打勾标记（未选中时隐藏，颜色改用选择器） -->
     <TextView
