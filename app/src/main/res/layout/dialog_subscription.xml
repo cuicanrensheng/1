@@ -74,15 +74,15 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:layout_marginStart="16dp">
-
-            <!-- ✨ 已去除：列表订阅 4个字 -->
             
             <!-- 列表视图：去掉了顶部的 marginTop 以防有间隙 -->
+            <!-- 🔥【已修改】加上 blocksDescendants，确保整行能接收焦点 -->
             <ListView
                 android:id="@+id/lv_source_list"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:divider="@null" />
+                android:divider="@null"
+                android:descendantFocusability="blocksDescendants" />
         </LinearLayout>
     </LinearLayout>
 
