@@ -6,7 +6,7 @@
     android:padding="8dp"
     android:background="@drawable/item_bg_selector"
     android:focusable="true"
-    android:clickable="true"> <!-- 🔥 改成 true，触屏点击按下去瞬间变色 -->
+    android:clickable="true"> 
     <!-- 
       ✏️【修改点详解】
       1. clickable: 改回 "true"，保证手机触屏按下时能触发 state_pressed，立刻出高亮
