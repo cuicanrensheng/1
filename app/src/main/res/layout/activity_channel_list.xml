@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
-    android:background="#CC000000">
+    android:background="#CC000000"
+    android:baselineAligned="false"
+    tools:ignore="HardcodedText,Overdraw,UnusedResources">
 
     <!-- 频道分组 -->
     <ListView
@@ -32,7 +35,7 @@
             android:id="@+id/tv_go_epg"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentRight="true"
+            android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
             android:padding="10dp"
             android:text="向右查看节目单"
@@ -48,7 +51,8 @@
         android:layout_height="match_parent"
         android:layout_weight="1.5"
         android:orientation="vertical"
-        android:visibility="gone">
+        android:visibility="gone"
+        android:baselineAligned="false">
 
         <!-- 日期栏 -->
         <HorizontalScrollView
