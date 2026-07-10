@@ -62,14 +62,12 @@ public class MainActivity extends AppCompatActivity {
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences sp;
 
-    // 日志悬浮窗
     private View logWindowContainer;
     private ScrollView logScrollView;
     private TextView tvLogContent;
     private boolean logWindowVisible = false;
     private Runnable logUpdateRunnable;
 
-    // 回看模式
     private boolean isInCatchUpMode = false;
     private boolean isControllerShowing = false;
     private final Runnable hideControllerRunnable = new Runnable() {
@@ -119,8 +117,10 @@ public class MainActivity extends AppCompatActivity {
         playerView = findViewById(R.id.player_view);
         playerView.setUseController(true);
         try {
-            playerView.setControllerVisibilityListener(null);
-        } catch (Exception e) { }
+            playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
+        } catch (Exception e) {
+            // 高版本 Media3 直接忽略即可
+        }
 
         initChannelPanelController();
         initPictureInPicture();
@@ -440,7 +440,6 @@ public class MainActivity extends AppCompatActivity {
         boolean epg_enable = sp.getBoolean("epg_enable", true);
         channel_reverse = sp.getBoolean("channel_reverse", false);
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
-        boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
         
         String decoderMode = sp.getString("decoder_mode", "auto");
@@ -507,7 +506,7 @@ public class MainActivity extends AppCompatActivity {
     public void playNext() { channelPanelController.playNext(); }
 
     // ================================================================
-    // 核心简化：完全依赖系统原生焦点导航，仅保留全局菜单和返回兜底
+    // ✅ 核心简化：完全依赖系统原生焦点导航，仅保留全局菜单和返回兜底
     // ================================================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -534,6 +533,8 @@ public class MainActivity extends AppCompatActivity {
         }
         super.onBackPressed();
     }
+
+    // 删除 dispatchKeyEvent() 和 onKeyLongPress()，完全依赖系统！
 
     public void openSettings() {
         if (isOpeningSettings) return;
