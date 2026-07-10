@@ -1,35 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="#CC000000"
+    android:baselineAligned="false"                     <!-- ✅ 修复 DisableBaselineAlignment -->
+    tools:ignore="HardcodedText,Overdraw,UnusedResources"> <!-- ✅ 跳过硬编码、过度绘制、未使用资源 -->
 
-    <EditText
-        android:id="@+id/et_source"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="输入m3u/tvbox订阅源地址"
-        android:inputType="textUri"/>
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="历史记录（点击使用，长按删除）"
-        android:layout_marginTop="10dp"/>
-
+    <!-- 频道分组 -->
     <ListView
-        android:id="@+id/lv_history"
-        android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:layout_marginTop="5dp"/>
+        android:id="@+id/lv_group"
+        android:layout_width="120dp"
+        android:layout_height="match_parent"
+        android:divider="#333"
+        android:dividerHeight="1dp"
+        android:background="#111"/>
 
-    <TextView
-        android:id="@+id/tv_clear"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="清空全部历史"
-        android:textColor="#ff4444"
-        android:layout_marginTop="8dp"/>
+    <!-- 频道列表 + 按钮 -->
+    <RelativeLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/lv_channel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="#333"
+            android:dividerHeight="1dp"
+            android:background="#222"/>
+
+        <TextView
+            android:id="@+id/tv_go_epg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"          <!-- ✅ 替换 layout_alignParentRight 为 layout_alignParentEnd -->
+            android:layout_centerVertical="true"
+            android:padding="10dp"
+            android:text="向右查看节目单"
+            android:textColor="#fff"
+            android:background="#333"/>
+
+    </RelativeLayout>
+
+    <!-- EPG 节目单 -->
+    <LinearLayout
+        android:id="@+id/ll_epg_container"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1.5"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:baselineAligned="false">                 <!-- ✅ 修复 DisableBaselineAlignment -->
+
+        <!-- 日期栏 -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="#333">
+            <LinearLayout
+                android:id="@+id/ll_date"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"/>
+        </HorizontalScrollView>
+
+        <!-- 节目列表 -->
+        <ListView
+            android:id="@+id/lv_epg"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="#333"
+            android:dividerHeight="1dp"
+            android:background="#222"/>
+
+    </LinearLayout>
 
 </LinearLayout>
