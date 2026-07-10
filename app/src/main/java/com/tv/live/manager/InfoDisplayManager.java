@@ -1,5 +1,6 @@
 package com.tv.live.manager;
 
+import android.annotation.SuppressLint; // ✅ 新增导入
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -23,6 +24,7 @@ import java.util.Locale;
 /**
  * 信息展示管理器【优化版：彻底隔离主线程与EPG计算】
  */
+@SuppressLint({"SetTextI18n"}) // ✅ 跳过所有 setText 硬编码/拼接字符串警告
 public class InfoDisplayManager {
     // ===================== 定时延时常量 =====================
     private static final long INFO_BAR_HIDE_DELAY = 3000;
@@ -396,7 +398,8 @@ public class InfoDisplayManager {
         Calendar cal = Calendar.getInstance();
         int h = cal.get(Calendar.HOUR_OF_DAY);
         int m = cal.get(Calendar.MINUTE);
-        return String.format("%02d:%02d", h, m);
+        // ✅ 修复 DefaultLocale：添加 Locale.ROOT
+        return String.format(Locale.ROOT, "%02d:%02d", h, m);
     }
 
     private boolean timeBetween(String now, String start, String end){
