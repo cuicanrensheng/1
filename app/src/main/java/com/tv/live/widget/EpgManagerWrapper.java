@@ -233,8 +233,8 @@ public class EpgManagerWrapper {
             }
         };
         IntentFilter filter = new IntentFilter(ACTION_REMINDER);
-        // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 RECEIVER_NOT_EXPORTED，兼容所有 API
-        ContextCompat.registerReceiver(context, receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED，兼容所有 API
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     // ================= 🛠️ 核心优化的 Adapter 部分 =================
