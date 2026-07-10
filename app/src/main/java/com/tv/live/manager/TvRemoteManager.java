@@ -339,12 +339,12 @@ public class TvRemoteManager {
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
                 if (listener != null) {
-                    listener.onPanelMoveLeft();  // 直接转发，不更新 currentPanelFocus
+                    listener.onPanelMoveLeft();
                 }
                 return true;
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 if (listener != null) {
-                    listener.onPanelMoveRight(); // 直接转发，不更新 currentPanelFocus
+                    listener.onPanelMoveRight();
                 }
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
@@ -358,9 +358,9 @@ public class TvRemoteManager {
                     return listener.onPanelBack();
                 }
                 return false;
-            case KeyEvent.KEYCODE_MENU:
+            case KeyEvent.KEYCODE_MENU: // 🔥 修改为打开设置，而不是 onPanelMenu
                 if (listener != null) {
-                    listener.onPanelMenu();
+                    listener.onPlayOpenSettings();
                 }
                 return true;
             case KeyEvent.KEYCODE_0:
