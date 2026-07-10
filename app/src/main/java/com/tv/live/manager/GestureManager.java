@@ -11,10 +11,8 @@ import com.tv.live.PlayerGestureHelper;
  *
  * 【职责】
  * 处理播放器上的手势操作：
- * 1. 单击：切换频道面板（回看模式无反应）
- * 2. 双击：仅在回看模式下唤起控制栏（非回看模式下无反应）
- * 3. 长按：打开设置
- * 4. 上滑/下滑：切台（带反转）
+ * - 回看模式下：禁用单击和长按，双击唤起控制栏，滑动切台保持可用
+ * - 非回看模式：所有手势正常
  */
 public class GestureManager {
 
@@ -31,14 +29,18 @@ public class GestureManager {
         return new PlayerGestureHelper(activity, new PlayerGestureHelper.GestureCallback() {
             @Override
             public void onOk() {
-                // 单击：切换面板（回看模式无反应，已在 togglePanel 中处理）
-                activity.togglePanel();
+                // 🔥 回看模式下禁用单击
+                if (!activity.isInCatchUpMode()) {
+                    activity.togglePanel();
+                }
             }
 
             @Override
             public void onLongOk() {
-                // 长按：打开设置
-                activity.openSettings();
+                // 🔥 回看模式下禁用长按
+                if (!activity.isInCatchUpMode()) {
+                    activity.openSettings();
+                }
             }
 
             @Override
@@ -47,11 +49,11 @@ public class GestureManager {
                 if (activity.isInCatchUpMode()) {
                     activity.showExoController();
                 }
-                // 非回看模式下双击无反应
+                // 非回看模式下双击无反应（保持原逻辑）
             }
 
             // ====================================================================
-            // 上滑/下滑手势（保持原逻辑，带反转判断）
+            // 滑动切台：回看模式下保持可用（不做任何限制）
             // ====================================================================
             @Override
             public void onPrevChannel() {
