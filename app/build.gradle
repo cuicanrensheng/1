@@ -38,8 +38,10 @@ android {
 
     signingConfigs {
         release {
+            // 🔥 直接硬编码路径，因为 CI 会将密钥库解码到 app/release.keystore
             storeFile file("release.keystore")
             
+            // 从 -P 参数读取密码和别名
             storePassword project.findProperty("storePassword")
             keyAlias project.findProperty("keyAlias")
             keyPassword project.findProperty("keyPassword")
@@ -76,25 +78,33 @@ android {
         }
     }
 
+    // ================================================================
+    // 🟢【新增】Lint 基线配置（打包不阻断，将问题保存到文件）
+    // ================================================================
     lint {
+        // 所有的 107 个错误和 232 个警告都会写入这个文件
         baseline = file("lint-baseline.xml")
+        // 明确告诉 Gradle 即使有错误也别中断打包流程
         abortOnError false
-        disable 'GradleDependency'
     }
+    // ================================================================
 }
 
 dependencies {
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
-    implementation "androidx.appcompat:appcompat:1.7.1"
-    implementation "com.google.android.material:material:1.14.0"
-    implementation "androidx.constraintlayout:constraintlayout:2.2.1"
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "com.google.android.material:material:1.11.0"
+    implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     
-    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'com.google.zxing:core:3.5.1'
     
     implementation 'com.google.code.gson:gson:2.10.1'
 
+    // ❌【已移除】本地 libs 文件夹的 AAR 以及远程 FFmpeg 扩展均不再需要
+    
+    // ✅ 纯净版：仅保留远程 Media3 核心模块（版本锁定为 1.7.1）
     implementation "androidx.media3:media3-exoplayer:1.7.1"
     implementation "androidx.media3:media3-ui:1.7.1"
     implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
@@ -113,6 +123,7 @@ dependencies {
 
     implementation "org.apache.commons:commons-lang3:3.14.0"
 
+    // 🔥 在可能引入旧版 ExoPlayer 的库上单独排除
     implementation("com.blankj:utilcodex:1.31.1") {
         exclude group: 'com.google.android.exoplayer2'
     }
@@ -121,6 +132,9 @@ dependencies {
     }
 }
 
+// ================================================================
+// 🔒 只保留 force，无全局 exclude（避免 AGP 死锁）
+// ================================================================
 configurations.all {
     resolutionStrategy {
         force "androidx.media3:media3-common:1.7.1"
