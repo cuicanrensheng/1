@@ -1,8 +1,6 @@
 package com.tv.live.widget;
 
 import android.content.Context;
-import android.graphics.Color;
-import android.graphics.Typeface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -18,42 +16,16 @@ import java.util.List;
 
 /**
  * 日期列表管理器
- *
- * 【2026-06-21 新增：显示具体日期】
- * 【功能说明】
- * 日期列表显示两行：
- * - 第一行：星期几（今天/明天/后天/周一）
- * - 第二行：具体日期（6/21）
+ * 完全依赖系统原生焦点导航，样式由 XML 选择器控制
  */
 public class DateListManager {
-    /** 日期列表 ListView */
     private final ListView lvDate;
-    /** 上下文 */
     private final Context context;
-    /** 当前选中位置 */
     private int selectedPosition = 0;
-    /** 日期选中监听器 */
     private OnDateSelectedListener listener;
-    /** 列表适配器 */
     private ArrayAdapter<String> adapter;
-    /** 显示的日期文本列表 */
     private List<String> dateDisplayList;
 
-    // 🟢【优化1】预定义颜色常量，彻底避免 Color.parseColor 重复解析
-    private static final int COLOR_BLUE = 0xFF40A9FF;
-    private static final int COLOR_BG_BLUE = 0x3340A9FF;
-    private static final int COLOR_WHITE = 0xFFFFFFFF;
-
-    /**
-     * 当前列表是否有焦点
-     * - true = 当前光标在这个列表上，选中项用浅蓝色背景 + 蓝色文字 + 加粗
-     * - false = 当前光标不在这个列表上，选中项用蓝色文字 + 透明背景
-     */
-    private boolean hasFocus = false;
-
-    /**
-     * 日期选中监听器接口
-     */
     public interface OnDateSelectedListener {
         void onDateSelected(int position);
     }
@@ -62,50 +34,25 @@ public class DateListManager {
         this.listener = listener;
     }
 
-    /**
-     * 构造函数
-     */
     public DateListManager(Context context, ListView lvDate) {
         this.context = context;
         this.lvDate = lvDate;
         lvDate.setItemsCanFocus(false);
         lvDate.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
-        // 遥控器焦点选中时同步更新位置
         lvDate.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 selectedPosition = pos;
-                if (adapter != null) {
-                    adapter.notifyDataSetChanged();
-                }
+                // 不再手动 notifyDataSetChanged，因为样式由 XML 选择器自动处理
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
     }
 
-    /**
-     * 设置当前列表是否有焦点
-     */
-    public void setFocused(boolean focused) {
-        if (this.hasFocus == focused) return;
-        this.hasFocus = focused;
-        if (adapter != null) {
-            adapter.notifyDataSetChanged();
-        }
-    }
+    // 删除 setFocused() 和 isFocused()
 
-    /**
-     * 获取当前是否有焦点
-     */
-    public boolean isFocused() {
-        return hasFocus;
-    }
-
-    /**
-     * 初始化日期列表（8天）
-     */
     public void initDate() {
         dateDisplayList = new ArrayList<>();
         Calendar cal = Calendar.getInstance();
@@ -142,22 +89,8 @@ public class DateListManager {
                 tv.setTextSize(14);
                 tv.setGravity(android.view.Gravity.CENTER);
 
-                // 🟢 直接使用预定义颜色常量
-                if (position == selectedPosition) {
-                    if (hasFocus) {
-                        tv.setTextColor(COLOR_BLUE);
-                        tv.setTypeface(null, Typeface.BOLD);
-                        tv.setBackgroundColor(COLOR_BG_BLUE);
-                    } else {
-                        tv.setTextColor(COLOR_BLUE);
-                        tv.setTypeface(null, Typeface.BOLD);
-                        tv.setBackgroundColor(Color.TRANSPARENT);
-                    }
-                } else {
-                    tv.setTextColor(COLOR_WHITE);
-                    tv.setTypeface(null, Typeface.NORMAL);
-                    tv.setBackgroundColor(Color.TRANSPARENT);
-                }
+                // 样式完全由 XML 选择器（state_focused / state_selected）自动控制，
+                // 此处不再手动设置颜色、背景或字体
                 return tv;
             }
         };
@@ -166,6 +99,7 @@ public class DateListManager {
 
         lvDate.setOnItemClickListener((parent, view, position, id) -> {
             selectedPosition = position;
+            // 通知适配器更新，但样式由 XML 选择器控制，我们仍需要更新 selectedPosition 以便点击后生效
             adapter.notifyDataSetChanged();
             if (listener != null) {
                 listener.onDateSelected(position);
@@ -173,19 +107,13 @@ public class DateListManager {
         });
     }
 
-    /**
-     * 设置选中位置
-     */
     public void setSelectedPosition(int position) {
         if (dateDisplayList == null || adapter == null) return;
         if (position < 0 || position >= dateDisplayList.size()) return;
-        
-        // 🟢【优化2】如果已经是选中位置，直接跳过，防止全量无效刷新
         if (this.selectedPosition == position) return;
 
         selectedPosition = position;
-        if (adapter != null) {
-            adapter.notifyDataSetChanged();
-        }
+        // 仍需刷新适配器，因为 selectedPosition 变化会影响显示（如播放指示）
+        adapter.notifyDataSetChanged();
     }
 }
