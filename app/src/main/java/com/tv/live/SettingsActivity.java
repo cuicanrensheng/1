@@ -83,7 +83,20 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
-    private Runnable focusUpdateRunnable;
+
+    // =========================== 🔥 修复：改为 final 成员变量 ===========================
+    private final Runnable focusUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            int selectedPosition = remoteManager.getSettingsFocusPosition();
+            if (selectedPosition < 0 || selectedPosition >= settingsItemList.size()) return;
+            View target = settingsItemList.get(selectedPosition);
+            if (target == null) return;
+            scrollToView(target);
+            target.requestFocus();
+        }
+    };
+    // =========================== 🔥 修复结束 ===========================
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -707,6 +720,7 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    // =========================== 🔥 修复：使用固定的 focusUpdateRunnable ===========================
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
@@ -725,15 +739,11 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
-        if (focusUpdateRunnable != null) {
-            mainHandler.removeCallbacks(focusUpdateRunnable);
-        }
-        focusUpdateRunnable = () -> {
-            scrollToView(target);
-            target.requestFocus();
-        };
+        // ✅ 使用固定的 Runnable，确保移除和投递准确
+        mainHandler.removeCallbacks(focusUpdateRunnable);
         mainHandler.post(focusUpdateRunnable);
     }
+    // =========================== 🔥 修复结束 ===========================
 
     private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
         item.setBackgroundColor(bgColor);
