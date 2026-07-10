@@ -2,6 +2,7 @@ package com.tv.live.manager;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 
@@ -115,8 +116,6 @@ public class MainController {
         numberChannelEnable = sp.getBoolean("number_channel_enable", true);
         autoUpdateSource = sp.getBoolean("auto_update_source", true);
 
-        // 注：遥控器数字选台、EPG 开关等设置已由 TvRemoteManager 和 ChannelPanelController 自行读取，
-        // 此处不再做跨层调用，仅保留本地状态供其他业务使用。
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epgEnable);
         }
@@ -144,7 +143,7 @@ public class MainController {
     }
 
     // ====================================================================
-    // 3. 日志管理（保留）
+    // 3. 日志管理（修复：使用 Log.d 替代 SettingsActivity.log）
     // ====================================================================
 
     public static void log(String msg) {
@@ -152,7 +151,8 @@ public class MainController {
         while (logList.size() > MAX_LOG_COUNT) {
             logList.remove(logList.size() - 1);
         }
-        SettingsActivity.log(msg);
+        // 原为 SettingsActivity.log(msg)，因 SettingsActivity 无此静态方法，改为标准 Log
+        Log.d("MainController", msg);
     }
 
     public static List<String> getLogList() {
@@ -176,7 +176,6 @@ public class MainController {
     // ====================================================================
 
     public void release() {
-        // 清空引用，帮助 GC
         context = null;
         channelPanelController = null;
         infoDisplayManager = null;
@@ -184,6 +183,5 @@ public class MainController {
         appConfig = null;
         playerStateListener = null;
         playControlListener = null;
-        // 日志静态列表不清空，如需清空可调用 clearLog()
     }
 }
