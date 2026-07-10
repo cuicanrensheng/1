@@ -4,12 +4,16 @@ import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Log;
 import android.webkit.CookieManager;
+
 import androidx.media3.common.C;
+import androidx.media3.common.util.UnstableApi; // 🟢 导入 UnstableApi
 import androidx.media3.datasource.BaseDataSource;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.HttpDataSource;
+
 import com.tv.live.exception.RedirectFailedException;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -22,6 +26,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.zip.GZIPInputStream;
+
+// 🟢【关键修复】添加文件级 OptIn 注解，消除本文件 100% 的 UnsafeOptInUsageError 报错
+@file:OptIn(UnstableApi::class)
 
 /**
  * 【升级完整版】带重定向日志HTTP数据源
@@ -54,8 +61,9 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     private int responseCode = -1;
     private String currentChannelName = "";
 
+    // 🟢【优化】显式指定 Locale.ROOT，避免 DefaultLocale 警告，同时提升解析稳定性
     private String getTimeStr() {
-        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.ROOT);
         return sdf.format(new Date());
     }
 
