@@ -1,12 +1,13 @@
 package com.tv.live;
 
+import android.annotation.SuppressLint; // 🟢【新增】必须导入这个包
 import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Log;
 import android.webkit.CookieManager;
 
 import androidx.media3.common.C;
-import androidx.media3.common.util.UnstableApi; // 🟢 导入 UnstableApi
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.BaseDataSource;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DataSpec;
@@ -27,9 +28,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.zip.GZIPInputStream;
 
-// 🟢【关键修复】添加文件级 OptIn 注解，消除本文件 100% 的 UnsafeOptInUsageError 报错
-@file:OptIn(UnstableApi::class)
-
+// 🟢【关键修复】删除 Kotlin 的 @file:OptIn，替换为 Java 支持的 @SuppressLint("UnsafeOptInUsageError")
+@SuppressLint("UnsafeOptInUsageError")
 /**
  * 【升级完整版】带重定向日志HTTP数据源
  * 升级新增：
