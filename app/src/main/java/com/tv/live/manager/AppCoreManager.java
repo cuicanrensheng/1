@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build; // 🟢【新增】必须导入，否则 Build.VERSION 会报错
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -320,10 +321,21 @@ public class AppCoreManager {
             }
         };
         try {
-            context.registerReceiver(toggleControllerReceiver,
-                    new IntentFilter("com.tv.live.TOGGLE_CONTROL"));
-            context.registerReceiver(refreshReceiver,
-                    new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG"));
+            // 🟢【关键修复】针对 Android 13+ 广播注册的安全更新
+            IntentFilter filterToggle = new IntentFilter("com.tv.live.TOGGLE_CONTROL");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(toggleControllerReceiver, filterToggle, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                context.registerReceiver(toggleControllerReceiver, filterToggle);
+            }
+
+            IntentFilter filterRefresh = new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(refreshReceiver, filterRefresh, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                context.registerReceiver(refreshReceiver, filterRefresh);
+            }
+            
             receiversRegistered = true;
         } catch (Exception e) {
             e.printStackTrace();
