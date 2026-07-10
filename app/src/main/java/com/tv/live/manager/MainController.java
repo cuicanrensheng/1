@@ -19,9 +19,7 @@ public class MainController {
     private static final int MAX_LOG_COUNT = 100;
 
     private Context context;
-
     private ChannelPanelController channelPanelController;
-    private TvRemoteManager remoteManager;
     private InfoDisplayManager infoDisplayManager;
     private TVPlayerManager playerManager;
     private AppConfig appConfig;
@@ -37,21 +35,15 @@ public class MainController {
     private static List<String> logList = new ArrayList<>();
 
     private OnPlayControlListener playControlListener;
-    private OnPanelControlListener panelControlListener;
 
     public interface OnPlayControlListener {
         void onPlayChannel(Channel channel, int index);
     }
 
-    public interface OnPanelControlListener {
-        void onTogglePanel();
-        void onRequestFocus();
-    }
-
+    // 构造函数移除 remoteManager 和 panelControlListener 相关
     public MainController(
             Context context,
             ChannelPanelController channelPanelController,
-            TvRemoteManager remoteManager,
             InfoDisplayManager infoDisplayManager,
             TVPlayerManager playerManager,
             AppConfig appConfig,
@@ -59,7 +51,6 @@ public class MainController {
     ) {
         this.context = context.getApplicationContext();
         this.channelPanelController = channelPanelController;
-        this.remoteManager = remoteManager;
         this.infoDisplayManager = infoDisplayManager;
         this.playerManager = playerManager;
         this.appConfig = appConfig;
@@ -67,72 +58,7 @@ public class MainController {
     }
 
     // ====================================================================
-    // 1. 按键处理相关
-    // ====================================================================
-
-    public boolean handleKeyDown(int keyCode, KeyEvent event) {
-        if (remoteManager.handleNumberKey(keyCode)) {
-            return true;
-        }
-        if (handleDirectionKey(keyCode)) {
-            return true;
-        }
-        return false;
-    }
-
-    private boolean handleDirectionKey(int keyCode) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_UP:
-                if (channelReverse) {
-                    playNext();
-                } else {
-                    playPrev();
-                }
-                SettingsActivity.logOperation("【切台】上键 → "
-                        + (channelReverse ? "下一台" : "上一台"));
-                return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                if (channelReverse) {
-                    playPrev();
-                } else {
-                    playNext();
-                }
-                SettingsActivity.logOperation("【切台】下键 → "
-                        + (channelReverse ? "上一台" : "下一台"));
-                return true;
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER:
-                if (remoteManager.isNumberInputting()) {
-                    remoteManager.confirmChannelNum();
-                    return true;
-                }
-                togglePanel();
-                return true;
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                togglePanel();
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    public boolean handleBackPressed() {
-        if (remoteManager.isNumberInputting()) {
-            remoteManager.cancelNumberInput();
-            return true;
-        }
-        if (channelPanelController.handleBackPressed()) {
-            if (panelControlListener != null) {
-                panelControlListener.onRequestFocus();
-            }
-            return true;
-        }
-        return false;
-    }
-
-    // ====================================================================
-    // 2. 播放控制相关
+    // 1. 播放控制（核心业务）
     // ====================================================================
 
     public void playPrev() {
@@ -169,13 +95,6 @@ public class MainController {
         }
     }
 
-    public void togglePanel() {
-        channelPanelController.togglePanel();
-        if (panelControlListener != null) {
-            panelControlListener.onTogglePanel();
-        }
-    }
-
     public int getCurrentPlayIndex() {
         return currentPlayIndex;
     }
@@ -186,7 +105,7 @@ public class MainController {
     }
 
     // ====================================================================
-    // 3. 设置管理相关
+    // 2. 设置管理（仅保留数据读取，移除遥控器相关调用）
     // ====================================================================
 
     public void loadSettings() {
@@ -196,9 +115,8 @@ public class MainController {
         numberChannelEnable = sp.getBoolean("number_channel_enable", true);
         autoUpdateSource = sp.getBoolean("auto_update_source", true);
 
-        if (remoteManager != null) {
-            remoteManager.setNumberChannelEnable(numberChannelEnable);
-        }
+        // 注：遥控器数字选台、EPG 开关等设置已由 TvRemoteManager 和 ChannelPanelController 自行读取，
+        // 此处不再做跨层调用，仅保留本地状态供其他业务使用。
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epgEnable);
         }
@@ -226,7 +144,7 @@ public class MainController {
     }
 
     // ====================================================================
-    // 4. 日志管理相关
+    // 3. 日志管理（保留）
     // ====================================================================
 
     public static void log(String msg) {
@@ -246,30 +164,26 @@ public class MainController {
     }
 
     // ====================================================================
-    // 5. 监听器设置
+    // 4. 监听器设置（仅保留播放回调）
     // ====================================================================
 
     public void setOnPlayControlListener(OnPlayControlListener listener) {
         this.playControlListener = listener;
     }
 
-    public void setOnPanelControlListener(OnPanelControlListener listener) {
-        this.panelControlListener = listener;
-    }
-
     // ====================================================================
-    // 6. 资源释放
+    // 5. 资源释放
     // ====================================================================
 
     public void release() {
+        // 清空引用，帮助 GC
         context = null;
         channelPanelController = null;
-        remoteManager = null;
         infoDisplayManager = null;
         playerManager = null;
         appConfig = null;
         playerStateListener = null;
         playControlListener = null;
-        panelControlListener = null;
+        // 日志静态列表不清空，如需清空可调用 clearLog()
     }
 }
