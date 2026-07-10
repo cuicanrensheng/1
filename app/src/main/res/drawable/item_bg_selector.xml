@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 有焦点 + 选中：浅蓝色背景 -->
-    <item android:state_focused="true" android:state_selected="true" android:drawable="#3340A9FF" />
-    <!-- 有焦点：浅蓝色背景（确保焦点时一定显示背景） -->
-    <item android:state_focused="true" android:drawable="#3340A9FF" />
+    <item android:state_focused="true" android:state_selected="true" android:drawable="@color/bg_highlight" />
+    <!-- 有焦点：浅蓝色背景 -->
+    <item android:state_focused="true" android:drawable="@color/bg_highlight" />
     <!-- 无焦点 + 选中：透明背景 -->
     <item android:state_selected="true" android:drawable="@android:color/transparent" />
     <!-- 未选中：透明背景 -->
