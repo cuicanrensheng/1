@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 补充空父主题，解决AGP‑8.7 AAPT2强制查找父样式问题 -->
+    <!-- 新增空父主题，骗过AAPT2校验，解决AGP‑8.7资源查找规则问题 -->
     <style name="Theme.TVLive" parent="Theme.AppCompat.Light.NoActionBar"/>
 
     <style name="Theme.TVLive.NoTitle" parent="Theme.TVLive">
@@ -40,3 +40,4 @@
         <item name="surface_type">texture_view</item>
     </style>
 </resources>
+
