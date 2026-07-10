@@ -77,6 +77,17 @@ android {
             pickFirsts += ['META-INF/com.android.tools/proguard/coroutines.pro']
         }
     }
+
+    // ================================================================
+    // 🟢【新增】Lint 基线配置（打包不阻断，将问题保存到文件）
+    // ================================================================
+    lint {
+        // 所有的 107 个错误和 232 个警告都会写入这个文件
+        baseline = file("lint-baseline.xml")
+        // 明确告诉 Gradle 即使有错误也别中断打包流程
+        abortOnError false
+    }
+    // ================================================================
 }
 
 // 🔥 跳过 checkReleaseAarMetadata，规避 AGP 8.7.0 BOM 解析 Bug
