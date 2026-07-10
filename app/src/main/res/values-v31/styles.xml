@@ -1,15 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- ================================================ -->
-    <!-- Android 12+ 增强版主题（仅手机生效） -->
-    <!-- ================================================ -->
-    <!--
-        【为什么单独放 values-v31？】
-        1. always 模式是 Android 12（API 31）才有的
-        2. 低版本设备（包括大多数电视）自动使用 values/styles.xml 中的兼容版
-        3. 高版本手机使用增强版，实现真正的全屏覆盖
-    -->
-    <style name="Theme.TVLive.NoTitle" parent="Theme.AppCompat.Light.NoActionBar">
+    <!-- Android12+版本继承基础主题，只覆写新增属性 -->
+    <style name="Theme.TVLive.NoTitle" parent="Theme.TVLive">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
@@ -21,8 +13,7 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <!-- 内容延伸到系统栏后面 -->
         <item name="android:fitsSystemWindows">false</item>
-        
-        <!-- ✅ 窗口背景改成黑色，消除冷启动白屏 -->
+        <!-- 窗口背景改成黑色，消除冷启动白屏 -->
         <item name="android:windowBackground">@android:color/black</item>
     </style>
     
