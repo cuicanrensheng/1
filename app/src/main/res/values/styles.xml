@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 主主题：兼容模式（手机+电视都能用） -->
-    <style name="Theme.TVLive.NoTitle" parent="Theme.AppCompat.Light.NoActionBar">
+    <!-- 补充空父主题，解决AGP‑8.7 AAPT2强制查找父样式问题 -->
+    <style name="Theme.TVLive" parent="Theme.AppCompat.Light.NoActionBar"/>
+
+    <style name="Theme.TVLive.NoTitle" parent="Theme.TVLive">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
