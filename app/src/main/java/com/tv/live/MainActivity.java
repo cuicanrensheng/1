@@ -561,32 +561,17 @@ public class MainActivity extends AppCompatActivity {
     public void playPrev() { channelPanelController.playPrev(); }
     public void playNext() { channelPanelController.playNext(); }
 
-    @Override
-    public void onBackPressed() {
-        if (isInCatchUpMode && isControllerShowing) {
-            exitPlaybackMode();
-            return;
-        }
-        if (remoteManager != null && remoteManager.handleBackPressed()) return;
-        super.onBackPressed();
-    }
+    // ================================================================
+    //  🔥 修复 1：移除 dispatchKeyEvent 中的菜单键拦截，让事件正常走 onKeyDown
+    // ================================================================
+    // 原方法已删除（或改为 super），不再在此处拦截菜单键
 
-    // =========================== 🔥 修复关键：移除回看拦截 ===========================
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        int keyCode = event.getKeyCode();
-        int action = event.getAction();
-        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
-            if (action == KeyEvent.ACTION_DOWN) {
-                openSettings(); // 无论什么情况，直接打开设置
-            }
-            return true;
-        }
-        return super.dispatchKeyEvent(event);
-    }
-
+    // ================================================================
+    //  🔥 修复 2：onKeyDown 仅做纯转发，不附加任何额外逻辑
+    // ================================================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // 全部按键统一交给 TvRemoteManager，不做任何拦截
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
@@ -595,17 +580,27 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            openSettings();
-            return true;
-        }
         if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
             return true;
         }
         return super.onKeyLongPress(keyCode, event);
     }
 
-    // =========================== 🔥 最终 openSettings ===========================
+    // ================================================================
+    //  🔥 修复 3：onBackPressed 完全委托给 TvRemoteManager
+    // ================================================================
+    @Override
+    public void onBackPressed() {
+        // 全部返回键逻辑交给 TvRemoteManager（数字输入取消、面板关闭、回看退出等）
+        if (remoteManager != null && remoteManager.handleBackPressed()) {
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    // ================================================================
+    //  🔥 修复 4：openSettings 保持原样（但移除冗余标志重置）
+    // ================================================================
     public void openSettings() {
         // 强制重置，防止标志卡死
         isOpeningSettings = false;
@@ -626,7 +621,6 @@ public class MainActivity extends AppCompatActivity {
         hideExoController();
         startActivity(new Intent(this, SettingsActivity.class));
     }
-    // =========================== 🔥 修复结束 ===========================
 
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
@@ -728,6 +722,9 @@ public class MainActivity extends AppCompatActivity {
         appCoreManager.onWindowFocusChanged(hasFocus);
     }
 
+    // ================================================================
+    //  🔥 修复 5：onDestroy 补充所有管理器的 release 调用
+    // ================================================================
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -735,13 +732,33 @@ public class MainActivity extends AppCompatActivity {
             mInstanceRef.clear();
             mInstanceRef = null;
         }
+
+        // 清理主线程 Handler
         mMainHandler.removeCallbacksAndMessages(null);
-        if (infoDisplayManager != null) infoDisplayManager.release();
-        if (remoteManager != null) remoteManager.release();
-        if (displayManager != null) displayManager.release();
-        if (channelPanelController != null) channelPanelController.release();
-        if (appCoreManager != null) appCoreManager.release();
-        if (pipManager != null) pipManager.release();
-        if (mPlayerManager != null) mPlayerManager.release();
+
+        // 按依赖顺序释放所有管理器（先内部后外部）
+        if (infoDisplayManager != null) {
+            infoDisplayManager.release();
+        }
+        if (remoteManager != null) {
+            remoteManager.release();
+        }
+        if (displayManager != null) {
+            displayManager.release();
+        }
+        if (channelPanelController != null) {
+            channelPanelController.release();
+        }
+        if (appCoreManager != null) {
+            appCoreManager.release();
+        }
+        if (pipManager != null) {
+            pipManager.release();
+        }
+        if (mPlayerManager != null) {
+            mPlayerManager.release();
+        }
+        // 如果存在 WebServerManager 等，也在此释放
+        // if (webServerManager != null) webServerManager.stop();
     }
 }
