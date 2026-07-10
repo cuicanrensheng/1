@@ -507,31 +507,24 @@ public class MainActivity extends AppCompatActivity {
     public void playNext() { channelPanelController.playNext(); }
 
     // ================================================================
-    // ✅ 核心简化：完全依赖系统原生焦点导航，仅保留全局菜单和返回兜底
+    // 核心简化：完全依赖系统原生焦点导航，仅保留全局菜单和返回兜底
     // ================================================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 1. MENU / HELP —— 打开设置（回看模式禁用）
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
             if (!isInCatchUpMode) {
                 openSettings();
             }
             return true;
         }
-
-        // 2. BACK —— 如果面板打开则关闭，否则让系统处理
         if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN) {
             if (channelPanelController != null && channelPanelController.isPanelOpen()) {
                 channelPanelController.hidePanel();
                 return true;
             }
         }
-
-        // 3. 所有方向键、确认键等，交由系统自动分发给当前焦点 View
         return super.onKeyDown(keyCode, event);
     }
-
-    // 删除 dispatchKeyEvent() 和 onKeyLongPress()，完全靠系统！
 
     @Override
     public void onBackPressed() {
