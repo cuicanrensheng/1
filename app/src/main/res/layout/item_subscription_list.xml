@@ -8,7 +8,7 @@
     android:background="@drawable/item_bg_selector"
     android:layout_marginBottom="4dp"
     android:focusable="true"
-    android:clickable="true"> <!-- 🔥 改成 true，触屏点击按下去瞬间变色 -->
+    android:clickable="true"> 
 
     <!-- ✅ 选中时的打勾标记（未选中时隐藏，颜色改用选择器） -->
     <TextView
