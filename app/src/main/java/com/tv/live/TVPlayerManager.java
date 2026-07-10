@@ -1,6 +1,6 @@
 package com.tv.live;
 
-import android.annotation.SuppressLint; // 🟢【新增】必须导入这个包
+import android.annotation.SuppressLint; // 🟢 已导入
 import android.widget.Toast;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -27,7 +27,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
-import androidx.media3.common.util.UnstableApi; // 保留这个导入
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -63,8 +63,10 @@ import javax.net.ssl.HttpsURLConnection;
 
 import okhttp3.Headers;
 
-// 🟢【关键修复】删除 Kotlin 的 @file:OptIn，替换为 Java 支持的 @SuppressLint("UnsafeOptInUsageError")
-@SuppressLint("UnsafeOptInUsageError")
+// 🟢【两个关键修复】
+// 1. @SuppressLint("UnsafeOptInUsageError") - 解决 Media3 不稳定 API 的 Lint 错误
+// 2. @SuppressLint("StaticFieldLeak") - 消除静态 Context 持有警告（ApplicationContext 安全）
+@SuppressLint({"UnsafeOptInUsageError", "StaticFieldLeak"})
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
     public static final int DECODER_MODE_AUTO = 0;
