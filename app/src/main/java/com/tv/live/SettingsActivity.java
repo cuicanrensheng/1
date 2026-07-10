@@ -84,7 +84,6 @@ public class SettingsActivity extends AppCompatActivity {
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    // =========================== 🔥 修复：改为 final 成员变量 ===========================
     private final Runnable focusUpdateRunnable = new Runnable() {
         @Override
         public void run() {
@@ -96,7 +95,6 @@ public class SettingsActivity extends AppCompatActivity {
             target.requestFocus();
         }
     };
-    // =========================== 🔥 修复结束 ===========================
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -225,7 +223,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢 显示版本信息弹窗 (已替换为深色背景、透明窗口风格)
+    // 显示版本信息弹窗
     private void showVersionInfoDialog() {
         String versionName = BuildConfig.VERSION_NAME;
         int versionCode = BuildConfig.VERSION_CODE;
@@ -255,10 +253,9 @@ public class SettingsActivity extends AppCompatActivity {
             spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), startUc, startUc + 5, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
 
-        // 🟢【UI 调整】按照深色弹窗标准构建自定义视图
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setBackgroundColor(0xFF272B3A); // 与设置页其他弹窗一致
+        layout.setBackgroundColor(0xFF272B3A);
         layout.setPadding(24, 24, 24, 24);
 
         TextView titleView = new TextView(this);
@@ -353,7 +350,6 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
             tv_channel_line.setText(lineArray[which]);
             
-            // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
             Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);
@@ -466,6 +462,9 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
+    // ================================================================
+    //  🔥 修复：删除 onPanelFocusChanged 回调
+    // ================================================================
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
@@ -484,7 +483,7 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public boolean onPanelBack() { return false; }
             @Override public void onPanelMenu() {}
             @Override public void onPanelNumber(int number) {}
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
+            // 删除了 onPanelFocusChanged 回调
             @Override public void onSettingsMoveUp() { updateSettingsFocus(); }
             @Override public void onSettingsMoveDown() { updateSettingsFocus(); }
             @Override public void onSettingsConfirm() { int position = remoteManager.getSettingsFocusPosition(); handleSettingsItemClick(position); }
@@ -557,7 +556,6 @@ public class SettingsActivity extends AppCompatActivity {
         SourceManager sourceManager = new SourceManager(this, spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
 
-        // 🟢【修复1】使用正确的 LayoutInflater 上下文，彻底解决 layout_width 缺少的 InflateException
         android.view.LayoutInflater inflater = android.view.LayoutInflater.from(
                 new android.view.ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog)
         );
@@ -621,7 +619,6 @@ public class SettingsActivity extends AppCompatActivity {
             public void onSwitch(int position) {
                 sourceManager.setDefault(position);
                 
-                // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
                 Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
                 intent.setPackage(getPackageName());
                 sendBroadcast(intent);
@@ -633,7 +630,6 @@ public class SettingsActivity extends AppCompatActivity {
 
             @Override
             public void onDelete(int position) {
-                // 🟢【修复2】添加边界和 index 安全检查，彻底解决 ArrayIndexOutOfBoundsException 闪退
                 if (position < 0 || position >= sources.size()) {
                     return;
                 }
@@ -643,7 +639,6 @@ public class SettingsActivity extends AppCompatActivity {
                         .setTitle("确认删除")
                         .setMessage("确定要删除「" + item.name + "」吗？")
                         .setPositiveButton("删除", (d, w) -> {
-                            // 先找真实索引，防止 indexOfUrl 返回 -1 导致崩溃
                             int realIndex = sourceManager.indexOfUrl(item.url);
                             if (realIndex >= 0 && realIndex < sourceManager.size()) {
                                 sourceManager.removeSource(realIndex);
@@ -686,7 +681,6 @@ public class SettingsActivity extends AppCompatActivity {
                 adapter.notifyDataSetChanged();
                 Toast.makeText(this, "已添加，正在刷新...", Toast.LENGTH_SHORT).show();
                 
-                // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
                 Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
                 intent.setPackage(getPackageName());
                 sendBroadcast(intent);
@@ -720,7 +714,6 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    // =========================== 🔥 修复：使用固定的 focusUpdateRunnable ===========================
     private void updateSettingsFocus() {
         if (remoteManager == null) return;
         int selectedPosition = remoteManager.getSettingsFocusPosition();
@@ -739,11 +732,9 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
-        // ✅ 使用固定的 Runnable，确保移除和投递准确
         mainHandler.removeCallbacks(focusUpdateRunnable);
         mainHandler.post(focusUpdateRunnable);
     }
-    // =========================== 🔥 修复结束 ===========================
 
     private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
         item.setBackgroundColor(bgColor);
@@ -823,7 +814,6 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void showDecoderModeDialog() {
-        // ✅【已移除 FFmpeg】将选项从 4 个变为 3 个
         final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
         final String[] modeValues = {"auto", "hard", "soft"};
         String currentMode = sp.getString("decoder_mode", "auto");
@@ -839,7 +829,6 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putString("decoder_mode", selectedMode).apply();
             updateDecoderModeText(selectedMode);
             
-            // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
             Intent intent = new Intent("com.tv.live.DECODER_MODE_CHANGED");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);
@@ -853,7 +842,6 @@ public class SettingsActivity extends AppCompatActivity {
         switch (mode) {
             case "hard": tv_decoder_mode.setText("硬解"); break;
             case "soft": tv_decoder_mode.setText("软解"); break;
-            // ✅【已移除 FFmpeg】删除了 case "ffmpeg"
             case "auto": 
             default: tv_decoder_mode.setText("自动"); break;
         }
@@ -875,7 +863,6 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putString("renderer_type", selectedMode).apply();
             updateRendererModeText(selectedMode);
             
-            // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
             Intent intent = new Intent("com.tv.live.RENDERER_TYPE_CHANGED");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);
