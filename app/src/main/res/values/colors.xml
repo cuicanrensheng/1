@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 原来的图标背景色，保持不变 -->
     <color name="ic_launcher_background">#FFFFFF</color>
+
+    <!-- 🔥【新增】浅蓝色背景高亮色（用于聚焦/选中时） -->
+    <color name="bg_highlight">#3340A9FF</color>
 </resources>
