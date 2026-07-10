@@ -203,7 +203,10 @@ public class SourceDialogManager {
                                 break;
                             case 4: // 刷新此源
                                 sp.edit().putString(key.contains("live") ? KEY_CUSTOM_LIVE : KEY_CUSTOM_EPG, selectedItem.url).apply();
-                                context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                                // 🔧 修复：发送显式 Intent
+                                Intent refreshIntent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                                refreshIntent.setPackage(context.getPackageName());
+                                context.sendBroadcast(refreshIntent);
                                 // 🟢 替换为原生日志
                                 Log.d(TAG, "【设置】刷新单个源：" + selectedItem.name);
                                 Toast.makeText(context, "正在刷新…", Toast.LENGTH_SHORT).show();
@@ -287,7 +290,11 @@ public class SourceDialogManager {
                 sourceManager.moveToTop(realPos);
             }
             
-            context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+            // 🔧 修复：发送显式 Intent
+            Intent clickIntent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+            clickIntent.setPackage(context.getPackageName());
+            context.sendBroadcast(clickIntent);
+            
             refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
             adapter.setSelectedPosition(0);
             // 🟢 替换为原生日志
@@ -345,7 +352,10 @@ public class SourceDialogManager {
                     }
                     String saveKey = key.contains("live") ? KEY_CUSTOM_LIVE : KEY_CUSTOM_EPG;
                     sp.edit().putString(saveKey, url).apply();
-                    context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                    // 🔧 修复：发送显式 Intent
+                    Intent addIntent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                    addIntent.setPackage(context.getPackageName());
+                    context.sendBroadcast(addIntent);
                     refreshDisplayList(sourceManager, new ArrayList<>(sourceManager.getAllSources()), adapter, searchKey);
                     Toast.makeText(context, "已添加，正在刷新…", Toast.LENGTH_SHORT).show();
                 })
@@ -393,7 +403,10 @@ public class SourceDialogManager {
                     String currentUrl = sp.getString(currentKey, "");
                     if (currentUrl.equals(oldItem.url)) {
                         sp.edit().putString(currentKey, url).apply();
-                        context.sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                        // 🔧 修复：发送显式 Intent
+                        Intent editIntent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                        editIntent.setPackage(context.getPackageName());
+                        context.sendBroadcast(editIntent);
                     }
                     refreshDisplayList(sourceManager, new ArrayList<>(sourceManager.getAllSources()), adapter, searchKey);
                     Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show();
