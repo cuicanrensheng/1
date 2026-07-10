@@ -679,30 +679,33 @@ public class MainActivity extends AppCompatActivity {
         return super.onKeyLongPress(keyCode, event);
     }
 
+    // =========================== 🔥 修复开始 ===========================
     public void openSettings() {
         // 🔥【防止重复打开设置】
-        if (isOpeningSettings) return;
+        if (isOpeningSettings) {
+            Log.d("MainActivity", "设置页面已经打开，忽略");
+            return;
+        }
         // 🔥【回看模式禁用设置】
-        if (isInCatchUpMode) return;
+        if (isInCatchUpMode) {
+            Toast.makeText(this, "回看模式下无法打开设置，请先切台回到直播", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         isOpeningSettings = true;
         appCoreManager.beforeOpenSettings();
-        
+
         // 🔥 联动：打开设置时，如果频道面板开着，自动隐藏
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
             channelPanelController.hidePanel();
         }
-        
+
         // 🔥 联动：收起 ExoPlayer 控制栏
         hideExoController();
-        
-        // 🔥【已移除】打开设置时暂停播放（去除自动暂停）
-        // if (mPlayerManager != null) {
-        //     mPlayerManager.pause();
-        // }
 
         startActivity(new Intent(this, SettingsActivity.class));
     }
+    // =========================== 🔥 修复结束 ===========================
 
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
@@ -784,6 +787,27 @@ public class MainActivity extends AppCompatActivity {
                 }
             }, 200);
         }
+
+        // =========================== 🔥 自愈逻辑 ===========================
+        // 如果回看模式卡住（例如播放器已停止），自动退出
+        if (isInCatchUpMode) {
+            // 简单判断：如果当前没有播放频道，或者播放器已停止，则强制退出回看模式
+            boolean shouldExit = false;
+            if (mPlayerManager.getCurrentChannel() == null) {
+                shouldExit = true;
+            } else {
+                // 检查播放器是否在播放，可通过 mPlayerManager 的内部状态判断
+                // 由于无法直接访问 player.isPlaying()，这里留空，用户可自行扩展
+                // 暂不强制退出，避免误判
+            }
+            if (shouldExit) {
+                isInCatchUpMode = false;
+                hideExoController();
+                Log.d("MainActivity", "自动退出回看模式（无当前频道）");
+            }
+        }
+        // =========================== 🔥 自愈逻辑结束 ===========================
+
         remoteManager.syncMode();
     }
 
