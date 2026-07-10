@@ -42,6 +42,8 @@ import androidx.media3.exoplayer.trackselection.MappingTrackSelector;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
+import androidx.core.content.ContextCompat; // 🔧 新增导入
+
 import com.tv.live.util.NetUtil;
 import com.tv.live.exception.RedirectFailedException;
 
@@ -485,6 +487,7 @@ public class TVPlayerManager {
         return mDecoderMode;
     }
 
+    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
         try {
@@ -502,11 +505,7 @@ public class TVPlayerManager {
                 }
             };
             IntentFilter filter = new IntentFilter("com.tv.live.DECODER_MODE_CHANGED");
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(decoderModeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            } else {
-                context.registerReceiver(decoderModeReceiver, filter);
-            }
+            ContextCompat.registerReceiver(context, decoderModeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
             decoderReceiverRegistered = true;
         } catch (Exception e) {
             Log.e(TAG, "注册解码器广播失败", e);
@@ -593,6 +592,7 @@ public class TVPlayerManager {
         isRenderingSwitching = false;
     }
 
+    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -607,11 +607,7 @@ public class TVPlayerManager {
                 }
             };
             IntentFilter filter = new IntentFilter("com.tv.live.RENDERER_TYPE_CHANGED");
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(rendererModeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            } else {
-                context.registerReceiver(rendererModeReceiver, filter);
-            }
+            ContextCompat.registerReceiver(context, rendererModeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
             rendererReceiverRegistered = true;
         } catch (Exception e) {
             Log.e(TAG, "注册渲染方式广播失败", e);
