@@ -31,7 +31,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 
-import com.tv.live.manager.TVPlayerManager;
+import com.tv.live.TVPlayerManager;
 
 import java.util.ArrayList;
 import java.util.List;
