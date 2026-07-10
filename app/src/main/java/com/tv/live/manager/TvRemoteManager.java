@@ -1,28 +1,33 @@
 package com.tv.live.manager;
+
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.KeyEvent;
+
+import com.tv.live.Channel;
+import com.tv.live.TVPlayerManager;
+import com.tv.live.config.AppConfig;
+import com.tv.live.listener.PlayerStateListenerImpl;
+
 public class TvRemoteManager {
+
     public enum Mode {
         PLAY_MODE,
         CHANNEL_PANEL_MODE,
         SETTINGS_MODE
     }
-    public enum PanelFocus {
-        LEFT_GROUP,
-        LEFT_CHANNEL,
-        LEFT_EPG_BTN,
-        RIGHT_BACK_BTN,
-        RIGHT_CHANNEL,
-        RIGHT_DATE,
-        RIGHT_EPG
-    }
+
+    // ==================== 遥控器事件监听 ====================
     public interface OnRemoteActionListener {
         void onPlayChannelUp();
         void onPlayChannelDown();
         void onPlayTogglePanel();
         void onPlayOpenSettings();
         boolean onPlayBack();
+
         void onPanelMoveUp();
         void onPanelMoveDown();
         void onPanelMoveLeft();
@@ -31,38 +36,63 @@ public class TvRemoteManager {
         boolean onPanelBack();
         void onPanelMenu();
         void onPanelNumber(int number);
-        void onPanelFocusChanged(PanelFocus newFocus);
+
         void onSettingsMoveUp();
         void onSettingsMoveDown();
         void onSettingsConfirm();
         boolean onSettingsBack();
         void onSettingsMenu();
         void onSettingsFocusChanged(int position);
+
         boolean onPipBack();
         void onRequestPlayFocus();
+
         void onChannelNumberSelected(int channelIndex);
         void onShowChannelNumber(String number);
         void onHideChannelNumber();
     }
-    private static final long CHANNEL_NUM_TIMEOUT = 2000;
-    private Mode currentMode = Mode.PLAY_MODE;
+
+    // ==================== 播放控制回调 ====================
+    public interface OnPlayControlListener {
+        void onPlayChannel(Channel channel, int index);
+    }
+
+    // ==================== 成员变量 ====================
+    private Context context;
+    private ChannelPanelController channelPanelController;
+    private InfoDisplayManager infoDisplayManager;
+    private TVPlayerManager playerManager;
+    private AppConfig appConfig;
+    private PlayerStateListenerImpl playerStateListener;
+
+    private OnPlayControlListener playControlListener;
     private OnRemoteActionListener listener;
-    private PanelFocus currentPanelFocus = PanelFocus.LEFT_CHANNEL;
+
+    // 播放状态（从 MainController 合并）
+    private int currentPlayIndex = 0;
+    private boolean channelReverse = false;
+
+    // 遥控器状态
+    private Mode currentMode = Mode.PLAY_MODE;
     private boolean isRightPanelOpen = false;
     private int settingsItemCount = 0;
     private int settingsFocusPosition = 0;
     private boolean isInPipMode = false;
-    private ChannelPanelController channelPanelController;
-    private final StringBuilder channelNumInput = new StringBuilder();
-    private final Handler channelNumHandler = new Handler(Looper.getMainLooper());
     private boolean numberChannelEnable = true;
     private int totalChannelCount = 0;
+
+    // 数字选台
+    private final StringBuilder channelNumInput = new StringBuilder();
+    private final Handler channelNumHandler = new Handler(Looper.getMainLooper());
+    private static final long CHANNEL_NUM_TIMEOUT = 2000;
+
     private final Runnable channelNumConfirmRunnable = new Runnable() {
         @Override
         public void run() {
             confirmChannelNum();
         }
     };
+
     private final Runnable hideChannelNumRunnable = new Runnable() {
         @Override
         public void run() {
@@ -71,46 +101,137 @@ public class TvRemoteManager {
             }
         }
     };
-    public TvRemoteManager() {
+
+    // ==================== 构造函数 ====================
+    public TvRemoteManager(
+            Context context,
+            ChannelPanelController channelPanelController,
+            InfoDisplayManager infoDisplayManager,
+            TVPlayerManager playerManager,
+            AppConfig appConfig,
+            PlayerStateListenerImpl playerStateListener
+    ) {
+        this.context = context.getApplicationContext();
+        this.channelPanelController = channelPanelController;
+        this.infoDisplayManager = infoDisplayManager;
+        this.playerManager = playerManager;
+        this.appConfig = appConfig;
+        this.playerStateListener = playerStateListener;
     }
-    public void setMode(Mode mode) {
-        this.currentMode = mode;
-        switch (mode) {
-            case CHANNEL_PANEL_MODE:
-                resetPanelFocus();
-                break;
-            case SETTINGS_MODE:
-                resetSettingsFocus();
-                break;
-            case PLAY_MODE:
-            default:
-                break;
+
+    // ==================== 播放控制方法（从 MainController 合并） ====================
+    public void playPrev() {
+        if (channelPanelController != null) {
+            channelPanelController.playPrev();
         }
     }
+
+    public void playNext() {
+        if (channelPanelController != null) {
+            channelPanelController.playNext();
+        }
+    }
+
+    public void playChannel(int index) {
+        if (channelPanelController != null) {
+            channelPanelController.playChannel(index);
+        }
+    }
+
+    public void doPlayChannel(Channel channel, int index) {
+        if (channel == null || channel.getPlayUrl() == null) return;
+        currentPlayIndex = index;
+
+        Log.d("TvRemoteManager", "========================================");
+        Log.d("TvRemoteManager", "【播放】频道名称：" + channel.getName());
+        Log.d("TvRemoteManager", "【播放】播放地址：" + channel.getPlayUrl());
+        Log.d("TvRemoteManager", "【播放】当前索引：" + index);
+        Log.d("TvRemoteManager", "========================================");
+
+        playerStateListener.setCurrentChannelName(channel.getName());
+        appConfig.setLastPlayIndex(index);
+        playerManager.playUrl(channel.getPlayUrl());
+
+        TVPlayerManager.LiveInfo live = playerManager.getLiveInfo();
+        infoDisplayManager.showInfoBar(channel, live);
+
+        if (playControlListener != null) {
+            playControlListener.onPlayChannel(channel, index);
+        }
+    }
+
+    public int getCurrentPlayIndex() {
+        return currentPlayIndex;
+    }
+
+    public void setCurrentPlayIndex(int index) {
+        this.currentPlayIndex = index;
+        if (channelPanelController != null) {
+            channelPanelController.setCurrentPlayIndex(index);
+        }
+    }
+
+    public boolean isChannelReverse() {
+        return channelReverse;
+    }
+
+    public void setOnPlayControlListener(OnPlayControlListener listener) {
+        this.playControlListener = listener;
+    }
+
+    // ==================== 设置加载（从 MainController 合并） ====================
+    public void loadSettings() {
+        SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        channelReverse = sp.getBoolean("channel_reverse", false);
+        numberChannelEnable = sp.getBoolean("number_channel_enable", true);
+
+        if (channelPanelController != null) {
+            channelPanelController.setEpgEnable(sp.getBoolean("epg_enable", true));
+        }
+
+        Log.d("TvRemoteManager", "【设置】切台反转：" + channelReverse);
+        Log.d("TvRemoteManager", "【设置】数字选台：" + numberChannelEnable);
+    }
+
+    // ==================== 遥控器分发方法（原有） ====================
+    public void setMode(Mode mode) {
+        this.currentMode = mode;
+        if (mode == Mode.SETTINGS_MODE) {
+            resetSettingsFocus();
+        }
+    }
+
     public Mode getCurrentMode() {
         return currentMode;
     }
+
     public void setOnRemoteActionListener(OnRemoteActionListener listener) {
         this.listener = listener;
     }
+
     public void setInPipMode(boolean inPipMode) {
         this.isInPipMode = inPipMode;
     }
+
     public void setChannelPanelController(ChannelPanelController controller) {
         this.channelPanelController = controller;
     }
+
     public void setNumberChannelEnable(boolean enable) {
         this.numberChannelEnable = enable;
         if (!enable && isNumberInputting()) {
             cancelNumberInput();
         }
     }
+
     public void setTotalChannelCount(int count) {
         this.totalChannelCount = count;
     }
+
     public boolean isNumberInputting() {
         return channelNumInput.length() > 0;
     }
+
     public boolean dispatchKeyEvent(int keyCode) {
         if (isInPipMode) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -121,9 +242,11 @@ public class TvRemoteManager {
             }
             return false;
         }
+
         if (channelPanelController != null) {
             channelPanelController.resetAutoHide();
         }
+
         boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
@@ -140,16 +263,14 @@ public class TvRemoteManager {
         if (handled) {
             return true;
         }
+
         if (handleNumberKey(keyCode)) {
             return true;
         }
-        if (channelPanelController != null) {
-            if (channelPanelController.dispatchKeyEvent(keyCode)) {
-                return true;
-            }
-        }
+
         return false;
     }
+
     public boolean dispatchKeyLongPress(int keyCode) {
         if (isInPipMode) {
             return false;
@@ -162,6 +283,7 @@ public class TvRemoteManager {
         }
         return false;
     }
+
     public boolean handleBackPressed() {
         if (isInPipMode) {
             if (listener != null) {
@@ -169,10 +291,12 @@ public class TvRemoteManager {
             }
             return false;
         }
+
         if (isNumberInputting()) {
             cancelNumberInput();
             return true;
         }
+
         boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
@@ -196,6 +320,7 @@ public class TvRemoteManager {
             syncMode();
             return true;
         }
+
         if (channelPanelController != null) {
             if (channelPanelController.handleBackPressed()) {
                 syncMode();
@@ -205,8 +330,10 @@ public class TvRemoteManager {
                 return true;
             }
         }
+
         return false;
     }
+
     public void syncMode() {
         if (channelPanelController == null) return;
         if (channelPanelController.isPanelOpen()) {
@@ -220,32 +347,71 @@ public class TvRemoteManager {
             }
         }
     }
+
+    // ==================== 按键处理 ====================
     private boolean dispatchPlayKey(int keyCode) {
+        // 如果面板打开，让面板控制器优先处理方向键和确定键
+        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    if (channelPanelController.dispatchKeyEvent(keyCode)) {
+                        return true;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // 面板关闭或未消费的按键，执行播放模式逻辑
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 if (listener != null) {
                     listener.onPlayChannelUp();
+                }
+                // 直接切台（自动处理反转）
+                if (channelReverse) {
+                    playNext();
+                } else {
+                    playPrev();
                 }
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (listener != null) {
                     listener.onPlayChannelDown();
                 }
+                if (channelReverse) {
+                    playPrev();
+                } else {
+                    playNext();
+                }
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
                 if (isNumberInputting()) {
-                    confirmChannelNum();
-                    return true;
+                    return false; // 让数字处理逻辑接管
                 }
                 if (listener != null) {
                     listener.onPlayTogglePanel();
+                }
+                if (channelPanelController != null) {
+                    channelPanelController.togglePanel();
+                    syncMode();
                 }
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 if (listener != null) {
                     listener.onPlayTogglePanel();
+                }
+                if (channelPanelController != null) {
+                    channelPanelController.togglePanel();
+                    syncMode();
                 }
                 return true;
             case KeyEvent.KEYCODE_MENU:
@@ -259,25 +425,11 @@ public class TvRemoteManager {
                     return listener.onPlayBack();
                 }
                 return false;
-            case KeyEvent.KEYCODE_0:
-            case KeyEvent.KEYCODE_1:
-            case KeyEvent.KEYCODE_2:
-            case KeyEvent.KEYCODE_3:
-            case KeyEvent.KEYCODE_4:
-            case KeyEvent.KEYCODE_5:
-            case KeyEvent.KEYCODE_6:
-            case KeyEvent.KEYCODE_7:
-            case KeyEvent.KEYCODE_8:
-            case KeyEvent.KEYCODE_9:
-                int number = keyCode - KeyEvent.KEYCODE_0;
-                if (listener != null) {
-                    listener.onPanelNumber(number);
-                }
-                return true;
             default:
                 return false;
         }
     }
+
     private boolean dispatchChannelPanelKey(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
@@ -291,9 +443,15 @@ public class TvRemoteManager {
                 }
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
-                return handlePanelLeftKey();
+                if (listener != null) {
+                    listener.onPanelMoveLeft();
+                }
+                return true;
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                return handlePanelRightKey();
+                if (listener != null) {
+                    listener.onPanelMoveRight();
+                }
+                return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
                 if (listener != null) {
@@ -306,81 +464,16 @@ public class TvRemoteManager {
                 }
                 return false;
             case KeyEvent.KEYCODE_MENU:
+            case KeyEvent.KEYCODE_HELP:
                 if (listener != null) {
-                    listener.onPanelMenu();
-                }
-                return true;
-            case KeyEvent.KEYCODE_0:
-            case KeyEvent.KEYCODE_1:
-            case KeyEvent.KEYCODE_2:
-            case KeyEvent.KEYCODE_3:
-            case KeyEvent.KEYCODE_4:
-            case KeyEvent.KEYCODE_5:
-            case KeyEvent.KEYCODE_6:
-            case KeyEvent.KEYCODE_7:
-            case KeyEvent.KEYCODE_8:
-            case KeyEvent.KEYCODE_9:
-                int number = keyCode - KeyEvent.KEYCODE_0;
-                if (listener != null) {
-                    listener.onPanelNumber(number);
+                    listener.onPlayOpenSettings();
                 }
                 return true;
             default:
                 return false;
         }
     }
-    private boolean handlePanelLeftKey() {
-        switch (currentPanelFocus) {
-            case LEFT_EPG_BTN:
-                currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-                break;
-            case LEFT_CHANNEL:
-                currentPanelFocus = PanelFocus.LEFT_GROUP;
-                break;
-            case RIGHT_EPG:
-                currentPanelFocus = PanelFocus.RIGHT_DATE;
-                break;
-            case RIGHT_DATE:
-                currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-                break;
-            case RIGHT_CHANNEL:
-                currentPanelFocus = PanelFocus.RIGHT_BACK_BTN;
-                break;
-            default:
-                return false;
-        }
-        if (listener != null) {
-            listener.onPanelMoveLeft();
-            listener.onPanelFocusChanged(currentPanelFocus);
-        }
-        return true;
-    }
-    private boolean handlePanelRightKey() {
-        switch (currentPanelFocus) {
-            case LEFT_GROUP:
-                currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-                break;
-            case LEFT_CHANNEL:
-                currentPanelFocus = PanelFocus.LEFT_EPG_BTN;
-                break;
-            case RIGHT_BACK_BTN:
-                currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-                break;
-            case RIGHT_CHANNEL:
-                currentPanelFocus = PanelFocus.RIGHT_DATE;
-                break;
-            case RIGHT_DATE:
-                currentPanelFocus = PanelFocus.RIGHT_EPG;
-                break;
-            default:
-                return false;
-        }
-        if (listener != null) {
-            listener.onPanelMoveRight();
-            listener.onPanelFocusChanged(currentPanelFocus);
-        }
-        return true;
-    }
+
     private boolean dispatchSettingsKey(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
@@ -407,30 +500,37 @@ public class TvRemoteManager {
                 return false;
         }
     }
+
+    // 首尾循环
     private boolean handleSettingsMoveUp() {
+        if (settingsItemCount <= 0) return false;
         if (settingsFocusPosition > 0) {
             settingsFocusPosition--;
-            if (listener != null) {
-                listener.onSettingsMoveUp();
-                listener.onSettingsFocusChanged(settingsFocusPosition);
-            }
-            return true;
         } else {
-            return false;
+            settingsFocusPosition = settingsItemCount - 1;
         }
+        if (listener != null) {
+            listener.onSettingsMoveUp();
+            listener.onSettingsFocusChanged(settingsFocusPosition);
+        }
+        return true;
     }
+
     private boolean handleSettingsMoveDown() {
+        if (settingsItemCount <= 0) return false;
         if (settingsFocusPosition < settingsItemCount - 1) {
             settingsFocusPosition++;
-            if (listener != null) {
-                listener.onSettingsMoveDown();
-                listener.onSettingsFocusChanged(settingsFocusPosition);
-            }
-            return true;
         } else {
-            return false;
+            settingsFocusPosition = 0;
         }
+        if (listener != null) {
+            listener.onSettingsMoveDown();
+            listener.onSettingsFocusChanged(settingsFocusPosition);
+        }
+        return true;
     }
+
+    // ==================== 数字键处理 ====================
     public boolean handleNumberKey(int keyCode) {
         if (!numberChannelEnable) return false;
         int num = keyCodeToNumber(keyCode);
@@ -443,6 +543,7 @@ public class TvRemoteManager {
         channelNumHandler.postDelayed(channelNumConfirmRunnable, CHANNEL_NUM_TIMEOUT);
         return true;
     }
+
     public void confirmChannelNum() {
         if (channelNumInput.length() == 0) return;
         try {
@@ -452,6 +553,8 @@ public class TvRemoteManager {
                 if (listener != null) {
                     listener.onChannelNumberSelected(index);
                 }
+                // 直接切台
+                playChannel(index);
             }
         } catch (NumberFormatException e) {
         }
@@ -459,6 +562,7 @@ public class TvRemoteManager {
         channelNumHandler.removeCallbacks(hideChannelNumRunnable);
         channelNumHandler.postDelayed(hideChannelNumRunnable, 1000);
     }
+
     public void cancelNumberInput() {
         if (channelNumInput.length() > 0) {
             channelNumInput.setLength(0);
@@ -468,6 +572,7 @@ public class TvRemoteManager {
             }
         }
     }
+
     private int keyCodeToNumber(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_0: return 0;
@@ -483,23 +588,13 @@ public class TvRemoteManager {
             default: return -1;
         }
     }
+
+    // ==================== 右侧面板状态 ====================
     public void setRightPanelOpen(boolean open) {
         this.isRightPanelOpen = open;
-        resetPanelFocus();
     }
-    public PanelFocus getCurrentPanelFocus() {
-        return currentPanelFocus;
-    }
-    public void setCurrentPanelFocus(PanelFocus focus) {
-        this.currentPanelFocus = focus;
-    }
-    public void resetPanelFocus() {
-        if (isRightPanelOpen) {
-            currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-        } else {
-            currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-        }
-    }
+
+    // ==================== 设置模式焦点 ====================
     public void setSettingsItemCount(int count) {
         this.settingsItemCount = count;
         if (settingsFocusPosition >= count) {
@@ -509,25 +604,37 @@ public class TvRemoteManager {
             settingsFocusPosition = 0;
         }
     }
+
     public int getSettingsItemCount() {
         return settingsItemCount;
     }
+
     public int getSettingsFocusPosition() {
         return settingsFocusPosition;
     }
+
     public void setSettingsFocusPosition(int position) {
         if (position >= 0 && position < settingsItemCount) {
             this.settingsFocusPosition = position;
         }
     }
+
     public void resetSettingsFocus() {
         settingsFocusPosition = 0;
     }
+
+    // ==================== 资源释放 ====================
     public void release() {
         channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
         channelNumHandler.removeCallbacks(hideChannelNumRunnable);
         channelNumInput.setLength(0);
         listener = null;
         channelPanelController = null;
+        infoDisplayManager = null;
+        playerManager = null;
+        appConfig = null;
+        playerStateListener = null;
+        playControlListener = null;
+        context = null;
     }
 }
