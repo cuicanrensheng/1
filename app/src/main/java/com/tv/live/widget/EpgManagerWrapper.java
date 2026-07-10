@@ -18,6 +18,8 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.content.ContextCompat; // 🔧 新增导入
+
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.MainActivity;
@@ -231,12 +233,8 @@ public class EpgManagerWrapper {
             }
         };
         IntentFilter filter = new IntentFilter(ACTION_REMINDER);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ 必须显式声明 RECEIVER_NOT_EXPORTED，否则会引发 SecurityException 崩溃
-            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            context.registerReceiver(receiver, filter);
-        }
+        // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 RECEIVER_NOT_EXPORTED，兼容所有 API
+        ContextCompat.registerReceiver(context, receiver, filter, Context.RECEIVER_NOT_EXPORTED);
     }
 
     // ================= 🛠️ 核心优化的 Adapter 部分 =================
