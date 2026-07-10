@@ -7,5 +7,5 @@
     <color name="bg_highlight">#3340A9FF</color>
 
     <!-- 🔥【新增】设置项默认未选中时的深色背景，与外框颜色 #CC121212 完全一致 -->
-    <color name="bg_panel_default">#CC121212</color>
+    <color name="bg_panel_default"#B30A0A1A</color>
 </resources>
