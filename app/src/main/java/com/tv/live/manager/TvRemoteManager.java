@@ -12,15 +12,8 @@ public class TvRemoteManager {
         SETTINGS_MODE
     }
 
-    public enum PanelFocus {
-        LEFT_GROUP,
-        LEFT_CHANNEL,
-        LEFT_EPG_BTN,
-        RIGHT_BACK_BTN,
-        RIGHT_CHANNEL,
-        RIGHT_DATE,
-        RIGHT_EPG
-    }
+    // ===================== 删除 PanelFocus 枚举 =====================
+    // public enum PanelFocus { ... }  // 已删除
 
     public interface OnRemoteActionListener {
         void onPlayChannelUp();
@@ -37,7 +30,7 @@ public class TvRemoteManager {
         boolean onPanelBack();
         void onPanelMenu();
         void onPanelNumber(int number);
-        void onPanelFocusChanged(PanelFocus newFocus);
+        // void onPanelFocusChanged(PanelFocus newFocus);  // 删除该回调
 
         void onSettingsMoveUp();
         void onSettingsMoveDown();
@@ -59,7 +52,8 @@ public class TvRemoteManager {
     private Mode currentMode = Mode.PLAY_MODE;
     private OnRemoteActionListener listener;
 
-    private PanelFocus currentPanelFocus = PanelFocus.LEFT_CHANNEL;
+    // ===================== 删除虚拟焦点变量 =====================
+    // private PanelFocus currentPanelFocus = PanelFocus.LEFT_CHANNEL;
     private boolean isRightPanelOpen = false;
 
     private int settingsItemCount = 0;
@@ -94,14 +88,13 @@ public class TvRemoteManager {
 
     public void setMode(Mode mode) {
         this.currentMode = mode;
+        // 删除 resetPanelFocus() 调用
         switch (mode) {
-            case CHANNEL_PANEL_MODE:
-                resetPanelFocus();
-                break;
             case SETTINGS_MODE:
                 resetSettingsFocus();
                 break;
             case PLAY_MODE:
+            case CHANNEL_PANEL_MODE:
             default:
                 break;
         }
@@ -138,6 +131,7 @@ public class TvRemoteManager {
         return channelNumInput.length() > 0;
     }
 
+    // ===================== 统一按键分发入口 =====================
     public boolean dispatchKeyEvent(int keyCode) {
         if (isInPipMode) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -170,15 +164,21 @@ public class TvRemoteManager {
             return true;
         }
 
+        // 数字键统一处理（不管什么模式，都支持数字选台）
         if (handleNumberKey(keyCode)) {
             return true;
         }
 
-        if (channelPanelController != null) {
-            if (channelPanelController.dispatchKeyEvent(keyCode)) {
-                return true;
-            }
-        }
+        // ===================== 删除面板模式下的兜底调用 =====================
+        // 面板模式下按键已由 dispatchChannelPanelKey 通过回调处理，无需再次调用
+        // 播放模式下，若面板打开，已在 dispatchPlayKey 中处理
+        // 因此此处仅保留 settings 模式可能的额外处理，但 settings 模式不需要兜底
+        // 故完全移除下面的兜底代码
+        // if (channelPanelController != null && currentMode != Mode.CHANNEL_PANEL_MODE) {
+        //     if (channelPanelController.dispatchKeyEvent(keyCode)) {
+        //         return true;
+        //     }
+        // }
 
         return false;
     }
@@ -197,6 +197,7 @@ public class TvRemoteManager {
         return false;
     }
 
+    // ===================== 返回键统一处理 =====================
     public boolean handleBackPressed() {
         if (isInPipMode) {
             if (listener != null) {
@@ -205,6 +206,7 @@ public class TvRemoteManager {
             return false;
         }
 
+        // 数字输入中，取消输入
         if (isNumberInputting()) {
             cancelNumberInput();
             return true;
@@ -234,6 +236,7 @@ public class TvRemoteManager {
             return true;
         }
 
+        // 如果面板打开且未被消费，尝试让面板控制器处理返回（可能关闭面板）
         if (channelPanelController != null) {
             if (channelPanelController.handleBackPressed()) {
                 syncMode();
@@ -247,12 +250,14 @@ public class TvRemoteManager {
         return false;
     }
 
+    // ===================== 模式同步 =====================
     public void syncMode() {
         if (channelPanelController == null) return;
         if (channelPanelController.isPanelOpen()) {
             if (currentMode != Mode.CHANNEL_PANEL_MODE) {
                 setMode(Mode.CHANNEL_PANEL_MODE);
             }
+            // 更新右侧面板状态（仅用于记录，不再影响焦点）
             setRightPanelOpen(channelPanelController.isRightPanelOpen());
         } else {
             if (currentMode != Mode.PLAY_MODE) {
@@ -261,7 +266,33 @@ public class TvRemoteManager {
         }
     }
 
+    // ===================== 播放模式按键处理 =====================
     private boolean dispatchPlayKey(int keyCode) {
+        // 如果面板打开，所有方向键/确定键都交给面板控制器
+        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+            // 面板打开时，将按键转发给面板控制器处理（包括上下左右、确定等）
+            // 但返回键、菜单键等仍需单独处理
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    // 转发给面板控制器
+                    if (channelPanelController.dispatchKeyEvent(keyCode)) {
+                        return true;
+                    }
+                    // 如果面板未消费，则继续执行原有逻辑（例如确定键打开面板等）
+                    break;
+                default:
+                    // 其他按键不拦截
+                    break;
+            }
+            // 注意：数字键会由外部统一处理，不在这里拦截
+        }
+
+        // 面板关闭或按键未被面板消费，执行播放模式逻辑
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 if (listener != null) {
@@ -275,9 +306,9 @@ public class TvRemoteManager {
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
+                // 如果是数字输入中，由数字处理逻辑确认，这里不处理
                 if (isNumberInputting()) {
-                    confirmChannelNum();
-                    return true;
+                    return false; // 让数字处理逻辑接管
                 }
                 if (listener != null) {
                     listener.onPlayTogglePanel();
@@ -290,10 +321,6 @@ public class TvRemoteManager {
                 }
                 return true;
             case KeyEvent.KEYCODE_MENU:
-                if (listener != null) {
-                    listener.onPlayOpenSettings();
-                }
-                return true;
             case KeyEvent.KEYCODE_HELP:
                 if (listener != null) {
                     listener.onPlayOpenSettings();
@@ -304,28 +331,14 @@ public class TvRemoteManager {
                     return listener.onPlayBack();
                 }
                 return false;
-            case KeyEvent.KEYCODE_0:
-            case KeyEvent.KEYCODE_1:
-            case KeyEvent.KEYCODE_2:
-            case KeyEvent.KEYCODE_3:
-            case KeyEvent.KEYCODE_4:
-            case KeyEvent.KEYCODE_5:
-            case KeyEvent.KEYCODE_6:
-            case KeyEvent.KEYCODE_7:
-            case KeyEvent.KEYCODE_8:
-            case KeyEvent.KEYCODE_9:
-                int number = keyCode - KeyEvent.KEYCODE_0;
-                if (listener != null) {
-                    listener.onPanelNumber(number);
-                }
-                return true;
             default:
                 return false;
         }
     }
 
-    // ===================== 修复后的 dispatchChannelPanelKey =====================
+    // ===================== 面板模式按键处理 =====================
     private boolean dispatchChannelPanelKey(int keyCode) {
+        // 只处理面板相关的按键，数字键由外部统一处理（已删除数字键处理）
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 if (listener != null) {
@@ -358,33 +371,20 @@ public class TvRemoteManager {
                     return listener.onPanelBack();
                 }
                 return false;
-            case KeyEvent.KEYCODE_MENU: // 🔥 修改为打开设置，而不是 onPanelMenu
+            case KeyEvent.KEYCODE_MENU:
+            case KeyEvent.KEYCODE_HELP:
+                // 面板模式下菜单键直接打开设置
                 if (listener != null) {
                     listener.onPlayOpenSettings();
                 }
                 return true;
-            case KeyEvent.KEYCODE_0:
-            case KeyEvent.KEYCODE_1:
-            case KeyEvent.KEYCODE_2:
-            case KeyEvent.KEYCODE_3:
-            case KeyEvent.KEYCODE_4:
-            case KeyEvent.KEYCODE_5:
-            case KeyEvent.KEYCODE_6:
-            case KeyEvent.KEYCODE_7:
-            case KeyEvent.KEYCODE_8:
-            case KeyEvent.KEYCODE_9:
-                int number = keyCode - KeyEvent.KEYCODE_0;
-                if (listener != null) {
-                    listener.onPanelNumber(number);
-                }
-                return true;
+            // 数字键不再处理，让它们落到统一数字处理
             default:
                 return false;
         }
     }
 
-    // 删除 handlePanelLeftKey 和 handlePanelRightKey 方法（已无用）
-
+    // ===================== 设置模式按键处理 =====================
     private boolean dispatchSettingsKey(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
@@ -438,10 +438,14 @@ public class TvRemoteManager {
         }
     }
 
+    // ===================== 数字键处理（统一） =====================
     public boolean handleNumberKey(int keyCode) {
         if (!numberChannelEnable) return false;
         int num = keyCodeToNumber(keyCode);
         if (num == -1) return false;
+
+        // 如果面板打开，可以允许数字选台，但不清除面板？根据需求，数字选台应该切换频道并可能关闭面板。
+        // 这里只记录数字输入，不直接切台，由后续确认时执行。
         channelNumInput.append(num);
         if (listener != null) {
             listener.onShowChannelNumber(channelNumInput.toString());
@@ -494,29 +498,18 @@ public class TvRemoteManager {
         }
     }
 
-    // ===================== 修复后的 setRightPanelOpen =====================
+    // ===================== 右侧面板状态（仅记录，不影响焦点） =====================
     public void setRightPanelOpen(boolean open) {
         this.isRightPanelOpen = open;
-        // 注释掉 resetPanelFocus()，避免覆盖控制器管理的焦点
-        // resetPanelFocus();
+        // 删除 resetPanelFocus() 调用，焦点由真实 View 管理
     }
 
-    public PanelFocus getCurrentPanelFocus() {
-        return currentPanelFocus;
-    }
+    // ===================== 删除所有焦点相关方法 =====================
+    // public PanelFocus getCurrentPanelFocus() { ... }
+    // public void setCurrentPanelFocus(PanelFocus focus) { ... }
+    // public void resetPanelFocus() { ... }
 
-    public void setCurrentPanelFocus(PanelFocus focus) {
-        this.currentPanelFocus = focus;
-    }
-
-    public void resetPanelFocus() {
-        if (isRightPanelOpen) {
-            currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-        } else {
-            currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-        }
-    }
-
+    // ===================== 设置模式焦点管理（保留） =====================
     public void setSettingsItemCount(int count) {
         this.settingsItemCount = count;
         if (settingsFocusPosition >= count) {
@@ -545,6 +538,7 @@ public class TvRemoteManager {
         settingsFocusPosition = 0;
     }
 
+    // ===================== 资源释放 =====================
     public void release() {
         channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
         channelNumHandler.removeCallbacks(hideChannelNumRunnable);
