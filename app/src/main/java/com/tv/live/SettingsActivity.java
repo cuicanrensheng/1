@@ -339,7 +339,12 @@ public class SettingsActivity extends AppCompatActivity {
         showDarkSingleChoiceDialog("频道线路选择", lineArray, currentLineIndex, (which) -> {
             sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
             tv_channel_line.setText(lineArray[which]);
-            sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+            
+            // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
+            Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+            intent.setPackage(getPackageName());
+            sendBroadcast(intent);
+            
             Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
         });
     }
@@ -602,7 +607,12 @@ public class SettingsActivity extends AppCompatActivity {
             @Override
             public void onSwitch(int position) {
                 sourceManager.setDefault(position);
-                sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                
+                // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
+                Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                intent.setPackage(getPackageName());
+                sendBroadcast(intent);
+                
                 Toast.makeText(SettingsActivity.this, "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
                 adapter.setSelectedPosition(position);
                 adapter.notifyDataSetChanged();
@@ -662,7 +672,11 @@ public class SettingsActivity extends AppCompatActivity {
                 adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
                 adapter.notifyDataSetChanged();
                 Toast.makeText(this, "已添加，正在刷新...", Toast.LENGTH_SHORT).show();
-                sendBroadcast(new Intent("com.tv.live.REFRESH_LIVE_AND_EPG"));
+                
+                // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
+                Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                intent.setPackage(getPackageName());
+                sendBroadcast(intent);
             } else {
                 Toast.makeText(this, "该地址已存在", Toast.LENGTH_SHORT).show();
             }
@@ -814,7 +828,12 @@ public class SettingsActivity extends AppCompatActivity {
             String selectedMode = modeValues[which];
             sp.edit().putString("decoder_mode", selectedMode).apply();
             updateDecoderModeText(selectedMode);
-            sendBroadcast(new Intent("com.tv.live.DECODER_MODE_CHANGED"));
+            
+            // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
+            Intent intent = new Intent("com.tv.live.DECODER_MODE_CHANGED");
+            intent.setPackage(getPackageName());
+            sendBroadcast(intent);
+            
             Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…", Toast.LENGTH_SHORT).show();
         });
     }
@@ -845,7 +864,12 @@ public class SettingsActivity extends AppCompatActivity {
             String selectedMode = modeValues[which];
             sp.edit().putString("renderer_type", selectedMode).apply();
             updateRendererModeText(selectedMode);
-            sendBroadcast(new Intent("com.tv.live.RENDERER_TYPE_CHANGED"));
+            
+            // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
+            Intent intent = new Intent("com.tv.live.RENDERER_TYPE_CHANGED");
+            intent.setPackage(getPackageName());
+            sendBroadcast(intent);
+            
             Toast.makeText(this, "已切换到" + modes[which] + "，正在应用……", Toast.LENGTH_SHORT).show();
         });
     }
