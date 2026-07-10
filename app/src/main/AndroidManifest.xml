@@ -55,6 +55,9 @@
     <!-- 唤醒锁权限 -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- 🟢【新增】Android 13+ 通知权限（必须添加，否则 Lint 报错） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".MyApplication"
         android:allowBackup="true"
