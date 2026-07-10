@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 有焦点 + 选中：蓝色文字 -->
+    <item android:state_focused="true" android:state_selected="true" android:color="#40A9FF" />
+    <!-- 有焦点（未选中时也应该蓝色，但实际场景中焦点通常伴随选中） -->
+    <item android:state_focused="true" android:color="#40A9FF" />
+    <!-- 无焦点 + 选中：蓝色文字 -->
+    <item android:state_selected="true" android:color="#40A9FF" />
+    <!-- 未选中：白色文字 -->
+    <item android:color="#FFFFFF" />
+</selector>
