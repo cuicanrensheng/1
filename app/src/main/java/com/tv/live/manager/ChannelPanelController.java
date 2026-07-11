@@ -706,9 +706,8 @@ public class ChannelPanelController {
                         return true;
                     }
                     break;
+                // ===== 修改点：移除了上下键拦截，让它们自然传递到 ListView =====
                 default:
-                    if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && currentFocus == lvGroup) return true;
-                    if (keyCode == KeyEvent.KEYCODE_DPAD_UP && currentFocus == lvChannelList) return true;
                     break;
             }
         } else {
@@ -752,6 +751,7 @@ public class ChannelPanelController {
                         return true;
                     }
                     break;
+                // ===== 修改点：移除了上下键拦截，让它们自然传递到 ListView =====
                 default:
                     break;
             }
