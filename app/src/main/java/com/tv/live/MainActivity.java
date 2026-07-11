@@ -577,6 +577,11 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.getCurrentMode() != TvRemoteManager.Mode.CHANNEL_PANEL_MODE) {
             remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
         }
+
+        // ✅ 新增：面板关闭后，将焦点归还给播放器，确保遥控器上下键能切台
+        if (!channelPanelController.isPanelOpen()) {
+            playerView.requestFocus();
+        }
     }
 
     public void playPrev() { channelPanelController.playPrev(); }
@@ -592,7 +597,6 @@ public class MainActivity extends AppCompatActivity {
         super.onBackPressed();
     }
 
-    // ✅ 核心修改：菜单/帮助键始终打开设置（关闭由 SettingsActivity 自己处理）
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
