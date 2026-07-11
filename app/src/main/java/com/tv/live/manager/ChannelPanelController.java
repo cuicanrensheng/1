@@ -798,6 +798,13 @@ public class ChannelPanelController {
         return false;
     }
 
+    // ✅ 新增：由外部统一清除面板焦点的方法
+    public void clearPanelFocus() {
+        if (panelLayout != null) {
+            panelLayout.clearFocus();
+        }
+    }
+
     public void setOnChannelChangeListener(OnChannelChangeListener listener) {
         this.channelChangeListener = listener;
     }
@@ -809,4 +816,4 @@ public class ChannelPanelController {
     public void release() {
         cancelAutoHide();
     }
-    }
+}
