@@ -14,7 +14,7 @@
         android:layout_height="match_parent"
         android:background="@android:color/transparent"
         android:clickable="true"
-        android:focusable="true" />
+        android:focusable="false" />
 
     <!-- 设置面板 -->
     <!-- ✅【关键修改】新增 android:scrollbars="none"，彻底解决设置页 ScrollView 的 mutate() 空指针崩溃 -->
