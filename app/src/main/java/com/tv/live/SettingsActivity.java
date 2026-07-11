@@ -699,22 +699,19 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ============================================================
-    // ✅ 【核心修复】在 ScrollView 之前拦截遥控器按键事件
-    // ============================================================
+    // ✅ 核心修改：菜单/帮助键关闭设置页（与 MainActivity 联动）
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // 只有当事件为按下动作时才处理（避免重复触发）
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int keyCode = event.getKeyCode();
-            // 🔥 新增：处理 HELP 键，行为与 MENU 键一致（关闭设置）
-            if (keyCode == KeyEvent.KEYCODE_HELP) {
+            // 菜单/帮助键关闭设置
+            if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
                 finish();
                 return true;
             }
-            // 优先交给 TvRemoteManager 处理（包括方向键、确认键、返回键等）
+            // 其他按键交给 remoteManager
             if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
-                return true; // 已处理，不再交给 ScrollView 或其他父视图
+                return true;
             }
         }
         return super.dispatchKeyEvent(event);
@@ -722,7 +719,6 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 兜底：如果 dispatchKeyEvent 未拦截，这里也尝试处理
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
@@ -835,7 +831,6 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void showDecoderModeDialog() {
-        // ✅【已移除 FFmpeg】将选项从 4 个变为 3 个
         final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
         final String[] modeValues = {"auto", "hard", "soft"};
         String currentMode = sp.getString("decoder_mode", "auto");
@@ -851,7 +846,6 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putString("decoder_mode", selectedMode).apply();
             updateDecoderModeText(selectedMode);
             
-            // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
             Intent intent = new Intent("com.tv.live.DECODER_MODE_CHANGED");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);
@@ -865,9 +859,7 @@ public class SettingsActivity extends AppCompatActivity {
         switch (mode) {
             case "hard": tv_decoder_mode.setText("硬解"); break;
             case "soft": tv_decoder_mode.setText("软解"); break;
-            // ✅【已移除 FFmpeg】删除了 case "ffmpeg"
-            case "auto": 
-            default: tv_decoder_mode.setText("自动"); break;
+            case "auto": default: tv_decoder_mode.setText("自动"); break;
         }
     }
 
@@ -887,7 +879,6 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putString("renderer_type", selectedMode).apply();
             updateRendererModeText(selectedMode);
             
-            // 🟢【关键修复】将隐式广播改为显式广播，消除 Lint 警告
             Intent intent = new Intent("com.tv.live.RENDERER_TYPE_CHANGED");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);
@@ -1015,4 +1006,4 @@ public class SettingsActivity extends AppCompatActivity {
         itemTextViews.clear();
         itemTextViews = null;
     }
-    }
+}
