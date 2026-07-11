@@ -18,12 +18,6 @@ import java.util.List;
 
 /**
  * 日期列表管理器
- *
- * 【2026-06-21 新增：显示具体日期】
- * 【功能说明】
- * 日期列表显示两行：
- * - 第一行：星期几（今天/明天/后天/周一）
- * - 第二行：具体日期（6/21）
  */
 public class DateListManager {
     /** 日期列表 ListView */
@@ -39,15 +33,13 @@ public class DateListManager {
     /** 显示的日期文本列表 */
     private List<String> dateDisplayList;
 
-    // 🟢【优化1】预定义颜色常量，彻底避免 Color.parseColor 重复解析
+    // 🟢【优化1】预定义颜色常量
     private static final int COLOR_BLUE = 0xFF40A9FF;
     private static final int COLOR_BG_BLUE = 0x3340A9FF;
     private static final int COLOR_WHITE = 0xFFFFFFFF;
 
     /**
      * 当前列表是否有焦点
-     * - true = 当前光标在这个列表上，选中项用浅蓝色背景 + 蓝色文字 + 加粗
-     * - false = 当前光标不在这个列表上，选中项用蓝色文字 + 透明背景
      */
     private boolean hasFocus = false;
 
@@ -71,7 +63,6 @@ public class DateListManager {
         lvDate.setItemsCanFocus(false);
         lvDate.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
-        // 遥控器焦点选中时同步更新位置
         lvDate.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
@@ -96,9 +87,6 @@ public class DateListManager {
         }
     }
 
-    /**
-     * 获取当前是否有焦点
-     */
     public boolean isFocused() {
         return hasFocus;
     }
@@ -126,7 +114,8 @@ public class DateListManager {
 
             int month = cal.get(Calendar.MONTH) + 1;
             int day = cal.get(Calendar.DAY_OF_MONTH);
-            String dateStr = month + "/" + day;
+            // 【优化】：使用 String.format 代替拼接
+            String dateStr = String.format("%d/%d", month, day);
 
             dateDisplayList.add(weekStr + "\n" + dateStr);
             cal.add(Calendar.DAY_OF_YEAR, 1);
@@ -142,7 +131,6 @@ public class DateListManager {
                 tv.setTextSize(14);
                 tv.setGravity(android.view.Gravity.CENTER);
 
-                // 🟢 直接使用预定义颜色常量
                 if (position == selectedPosition) {
                     if (hasFocus) {
                         tv.setTextColor(COLOR_BLUE);
@@ -179,8 +167,6 @@ public class DateListManager {
     public void setSelectedPosition(int position) {
         if (dateDisplayList == null || adapter == null) return;
         if (position < 0 || position >= dateDisplayList.size()) return;
-        
-        // 🟢【优化2】如果已经是选中位置，直接跳过，防止全量无效刷新
         if (this.selectedPosition == position) return;
 
         selectedPosition = position;
