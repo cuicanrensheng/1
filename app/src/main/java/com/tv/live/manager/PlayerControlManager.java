@@ -50,18 +50,15 @@ public class PlayerControlManager {
      * 显示控制栏（仅在回看模式下有效，且画中画模式下禁止）
      */
     public void showExoController() {
-        // 🛡️ 核心拦截：只有回看模式才允许显示控制栏
         if (!activity.isInCatchUpMode()) return;
         if (playerView == null) return;
 
-        // 画中画模式下禁止弹出控制栏
         if (activity.getPipManager() != null && activity.getPipManager().isInPipMode()) {
             return;
         }
 
         mainHandler.removeCallbacks(hideControllerRunnable);
 
-        // 临时移除触摸监听，让 PlayerView 自己处理触摸事件
         if (activity.getTouchListener() != null) {
             playerView.setOnTouchListener(null);
         }
@@ -71,7 +68,6 @@ public class PlayerControlManager {
         isControllerShowing = true;
         mainHandler.postDelayed(hideControllerRunnable, 5000);
 
-        // 显示控制栏时强制隐藏底部信息栏
         if (infoDisplayManager != null) {
             infoDisplayManager.hideInfoBar();
         }
@@ -86,7 +82,6 @@ public class PlayerControlManager {
         playerView.hideController();
         isControllerShowing = false;
 
-        // 恢复自定义触摸监听
         if (activity.getTouchListener() != null) {
             if (gestureManager != null) {
                 final PlayerGestureHelper newGestureHelper = gestureManager.create();
@@ -120,7 +115,6 @@ public class PlayerControlManager {
      */
     public void onSettingsClosed() {
         if (playerView == null) return;
-        // 仅在非回看模式且控制栏未显示时，恢复 useController = true
         if (!activity.isInCatchUpMode() && !isControllerShowing) {
             playerView.setUseController(true);
         }
