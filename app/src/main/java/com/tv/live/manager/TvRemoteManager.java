@@ -149,6 +149,8 @@ public class TvRemoteManager {
             return false;
         }
 
+        // 🔧【移除】移除了对 resetAutoHide() 的调用，面板不再有自动隐藏定时器
+
         boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
@@ -300,7 +302,21 @@ public class TvRemoteManager {
                     return listener.onPlayBack();
                 }
                 return false;
-            // ===== 修改点：删除了所有数字键 case，让它们落入 default 返回 false =====
+            case KeyEvent.KEYCODE_0:
+            case KeyEvent.KEYCODE_1:
+            case KeyEvent.KEYCODE_2:
+            case KeyEvent.KEYCODE_3:
+            case KeyEvent.KEYCODE_4:
+            case KeyEvent.KEYCODE_5:
+            case KeyEvent.KEYCODE_6:
+            case KeyEvent.KEYCODE_7:
+            case KeyEvent.KEYCODE_8:
+            case KeyEvent.KEYCODE_9:
+                int number = keyCode - KeyEvent.KEYCODE_0;
+                if (listener != null) {
+                    listener.onPanelNumber(number);
+                }
+                return true;
             default:
                 return false;
         }
@@ -338,7 +354,21 @@ public class TvRemoteManager {
                     listener.onPanelMenu();
                 }
                 return true;
-            // ===== 修改点：删除了所有数字键 case，让它们落入 default 返回 false =====
+            case KeyEvent.KEYCODE_0:
+            case KeyEvent.KEYCODE_1:
+            case KeyEvent.KEYCODE_2:
+            case KeyEvent.KEYCODE_3:
+            case KeyEvent.KEYCODE_4:
+            case KeyEvent.KEYCODE_5:
+            case KeyEvent.KEYCODE_6:
+            case KeyEvent.KEYCODE_7:
+            case KeyEvent.KEYCODE_8:
+            case KeyEvent.KEYCODE_9:
+                int number = keyCode - KeyEvent.KEYCODE_0;
+                if (listener != null) {
+                    listener.onPanelNumber(number);
+                }
+                return true;
             default:
                 return false;
         }
