@@ -50,6 +50,7 @@ public class PlayerControlManager {
      * 显示控制栏（仅在回看模式下有效，且画中画模式下禁止）
      */
     public void showExoController() {
+        // 🛡️ 核心拦截：只有回看模式才允许显示控制栏
         if (!activity.isInCatchUpMode()) return;
         if (playerView == null) return;
 
