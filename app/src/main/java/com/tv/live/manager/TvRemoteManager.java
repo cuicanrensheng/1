@@ -80,7 +80,6 @@ public class TvRemoteManager {
         }
     };
 
-    // 🟢【优化 1】独立声明隐藏数字的 Runnable，防止每次新 new 造成内存泄漏
     private final Runnable hideChannelNumRunnable = new Runnable() {
         @Override
         public void run() {
@@ -150,10 +149,7 @@ public class TvRemoteManager {
             return false;
         }
 
-        if (channelPanelController != null) {
-            // 🟢【优化 2】快速重制计时器，如果内部只做移除和重置，此处通常没有性能瓶颈
-            channelPanelController.resetAutoHide();
-        }
+        // 🔧【移除】移除了对 resetAutoHide() 的调用，面板不再有自动隐藏定时器
 
         boolean handled = false;
         switch (currentMode) {
@@ -511,7 +507,6 @@ public class TvRemoteManager {
         } catch (NumberFormatException e) {
         }
         channelNumInput.setLength(0);
-        // 🟢【核心修复】移除了原先的 `new Handler().postDelayed`，直接复用类成员变量，杜绝内存泄漏
         channelNumHandler.removeCallbacks(hideChannelNumRunnable);
         channelNumHandler.postDelayed(hideChannelNumRunnable, 1000);
     }
@@ -592,7 +587,6 @@ public class TvRemoteManager {
     }
 
     public void release() {
-        // 🟢【优化 3】清理时一并移除所有延迟任务，防止因页面销毁导致内存泄漏
         channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
         channelNumHandler.removeCallbacks(hideChannelNumRunnable);
         channelNumInput.setLength(0);
