@@ -604,13 +604,23 @@ public class MainActivity extends AppCompatActivity {
         super.onBackPressed();
     }
 
+    // ============================================================
+    // 🔥 同时兼容 MENU、HELP、SETTINGS 三个键
+    // ============================================================
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
         int action = event.getAction();
-        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
+
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
             if (action == KeyEvent.ACTION_DOWN) {
-                openSettings();
+                // 如果设置已打开，则关闭；否则打开
+                if (isOpeningSettings) {
+                    sendBroadcast(new Intent("com.tv.live.CLOSE_SETTINGS"));
+                    isOpeningSettings = false;
+                } else {
+                    openSettings();
+                }
             }
             return true;
         }
@@ -757,4 +767,4 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.release();
         if (mPlayerManager != null) mPlayerManager.release();
     }
-}
+ }
