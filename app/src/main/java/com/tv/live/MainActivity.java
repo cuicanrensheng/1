@@ -56,6 +56,9 @@ public class MainActivity extends AppCompatActivity {
     private TvRemoteManager remoteManager;
     private PictureInPictureManager pipManager;
 
+    // 🔧【修复】新增 panelLayout 成员变量
+    private View panelLayout;
+
     private boolean pipEnable = false;
     private boolean channel_reverse;
     private boolean number_channel_enable;
@@ -348,7 +351,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initChannelPanelController() {
-        View panel_layout = findViewById(R.id.panel_layout);
+        // 🔧【修复】将局部变量改为成员变量赋值
+        panelLayout = findViewById(R.id.panel_layout);
         View ll_left_panel = findViewById(R.id.ll_left_panel);
         View ll_right_panel = findViewById(R.id.ll_right_panel);
         ListView lvGroup = findViewById(R.id.lv_group);
@@ -365,13 +369,13 @@ public class MainActivity extends AppCompatActivity {
         GroupListManager groupListManager = new GroupListManager(this, lvGroup);
         DateListManager dateListManager = new DateListManager(this, lvDate);
         EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
-        PanelManager panelManager = new PanelManager(panel_layout, channelListManager, epgManagerWrapper);
+        PanelManager panelManager = new PanelManager(panelLayout, channelListManager, epgManagerWrapper);
 
         dateListManager.initDate();
         dateListManager.setOnDateSelectedListener(pos -> channelPanelController.setCurrentDateIndex(pos));
 
         channelPanelController = new ChannelPanelController(
-                this, panel_layout, ll_left_panel, ll_right_panel, lvGroup, lvChannelList,
+                this, panelLayout, ll_left_panel, ll_right_panel, lvGroup, lvChannelList,
                 lvChannelListEpg, lvDate, lvEpg, btn_show_epg, btn_back_group,
                 groupListManager, channelListManager, channelListManagerEpg,
                 dateListManager, epgManagerWrapper, panelManager
@@ -586,7 +590,7 @@ public class MainActivity extends AppCompatActivity {
 
         // ✅ 双重保障：通过控制器清理面板内所有残留焦点 + 归还焦点给播放器
         if (!channelPanelController.isPanelOpen()) {
-            // 【修复】：面板完全关闭后再清理焦点，防止残影残留
+            // 🔧【修复】现在 panelLayout 是成员变量，编译通过
             panelLayout.postDelayed(() -> {
                 channelPanelController.clearPanelFocus();
                 playerView.setFocusable(true);
