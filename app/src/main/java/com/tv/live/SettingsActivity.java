@@ -29,8 +29,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 
-import com.tv.live.TVPlayerManager;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,9 +46,6 @@ public class SettingsActivity extends AppCompatActivity {
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
 
     private SharedPreferences sp;
-    // 🔴【删除未使用的变量】
-    // private List<View> settingsItemList = new ArrayList<>();
-    // private ScrollView scrollView;
 
     private BootStartManager bootStartManager;
     private SourceDialogManager sourceDialogManager;
@@ -108,7 +103,6 @@ public class SettingsActivity extends AppCompatActivity {
         tv_redirect_setting = findViewById(R.id.tv_redirect_setting);
         tv_screen_ratio = findViewById(R.id.tv_screen_ratio);
         tv_boot_status = findViewById(R.id.tv_boot_status);
-        // 删除 scrollView 引用
 
         itemResolution = findViewById(R.id.item_resolution);
         tv_resolution_status = findViewById(R.id.tv_resolution_status);
@@ -128,7 +122,6 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe = findViewById(R.id.item_live_subscribe);
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
-        // 初始化各条目点击事件（所有方向键由系统原生焦点处理，不再需要手动管理）
         initListeners();
 
         webServerManager.start();
@@ -171,7 +164,6 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void initListeners() {
-        // ... 您的 initListeners 代码保持不变 ...
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
         findViewById(R.id.item_boot).setOnClickListener(v -> {
@@ -241,7 +233,6 @@ public class SettingsActivity extends AppCompatActivity {
         });
     }
 
-    // ---------- 各种对话框方法 ----------
     private void showChannelLineDialog() {
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         Channel currentChannel = playerManager.getCurrentChannel();
@@ -270,12 +261,11 @@ public class SettingsActivity extends AppCompatActivity {
     private void showDarkSingleChoiceDialog(String title, String[] items, int checkedItem, java.util.function.Consumer<Integer> onSelected) {
         ListView listView = new ListView(this);
         
-        // 🟢【新增：弹窗列表焦点修正】与主界面彻底一致，去掉系统黄色/蓝色高亮
+        // 去掉系统黄色/蓝色高亮
         listView.setListSelector(new ColorDrawable(Color.TRANSPARENT));
         listView.setDefaultFocusHighlightEnabled(false);
         listView.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
 
-        // 🔴【修改：背景改为半透明】
         listView.setBackgroundColor(0xAA272B3A);
         listView.setDivider(new ColorDrawable(0x33FFFFFF));
         listView.setDividerHeight(1);
@@ -306,7 +296,6 @@ public class SettingsActivity extends AppCompatActivity {
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        // 🔴【修改：背景改为半透明】
         layout.setBackgroundColor(0xAA272B3A);
         layout.addView(titleView);
         layout.addView(listView);
@@ -451,7 +440,7 @@ public class SettingsActivity extends AppCompatActivity {
         Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
         Button btnClose = dialogView.findViewById(R.id.btn_close);
 
-        // 🟢【新增：订阅源列表焦点修正】
+        // 订阅源列表焦点修正
         lvSourceList.setListSelector(new ColorDrawable(Color.TRANSPARENT));
         lvSourceList.setDefaultFocusHighlightEnabled(false);
         lvSourceList.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
@@ -696,7 +685,6 @@ public class SettingsActivity extends AppCompatActivity {
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        // 🔴【修改：背景改为半透明】
         layout.setBackgroundColor(0xAA272B3A);
         layout.setPadding(24, 24, 24, 24);
 
