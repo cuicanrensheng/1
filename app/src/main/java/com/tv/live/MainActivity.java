@@ -609,6 +609,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ====================================================================
+    // ✅【核心修复】togglePanel() 中加入强制模式同步
+    // ====================================================================
     public void togglePanel() {
         // 🔥【回看模式禁用面板】
         if (isInCatchUpMode) {
@@ -622,6 +625,12 @@ public class MainActivity extends AppCompatActivity {
         }
         channelPanelController.togglePanel();
         remoteManager.syncMode();
+
+        // ✅ 新增：强制检查面板状态，确保模式正确切换
+        if (channelPanelController.isPanelOpen() && 
+            remoteManager.getCurrentMode() != TvRemoteManager.Mode.CHANNEL_PANEL_MODE) {
+            remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
+        }
     }
 
     public void playPrev() { channelPanelController.playPrev(); }
