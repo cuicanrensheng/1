@@ -699,8 +699,25 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
+    // ============================================================
+    // ✅ 【核心修复】在 ScrollView 之前拦截遥控器按键事件
+    // ============================================================
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // 只有当事件为按下动作时才处理（避免重复触发）
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            int keyCode = event.getKeyCode();
+            // 优先交给 TvRemoteManager 处理（包括方向键、确认键、返回键等）
+            if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
+                return true; // 已处理，不再交给 ScrollView 或其他父视图
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // 兜底：如果 dispatchKeyEvent 未拦截，这里也尝试处理
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
