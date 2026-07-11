@@ -603,15 +603,25 @@ public class MainActivity extends AppCompatActivity {
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
+    // ✅【核心修复】将 dispatchKeyEvent 的拦截顺序重新排列，优先保障 remoteManager 能收到方向键和确认键
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
+        
+        // 1. 优先处理菜单/帮助/设置键，始终走打开设置
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 openSettings();
             }
             return true;
         }
+        
+        // 2. ✅【核心修复】让 TvRemoteManager 优先处理剩余按键（方向键、确认键、返回键等）
+        // 这样即使 PlayerView 持有焦点，remoteManager 依然能拦截到按键并执行相应动作
+        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
+            return true;
+        }
+
         return super.dispatchKeyEvent(event);
     }
 
