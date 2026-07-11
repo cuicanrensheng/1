@@ -13,7 +13,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputFilter;
 import android.text.TextUtils;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -23,7 +22,6 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -50,8 +48,9 @@ public class SettingsActivity extends AppCompatActivity {
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
 
     private SharedPreferences sp;
-    private List<View> settingsItemList = new ArrayList<>();
-    private ScrollView scrollView;
+    // 🔴【删除未使用的变量】
+    // private List<View> settingsItemList = new ArrayList<>();
+    // private ScrollView scrollView;
 
     private BootStartManager bootStartManager;
     private SourceDialogManager sourceDialogManager;
@@ -67,8 +66,8 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_REDIRECT_CROSS_DOMAIN = "redirect_cross_domain";
     private static final String KEY_REDIRECT_CROSS_PROTOCOL = "redirect_cross_protocol";
     private static final String KEY_REDIRECT_FOLLOW_HEADERS = "redirect_follow_headers";
-    private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
-    private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
+    private static final String KEY_REDIRECT_IGNORE_SSL = "ignore_ssl";
+    private static final String KEY_REDIRECT_SEND_COOKIE = "send_cookie";
     private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
@@ -109,7 +108,7 @@ public class SettingsActivity extends AppCompatActivity {
         tv_redirect_setting = findViewById(R.id.tv_redirect_setting);
         tv_screen_ratio = findViewById(R.id.tv_screen_ratio);
         tv_boot_status = findViewById(R.id.tv_boot_status);
-        scrollView = findViewById(R.id.settings_content);
+        // 删除 scrollView 引用
 
         itemResolution = findViewById(R.id.item_resolution);
         tv_resolution_status = findViewById(R.id.tv_resolution_status);
@@ -172,7 +171,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void initListeners() {
-        // 开机自启
+        // ... 您的 initListeners 代码保持不变 ...
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
         findViewById(R.id.item_boot).setOnClickListener(v -> {
@@ -185,7 +184,6 @@ public class SettingsActivity extends AppCompatActivity {
             return true;
         });
 
-        // 反转换台
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
         findViewById(R.id.item_reverse).setOnClickListener(v -> {
             boolean isChecked = !sw_reverse.isChecked();
@@ -194,7 +192,6 @@ public class SettingsActivity extends AppCompatActivity {
             Toast.makeText(this, "换台反转" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
         });
 
-        // 画中画
         sw_pip.setChecked(sp.getBoolean("pip_enable", false));
         findViewById(R.id.item_pip).setOnClickListener(v -> {
             boolean isChecked = !sw_pip.isChecked();
@@ -203,30 +200,23 @@ public class SettingsActivity extends AppCompatActivity {
             Toast.makeText(this, "画中画已" + (isChecked ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
         });
 
-        // 解码器
         String decoderMode = sp.getString("decoder_mode", "auto");
         updateDecoderModeText(decoderMode);
         findViewById(R.id.item_decoder).setOnClickListener(v -> showDecoderModeDialog());
 
-        // 渲染方式
         String rendererMode = sp.getString("renderer_type", "surface");
         updateRendererModeText(rendererMode);
         findViewById(R.id.item_renderer).setOnClickListener(v -> showRendererModeDialog());
 
-        // 重定向设置
         updateRedirectSettingText();
         findViewById(R.id.item_redirect).setOnClickListener(v -> showRedirectConfigDialog());
 
-        // 检查更新
         findViewById(R.id.item_check_update).setOnClickListener(v -> updateManager.checkUpdate());
 
-        // 分辨率
         itemResolution.setOnClickListener(v -> showResolutionDialog());
 
-        // 版本信息
         itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
 
-        // 日志开关
         itemLog.setOnClickListener(v -> {
             boolean logEnabled = sp.getBoolean("log_enable", false);
             boolean newState = !logEnabled;
@@ -236,29 +226,22 @@ public class SettingsActivity extends AppCompatActivity {
             MainActivity.toggleLogWindow(newState);
         });
 
-        // 直播源订阅
         itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
-
-        // EPG订阅
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
-
-        // 屏幕比例
         tv_screen_ratio.setOnClickListener(v -> showRatioDialog());
 
-        // 频道线路
         tv_channel_line = findViewById(R.id.tv_channel_line);
         int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
         tv_channel_line.setText(getLineName(currentLineIndex));
         findViewById(R.id.item_channel_line).setOnClickListener(v -> showChannelLineDialog());
 
-        // 版本信息（长按）
         itemVersionInfo.setOnLongClickListener(v -> {
             showVersionInfoDialog();
             return true;
         });
     }
 
-    // ---------- 各种对话框方法（保持原有逻辑） ----------
+    // ---------- 各种对话框方法 ----------
     private void showChannelLineDialog() {
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         Channel currentChannel = playerManager.getCurrentChannel();
@@ -286,7 +269,14 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void showDarkSingleChoiceDialog(String title, String[] items, int checkedItem, java.util.function.Consumer<Integer> onSelected) {
         ListView listView = new ListView(this);
-        listView.setBackgroundColor(0xFF272B3A);
+        
+        // 🟢【新增：弹窗列表焦点修正】与主界面彻底一致，去掉系统黄色/蓝色高亮
+        listView.setListSelector(new ColorDrawable(Color.TRANSPARENT));
+        listView.setDefaultFocusHighlightEnabled(false);
+        listView.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+
+        // 🔴【修改：背景改为半透明】
+        listView.setBackgroundColor(0xAA272B3A);
         listView.setDivider(new ColorDrawable(0x33FFFFFF));
         listView.setDividerHeight(1);
         listView.setPadding(0, 16, 0, 16);
@@ -316,7 +306,8 @@ public class SettingsActivity extends AppCompatActivity {
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setBackgroundColor(0xFF272B3A);
+        // 🔴【修改：背景改为半透明】
+        layout.setBackgroundColor(0xAA272B3A);
         layout.addView(titleView);
         layout.addView(listView);
 
@@ -459,6 +450,11 @@ public class SettingsActivity extends AppCompatActivity {
         Button btnClear = dialogView.findViewById(R.id.btn_clear);
         Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
         Button btnClose = dialogView.findViewById(R.id.btn_close);
+
+        // 🟢【新增：订阅源列表焦点修正】
+        lvSourceList.setListSelector(new ColorDrawable(Color.TRANSPARENT));
+        lvSourceList.setDefaultFocusHighlightEnabled(false);
+        lvSourceList.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
 
         boolean isLive = "live_history".equals(spKey);
         tvIpAddress.setText(currentWebUrl);
@@ -700,7 +696,8 @@ public class SettingsActivity extends AppCompatActivity {
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setBackgroundColor(0xFF272B3A);
+        // 🔴【修改：背景改为半透明】
+        layout.setBackgroundColor(0xAA272B3A);
         layout.setPadding(24, 24, 24, 24);
 
         TextView titleView = new TextView(this);
