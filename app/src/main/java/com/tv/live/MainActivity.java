@@ -617,9 +617,11 @@ public class MainActivity extends AppCompatActivity {
         }
         
         // 2. ✅【核心修复】让 TvRemoteManager 优先处理剩余按键（方向键、确认键、返回键等）
-        // 这样即使 PlayerView 持有焦点，remoteManager 依然能拦截到按键并执行相应动作
-        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
-            return true;
+        // 关键：只在 ACTION_DOWN 时处理，避免 ACTION_UP 导致数字重复输入
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
+                return true;
+            }
         }
 
         return super.dispatchKeyEvent(event);
