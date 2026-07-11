@@ -36,6 +36,9 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
+// ✅ 修复：添加缺失的 SettingsActivity 导入
+import com.tv.live.SettingsActivity;
+
 @SuppressLint("UnsafeOptInUsageError")
 public class MainActivity extends AppCompatActivity {
     private static WeakReference<MainActivity> mInstanceRef;
