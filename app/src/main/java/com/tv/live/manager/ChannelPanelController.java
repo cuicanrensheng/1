@@ -2,6 +2,7 @@ package com.tv.live.manager;
 
 import android.content.Context;
 import android.graphics.Typeface;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.AdapterView;
@@ -671,6 +672,9 @@ public class ChannelPanelController {
         }
 
         View currentFocus = panelLayout.findFocus();
+        // 添加日志，便于调试
+        Log.d("PanelDebug", "dispatchKeyEvent keyCode=" + keyCode + ", currentFocus=" + currentFocus);
+
         if (currentFocus == null) return false;
 
         if (!rightPanelOpen) {
