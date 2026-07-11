@@ -12,6 +12,6 @@
     <!-- 4. 无焦点 + 选中（点击或选中后，但光标不在上面时） -->
     <item android:state_selected="true" android:drawable="@color/bg_highlight" />
     
-    <!-- 5. 默认未选中：改为和外框完全一样的深色背景 -->
-    <item android:drawable="@color/bg_panel_default" />
+    <!-- 5. 默认未选中：必须完全透明！让外框的大背景透出来 -->
+    <item android:drawable="@android:color/transparent" />
 </selector>
