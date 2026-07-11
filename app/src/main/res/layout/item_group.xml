@@ -8,4 +8,4 @@
     android:textColor="@color/item_text_selector"
     android:background="@drawable/item_bg_selector"
     android:focusable="true"
-    android:textSize="16sp" /> <!-- ✅ 删掉了 android:clickable="true" -->
+    android:textSize="16sp" /> 
