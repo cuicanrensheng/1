@@ -707,6 +707,11 @@ public class SettingsActivity extends AppCompatActivity {
         // 只有当事件为按下动作时才处理（避免重复触发）
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int keyCode = event.getKeyCode();
+            // 🔥 新增：处理 HELP 键，行为与 MENU 键一致（关闭设置）
+            if (keyCode == KeyEvent.KEYCODE_HELP) {
+                finish();
+                return true;
+            }
             // 优先交给 TvRemoteManager 处理（包括方向键、确认键、返回键等）
             if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
                 return true; // 已处理，不再交给 ScrollView 或其他父视图
@@ -1010,4 +1015,4 @@ public class SettingsActivity extends AppCompatActivity {
         itemTextViews.clear();
         itemTextViews = null;
     }
-}
+    }
