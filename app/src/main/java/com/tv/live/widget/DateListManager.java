@@ -45,14 +45,12 @@ public class DateListManager {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 selectedPosition = pos;
-                // 不再手动 notifyDataSetChanged，因为样式由 XML 选择器自动处理
+                // 样式完全由 XML 状态选择器自动处理，无需手动 notifyDataSetChanged
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
     }
-
-    // 删除 setFocused() 和 isFocused()
 
     public void initDate() {
         dateDisplayList = new ArrayList<>();
@@ -90,8 +88,11 @@ public class DateListManager {
                 tv.setTextSize(14);
                 tv.setGravity(android.view.Gravity.CENTER);
 
+                // 🟢【核心修复】显式设置选中状态，触发 XML 选择器中的 state_selected！
+                tv.setSelected(position == selectedPosition);
+
                 // =========================================================
-                // ✅【补充：加粗逻辑】
+                // ✅【加粗逻辑】
                 // 当列表拥有焦点，且当前条目为选中项时，字体加粗
                 // =========================================================
                 boolean hasFocus = lvDate.hasFocus();
@@ -101,7 +102,6 @@ public class DateListManager {
                     tv.setTypeface(null, Typeface.NORMAL);
                 }
 
-                // 样式完全由 XML 选择器（state_focused / state_selected）自动控制
                 return tv;
             }
         };
@@ -110,8 +110,8 @@ public class DateListManager {
 
         lvDate.setOnItemClickListener((parent, view, position, id) -> {
             selectedPosition = position;
-            // 通知适配器更新，但样式由 XML 选择器控制，我们仍需要更新 selectedPosition 以便点击后生效
-            adapter.notifyDataSetChanged();
+            // 🟢 去掉 adapter.notifyDataSetChanged(); 因为它会导致全量重绘
+            // 选中状态现在由 tv.setSelected() 配合 XML 完美接管
             if (listener != null) {
                 listener.onDateSelected(position);
             }
@@ -124,7 +124,8 @@ public class DateListManager {
         if (this.selectedPosition == position) return;
 
         selectedPosition = position;
-        // 仍需刷新适配器，因为 selectedPosition 变化会影响显示（如播放指示）
+        // 如果外部代码（比如控制器）主动调用了 setSelectedPosition，
+        // 我们只需更新变量，稍后 `getView` 更新时会自动带上新状态。
         adapter.notifyDataSetChanged();
     }
 }
