@@ -176,13 +176,14 @@
                 android:paddingEnd="16dp" />
 
             <!-- 节目单按钮（在最右边） -->
+            <!-- 🟢【修复文字变色】 -->
             <TextView
                 android:id="@+id/btn_show_epg"
                 android:layout_width="50dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
                 android:text="节\n目\n单"
-                android:textColor="#ffffff"
+                android:textColor="@color/item_text_selector"
                 android:textSize="14sp"
                 android:focusable="true"
                 android:clickable="true"
@@ -207,13 +208,14 @@
             android:visibility="gone">
 
             <!-- 返回按钮（在最左边，显示"频道组"） -->
+            <!-- 🟢【修复文字变色】 -->
             <TextView
                 android:id="@+id/btn_back_group"
                 android:layout_width="50dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
                 android:text="频\n道\n组"
-                android:textColor="#ffffff"
+                android:textColor="@color/item_text_selector"
                 android:textSize="14sp"
                 android:focusable="true"
                 android:clickable="true"
