@@ -3,9 +3,9 @@
     <!-- 原来的图标背景色，保持不变 -->
     <color name="ic_launcher_background">#FFFFFF</color>
 
-    <!-- 🔥【新增】浅蓝色背景高亮色（用于聚焦/选中时） -->
+    <!-- 🔥 浅蓝色背景高亮色（用于聚焦/选中时） -->
     <color name="bg_highlight">#3340A9FF</color>
 
-    <!-- 🔥【新增】设置项默认未选中时的深色背景，与外框颜色 #CC121212 完全一致 -->
-    <color name="bg_panel_default">#000000</color>
+    <!-- 🔥 设置项默认未选中时的背景：必须完全透明！ -->
+    <color name="bg_panel_default">#00000000</color>
 </resources>
