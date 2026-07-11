@@ -31,8 +31,12 @@ public class GestureManager {
 
             @Override
             public void onLongOk() {
-                // ✅ 修复：使用原生的 startActivity 打开设置
-                activity.startActivity(new Intent(activity, SettingsActivity.class));
+                // 🟢【新增】回看模式下禁止长按触发设置
+                if (activity.isInCatchUpMode()) {
+                    return;
+                }
+                // 统一调用 MainActivity 的 openSettings()
+                activity.openSettings();
             }
 
             @Override
