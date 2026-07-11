@@ -55,14 +55,11 @@ public class MainActivity extends AppCompatActivity {
     private AppCoreManager appCoreManager;
     private TvRemoteManager remoteManager;
     private PictureInPictureManager pipManager;
-
-    // 🔧【修复】新增 panelLayout 成员变量
     private View panelLayout;
 
     private boolean pipEnable = false;
     private boolean channel_reverse;
     private boolean number_channel_enable;
-    private boolean isOpeningSettings = false;
 
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences sp;
@@ -140,10 +137,7 @@ public class MainActivity extends AppCompatActivity {
 
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
-
-        new Thread(() -> {
-            appCoreManager.loadLiveAndEpg();
-        }).start();
+        new Thread(() -> appCoreManager.loadLiveAndEpg()).start();
     }
 
     public void showLogWindow() {
@@ -198,14 +192,6 @@ public class MainActivity extends AppCompatActivity {
 
     public void setCatchUpMode(boolean enabled) {
         this.isInCatchUpMode = enabled;
-    }
-
-    public boolean isOpeningSettings() {
-        return isOpeningSettings;
-    }
-
-    public void setOpeningSettings(boolean opening) {
-        this.isOpeningSettings = opening;
     }
 
     public ChannelPanelController getChannelPanelController() {
@@ -295,7 +281,9 @@ public class MainActivity extends AppCompatActivity {
                 channelPanelController.switchDown();
             }
             @Override public void onPlayTogglePanel() { togglePanel(); remoteManager.syncMode(); }
-            @Override public void onPlayOpenSettings() { openSettings(); }
+            @Override public void onPlayOpenSettings() { 
+                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+            }
             @Override public boolean onPlayBack() { return false; }
             @Override public void onPanelMoveUp() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_UP); }
             @Override public void onPanelMoveDown() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_DOWN); }
@@ -351,7 +339,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initChannelPanelController() {
-        // 🔧【修复】将局部变量改为成员变量赋值
         panelLayout = findViewById(R.id.panel_layout);
         View ll_left_panel = findViewById(R.id.ll_left_panel);
         View ll_right_panel = findViewById(R.id.ll_right_panel);
@@ -576,10 +563,6 @@ public class MainActivity extends AppCompatActivity {
         if (isInCatchUpMode) {
             return;
         }
-        if (isOpeningSettings) {
-            sendBroadcast(new Intent("com.tv.live.CLOSE_SETTINGS"));
-            isOpeningSettings = false;
-        }
         channelPanelController.togglePanel();
         remoteManager.syncMode();
 
@@ -588,9 +571,7 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
         }
 
-        // ✅ 双重保障：通过控制器清理面板内所有残留焦点 + 归还焦点给播放器
         if (!channelPanelController.isPanelOpen()) {
-            // 🔧【修复】现在 panelLayout 是成员变量，编译通过
             panelLayout.postDelayed(() -> {
                 channelPanelController.clearPanelFocus();
                 playerView.setFocusable(true);
@@ -614,22 +595,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ============================================================
-    // 🔥 同时兼容 MENU、HELP、SETTINGS 三个键
+    // 🔥【原生启动】不再依赖任何标记，直接 startActivity
     // ============================================================
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
-        int action = event.getAction();
-
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
-            if (action == KeyEvent.ACTION_DOWN) {
-                // 如果设置已打开，则关闭；否则打开
-                if (isOpeningSettings) {
-                    sendBroadcast(new Intent("com.tv.live.CLOSE_SETTINGS"));
-                    isOpeningSettings = false;
-                } else {
-                    openSettings();
-                }
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                Log.d("MainActivity", "收到菜单/帮助/设置键，原生打开设置页面");
+                startActivity(new Intent(this, SettingsActivity.class));
             }
             return true;
         }
@@ -650,29 +624,14 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            openSettings();
+            // 🔧 长按返回键也原生地打开设置
+            startActivity(new Intent(this, SettingsActivity.class));
             return true;
         }
         if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
             return true;
         }
         return super.onKeyLongPress(keyCode, event);
-    }
-
-    public void openSettings() {
-        if (isOpeningSettings) return;
-        if (isInCatchUpMode) return;
-
-        isOpeningSettings = true;
-        appCoreManager.beforeOpenSettings();
-        
-        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-            channelPanelController.hidePanel();
-        }
-        
-        hideExoController();
-
-        startActivity(new Intent(this, SettingsActivity.class));
     }
 
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
@@ -682,7 +641,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (isOpeningSettings) return;
         if (pipManager != null) pipManager.enterPip(this, mPlayerManager, pipEnable);
     }
 
@@ -734,7 +692,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        isOpeningSettings = false;
         appCoreManager.onResume();
         if (pipManager != null) pipManager.setStopCalled(false);
         loadSettings();
@@ -751,7 +708,6 @@ public class MainActivity extends AppCompatActivity {
         }
         remoteManager.syncMode();
 
-        // ✅【核心修复】统一清理频道面板残留焦点 + 归还焦点给播放器
         if (channelPanelController != null) {
             channelPanelController.clearPanelFocus();
             if (!channelPanelController.isPanelOpen()) {
