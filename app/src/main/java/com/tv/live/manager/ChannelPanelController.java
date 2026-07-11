@@ -816,4 +816,4 @@ public class ChannelPanelController {
     public void release() {
         cancelAutoHide();
     }
-}
+ }
