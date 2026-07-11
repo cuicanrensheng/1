@@ -314,7 +314,13 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onSettingsMenu() {}
             @Override public void onSettingsFocusChanged(int position) {}
             @Override public boolean onPipBack() { moveTaskToBack(false); return true; }
-            @Override public void onRequestPlayFocus() { playerView.requestFocus(); }
+            @Override public void onRequestPlayFocus() {
+                if (playerView != null) {
+                    playerView.setFocusable(true);
+                    playerView.setFocusableInTouchMode(true);
+                    playerView.requestFocus();
+                }
+            }
             @Override public void onChannelNumberSelected(int channelIndex) { channelPanelController.playChannel(channelIndex); }
             @Override public void onShowChannelNumber(String number) { try { infoDisplayManager.showChannelNum(Integer.parseInt(number)); } catch (Exception ignored) {} }
             @Override public void onHideChannelNumber() { infoDisplayManager.hideChannelNum(); }
@@ -578,9 +584,10 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
         }
 
-        // ✅ 新增：面板关闭后，将焦点归还给播放器，确保遥控器上下键能切台
+        // ✅ 双重保障：清理面板内所有残留焦点 + 归还焦点给播放器
         if (!channelPanelController.isPanelOpen()) {
-            playerView.requestFocus();
+            panelLayout.clearFocus();   // 彻底清除面板内残留焦点
+            playerView.requestFocus();  // 确保播放器拿到焦点
         }
     }
 
