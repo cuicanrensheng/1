@@ -41,6 +41,7 @@ public class GestureManager {
 
             @Override
             public void onMenu() {
+                // ✅ 双击：仅在回看模式下唤起控制栏
                 if (activity.isInCatchUpMode()) {
                     activity.showExoController();
                 }
