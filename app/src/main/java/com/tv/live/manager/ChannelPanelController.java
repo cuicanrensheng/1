@@ -31,7 +31,7 @@ public class ChannelPanelController {
     private static final int MAX_AUTO_SKIP = 10;
 
     private static final long FIRST_LAUNCH_HIDE_DELAY_MS = 5000;
-    private static final long NORMAL_HIDE_DELAY_MS = 20000; // 🟢 修改为 20 秒防呆
+    private static final long NORMAL_HIDE_DELAY_MS = 20000;
 
     private Context context;
     private View panelLayout;
@@ -65,9 +65,8 @@ public class ChannelPanelController {
 
     private Handler mAutoHideHandler;
     private Runnable mAutoHideRunnable;
-    private long mAutoHideDelayMs = 5000; // 🟢 默认为 5 秒
+    private long mAutoHideDelayMs = 5000;
     
-    // 🟢【恢复】开启自动隐藏功能
     private boolean mAutoHideEnabled = true;
 
     private boolean mIsFirstLaunch = true;
@@ -136,135 +135,73 @@ public class ChannelPanelController {
     }
 
     private void initClickListeners() {
-        lvGroup.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                onGroupClicked(position);
-            }
-        });
-        lvChannelList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> p, View v, int pos, long id) {
-                onChannelClicked(pos);
-            }
-        });
-        lvChannelListEpg.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> p, View v, int pos, long id) {
-                onChannelClicked(pos);
-            }
-        });
-        channelListManager.setOnChannelLongClickListener(new ChannelListManager.OnChannelLongClickListener() {
-            @Override
-            public boolean onChannelLongClick(String channelName, int position) {
-                return handleChannelLongClick(channelName, false);
-            }
-        });
-        channelListManagerEpg.setOnChannelLongClickListener(new ChannelListManager.OnChannelLongClickListener() {
-            @Override
-            public boolean onChannelLongClick(String channelName, int position) {
-                return handleChannelLongClick(channelName, true);
-            }
-        });
-        btnShowEpg.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                onEpgButtonClicked();
-            }
-        });
-        btnBackGroup.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                onBackGroupClicked();
-            }
-        });
+        lvGroup.setOnItemClickListener((parent, view, position, id) -> onGroupClicked(position));
+        lvChannelList.setOnItemClickListener((p, v, pos, id) -> onChannelClicked(pos));
+        lvChannelListEpg.setOnItemClickListener((p, v, pos, id) -> onChannelClicked(pos));
+
+        channelListManager.setOnChannelLongClickListener((channelName, position) -> handleChannelLongClick(channelName, false));
+        channelListManagerEpg.setOnChannelLongClickListener((channelName, position) -> handleChannelLongClick(channelName, true));
+
+        btnShowEpg.setOnClickListener(v -> onEpgButtonClicked());
+        btnBackGroup.setOnClickListener(v -> onBackGroupClicked());
     }
 
     private void initFocusListeners() {
-        lvGroup.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "left";
-                    leftFocusView = "group";
-                    syncFocusStyle();
-                }
+        lvGroup.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                currentFocusPanel = "left";
+                leftFocusView = "group";
+                syncFocusStyle();
             }
         });
-        lvChannelList.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "left";
-                    leftFocusView = "channel";
-                    syncFocusStyle();
-                }
+        lvChannelList.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                currentFocusPanel = "left";
+                leftFocusView = "channel";
+                syncFocusStyle();
             }
         });
-        btnShowEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "left";
-                    leftFocusView = "epgBtn";
-                    syncFocusStyle();
-                }
-                if (!rightPanelOpen) {
-                    lvChannelList.requestFocus();
-                }
+        btnShowEpg.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                currentFocusPanel = "left";
+                leftFocusView = "epgBtn";
+                syncFocusStyle();
+            }
+            // 移除可能导致焦点混乱的自动请求
+        });
+        lvChannelListEpg.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                currentFocusPanel = "right";
+                rightFocusView = "channel";
+                syncFocusStyle();
             }
         });
-        lvChannelListEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "right";
-                    rightFocusView = "channel";
-                    syncFocusStyle();
-                }
+        lvDate.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                currentFocusPanel = "right";
+                rightFocusView = "date";
+                syncFocusStyle();
             }
         });
-        lvDate.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "right";
-                    rightFocusView = "date";
-                    syncFocusStyle();
-                }
+        lvEpg.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                currentFocusPanel = "right";
+                rightFocusView = "epg";
+                syncFocusStyle();
             }
         });
-        lvEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "right";
-                    rightFocusView = "epg";
-                    syncFocusStyle();
-                }
-            }
-        });
-        btnBackGroup.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    currentFocusPanel = "right";
-                    rightFocusView = "backBtn";
-                    syncFocusStyle();
-                }
+        btnBackGroup.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                currentFocusPanel = "right";
+                rightFocusView = "backBtn";
+                syncFocusStyle();
             }
         });
     }
 
     private void initAutoHide() {
         mAutoHideHandler = new Handler(Looper.getMainLooper());
-        mAutoHideRunnable = new Runnable() {
-            @Override
-            public void run() {
-                hidePanel();
-            }
-        };
-        // 🟢【恢复】开启自动隐藏，并设定为 5 秒防呆
+        mAutoHideRunnable = this::hidePanel;
         mAutoHideEnabled = true;
         mAutoHideDelayMs = 5000;
     }
@@ -515,9 +452,6 @@ public class ChannelPanelController {
         this.currentPlayIndex = index;
     }
 
-    public void setTotalChannelCount(int count) {
-    }
-
     public void togglePanel() {
         if (GroupListManager.GROUP_ALL.equals(currentGroupName)
                 || currentGroupName.isEmpty()
@@ -530,20 +464,16 @@ public class ChannelPanelController {
         boolean isOpen = isPanelOpen();
         panelManager.toggle(channelSourceList, currentPlayIndex, dateListManager);
         if (!isOpen) {
-            // ✅ 修改：使用 postDelayed 并显式设置可聚焦
-            panelLayout.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    clearAllFocusStyles();
-                    currentFocusPanel = "left";
-                    leftFocusView = "channel";
-                    syncFocusStyle();
-                    lvChannelList.setFocusable(true);
-                    lvChannelList.setFocusableInTouchMode(true);
-                    lvChannelList.requestFocus();
-                    lvChannelList.setSelection(getChannelListSelection());
-                    resetAutoHide();
-                }
+            panelLayout.postDelayed(() -> {
+                clearAllFocusStyles();
+                currentFocusPanel = "left";
+                leftFocusView = "channel";
+                syncFocusStyle();
+                lvChannelList.setFocusable(true);
+                lvChannelList.setFocusableInTouchMode(true);
+                lvChannelList.requestFocus();
+                lvChannelList.setSelection(getChannelListSelection());
+                resetAutoHide();
             }, 100);
         } else {
             cancelAutoHide();
@@ -628,19 +558,15 @@ public class ChannelPanelController {
             epgPanelOpen = true;
             channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
             if (llRightPanel != null) {
-                // ✅ 修改：使用 postDelayed 并显式设置可聚焦
-                llRightPanel.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        clearAllFocusStyles();
-                        currentFocusPanel = "right";
-                        rightFocusView = "channel";
-                        syncFocusStyle();
-                        lvChannelListEpg.setFocusable(true);
-                        lvChannelListEpg.setFocusableInTouchMode(true);
-                        lvChannelListEpg.requestFocus();
-                        lvChannelListEpg.setSelection(currentPlayIndex);
-                    }
+                llRightPanel.postDelayed(() -> {
+                    clearAllFocusStyles();
+                    currentFocusPanel = "right";
+                    rightFocusView = "channel";
+                    syncFocusStyle();
+                    lvChannelListEpg.setFocusable(true);
+                    lvChannelListEpg.setFocusableInTouchMode(true);
+                    lvChannelListEpg.requestFocus();
+                    lvChannelListEpg.setSelection(currentPlayIndex);
                 }, 100);
             }
             if (!channelSourceList.isEmpty()
@@ -658,19 +584,15 @@ public class ChannelPanelController {
             rightPanelOpen = false;
             epgPanelOpen = false;
             if (llLeftPanel != null) {
-                // ✅ 修改：使用 postDelayed 并显式设置可聚焦
-                llLeftPanel.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        clearAllFocusStyles();
-                        currentFocusPanel = "left";
-                        leftFocusView = "channel";
-                        syncFocusStyle();
-                        lvChannelList.setFocusable(true);
-                        lvChannelList.setFocusableInTouchMode(true);
-                        lvChannelList.requestFocus();
-                        lvChannelList.setSelection(getChannelListSelection());
-                    }
+                llLeftPanel.postDelayed(() -> {
+                    clearAllFocusStyles();
+                    currentFocusPanel = "left";
+                    leftFocusView = "channel";
+                    syncFocusStyle();
+                    lvChannelList.setFocusable(true);
+                    lvChannelList.setFocusableInTouchMode(true);
+                    lvChannelList.requestFocus();
+                    lvChannelList.setSelection(getChannelListSelection());
                 }, 100);
             }
         }
@@ -683,19 +605,15 @@ public class ChannelPanelController {
             rightPanelOpen = false;
             epgPanelOpen = false;
             if (llLeftPanel != null) {
-                // ✅ 修改：使用 postDelayed 并显式设置可聚焦
-                llLeftPanel.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        clearAllFocusStyles();
-                        currentFocusPanel = "left";
-                        leftFocusView = "channel";
-                        syncFocusStyle();
-                        lvChannelList.setFocusable(true);
-                        lvChannelList.setFocusableInTouchMode(true);
-                        lvChannelList.requestFocus();
-                        lvChannelList.setSelection(getChannelListSelection());
-                    }
+                llLeftPanel.postDelayed(() -> {
+                    clearAllFocusStyles();
+                    currentFocusPanel = "left";
+                    leftFocusView = "channel";
+                    syncFocusStyle();
+                    lvChannelList.setFocusable(true);
+                    lvChannelList.setFocusableInTouchMode(true);
+                    lvChannelList.requestFocus();
+                    lvChannelList.setSelection(getChannelListSelection());
                 }, 100);
             }
         }
@@ -790,38 +708,110 @@ public class ChannelPanelController {
         return isReverse;
     }
 
+    // 🛠️ 核心焦点处理：完整实现所有导航规则
     public boolean dispatchKeyEvent(int keyCode) {
         View currentFocus = panelLayout.findFocus();
         if (currentFocus == null) return false;
 
-        if (rightPanelOpen) return false;
-
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                if (currentFocus == lvGroup) {
-                    int selectedPos = lvGroup.getSelectedItemPosition();
-                    if (selectedPos == lvGroup.getAdapter().getCount() - 1) {
+        // ========== 左侧面板 ==========
+        if (!rightPanelOpen) {
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    // 分组列表→频道列表
+                    if (currentFocus == lvGroup) {
                         lvChannelList.requestFocus();
                         return true;
                     }
-                }
-                break;
-            case KeyEvent.KEYCODE_DPAD_UP:
-                if (currentFocus == lvChannelList) {
-                    int selectedPos = lvChannelList.getSelectedItemPosition();
-                    if (selectedPos == 0) {
+                    // 频道列表→节目单按钮
+                    if (currentFocus == lvChannelList) {
+                        btnShowEpg.setFocusable(true);
+                        btnShowEpg.setFocusableInTouchMode(true);
+                        btnShowEpg.requestFocus();
+                        return true;
+                    }
+                    break;
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    // 节目单按钮→频道列表
+                    if (currentFocus == btnShowEpg) {
+                        lvChannelList.requestFocus();
+                        return true;
+                    }
+                    // 频道列表→分组列表
+                    if (currentFocus == lvChannelList) {
                         lvGroup.requestFocus();
                         return true;
                     }
-                }
-                break;
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                if (currentFocus == btnShowEpg) {
-                    lvChannelList.requestFocus();
-                    return true;
-                }
-                break;
+                    break;
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    // 分组列表底部不跳转
+                    if (currentFocus == lvGroup) {
+                        return true; // 消费事件，不越界跳转
+                    }
+                    break;
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    // 频道列表顶部不跳转
+                    if (currentFocus == lvChannelList) {
+                        return true; // 消费事件，不越界跳转
+                    }
+                    break;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    // 节目单按钮按确认键打开右侧面板
+                    if (currentFocus == btnShowEpg) {
+                        onEpgButtonClicked();
+                        return true;
+                    }
+                    break;
+            }
         }
+        // ========== 右侧面板 ==========
+        else {
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    // 节目单内容→日期列表
+                    if (currentFocus == lvEpg) {
+                        lvDate.requestFocus();
+                        return true;
+                    }
+                    // 日期列表→频道列表
+                    if (currentFocus == lvDate) {
+                        lvChannelListEpg.requestFocus();
+                        return true;
+                    }
+                    // 频道列表→返回按钮
+                    if (currentFocus == lvChannelListEpg) {
+                        btnBackGroup.requestFocus();
+                        return true;
+                    }
+                    break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    // 返回按钮→频道列表
+                    if (currentFocus == btnBackGroup) {
+                        lvChannelListEpg.requestFocus();
+                        return true;
+                    }
+                    // 频道列表→日期列表
+                    if (currentFocus == lvChannelListEpg) {
+                        lvDate.requestFocus();
+                        return true;
+                    }
+                    // 日期列表→节目单内容
+                    if (currentFocus == lvDate) {
+                        lvEpg.requestFocus();
+                        return true;
+                    }
+                    break;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    // 返回按钮按确认键返回左侧面板
+                    if (currentFocus == btnBackGroup) {
+                        onBackGroupClicked();
+                        return true;
+                    }
+                    break;
+            }
+        }
+
         return false;
     }
 
@@ -836,4 +826,4 @@ public class ChannelPanelController {
     public void release() {
         cancelAutoHide();
     }
-}
+        }
