@@ -8,7 +8,7 @@
     android:background="@android:color/transparent">
 
     <!-- 左侧空白区域（点击关闭） -->
-    <!-- 🟢【关键修复】加入 android:focusable="false"，防止它抢走遥控器焦点，但完全不影响手机触屏点击关闭！ -->
+    <!-- 已改为 focusable="false"，防止抢走遥控器焦点，但不影响手机触屏关闭 -->
     <View
         android:id="@+id/view_outside"
         android:layout_width="match_parent"
@@ -56,12 +56,13 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
+                    <!-- 🟢 以下 textColor 已改为选择器，聚焦时文字自动变蓝 -->
                     <TextView
                         android:layout_width="0dp"
                         android:layout_weight="1"
                         android:layout_height="wrap_content"
                         android:text="开机自启"
-                        android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                        android:textColor="@color/item_text_selector"
                         android:textSize="16sp" />
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/sw_boot"
@@ -96,7 +97,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="换台反转"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_reverse"
@@ -122,7 +123,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="画中画"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_pip"
@@ -148,7 +149,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="频道线路选择"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_channel_line"
@@ -175,7 +176,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="解码器选择"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_decoder_mode"
@@ -202,7 +203,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="渲染方式"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_renderer_type"
@@ -222,7 +223,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:text="屏幕比例"
-                android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                android:textColor="@color/item_text_selector"
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
@@ -244,7 +245,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="清晰度选择"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_resolution_status"
@@ -280,7 +281,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="HTTP重定向网络配置"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_redirect_setting"
@@ -312,7 +313,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="直播源订阅"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
             </LinearLayout>
 
@@ -331,7 +332,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="节目单订阅"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
             </LinearLayout>
 
@@ -359,7 +360,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="检查更新"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp"/>
                 <Button
                     android:id="@+id/btn_check_update"
@@ -370,9 +371,7 @@
                     android:clickable="false"/>
             </LinearLayout>
 
-            <!-- ============================================================ -->
-            <!-- 🆕 新增：版本信息 -->
-            <!-- ============================================================ -->
+            <!-- 版本信息 -->
             <LinearLayout
                 android:id="@+id/item_version_info"
                 android:layout_width="match_parent"
@@ -388,7 +387,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="版本信息"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp"/>
                 <TextView
                     android:id="@+id/tv_version_short"
@@ -398,7 +397,6 @@
                     android:textColor="#999999"
                     android:textSize="14sp" />
             </LinearLayout>
-            <!-- ============================================================ -->
 
             <!-- 分隔线 -->
             <View
@@ -408,9 +406,7 @@
                 android:layout_marginBottom="8dp"
                 android:background="#33FFFFFF"/>
 
-            <!-- ============================================================ -->
-            <!-- 🆕 新增：日志输出 -->
-            <!-- ============================================================ -->
+            <!-- 日志输出 -->
             <LinearLayout
                 android:id="@+id/item_log"
                 android:layout_width="match_parent"
@@ -426,7 +422,7 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:text="日志输出"
-                    android:textColor="@color/item_text_selector" <!-- 🟢【改为选择器，聚焦变蓝】 -->
+                    android:textColor="@color/item_text_selector"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_log_status"
@@ -436,7 +432,6 @@
                     android:textColor="#999999"
                     android:textSize="14sp" />
             </LinearLayout>
-            <!-- ============================================================ -->
 
             <!-- 网页设置提示 -->
             <TextView
