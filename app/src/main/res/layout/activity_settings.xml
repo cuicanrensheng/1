@@ -56,7 +56,7 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
-                    <!-- 🟢 以下 textColor 已改为选择器，聚焦时文字自动变蓝 -->
+                 
                     <TextView
                         android:layout_width="0dp"
                         android:layout_weight="1"
