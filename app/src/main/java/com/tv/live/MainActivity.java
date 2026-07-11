@@ -74,11 +74,11 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isInCatchUpMode = false;
 
-    // ==================== 新增：模式状态 ====================
+    // ==================== 模式状态 ====================
     public enum Mode { PLAY_MODE, CHANNEL_PANEL_MODE, SETTINGS_MODE }
     private Mode currentMode = Mode.PLAY_MODE;
 
-    // ==================== 新增：数字输入相关 ====================
+    // ==================== 数字输入相关 ====================
     private final StringBuilder channelNumInput = new StringBuilder();
     private final Handler channelNumHandler = new Handler(Looper.getMainLooper());
     private static final long CHANNEL_NUM_TIMEOUT = 2000;
@@ -213,12 +213,22 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ==================== 按键分发 ====================
+    // ==================== 按键分发（含画中画拦截） ====================
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
         if (event.getAction() != KeyEvent.ACTION_DOWN) {
             return super.dispatchKeyEvent(event);
+        }
+
+        // 🔥 画中画模式拦截（替代原 TvRemoteManager 逻辑）
+        if (pipManager != null && pipManager.isInPipMode()) {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                moveTaskToBack(false);
+                return true;
+            }
+            // 其他按键全部忽略
+            return true;
         }
 
         // 菜单/帮助/设置键 → 打开设置
@@ -298,7 +308,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ==================== 以下保留所有原有方法（略作调整） ====================
+    // ==================== 以下保留所有原有方法 ====================
 
     public void showLogWindow() { /* 原样 */ }
     public void hideLogWindow() { /* 原样 */ }
@@ -309,14 +319,14 @@ public class MainActivity extends AppCompatActivity {
     public ChannelPanelController getChannelPanelController() { return channelPanelController; }
     public void showExoController() { if (playerControlManager != null) playerControlManager.showExoController(); }
     public void hideExoController() { if (playerControlManager != null) playerControlManager.hideExoController(); }
-    private void exitPlaybackMode() { /* 原样，但删除了 remoteManager 调用 */ }
+    private void exitPlaybackMode() { /* 原样 */ }
     private void initPictureInPicture() { /* 原样 */ }
     private void initInfoDisplayManager() { /* 原样 */ }
     private void initChannelPanelController() { /* 原样 */ }
     public static class PlayerTouchListener implements View.OnTouchListener { /* 原样 */ }
-    private void initPlayer() { /* 原样，删除 remoteManager 相关 */ }
-    private void initAppCoreManager() { /* 原样，注意 onLiveSourceLoaded 中的修改 */ }
-    private void loadSettings() { /* 原样，删除 remoteManager 相关 */ }
+    private void initPlayer() { /* 原样 */ }
+    private void initAppCoreManager() { /* 原样 */ }
+    private void loadSettings() { /* 原样 */ }
     public boolean isChannelReverse() { return channel_reverse; }
     public void playChannel(int index) { /* 原样 */ }
     private void playChannel(Channel channel, int index) { /* 原样 */ }
@@ -329,7 +339,6 @@ public class MainActivity extends AppCompatActivity {
             exitPlaybackMode();
             return;
         }
-        // 🔥 修改：使用 channelPanelController.handleBackPressed()
         if (channelPanelController != null && channelPanelController.handleBackPressed()) return;
         super.onBackPressed();
     }
@@ -361,7 +370,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode);
-        // 🔥 删除 remoteManager.setInPipMode
         if (pipManager != null) {
             try {
                 pipManager.onPipModeChanged(this, isInPictureInPictureMode);
@@ -422,7 +430,6 @@ public class MainActivity extends AppCompatActivity {
                 pipManager.resumePlayback(mPlayerManager);
             }
         }
-        // 🔥 修改：同步模式
         syncMode();
 
         if (channelPanelController != null) {
@@ -461,7 +468,6 @@ public class MainActivity extends AppCompatActivity {
         }
         mMainHandler.removeCallbacksAndMessages(null);
         if (infoDisplayManager != null) infoDisplayManager.release();
-        // 🔥 删除 remoteManager.release()
         if (displayManager != null) displayManager.release();
         if (channelPanelController != null) channelPanelController.release();
         if (appCoreManager != null) appCoreManager.release();
