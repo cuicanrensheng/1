@@ -288,13 +288,7 @@ public class EpgManagerWrapper {
                         if (ctx instanceof MainActivity) {
                             MainActivity activity = (MainActivity) ctx;
 
-                            // 🔥【联动 1】关闭设置页（通过公共访问器）
-                            if (activity.isOpeningSettings()) {
-                                activity.sendBroadcast(new Intent("com.tv.live.CLOSE_SETTINGS"));
-                                activity.setOpeningSettings(false);
-                            }
-
-                            // 🔥【联动 2】关闭频道面板（通过公共访问器）
+                            // 🔥【联动 1】关闭频道面板（通过公共访问器）
                             ChannelPanelController controller = activity.getChannelPanelController();
                             if (controller != null && controller.isPanelOpen()) {
                                 controller.hidePanel();
