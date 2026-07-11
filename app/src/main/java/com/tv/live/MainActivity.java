@@ -242,6 +242,9 @@ public class MainActivity extends AppCompatActivity {
 
     // 🔴【联动升级】触发显示 ExoPlayer 原生控制栏，并隐藏底部信息栏
     public void showExoController() {
+        // 🛡️ 新增：只有回看模式下才允许显示控制栏
+        if (!isInCatchUpMode) return;
+
         if (playerView == null) return;
         mMainHandler.removeCallbacks(hideControllerRunnable);
         if (touchListener != null) {
@@ -782,16 +785,14 @@ public class MainActivity extends AppCompatActivity {
         displayManager.reapplyFullScreen();
 
         if (pipManager == null || !pipManager.isInPipMode()) {
-            mMainHandler.postDelayed(() -> {
-                if (pipManager != null && mPlayerManager != null) {
-                    pipManager.resumePlayback(mPlayerManager);
-                }
-                
-                // 🟢【新增】切回前台后，强制隐藏可能被 ExoPlayer 自动弹出的控制栏
-                if (playerView != null && !isControllerShowing) {
-                    hideExoController();
-                }
-            }, 200);
+            // 🛡️ 移除延迟，直接隐藏控制栏
+            if (playerView != null && !isControllerShowing) {
+                hideExoController();
+            }
+            // 恢复播放（原有逻辑）
+            if (pipManager != null && mPlayerManager != null) {
+                pipManager.resumePlayback(mPlayerManager);
+            }
         }
         remoteManager.syncMode();
     }
