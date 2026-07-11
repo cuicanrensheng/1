@@ -47,6 +47,9 @@ public class InfoDisplayManager {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Channel currentPlayChannel;
 
+    // 🟢【新增】释放状态标记，防止销毁后继续更新 UI
+    private boolean isReleased = false;
+
     private final Runnable hideInfoBarTask = new Runnable() {
         @Override
         public void run() {
@@ -186,6 +189,10 @@ public class InfoDisplayManager {
 
                 // 3. 切回主线程进行简单的 UI 渲染
                 mainHandler.post(() -> {
+                    // ✅ 如果已被释放，不再更新 UI
+                    if (isReleased) {
+                        return;
+                    }
                     if (result == null) {
                         setEpgEmptyUi();
                         return;
@@ -194,7 +201,11 @@ public class InfoDisplayManager {
                 });
             } catch (Exception e) {
                 e.printStackTrace();
-                mainHandler.post(this::setEpgEmptyUi);
+                mainHandler.post(() -> {
+                    if (!isReleased) {
+                        setEpgEmptyUi();
+                    }
+                });
             }
         }).start();
     }
@@ -248,6 +259,14 @@ public class InfoDisplayManager {
 
     // 🟢【优化4】主线程只执行这种纯 UI 绑定的低耗时方法
     private void applyEpgUiResult(EpgCalculationResult result, Channel channel) {
+        // ✅ 如果已被释放或关键控件已销毁，直接返回
+        if (isReleased) {
+            return;
+        }
+        if (tvCurrentProgramName == null || tvCurrentTimeRange == null || progressProgram == null) {
+            return;
+        }
+
         if (result.isLoading) {
             setEpgLoadingUi();
             return;
@@ -440,6 +459,8 @@ public class InfoDisplayManager {
     public void release(){
         // 🟢【优化6】彻底清空 Handler 中的所有排期任务，防止内存泄漏
         mainHandler.removeCallbacksAndMessages(null);
+        // 🟢【新增】标记为已释放
+        isReleased = true;
         currentPlayChannel = null;
         context = null;
         tvChannelNum = null;
