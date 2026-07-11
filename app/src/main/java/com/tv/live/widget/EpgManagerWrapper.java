@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Typeface;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -55,21 +56,16 @@ public class EpgManagerWrapper {
         lvEpg.setItemsCanFocus(true);
         lvEpg.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
-        // 删除 lvEpg.setOnItemSelectedListener 中手动 notifyDataSetChanged
         lvEpg.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 selectedPosition = pos;
-                // 不再手动刷新，样式由 XML 选择器自动处理
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
                 selectedPosition = -1;
-                // 不再手动刷新
             }
         });
-
-        // 删除 lvEpg.setOnFocusChangeListener，不再需要手动刷新
 
         registerReminderReceiver();
     }
@@ -173,7 +169,6 @@ public class EpgManagerWrapper {
                     selectedPosition = Math.max(0, finalData.size() - 1);
                 }
                 lvEpg.setSelection(selectedPosition);
-                // 数据变化时仍需刷新适配器
                 adapter.notifyDataSetChanged();
             });
         }).start();
@@ -347,13 +342,19 @@ public class EpgManagerWrapper {
             holder.tv_time.setText(item.time + "-" + endTime);
             holder.tv_title.setText(item.title);
 
-            // 删除所有手动样式设置，样式由 XML 选择器自动控制
-            // 保留播放指示
-            boolean isPlaying = item.isPlaying && dayIndex == 0;
-            if (isPlaying) {
-                // 可以添加播放指示，但不通过颜色，比如在 xml 中设置 drawable
-                // 这里暂时不做额外处理，因为播放指示可通过 XML 选择器 state_selected?
-                // 或者可以在适配器中设置一个标记，但简单起见，这里不设置颜色，交给 XML
+            // 🟢【核心修复1】显式设置选中状态，触发 XML 选择器中的 state_selected
+            convertView.setSelected(position == EpgManagerWrapper.this.selectedPosition);
+
+            // 🟢【核心修复2】加粗逻辑：当前条目有焦点且被选中时，字体加粗
+            boolean hasFocus = lvEpg.hasFocus();
+            if (position == EpgManagerWrapper.this.selectedPosition && hasFocus) {
+                holder.tv_dayName.setTypeface(null, Typeface.BOLD);
+                holder.tv_time.setTypeface(null, Typeface.BOLD);
+                holder.tv_title.setTypeface(null, Typeface.BOLD);
+            } else {
+                holder.tv_dayName.setTypeface(null, Typeface.NORMAL);
+                holder.tv_time.setTypeface(null, Typeface.NORMAL);
+                holder.tv_title.setTypeface(null, Typeface.NORMAL);
             }
 
             String key = currentChannel.getName() + "_" + position;
@@ -374,12 +375,10 @@ public class EpgManagerWrapper {
             holder.tv_action.setTag(tag);
             holder.tv_action.setOnClickListener(actionClickListener);
 
-            // 按钮状态由逻辑控制，颜色和样式在 XML 中定义
             if (dayIndex == 0) {
                 if (item.isPlaying) {
                     holder.tv_action.setText("播放中");
                     holder.tv_action.setEnabled(false);
-                    // 背景颜色建议在 XML 中通过 selector 控制，这里只设置文本和启用状态
                 } else if (isPast) {
                     holder.tv_action.setText("回看");
                     holder.tv_action.setEnabled(true);
@@ -401,7 +400,6 @@ public class EpgManagerWrapper {
             if (!tag.isPast) {
                 boolean isBooked = bookedSet.contains(tag.key);
                 actionBtn.setText(isBooked ? "已预约" : "预约");
-                // 背景颜色由 XML 选择器控制，这里不设置
             }
         }
 
