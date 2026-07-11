@@ -702,7 +702,7 @@ public class ChannelPanelController {
         return isReverse;
     }
 
-    // ✅ 最终修复：完整按键导航逻辑
+    // ✅ 完整面板按键导航（左右闭环 + 右键打开右侧面板）
     public boolean dispatchKeyEvent(int keyCode) {
         View currentFocus = panelLayout.findFocus();
         if (currentFocus == null) return false;
@@ -809,4 +809,4 @@ public class ChannelPanelController {
     public void release() {
         cancelAutoHide();
     }
-}
+    }
