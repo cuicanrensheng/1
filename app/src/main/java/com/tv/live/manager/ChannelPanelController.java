@@ -704,6 +704,11 @@ public class ChannelPanelController {
 
     // ✅ 完整面板按键导航（左右闭环 + 右键打开右侧面板）
     public boolean dispatchKeyEvent(int keyCode) {
+        // 【修复】：面板如果已经隐藏，不拦截任何按键
+        if (panelLayout.getVisibility() != View.VISIBLE) {
+            return false;
+        }
+
         View currentFocus = panelLayout.findFocus();
         if (currentFocus == null) return false;
 
@@ -816,4 +821,4 @@ public class ChannelPanelController {
     public void release() {
         cancelAutoHide();
     }
- }
+}
