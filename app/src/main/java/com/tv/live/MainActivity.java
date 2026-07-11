@@ -57,7 +57,6 @@ public class MainActivity extends AppCompatActivity {
     private PictureInPictureManager pipManager;
     private View panelLayout;
 
-    // 🔧 新增：控制栏管理器
     private PlayerControlManager playerControlManager;
 
     private boolean pipEnable = false;
@@ -357,7 +356,8 @@ public class MainActivity extends AppCompatActivity {
         channelPanelController.setOnChannelChangeListener((channel, index) -> playChannel(channel, index));
     }
 
-    private static class PlayerTouchListener implements View.OnTouchListener {
+    // 🔧 修复：改为 public static，并让 updateGestureHelper 变为 public
+    public static class PlayerTouchListener implements View.OnTouchListener {
         private final WeakReference<MainActivity> activityRef;
         private PlayerGestureHelper gestureHelper;
 
@@ -392,7 +392,6 @@ public class MainActivity extends AppCompatActivity {
             newPlayerView.setOnTouchListener(touchListener);
             newPlayerView.requestFocus();
 
-            // 🔧 重建 PlayerControlManager
             playerControlManager = new PlayerControlManager(
                     MainActivity.this,
                     playerView,
@@ -598,7 +597,6 @@ public class MainActivity extends AppCompatActivity {
             channelPanelController.hidePanel();
         }
 
-        // 🔧 委托给 PlayerControlManager
         if (playerControlManager != null) {
             playerControlManager.onOpenSettings();
         }
@@ -710,7 +708,6 @@ public class MainActivity extends AppCompatActivity {
         displayManager.reapplyFullScreen();
 
         if (pipManager == null || !pipManager.isInPipMode()) {
-            // 🔧 委托给 PlayerControlManager
             if (playerControlManager != null) {
                 playerControlManager.onResume();
             }
@@ -735,7 +732,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 🔧 从设置返回时，恢复控制栏功能
         if (playerControlManager != null) {
             playerControlManager.onSettingsClosed();
         }
