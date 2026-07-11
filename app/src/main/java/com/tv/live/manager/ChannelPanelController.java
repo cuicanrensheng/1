@@ -710,7 +710,29 @@ public class ChannelPanelController {
                         return true;
                     }
                     break;
-                // ===== 修改点：移除了上下键拦截，让它们自然传递到 ListView =====
+                // ===== 新增：上下键滚动 =====
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    if (currentFocus == lvChannelList) {
+                        int pos = lvChannelList.getSelectedItemPosition() - 1;
+                        if (pos >= 0) lvChannelList.setSelection(pos);
+                        return true;
+                    } else if (currentFocus == lvGroup) {
+                        int pos = lvGroup.getSelectedItemPosition() - 1;
+                        if (pos >= 0) lvGroup.setSelection(pos);
+                        return true;
+                    }
+                    break;
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (currentFocus == lvChannelList) {
+                        int pos = lvChannelList.getSelectedItemPosition() + 1;
+                        if (pos < lvChannelList.getCount()) lvChannelList.setSelection(pos);
+                        return true;
+                    } else if (currentFocus == lvGroup) {
+                        int pos = lvGroup.getSelectedItemPosition() + 1;
+                        if (pos < lvGroup.getCount()) lvGroup.setSelection(pos);
+                        return true;
+                    }
+                    break;
                 default:
                     break;
             }
@@ -755,7 +777,37 @@ public class ChannelPanelController {
                         return true;
                     }
                     break;
-                // ===== 修改点：移除了上下键拦截，让它们自然传递到 ListView =====
+                // ===== 新增：右侧面板上下键滚动 =====
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    if (currentFocus == lvChannelListEpg) {
+                        int pos = lvChannelListEpg.getSelectedItemPosition() - 1;
+                        if (pos >= 0) lvChannelListEpg.setSelection(pos);
+                        return true;
+                    } else if (currentFocus == lvDate) {
+                        int pos = lvDate.getSelectedItemPosition() - 1;
+                        if (pos >= 0) lvDate.setSelection(pos);
+                        return true;
+                    } else if (currentFocus == lvEpg) {
+                        int pos = lvEpg.getSelectedItemPosition() - 1;
+                        if (pos >= 0) lvEpg.setSelection(pos);
+                        return true;
+                    }
+                    break;
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (currentFocus == lvChannelListEpg) {
+                        int pos = lvChannelListEpg.getSelectedItemPosition() + 1;
+                        if (pos < lvChannelListEpg.getCount()) lvChannelListEpg.setSelection(pos);
+                        return true;
+                    } else if (currentFocus == lvDate) {
+                        int pos = lvDate.getSelectedItemPosition() + 1;
+                        if (pos < lvDate.getCount()) lvDate.setSelection(pos);
+                        return true;
+                    } else if (currentFocus == lvEpg) {
+                        int pos = lvEpg.getSelectedItemPosition() + 1;
+                        if (pos < lvEpg.getCount()) lvEpg.setSelection(pos);
+                        return true;
+                    }
+                    break;
                 default:
                     break;
             }
