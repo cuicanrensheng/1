@@ -584,10 +584,10 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
         }
 
-        // ✅ 双重保障：清理面板内所有残留焦点 + 归还焦点给播放器
+        // ✅ 双重保障：通过控制器清理面板内所有残留焦点 + 归还焦点给播放器
         if (!channelPanelController.isPanelOpen()) {
-            panelLayout.clearFocus();   // 彻底清除面板内残留焦点
-            playerView.requestFocus();  // 确保播放器拿到焦点
+            channelPanelController.clearPanelFocus(); // 修复：改用控制器方法清除焦点
+            playerView.requestFocus();               // 确保播放器拿到焦点
         }
     }
 
@@ -767,4 +767,4 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.release();
         if (mPlayerManager != null) mPlayerManager.release();
     }
- }
+}
