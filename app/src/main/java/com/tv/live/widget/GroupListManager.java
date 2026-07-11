@@ -166,6 +166,12 @@ public class GroupListManager {
             public View getView(int position, View convertView, ViewGroup parent) {
                 View view = super.getView(position, convertView, parent);
                 TextView tv = view.findViewById(android.R.id.text1);
+
+                // ✅【核心修复】当 tv 为 null 时直接返回，避免空指针崩溃
+                if (tv == null) {
+                    return view;
+                }
+
                 tv.setTextSize(16);
                 tv.setPadding(20, 15, 20, 15);
                 
