@@ -144,7 +144,14 @@ public class MainActivity extends AppCompatActivity {
 
         initChannelPanelController();
         initPictureInPicture();
-        channelPanelController.handleFirstLaunch();
+
+        // 🔧 修复：添加判空保护，防止 channelPanelController 为 null 时崩溃
+        if (channelPanelController != null) {
+            channelPanelController.handleFirstLaunch();
+        } else {
+            Log.e("MainActivity", "channelPanelController is null after initChannelPanelController()");
+        }
+
         initPlayer();
         mPlayerManager.registerDecoderModeReceiver();
         mPlayerManager.registerRendererModeReceiver();
@@ -153,7 +160,9 @@ public class MainActivity extends AppCompatActivity {
         screenRatioManager.apply();
 
         currentPlayIndex = appConfig.getLastPlayIndex();
-        channelPanelController.setCurrentPlayIndex(currentPlayIndex);
+        if (channelPanelController != null) {
+            channelPanelController.setCurrentPlayIndex(currentPlayIndex);
+        }
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
 
         initAppCoreManager();
@@ -180,7 +189,9 @@ public class MainActivity extends AppCompatActivity {
             int channelNum = Integer.parseInt(channelNumInput.toString());
             if (channelNum >= 1 && channelNum <= totalChannelCount) {
                 int index = channelNum - 1;
-                channelPanelController.playChannel(index);
+                if (channelPanelController != null) {
+                    channelPanelController.playChannel(index);
+                }
             }
         } catch (NumberFormatException ignored) {}
         channelNumInput.setLength(0);
@@ -261,10 +272,10 @@ public class MainActivity extends AppCompatActivity {
     private boolean handlePlayKey(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
-                channelPanelController.switchUp();
+                if (channelPanelController != null) channelPanelController.switchUp();
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                channelPanelController.switchDown();
+                if (channelPanelController != null) channelPanelController.switchDown();
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -282,6 +293,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean handlePanelKey(int keyCode) {
+        if (channelPanelController == null) return false;
         return channelPanelController.dispatchKeyEvent(keyCode);
     }
 
@@ -297,6 +309,7 @@ public class MainActivity extends AppCompatActivity {
     // ==================== 面板控制 ====================
     public void togglePanel() {
         if (isInCatchUpMode) return;
+        if (channelPanelController == null) return;
         channelPanelController.togglePanel();
         syncMode();
         if (!channelPanelController.isPanelOpen()) {
@@ -394,7 +407,9 @@ public class MainActivity extends AppCompatActivity {
                     List<Channel> finalList = appCoreManager.getChannelList();
                     channelSourceList.clear();
                     channelSourceList.addAll(finalList);
-                    channelPanelController.setChannels(channelSourceList);
+                    if (channelPanelController != null) {
+                        channelPanelController.setChannels(channelSourceList);
+                    }
                     totalChannelCount = channelSourceList.size(); // 直接赋值
                     if (!appCoreManager.hasPlayedWithCache()) {
                         if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
@@ -444,7 +459,9 @@ public class MainActivity extends AppCompatActivity {
 
         appCoreManager.setOnSourceSkipListener(new AppCoreManager.OnSourceSkipListener() {
             @Override
-            public void onNeedSkipChannel() { channelPanelController.switchDown(); }
+            public void onNeedSkipChannel() {
+                if (channelPanelController != null) channelPanelController.switchDown();
+            }
             @Override
             public void onSkipLimitReached(int maxSkip) {
                 Toast.makeText(MainActivity.this, "已跳过 " + maxSkip + " 个失效频道，请检查直播源", Toast.LENGTH_SHORT).show();
@@ -517,8 +534,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void playPrev() { channelPanelController.playPrev(); }
-    public void playNext() { channelPanelController.playNext(); }
+    public void playPrev() {
+        if (channelPanelController != null) channelPanelController.playPrev();
+    }
+    public void playNext() {
+        if (channelPanelController != null) channelPanelController.playNext();
+    }
 
     @Override
     public void onBackPressed() {
