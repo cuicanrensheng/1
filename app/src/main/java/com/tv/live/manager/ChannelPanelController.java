@@ -530,18 +530,21 @@ public class ChannelPanelController {
         boolean isOpen = isPanelOpen();
         panelManager.toggle(channelSourceList, currentPlayIndex, dateListManager);
         if (!isOpen) {
-            panelLayout.post(new Runnable() {
+            // ✅ 修改：使用 postDelayed 并显式设置可聚焦
+            panelLayout.postDelayed(new Runnable() {
                 @Override
                 public void run() {
                     clearAllFocusStyles();
                     currentFocusPanel = "left";
                     leftFocusView = "channel";
                     syncFocusStyle();
+                    lvChannelList.setFocusable(true);
+                    lvChannelList.setFocusableInTouchMode(true);
                     lvChannelList.requestFocus();
                     lvChannelList.setSelection(getChannelListSelection());
                     resetAutoHide();
                 }
-            });
+            }, 100);
         } else {
             cancelAutoHide();
         }
@@ -625,17 +628,20 @@ public class ChannelPanelController {
             epgPanelOpen = true;
             channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
             if (llRightPanel != null) {
-                llRightPanel.post(new Runnable() {
+                // ✅ 修改：使用 postDelayed 并显式设置可聚焦
+                llRightPanel.postDelayed(new Runnable() {
                     @Override
                     public void run() {
                         clearAllFocusStyles();
                         currentFocusPanel = "right";
                         rightFocusView = "channel";
                         syncFocusStyle();
+                        lvChannelListEpg.setFocusable(true);
+                        lvChannelListEpg.setFocusableInTouchMode(true);
                         lvChannelListEpg.requestFocus();
                         lvChannelListEpg.setSelection(currentPlayIndex);
                     }
-                });
+                }, 100);
             }
             if (!channelSourceList.isEmpty()
                     && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
@@ -652,17 +658,20 @@ public class ChannelPanelController {
             rightPanelOpen = false;
             epgPanelOpen = false;
             if (llLeftPanel != null) {
-                llLeftPanel.post(new Runnable() {
+                // ✅ 修改：使用 postDelayed 并显式设置可聚焦
+                llLeftPanel.postDelayed(new Runnable() {
                     @Override
                     public void run() {
                         clearAllFocusStyles();
                         currentFocusPanel = "left";
                         leftFocusView = "channel";
                         syncFocusStyle();
+                        lvChannelList.setFocusable(true);
+                        lvChannelList.setFocusableInTouchMode(true);
                         lvChannelList.requestFocus();
                         lvChannelList.setSelection(getChannelListSelection());
                     }
-                });
+                }, 100);
             }
         }
     }
@@ -674,17 +683,20 @@ public class ChannelPanelController {
             rightPanelOpen = false;
             epgPanelOpen = false;
             if (llLeftPanel != null) {
-                llLeftPanel.post(new Runnable() {
+                // ✅ 修改：使用 postDelayed 并显式设置可聚焦
+                llLeftPanel.postDelayed(new Runnable() {
                     @Override
                     public void run() {
                         clearAllFocusStyles();
                         currentFocusPanel = "left";
                         leftFocusView = "channel";
                         syncFocusStyle();
+                        lvChannelList.setFocusable(true);
+                        lvChannelList.setFocusableInTouchMode(true);
                         lvChannelList.requestFocus();
                         lvChannelList.setSelection(getChannelListSelection());
                     }
-                });
+                }, 100);
             }
         }
     }
