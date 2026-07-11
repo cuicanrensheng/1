@@ -130,7 +130,9 @@ public class ChannelListManager {
                     holder.tvChannel.setTypeface(null, Typeface.NORMAL);
                 }
 
-                // 样式其余部分完全由 XML 选择器（state_focused / state_selected）自动控制
+                // 🟢【核心修复】显式设置选中状态，让 XML 选择器的 state_selected 生效！
+                convertView.setSelected(position == selectedPosition);
+
                 return convertView;
             }
         };
@@ -195,6 +197,9 @@ public class ChannelListManager {
                     holder.tvChannel.setTypeface(null, Typeface.NORMAL);
                 }
 
+                // 🟢【核心修复】显式设置选中状态！
+                convertView.setSelected(position == selectedPosition);
+
                 return convertView;
             }
         };
@@ -258,6 +263,9 @@ public class ChannelListManager {
                 } else {
                     holder.tvChannel.setTypeface(null, Typeface.NORMAL);
                 }
+
+                // 🟢【核心修复】显式设置选中状态！
+                convertView.setSelected(position == selectedPosition);
 
                 return convertView;
             }
