@@ -2,6 +2,7 @@ package com.tv.live.widget;
 
 import android.content.Context;
 import android.graphics.Typeface;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -51,7 +52,6 @@ public class GroupListManager {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 selectedPosition = pos;
-                // 不再手动刷新样式，由系统自动更新
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
@@ -59,8 +59,6 @@ public class GroupListManager {
 
         lvGroup.setOnItemClickListener((parent, view, position, id) -> setSelectedPosition(position));
     }
-
-    // 删除 setFocused() 和 isFocused()
 
     public void setGroups(List<Channel> channelSourceList) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
@@ -83,33 +81,41 @@ public class GroupListManager {
             groupDisplayList.add(group);
         }
 
-        // 🔥【关键修改】将布局加载从 android.R.layout.simple_list_item_1 改为 R.layout.item_group
-        adapter = new ArrayAdapter<String>(lvGroup.getContext(),
-                R.layout.item_group, groupDisplayList) {
+        // 🟢【改用自定义 ViewHolder+LayoutInflater，彻底避开 super.getView() 依赖 android.R.id.text1 的问题】
+        adapter = new ArrayAdapter<String>(lvGroup.getContext(), R.layout.item_group, groupDisplayList) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
-                View view = super.getView(position, convertView, parent);
-                TextView tv = view.findViewById(android.R.id.text1);
+                ViewHolder holder;
+                if (convertView == null) {
+                    convertView = LayoutInflater.from(getContext())
+                            .inflate(R.layout.item_group, parent, false);
+                    holder = new ViewHolder();
+                    // 假设您的 item_group.xml 里 TextView 的 id 是 tv_group
+                    holder.tvGroup = convertView.findViewById(R.id.tv_group);
+                    convertView.setTag(holder);
+                } else {
+                    holder = (ViewHolder) convertView.getTag();
+                }
 
-                // ✅【修复】判空保护，防止因 findById 失败导致的 NPE 崩溃
-                if (tv != null) {
-                    // 移除 setTextSize 和 setPadding，它们已在 XML 中定义
-                    tv.setText(groupDisplayList.get(position));
+                if (holder.tvGroup != null) {
+                    holder.tvGroup.setText(groupDisplayList.get(position));
+                }
 
-                    // =========================================================
-                    // ✅【加粗逻辑】
-                    // 当列表拥有焦点，且当前条目为选中项时，字体加粗
-                    // =========================================================
-                    boolean hasFocus = lvGroup.hasFocus();
+                // 🟢【核心修复】显式设置选中状态，让 XML 选择器的 state_selected 生效！
+                convertView.setSelected(position == selectedPosition);
+
+                // ✅【加粗逻辑】：当列表拥有焦点，且当前条目为选中项时，字体加粗
+                boolean hasFocus = lvGroup.hasFocus();
+                if (holder.tvGroup != null) {
                     if (position == selectedPosition && hasFocus) {
-                        tv.setTypeface(null, Typeface.BOLD);
+                        holder.tvGroup.setTypeface(null, Typeface.BOLD);
                     } else {
-                        tv.setTypeface(null, Typeface.NORMAL);
+                        holder.tvGroup.setTypeface(null, Typeface.NORMAL);
                     }
                 }
 
-                // 颜色和背景完全由 R.layout.item_group 中的选择器自动控制
-                return view;
+                // 颜色、背景全部由 R.layout.item_group 中的 XML 选择器自动控制
+                return convertView;
             }
         };
         lvGroup.setAdapter(adapter);
@@ -154,4 +160,9 @@ public class GroupListManager {
     }
 
     public void onBackPressed() {}
+
+    // 🟢 增加 ViewHolder 静态内部类
+    private static class ViewHolder {
+        TextView tvGroup;
+    }
 }
