@@ -11,7 +11,6 @@ import com.tv.live.PlayerGestureHelper;
 
 /**
  * 播放器控制栏管理器
- * 统一处理 ExoPlayer 原生控制栏的显示/隐藏以及焦点交互
  */
 public class PlayerControlManager {
 
@@ -46,10 +45,8 @@ public class PlayerControlManager {
         return isControllerShowing;
     }
 
-    /**
-     * 显示控制栏（仅在回看模式下有效，且画中画模式下禁止）
-     */
     public void showExoController() {
+        // 🛡️ 核心拦截：只有回看模式才允许显示控制栏
         if (!activity.isInCatchUpMode()) return;
         if (playerView == null) return;
 
@@ -73,15 +70,18 @@ public class PlayerControlManager {
         }
     }
 
-    /**
-     * 隐藏控制栏，并恢复触摸监听
-     */
+    // ✅【核心修改】：每次隐藏时，彻底「斩杀」控制栏的弹出权限
     public void hideExoController() {
         if (playerView == null) return;
         mainHandler.removeCallbacks(hideControllerRunnable);
+        
+        // 1. 先隐藏UI
         playerView.hideController();
+        // 2. 强制剥夺控制栏的响应权限
+        playerView.setUseController(false);
         isControllerShowing = false;
 
+        // 恢复自定义触摸监听
         if (activity.getTouchListener() != null) {
             if (gestureManager != null) {
                 final PlayerGestureHelper newGestureHelper = gestureManager.create();
@@ -91,18 +91,21 @@ public class PlayerControlManager {
         }
     }
 
-    /**
-     * 页面恢复时调用（onResume），确保控制栏不自动弹出
-     */
     public void onResume() {
-        if (playerView != null && !isControllerShowing) {
+        if (activity.getPipManager() != null && activity.getPipManager().isInPipMode()) {
+            if (playerView != null) {
+                playerView.setUseController(false);
+                playerView.hideController();
+                isControllerShowing = false;
+            }
+            return;
+        }
+
+        if (playerView != null) {
             hideExoController();
         }
     }
 
-    /**
-     * 打开设置页时调用，强制禁用控制栏，避免在 Activity 切换瞬间弹出
-     */
     public void onOpenSettings() {
         hideExoController();
         if (playerView != null) {
@@ -110,22 +113,12 @@ public class PlayerControlManager {
         }
     }
 
-    /**
-     * 从设置页返回时调用，恢复控制栏功能
-     */
     public void onSettingsClosed() {
         if (playerView == null) return;
-        if (!activity.isInCatchUpMode() && !isControllerShowing) {
-            playerView.setUseController(true);
-        }
-        if (!isControllerShowing) {
-            hideExoController();
-        }
+        // 返回时再次锁定，防止某些特定时序意外恢复
+        hideExoController();
     }
 
-    /**
-     * 释放资源，清理延迟任务
-     */
     public void release() {
         mainHandler.removeCallbacksAndMessages(null);
     }
