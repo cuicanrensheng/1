@@ -39,7 +39,7 @@ import java.util.List;
 @SuppressLint("UnsafeOptInUsageError")
 public class MainActivity extends AppCompatActivity {
     private static WeakReference<MainActivity> mInstanceRef;
-    
+
     public List<Channel> channelSourceList = new ArrayList<>(512);
     public int currentPlayIndex = 0;
 
@@ -60,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean pipEnable = false;
     private boolean channel_reverse;
-    private boolean number_channel_enable;
+    private boolean number_channel_enable;  // 注意字段名
 
     private boolean isOpeningSettings = false;
 
@@ -163,7 +163,8 @@ public class MainActivity extends AppCompatActivity {
 
     // ==================== 数字输入方法 ====================
     private boolean handleNumberKey(int keyCode) {
-        if (!numberChannelEnable) return false;
+        // 修正：使用 number_channel_enable 字段
+        if (!number_channel_enable) return false;
         int num = keyCodeToNumber(keyCode);
         if (num == -1) return false;
         channelNumInput.append(num);
@@ -323,13 +324,199 @@ public class MainActivity extends AppCompatActivity {
     private void initPictureInPicture() { /* 原样 */ }
     private void initInfoDisplayManager() { /* 原样 */ }
     private void initChannelPanelController() { /* 原样 */ }
-    public static class PlayerTouchListener implements View.OnTouchListener { /* 原样 */ }
-    private void initPlayer() { /* 原样 */ }
-    private void initAppCoreManager() { /* 原样 */ }
-    private void loadSettings() { /* 原样 */ }
+
+    // 🔧 修复：PlayerTouchListener 实现完整
+    public static class PlayerTouchListener implements View.OnTouchListener {
+        private final WeakReference<MainActivity> activityRef;
+        private PlayerGestureHelper gestureHelper;
+
+        public PlayerTouchListener(MainActivity activity) {
+            this.activityRef = new WeakReference<>(activity);
+        }
+
+        public void updateGestureHelper(PlayerGestureHelper helper) {
+            this.gestureHelper = helper;
+        }
+
+        @Override
+        public boolean onTouch(View v, MotionEvent event) {
+            if (gestureHelper != null) {
+                gestureHelper.handleTouch(event);
+            }
+            return true;
+        }
+    }
+
+    private void initPlayer() {
+        mPlayerManager = TVPlayerManager.getInstance(this);
+        mPlayerManager.setOnPlayerViewRecreatedListener(newPlayerView -> {
+            MainActivity.this.playerView = newPlayerView;
+            gestureManager = new GestureManager(MainActivity.this);
+            final PlayerGestureHelper newGestureHelper = gestureManager.create();
+
+            if (touchListener == null) {
+                touchListener = new PlayerTouchListener(MainActivity.this);
+            }
+            touchListener.updateGestureHelper(newGestureHelper);
+            newPlayerView.setOnTouchListener(touchListener);
+            newPlayerView.requestFocus();
+
+            // ✅【核心修复】PlayerView 重建后，立刻强制彻底禁用控制栏功能
+            if (playerControlManager != null) {
+                newPlayerView.setUseController(false);
+                playerControlManager.hideExoController();
+            }
+        });
+
+        mPlayerManager.attachPlayerView(playerView);
+        playerStateListener = new PlayerStateListenerImpl(this);
+        mPlayerManager.setOnPlayStateListener(playerStateListener);
+        mPlayerManager.setOnLiveInfoUpdateListener(info -> {
+            infoDisplayManager.updateLiveInfo(info);
+            if (pipManager != null) pipManager.updatePlayState(true);
+        });
+        mPlayerManager.setOnSourceFailedListener(() -> runOnUiThread(() -> {
+            String channelName = "";
+            if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                Channel ch = channelSourceList.get(currentPlayIndex);
+                if (ch != null) channelName = ch.getName();
+            }
+            appCoreManager.handleSourceFailed(channelName);
+        }));
+    }
+
+    private void initAppCoreManager() {
+        appCoreManager = new AppCoreManager(this, mPlayerManager, appConfig);
+        appCoreManager.setOnDataLoadListener(new AppCoreManager.OnDataLoadListener() {
+            @Override
+            public void onLiveSourceLoaded(List<Channel> channels, boolean fromCache) {
+                runOnUiThread(() -> {
+                    List<Channel> finalList = appCoreManager.getChannelList();
+                    channelSourceList.clear();
+                    channelSourceList.addAll(finalList);
+                    channelPanelController.setChannels(channelSourceList);
+                    totalChannelCount = channelSourceList.size(); // 直接赋值
+                    if (!appCoreManager.hasPlayedWithCache()) {
+                        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                            Channel ch = channelSourceList.get(currentPlayIndex);
+                            playChannel(ch, currentPlayIndex);
+                            appCoreManager.setHasPlayedWithCache(true);
+                        }
+                    }
+                    displayManager.hideLoading();
+                    log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channelSourceList.size());
+                });
+            }
+
+            @Override
+            public void onLiveSourceFailed(String errorMsg) {
+                runOnUiThread(() -> {
+                    if (channelSourceList.isEmpty()) {
+                        displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
+                    } else {
+                        log("【缓存】使用缓存数据继续播放");
+                        displayManager.hideLoading();
+                    }
+                });
+            }
+
+            @Override
+            public void onEpgLoaded() {
+                runOnUiThread(() -> {
+                    if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                        Channel curr = channelSourceList.get(currentPlayIndex);
+                        infoDisplayManager.updateEpgInfo(curr);
+                    }
+                });
+            }
+
+            @Override
+            public void onLoadTimeout(boolean hasData) {
+                runOnUiThread(() -> {
+                    log("【加载】超时，自动隐藏加载动画");
+                    if (!hasData) {
+                        displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
+                    }
+                    displayManager.hideLoading();
+                });
+            }
+        });
+
+        appCoreManager.setOnSourceSkipListener(new AppCoreManager.OnSourceSkipListener() {
+            @Override
+            public void onNeedSkipChannel() { channelPanelController.switchDown(); }
+            @Override
+            public void onSkipLimitReached(int maxSkip) {
+                Toast.makeText(MainActivity.this, "已跳过 " + maxSkip + " 个失效频道，请检查直播源", Toast.LENGTH_SHORT).show();
+            }
+            @Override
+            public void onSourceFailed(String channelName, int failedCount) {}
+        });
+        appCoreManager.registerReceivers();
+    }
+
+    private void loadSettings() {
+        boolean epg_enable = sp.getBoolean("epg_enable", true);
+        channel_reverse = sp.getBoolean("channel_reverse", false);
+        number_channel_enable = sp.getBoolean("number_channel_enable", true);
+        boolean auto_update_source = sp.getBoolean("auto_update_source", true);
+        pipEnable = sp.getBoolean("pip_enable", false);
+
+        String decoderMode = sp.getString("decoder_mode", "auto");
+        int mode = TVPlayerManager.DECODER_MODE_AUTO;
+        if ("hard".equals(decoderMode)) {
+            mode = TVPlayerManager.DECODER_MODE_HARD;
+        } else if ("soft".equals(decoderMode)) {
+            mode = TVPlayerManager.DECODER_MODE_SOFT;
+        }
+
+        if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
+        // 更新 number_channel_enable 已在 onCreate 中设置，这里无需重复
+        if (channelPanelController != null) {
+            channelPanelController.setEpgEnable(epg_enable);
+            channelPanelController.setReverse(channel_reverse);
+        }
+        if (pipManager != null) pipManager.setPipEnabled(pipEnable);
+    }
+
     public boolean isChannelReverse() { return channel_reverse; }
-    public void playChannel(int index) { /* 原样 */ }
-    private void playChannel(Channel channel, int index) { /* 原样 */ }
+
+    public void playChannel(int index) {
+        if (channelSourceList == null || channelSourceList.isEmpty()) return;
+        if (index < 0 || index >= channelSourceList.size()) return;
+        Channel channel = channelSourceList.get(index);
+        playChannel(channel, index);
+    }
+
+    private void playChannel(Channel channel, int index) {
+        if (channel == null || channel.getPlayUrl() == null) return;
+        currentPlayIndex = index;
+        log("【播放】频道名称：" + channel.getName());
+
+        if (isInCatchUpMode) {
+            exitPlaybackMode();
+        }
+
+        playerStateListener.setCurrentChannelName(channel.getName());
+        appConfig.setLastPlayIndex(index);
+        mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName(), channel);
+        TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
+        infoDisplayManager.showInfoBar(channel, live);
+        infoDisplayManager.showChannelNum(index + 1);
+        try {
+            appConfig.addRecentChannel(channel.getName());
+        } catch (Exception ignored) {}
+        appCoreManager.resetSourceFailedCount();
+
+        if (pipManager != null && pipManager.isInPipMode() && channel != null) {
+            try {
+                pipManager.updateChannelInfo(index + 1, channel.getName() != null ? channel.getName() : "", live != null ? live.bitrate : "");
+            } catch (Exception e) {
+                log("【画中画】同步频道信息失败：" + e.getMessage());
+            }
+        }
+    }
+
     public void playPrev() { channelPanelController.playPrev(); }
     public void playNext() { channelPanelController.playNext(); }
 
