@@ -2,8 +2,6 @@ package com.tv.live.manager;
 
 import android.content.Context;
 import android.graphics.Typeface;
-import android.os.Handler;
-import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.AdapterView;
@@ -21,14 +19,12 @@ import java.util.List;
 
 /**
  * 频道面板控制器
+ * 已移除所有自动隐藏逻辑，面板生命周期完全由用户交互控制
  */
 public class ChannelPanelController {
 
     private static final long CHANNEL_COOLDOWN = 300;
     private static final int MAX_AUTO_SKIP = 10;
-
-    private static final long FIRST_LAUNCH_HIDE_DELAY_MS = 5000;
-    private static final long NORMAL_HIDE_DELAY_MS = 20000;
 
     private Context context;
     private View panelLayout;
@@ -60,12 +56,8 @@ public class ChannelPanelController {
     private boolean epgPanelOpen = false;
     private boolean epgEnable = true;
 
-    private Handler mAutoHideHandler;
-    private Runnable mAutoHideRunnable;
-    private long mAutoHideDelayMs = 5000;
-    private boolean mAutoHideEnabled = true;
-
     private boolean mIsFirstLaunch = true;
+
     private boolean isReverse = false;
     private long lastChannelChangeTime = 0;
 
@@ -126,7 +118,6 @@ public class ChannelPanelController {
         this.panelManager = panelManager;
         initClickListeners();
         initFocusListeners();
-        initAutoHide();
     }
 
     private void initClickListeners() {
@@ -191,13 +182,6 @@ public class ChannelPanelController {
                 syncFocusStyle();
             }
         });
-    }
-
-    private void initAutoHide() {
-        mAutoHideHandler = new Handler(Looper.getMainLooper());
-        mAutoHideRunnable = this::hidePanel;
-        mAutoHideEnabled = true;
-        mAutoHideDelayMs = 5000;
     }
 
     private void clearAllFocusStyles() {
@@ -446,18 +430,29 @@ public class ChannelPanelController {
         this.currentPlayIndex = index;
     }
 
+    /**
+     * 核心切换逻辑：完全依赖 panelLayout 的当前可见性，没有自动隐藏干扰
+     */
     public void togglePanel() {
-        if (GroupListManager.GROUP_ALL.equals(currentGroupName)
-                || currentGroupName.isEmpty()
-                || currentGroupChannelList.isEmpty()) {
-            channelListManager.setChannels(channelSourceList, currentPlayIndex);
-        } else {
-            channelListManager.setChannelsByGroup(channelSourceList, currentGroupName, currentPlayIndex);
+        boolean willOpen = !isPanelOpen();
+
+        // 准备数据
+        if (willOpen) {
+            if (GroupListManager.GROUP_ALL.equals(currentGroupName)
+                    || currentGroupName.isEmpty()
+                    || currentGroupChannelList.isEmpty()) {
+                channelListManager.setChannels(channelSourceList, currentPlayIndex);
+            } else {
+                channelListManager.setChannelsByGroup(channelSourceList, currentGroupName, currentPlayIndex);
+            }
+            channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
         }
-        channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
-        boolean isOpen = isPanelOpen();
+
+        // 调用 PanelManager 切换可见性
         panelManager.toggle(channelSourceList, currentPlayIndex, dateListManager);
-        if (!isOpen) {
+
+        // 如果面板打开，延迟 100ms 设置焦点（确保 UI 已渲染）
+        if (isPanelOpen()) {
             panelLayout.postDelayed(() -> {
                 clearAllFocusStyles();
                 currentFocusPanel = "left";
@@ -467,13 +462,11 @@ public class ChannelPanelController {
                 lvChannelList.setFocusableInTouchMode(true);
                 lvChannelList.requestFocus();
                 lvChannelList.setSelection(getChannelListSelection());
-                resetAutoHide();
             }, 100);
-        } else {
-            cancelAutoHide();
         }
+
         if (panelStateListener != null) {
-            panelStateListener.onPanelStateChanged(!isOpen);
+            panelStateListener.onPanelStateChanged(willOpen);
         }
     }
 
@@ -485,7 +478,6 @@ public class ChannelPanelController {
 
     public void hidePanel() {
         if (isPanelOpen()) {
-            cancelAutoHide();
             togglePanel();
         }
     }
@@ -494,38 +486,8 @@ public class ChannelPanelController {
         return panelLayout.getVisibility() == View.VISIBLE;
     }
 
-    public void resetAutoHide() {
-        if (!mAutoHideEnabled) return;
-        if (mAutoHideHandler != null && mAutoHideRunnable != null) {
-            mAutoHideHandler.removeCallbacks(mAutoHideRunnable);
-            if (isPanelOpen()) {
-                mAutoHideHandler.postDelayed(mAutoHideRunnable, mAutoHideDelayMs);
-            }
-        }
-    }
-
-    public void cancelAutoHide() {
-        if (mAutoHideHandler != null && mAutoHideRunnable != null) {
-            mAutoHideHandler.removeCallbacks(mAutoHideRunnable);
-        }
-    }
-
-    public void setAutoHideDelay(long delayMs) {
-        this.mAutoHideDelayMs = delayMs;
-    }
-
-    public void setAutoHideEnabled(boolean enabled) {
-        this.mAutoHideEnabled = enabled;
-        if (!enabled) {
-            cancelAutoHide();
-        }
-    }
-
     public void handleFirstLaunch() {
-        if (!mIsFirstLaunch) return;
-        setAutoHideDelay(FIRST_LAUNCH_HIDE_DELAY_MS);
-        resetAutoHide();
-        setAutoHideDelay(NORMAL_HIDE_DELAY_MS);
+        // 已移除自动隐藏逻辑，无需额外操作
         mIsFirstLaunch = false;
     }
 
@@ -704,7 +666,6 @@ public class ChannelPanelController {
 
     // ✅ 完整面板按键导航（左右闭环 + 右键打开右侧面板）
     public boolean dispatchKeyEvent(int keyCode) {
-        // 【修复】：面板如果已经隐藏，不拦截任何按键
         if (panelLayout.getVisibility() != View.VISIBLE) {
             return false;
         }
@@ -712,7 +673,6 @@ public class ChannelPanelController {
         View currentFocus = panelLayout.findFocus();
         if (currentFocus == null) return false;
 
-        // ========== 左侧面板 ==========
         if (!rightPanelOpen) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
@@ -721,8 +681,6 @@ public class ChannelPanelController {
                         return true;
                     }
                     if (currentFocus == lvChannelList) {
-                        btnShowEpg.setFocusable(true);
-                        btnShowEpg.setFocusableInTouchMode(true);
                         btnShowEpg.requestFocus();
                         return true;
                     }
@@ -753,9 +711,7 @@ public class ChannelPanelController {
                     if (keyCode == KeyEvent.KEYCODE_DPAD_UP && currentFocus == lvChannelList) return true;
                     break;
             }
-        }
-        // ========== 右侧面板 ==========
-        else {
+        } else {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_LEFT:
                     if (currentFocus == lvEpg) {
@@ -803,7 +759,7 @@ public class ChannelPanelController {
         return false;
     }
 
-    // ✅ 新增：由外部统一清除面板焦点的方法
+    // ✅ 由外部统一清除面板焦点
     public void clearPanelFocus() {
         if (panelLayout != null) {
             panelLayout.clearFocus();
@@ -819,6 +775,6 @@ public class ChannelPanelController {
     }
 
     public void release() {
-        cancelAutoHide();
+        // 无 Handler 需要清理
     }
 }
