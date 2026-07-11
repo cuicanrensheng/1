@@ -392,12 +392,11 @@ public class MainActivity extends AppCompatActivity {
             newPlayerView.setOnTouchListener(touchListener);
             newPlayerView.requestFocus();
 
-            playerControlManager = new PlayerControlManager(
-                    MainActivity.this,
-                    playerView,
-                    gestureManager,
-                    infoDisplayManager
-            );
+            // ✅【核心修复】PlayerView 重建后，立刻强制彻底禁用控制栏功能
+            if (playerControlManager != null) {
+                newPlayerView.setUseController(false);
+                playerControlManager.hideExoController();
+            }
         });
 
         mPlayerManager.attachPlayerView(playerView);
