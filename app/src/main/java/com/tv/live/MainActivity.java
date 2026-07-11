@@ -586,8 +586,13 @@ public class MainActivity extends AppCompatActivity {
 
         // ✅ 双重保障：通过控制器清理面板内所有残留焦点 + 归还焦点给播放器
         if (!channelPanelController.isPanelOpen()) {
-            channelPanelController.clearPanelFocus();
-            playerView.requestFocus();
+            // 【修复】：面板完全关闭后再清理焦点，防止残影残留
+            panelLayout.postDelayed(() -> {
+                channelPanelController.clearPanelFocus();
+                playerView.setFocusable(true);
+                playerView.setFocusableInTouchMode(true);
+                playerView.requestFocus();
+            }, 100);
         }
     }
 
@@ -744,17 +749,13 @@ public class MainActivity extends AppCompatActivity {
 
         // ✅【核心修复】统一清理频道面板残留焦点 + 归还焦点给播放器
         if (channelPanelController != null) {
-            // 1. 无论面板是否打开，先彻底清除面板内可能残留的焦点（兼容设置页返回的情况）
             channelPanelController.clearPanelFocus();
-            
-            // 2. 如果面板是关闭的，确保播放器获得焦点
             if (!channelPanelController.isPanelOpen()) {
                 playerView.setFocusable(true);
                 playerView.setFocusableInTouchMode(true);
                 playerView.requestFocus();
             }
         } else {
-            // 3. 兜底：如果控制器不存在，强制把焦点给播放器
             if (playerView != null) {
                 playerView.setFocusable(true);
                 playerView.setFocusableInTouchMode(true);
@@ -787,4 +788,4 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.release();
         if (mPlayerManager != null) mPlayerManager.release();
     }
- }
+}
