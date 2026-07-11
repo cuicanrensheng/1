@@ -152,8 +152,13 @@ public class GroupListManager {
                 }
 
                 TextView tv = holder.tv;
+                // 🔧 修复：如果 tv 为 null，尝试重新查找并更新 holder
                 if (tv == null) {
-                    return convertView;
+                    tv = convertView.findViewById(android.R.id.text1);
+                    if (tv == null) {
+                        return convertView;
+                    }
+                    holder.tv = tv;
                 }
 
                 tv.setTextSize(16);
