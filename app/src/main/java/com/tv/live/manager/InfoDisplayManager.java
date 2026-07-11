@@ -263,9 +263,6 @@ public class InfoDisplayManager {
         if (isReleased) {
             return;
         }
-        if (tvCurrentProgramName == null || tvCurrentTimeRange == null || progressProgram == null) {
-            return;
-        }
 
         if (result.isLoading) {
             setEpgLoadingUi();
@@ -278,63 +275,80 @@ public class InfoDisplayManager {
         List<Channel.EpgItem> todayList = result.todayList;
         String nowTime = result.nowTime;
 
+        // 🔧 修复：每个 TextView 单独判空，避免一处为空导致崩溃
         if (currItem != null) {
-            tvCurrentProgramName.setText(currItem.title);
+            if (tvCurrentProgramName != null) {
+                tvCurrentProgramName.setText(currItem.title);
+            }
             String start = extractTimeSegment(currItem.time, false);
             String end = (currIndex+1 < todayList.size()) ? extractTimeSegment(todayList.get(currIndex+1).time, false) : "23:59";
-            if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText(start + " - " + end);
+            if (tvCurrentTimeRange != null) {
+                tvCurrentTimeRange.setText(start + " - " + end);
+            }
 
-            // 计算进度（依然要在主线程完成，但计算量很小，直接使用当前毫秒数）
+            // 计算进度
             long nowMs = timeToMs(nowTime, false, 0);
             long sMs = timeToMs(start, false, 0);
             long eMs = timeToMs(end, true, sMs);
-            if(progressProgram != null){
+            if (progressProgram != null) {
                 long totalDuration = eMs - sMs;
                 long played = nowMs - sMs;
                 int progress = 0;
-                if(totalDuration > 0){
+                if (totalDuration > 0) {
                     progress = (int) (played * 100 / totalDuration);
                     progress = Math.max(0, Math.min(100, progress));
                 }
                 progressProgram.setProgress(progress);
                 progressProgram.invalidate();
             }
-            if(tvRemainingTime != null){
+            if (tvRemainingTime != null) {
                 long played = nowMs - sMs;
-                if(played < 0){
+                if (played < 0) {
                     tvRemainingTime.setText("已播放0分钟");
                 } else {
                     long playedSec = played / 1000;
                     long validSec = playedSec % (24 * 3600);
                     long playedMin = validSec / 60;
-                    if(playedMin >= 60){
+                    if (playedMin >= 60) {
                         int h = (int) (playedMin / 60);
                         int m = (int) (playedMin % 60);
                         tvRemainingTime.setText("已播放"+h+"时"+m+"分");
-                    }else {
+                    } else {
                         tvRemainingTime.setText("已播放"+playedMin+"分钟");
                     }
                 }
             }
         } else {
-            tvCurrentProgramName.setText("暂无节目信息");
-            if(tvCurrentTimeRange != null) tvCurrentTimeRange.setText("");
-            if(progressProgram != null) {
+            if (tvCurrentProgramName != null) {
+                tvCurrentProgramName.setText("暂无节目信息");
+            }
+            if (tvCurrentTimeRange != null) {
+                tvCurrentTimeRange.setText("");
+            }
+            if (progressProgram != null) {
                 progressProgram.setProgress(0);
                 progressProgram.invalidate();
             }
-            if(tvRemainingTime != null) tvRemainingTime.setText("");
+            if (tvRemainingTime != null) {
+                tvRemainingTime.setText("");
+            }
         }
 
         // 下一档节目 UI
-        if(nextItem != null && tvNextProgramName != null && tvNextTimeRange != null){
-            String s = extractTimeSegment(nextItem.time, false);
-            String e = (currIndex + 2 < todayList.size()) ? extractTimeSegment(todayList.get(currIndex+2).time, false) : "23:59";
-            tvNextTimeRange.setText(s + " - " + e);
-            tvNextProgramName.setText(nextItem.title);
+        if (nextItem != null) {
+            if (tvNextProgramName != null && tvNextTimeRange != null) {
+                String s = extractTimeSegment(nextItem.time, false);
+                String e = (currIndex + 2 < todayList.size()) ? extractTimeSegment(todayList.get(currIndex+2).time, false) : "23:59";
+                tvNextTimeRange.setText(s + " - " + e);
+                tvNextProgramName.setText(nextItem.title);
+            }
         } else {
-            if(tvNextProgramName != null) tvNextProgramName.setText("暂无下一档节目");
-            if(tvNextTimeRange != null) tvNextTimeRange.setText("");
+            if (tvNextProgramName != null) {
+                tvNextProgramName.setText("暂无下一档节目");
+            }
+            if (tvNextTimeRange != null) {
+                tvNextTimeRange.setText("");
+            }
         }
     }
 
