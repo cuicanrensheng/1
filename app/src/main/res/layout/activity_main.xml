@@ -1,443 +1,212 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 设置页面布局（右侧滑出式菜单风格） -->
+<!--
+  主页面布局
+  【作用】直播应用的主页面
+  【2026-06-19 修改：修复频道列表点击无效问题】
+  给所有 ListView 加上 android:descendantFocusability="blocksDescendants"
+  ====================================================================
+  【2026-06-20 修改：去掉系统默认焦点框，解决多个光标叠加问题】
+  ====================================================================
+  【2026-06-21 修改：去掉 ListView 默认的 listSelector】
+  ====================================================================
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/transparent">
+    android:background="#000000">
 
-    <!-- 左侧空白区域（点击关闭，抢走焦点会导致无法遥控操作） -->
-    <View
-        android:id="@+id/view_outside"
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="false" />
+        android:layout_gravity="center"
+        app:use_controller="false"
+        app:resize_mode="fit"
+        app:keep_content_on_player_reset="true"
+        app:surface_type="surface_view" />
 
-    <!-- 设置面板 -->
-    <ScrollView
-        android:id="@+id/settings_content"
-        android:layout_width="240dp"
+    <ImageView
+        android:id="@+id/iv_mask_layer"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_gravity="end"
-        android:layout_marginEnd="20dp"
+        android:layout_gravity="center"
+        android:background="@android:color/black"
+        android:alpha="0.0"
+        android:visibility="gone"
+        android:scaleType="fitXY" />
+
+    <TextView
+        android:id="@+id/tv_channel_num"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
         android:layout_marginTop="20dp"
-        android:layout_marginBottom="20dp"
-        android:background="@drawable/panel_bg"
-        android:paddingTop="20dp"
-        android:paddingBottom="20dp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:scrollbars="none">
+        android:layout_marginEnd="20dp"
+        android:text="1"
+        android:textSize="50sp"
+        android:textColor="#FFF"
+        android:alpha="0.8"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:id="@+id/panel_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:id="@+id/ll_left_panel"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:background="@drawable/panel_bg"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="20dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="20dp">
 
-            <!-- 开机自启 -->
-            <LinearLayout
-                android:id="@+id/item_boot"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
+            <ListView
+                android:id="@+id/lv_group"
+                android:layout_width="130dp"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                android:listSelector="@android:color/transparent"
+                android:descendantFocusability="blocksDescendants"
+                android:defaultFocusHighlightEnabled="false"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp" />
+
+            <ListView
+                android:id="@+id/lv_channel_list"
+                android:layout_width="200dp"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                android:listSelector="@android:color/transparent"
+                android:descendantFocusability="blocksDescendants"
+                android:defaultFocusHighlightEnabled="false"
                 android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:paddingTop="10dp"
-                android:paddingBottom="10dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="wrap_content"
-                        android:text="开机自启"
-                        android:textColor="@color/item_text_selector"
-                        android:textSize="16sp" />
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/sw_boot"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:focusable="false"
-                        android:clickable="false" />
-                </LinearLayout>
-                <TextView
-                    android:id="@+id/tv_boot_status"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="未开启"
-                    android:textColor="#80FFFFFF"
-                    android:textSize="12sp" />
-            </LinearLayout>
+                android:paddingEnd="16dp" />
 
-            <!-- 换台反转 -->
-            <LinearLayout
-                android:id="@+id/item_reverse"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="换台反转"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/sw_reverse"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:focusable="false"
-                    android:clickable="false" />
-            </LinearLayout>
-
-            <!-- 画中画 -->
-            <LinearLayout
-                android:id="@+id/item_pip"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="画中画"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/sw_pip"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:focusable="false"
-                    android:clickable="false" />
-            </LinearLayout>
-
-            <!-- 频道线路选择 -->
-            <LinearLayout
-                android:id="@+id/item_channel_line"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="频道线路选择"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-                <TextView
-                    android:id="@+id/tv_channel_line"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="主源"
-                    android:textColor="#999999"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <!-- 解码器选择 -->
-            <LinearLayout
-                android:id="@+id/item_decoder"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="解码器选择"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-                <TextView
-                    android:id="@+id/tv_decoder_mode"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="自动"
-                    android:textColor="#999999"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <!-- 渲染方式 -->
-            <LinearLayout
-                android:id="@+id/item_renderer"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="渲染方式"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-                <TextView
-                    android:id="@+id/tv_renderer_type"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="SurfaceView"
-                    android:textColor="#999999"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <!-- 屏幕比例 -->
+            <!-- 节目单按钮：已增加背景选择器和文字颜色选择器 -->
             <TextView
-                android:id="@+id/tv_screen_ratio"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="屏幕比例"
-                android:textColor="@color/item_text_selector"
-                android:textSize="16sp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true"/>
-
-            <!-- 清晰度选择 -->
-            <LinearLayout
-                android:id="@+id/item_resolution"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="清晰度选择"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-                <TextView
-                    android:id="@+id/tv_resolution_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="自动"
-                    android:textColor="#999999"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <!-- 分隔线 -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:background="#33FFFFFF"/>
-
-            <!-- HTTP重定向网络配置 -->
-            <LinearLayout
-                android:id="@+id/item_redirect"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="55dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="HTTP重定向网络配置"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-                <TextView
-                    android:id="@+id/tv_redirect_setting"
-                    android:layout_width="0dp"
-                    android:layout_height="0dp"
-                    android:visibility="gone" />
-            </LinearLayout>
-
-            <!-- 分隔线 -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:background="#33FFFFFF"/>
-
-            <!-- 直播源订阅 -->
-            <LinearLayout
-                android:id="@+id/item_live_subscribe"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="直播源订阅"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-            </LinearLayout>
-
-            <!-- 节目单订阅 -->
-            <LinearLayout
-                android:id="@+id/item_epg_subscribe"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="节目单订阅"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-            </LinearLayout>
-
-            <!-- 分隔线 -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:background="#33FFFFFF"/>
-
-            <!-- 检查更新 -->
-            <LinearLayout
-                android:id="@+id/item_check_update"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="检查更新"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp"/>
-                <Button
-                    android:id="@+id/btn_check_update"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="检查更新"
-                    android:focusable="false"
-                    android:clickable="false"/>
-            </LinearLayout>
-
-            <!-- 版本信息 -->
-            <LinearLayout
-                android:id="@+id/item_version_info"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="版本信息"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp"/>
-                <TextView
-                    android:id="@+id/tv_version_short"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="v2.0"
-                    android:textColor="#999999"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <!-- 分隔线 -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:background="#33FFFFFF"/>
-
-            <!-- 日志输出 -->
-            <LinearLayout
-                android:id="@+id/item_log"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:background="@drawable/setting_item_bg"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="日志输出"
-                    android:textColor="@color/item_text_selector"
-                    android:textSize="16sp" />
-                <TextView
-                    android:id="@+id/tv_log_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="关闭"
-                    android:textColor="#999999"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <!-- 网页设置提示 -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:id="@+id/btn_show_epg"
+                android:layout_width="50dp"
+                android:layout_height="match_parent"
                 android:gravity="center"
-                android:text="网页设置：http://设备IP:10481"
-                android:textColor="#80FFFFFF"
-                android:textSize="12sp"/>
+                android:text="节\n目\n单"
+                android:textColor="@color/item_text_selector"
+                android:background="@drawable/item_bg_selector"
+                android:textSize="14sp"
+                android:focusable="true"
+                android:clickable="true"
+                android:defaultFocusHighlightEnabled="false"
+                android:paddingEnd="16dp" />
         </LinearLayout>
-    </ScrollView>
+
+        <LinearLayout
+            android:id="@+id/ll_right_panel"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:background="@drawable/panel_bg"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="20dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="20dp"
+            android:visibility="gone">
+
+            <!-- 返回按钮：已增加背景选择器和文字颜色选择器 -->
+            <TextView
+                android:id="@+id/btn_back_group"
+                android:layout_width="50dp"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="频\n道\n组"
+                android:textColor="@color/item_text_selector"
+                android:background="@drawable/item_bg_selector"
+                android:textSize="14sp"
+                android:focusable="true"
+                android:clickable="true"
+                android:defaultFocusHighlightEnabled="false"
+                android:paddingStart="16dp" />
+
+            <ListView
+                android:id="@+id/lv_channel_list_epg"
+                android:layout_width="200dp"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                android:listSelector="@android:color/transparent"
+                android:descendantFocusability="blocksDescendants"
+                android:defaultFocusHighlightEnabled="false"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+
+            <ListView
+                android:id="@+id/lv_date"
+                android:layout_width="60dp"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                android:listSelector="@android:color/transparent"
+                android:descendantFocusability="blocksDescendants"
+                android:defaultFocusHighlightEnabled="false"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+
+            <ListView
+                android:id="@+id/lv_epg"
+                android:layout_width="360dp"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                android:listSelector="@android:color/transparent"
+                android:descendantFocusability="blocksDescendants"
+                android:defaultFocusHighlightEnabled="false"
+                android:paddingStart="8dp"
+                android:paddingEnd="16dp" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/info_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="8dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/info_bar_gradient_bg"
+        android:visibility="gone">
+        <!-- 底部信息栏内容省略，您之前的代码保持不变即可 -->
+    </LinearLayout>
+
+    <!-- 居中悬浮日志窗口 -->
+    <FrameLayout
+        android:id="@+id/log_window_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <ScrollView
+            android:id="@+id/log_scroll_view"
+            android:layout_width="340dp"
+            android:layout_height="450dp"
+            android:background="#B3000000"
+            android:padding="12dp"
+            android:scrollbars="none">
+
+            <TextView
+                android:id="@+id/tv_log_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:typeface="monospace"
+                android:text="日志将在此显示..." />
+        </ScrollView>
+    </FrameLayout>
+
 </FrameLayout>
