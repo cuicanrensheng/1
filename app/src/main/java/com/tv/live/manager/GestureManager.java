@@ -2,10 +2,15 @@ package com.tv.live.manager;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.content.Intent;
 
 import com.tv.live.MainActivity;
 import com.tv.live.PlayerGestureHelper;
+import com.tv.live.SettingsActivity;
 
+/**
+ * 手势管理器
+ */
 public class GestureManager {
 
     private final MainActivity activity;
@@ -26,7 +31,8 @@ public class GestureManager {
 
             @Override
             public void onLongOk() {
-                activity.openSettings();
+                // ✅ 修复：使用原生的 startActivity 打开设置
+                activity.startActivity(new Intent(activity, SettingsActivity.class));
             }
 
             @Override
@@ -38,10 +44,6 @@ public class GestureManager {
 
             @Override
             public void onPrevChannel() {
-                // 🛡️ 面板打开时禁止切台
-                if (activity.getChannelPanelController() != null && activity.getChannelPanelController().isPanelOpen()) {
-                    return;
-                }
                 if (!isGestureLocked) {
                     isGestureLocked = true;
                     boolean isReverse = activity.isChannelReverse();
@@ -56,10 +58,6 @@ public class GestureManager {
 
             @Override
             public void onNextChannel() {
-                // 🛡️ 面板打开时禁止切台
-                if (activity.getChannelPanelController() != null && activity.getChannelPanelController().isPanelOpen()) {
-                    return;
-                }
                 if (!isGestureLocked) {
                     isGestureLocked = true;
                     boolean isReverse = activity.isChannelReverse();
