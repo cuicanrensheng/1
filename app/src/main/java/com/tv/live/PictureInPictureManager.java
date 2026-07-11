@@ -258,6 +258,12 @@ public class PictureInPictureManager {
                                PlayerView playerView) {
         try {
             hideAllUi(channelPanelController, infoDisplayManager);
+            
+            // 🟢【核心修复】强制禁用 ExoPlayer 控制栏功能，防止点击小窗时弹出
+            if (playerView != null) {
+                playerView.setUseController(false);
+            }
+
             if (activity != null) {
                 activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
