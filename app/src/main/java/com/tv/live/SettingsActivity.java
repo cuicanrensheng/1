@@ -262,7 +262,7 @@ public class SettingsActivity extends AppCompatActivity {
         ListView listView = new ListView(this);
         
         // 去掉系统黄色/蓝色高亮
-        listView.setListSelector(new ColorDrawable(Color.TRANSPARENT));
+        listView.setSelector(new ColorDrawable(Color.TRANSPARENT));
         listView.setDefaultFocusHighlightEnabled(false);
         listView.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
 
@@ -441,7 +441,7 @@ public class SettingsActivity extends AppCompatActivity {
         Button btnClose = dialogView.findViewById(R.id.btn_close);
 
         // 订阅源列表焦点修正
-        lvSourceList.setListSelector(new ColorDrawable(Color.TRANSPARENT));
+        lvSourceList.setSelector(new ColorDrawable(Color.TRANSPARENT));
         lvSourceList.setDefaultFocusHighlightEnabled(false);
         lvSourceList.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
 
