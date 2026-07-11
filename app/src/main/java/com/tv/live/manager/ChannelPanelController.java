@@ -11,7 +11,6 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import com.tv.live.Channel;
-import com.tv.live.config.AppConfig;
 import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
@@ -22,8 +21,6 @@ import java.util.List;
 
 /**
  * 频道面板控制器
- * 
- * 【2026-07-08 修改：面板开启 5 秒防呆自动隐藏】
  */
 public class ChannelPanelController {
 
@@ -66,11 +63,9 @@ public class ChannelPanelController {
     private Handler mAutoHideHandler;
     private Runnable mAutoHideRunnable;
     private long mAutoHideDelayMs = 5000;
-    
     private boolean mAutoHideEnabled = true;
 
     private boolean mIsFirstLaunch = true;
-
     private boolean isReverse = false;
     private long lastChannelChangeTime = 0;
 
@@ -167,7 +162,6 @@ public class ChannelPanelController {
                 leftFocusView = "epgBtn";
                 syncFocusStyle();
             }
-            // 移除可能导致焦点混乱的自动请求
         });
         lvChannelListEpg.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
@@ -708,7 +702,7 @@ public class ChannelPanelController {
         return isReverse;
     }
 
-    // 🛠️ 核心焦点处理：完整实现所有导航规则
+    // ✅ 最终修复：完整按键导航逻辑
     public boolean dispatchKeyEvent(int keyCode) {
         View currentFocus = panelLayout.findFocus();
         if (currentFocus == null) return false;
@@ -717,50 +711,41 @@ public class ChannelPanelController {
         if (!rightPanelOpen) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    // 分组列表→频道列表
                     if (currentFocus == lvGroup) {
                         lvChannelList.requestFocus();
                         return true;
                     }
-                    // 频道列表→节目单按钮
                     if (currentFocus == lvChannelList) {
                         btnShowEpg.setFocusable(true);
                         btnShowEpg.setFocusableInTouchMode(true);
                         btnShowEpg.requestFocus();
                         return true;
                     }
+                    if (currentFocus == btnShowEpg) {
+                        onEpgButtonClicked();
+                        return true;
+                    }
                     break;
                 case KeyEvent.KEYCODE_DPAD_LEFT:
-                    // 节目单按钮→频道列表
                     if (currentFocus == btnShowEpg) {
                         lvChannelList.requestFocus();
                         return true;
                     }
-                    // 频道列表→分组列表
                     if (currentFocus == lvChannelList) {
                         lvGroup.requestFocus();
                         return true;
                     }
                     break;
-                case KeyEvent.KEYCODE_DPAD_DOWN:
-                    // 分组列表底部不跳转
-                    if (currentFocus == lvGroup) {
-                        return true; // 消费事件，不越界跳转
-                    }
-                    break;
-                case KeyEvent.KEYCODE_DPAD_UP:
-                    // 频道列表顶部不跳转
-                    if (currentFocus == lvChannelList) {
-                        return true; // 消费事件，不越界跳转
-                    }
-                    break;
                 case KeyEvent.KEYCODE_DPAD_CENTER:
                 case KeyEvent.KEYCODE_ENTER:
-                    // 节目单按钮按确认键打开右侧面板
                     if (currentFocus == btnShowEpg) {
                         onEpgButtonClicked();
                         return true;
                     }
+                    break;
+                default:
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && currentFocus == lvGroup) return true;
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_UP && currentFocus == lvChannelList) return true;
                     break;
             }
         }
@@ -768,34 +753,32 @@ public class ChannelPanelController {
         else {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_LEFT:
-                    // 节目单内容→日期列表
                     if (currentFocus == lvEpg) {
                         lvDate.requestFocus();
                         return true;
                     }
-                    // 日期列表→频道列表
                     if (currentFocus == lvDate) {
                         lvChannelListEpg.requestFocus();
                         return true;
                     }
-                    // 频道列表→返回按钮
                     if (currentFocus == lvChannelListEpg) {
                         btnBackGroup.requestFocus();
                         return true;
                     }
+                    if (currentFocus == btnBackGroup) {
+                        onBackGroupClicked();
+                        return true;
+                    }
                     break;
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    // 返回按钮→频道列表
                     if (currentFocus == btnBackGroup) {
                         lvChannelListEpg.requestFocus();
                         return true;
                     }
-                    // 频道列表→日期列表
                     if (currentFocus == lvChannelListEpg) {
                         lvDate.requestFocus();
                         return true;
                     }
-                    // 日期列表→节目单内容
                     if (currentFocus == lvDate) {
                         lvEpg.requestFocus();
                         return true;
@@ -803,15 +786,15 @@ public class ChannelPanelController {
                     break;
                 case KeyEvent.KEYCODE_DPAD_CENTER:
                 case KeyEvent.KEYCODE_ENTER:
-                    // 返回按钮按确认键返回左侧面板
                     if (currentFocus == btnBackGroup) {
                         onBackGroupClicked();
                         return true;
                     }
                     break;
+                default:
+                    break;
             }
         }
-
         return false;
     }
 
@@ -826,4 +809,4 @@ public class ChannelPanelController {
     public void release() {
         cancelAutoHide();
     }
-        }
+}
