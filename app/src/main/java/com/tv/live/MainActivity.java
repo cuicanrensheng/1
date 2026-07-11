@@ -36,7 +36,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
-// ✅ 修复：添加缺失的 SettingsActivity 导入
+// ✅ 修复：导入缺失的 SettingsActivity
 import com.tv.live.SettingsActivity;
 
 @SuppressLint("UnsafeOptInUsageError")
@@ -63,6 +63,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean pipEnable = false;
     private boolean channel_reverse;
     private boolean number_channel_enable;
+
+    // ✅【新增】标志：是否正在打开设置页
+    private boolean isOpeningSettings = false;
 
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences sp;
@@ -284,9 +287,7 @@ public class MainActivity extends AppCompatActivity {
                 channelPanelController.switchDown();
             }
             @Override public void onPlayTogglePanel() { togglePanel(); remoteManager.syncMode(); }
-            @Override public void onPlayOpenSettings() { 
-                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
-            }
+            @Override public void onPlayOpenSettings() { openSettings(); }
             @Override public boolean onPlayBack() { return false; }
             @Override public void onPanelMoveUp() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_UP); }
             @Override public void onPanelMoveDown() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_DOWN); }
@@ -598,15 +599,31 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ============================================================
-    // 🔥【原生启动】不再依赖任何标记，直接 startActivity
+    // 🟢【核心修复】统一管理设置页的打开与暂停拦截
     // ============================================================
+    public void openSettings() {
+        // 防止重复打开
+        if (isOpeningSettings) return;
+        // 回看模式下禁止打开设置
+        if (isInCatchUpMode) return;
+
+        isOpeningSettings = true;
+        appCoreManager.beforeOpenSettings();
+
+        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+            channelPanelController.hidePanel();
+        }
+        hideExoController();
+
+        startActivity(new Intent(this, SettingsActivity.class));
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                Log.d("MainActivity", "收到菜单/帮助/设置键，原生打开设置页面");
-                startActivity(new Intent(this, SettingsActivity.class));
+                openSettings();
             }
             return true;
         }
@@ -627,8 +644,7 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // 🔧 长按返回键也原生地打开设置
-            startActivity(new Intent(this, SettingsActivity.class));
+            openSettings();
             return true;
         }
         if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
@@ -674,9 +690,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 🟢【核心修复】防止打开设置页时导致播放器暂停
     @Override
     protected void onPause() {
         super.onPause();
+        // 如果是打开设置导致的暂停，跳过所有暂停播放器的操作
+        if (isOpeningSettings) {
+            return;
+        }
         mMainHandler.removeCallbacksAndMessages(null);
         appCoreManager.onPause();
         if (pipManager != null) {
@@ -695,6 +716,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // 从设置页返回时，重置标记
+        isOpeningSettings = false;
         appCoreManager.onResume();
         if (pipManager != null) pipManager.setStopCalled(false);
         loadSettings();
