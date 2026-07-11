@@ -691,15 +691,17 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ✅ 恢复菜单/帮助键关闭设置页（与 MainActivity 联动）
+    // ✅【原生关闭】按下菜单/帮助/设置键直接关闭设置页
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int keyCode = event.getKeyCode();
-            if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
+            // 按菜单/帮助/设置键，直接原生关闭当前设置页
+            if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
                 finish();
                 return true;
             }
+            // 其余按键交由 remoteManager 处理（方向键、返回键等）
             if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
                 return true;
             }
@@ -996,4 +998,4 @@ public class SettingsActivity extends AppCompatActivity {
         itemTextViews.clear();
         itemTextViews = null;
     }
-    }
+}
