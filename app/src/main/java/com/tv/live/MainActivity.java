@@ -20,7 +20,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.media3.common.util.UnstableApi;
 import androidx.media3.ui.PlayerView;
 
 import com.tv.live.config.AppConfig;
@@ -83,7 +82,6 @@ public class MainActivity extends AppCompatActivity {
         return isInCatchUpMode;
     }
 
-    // ================== 提供给 PlayerControlManager 使用 ==================
     public PictureInPictureManager getPipManager() {
         return pipManager;
     }
@@ -125,17 +123,10 @@ public class MainActivity extends AppCompatActivity {
             playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
         } catch (Exception e) {}
 
-        // ========== 关键修复：调整初始化顺序，增加空指针保护 ==========
         initChannelPanelController();
-        if (channelPanelController == null) {
-            Log.e("MainActivity", "channelPanelController is null after initialization!");
-            Toast.makeText(this, "面板初始化失败，应用可能无法正常工作", Toast.LENGTH_LONG).show();
-        } else {
-            channelPanelController.handleFirstLaunch();
-        }
-
         initRemoteManager();
         initPictureInPicture();
+        channelPanelController.handleFirstLaunch();
         initPlayer();
         mPlayerManager.registerDecoderModeReceiver();
         mPlayerManager.registerRendererModeReceiver();
@@ -144,9 +135,8 @@ public class MainActivity extends AppCompatActivity {
         screenRatioManager.apply();
 
         currentPlayIndex = appConfig.getLastPlayIndex();
-        if (channelPanelController != null) {
-            channelPanelController.setCurrentPlayIndex(currentPlayIndex);
-        }
+        channelPanelController.setCurrentPlayIndex(currentPlayIndex);
+        remoteManager.setNumberChannelEnable(number_channel_enable);
 
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
@@ -211,7 +201,6 @@ public class MainActivity extends AppCompatActivity {
         return channelPanelController;
     }
 
-    // ================== 控制栏代理方法 ==================
     public void showExoController() {
         if (playerControlManager != null) {
             playerControlManager.showExoController();
@@ -275,17 +264,18 @@ public class MainActivity extends AppCompatActivity {
                 exitPlaybackMode();
                 channelPanelController.switchDown();
             }
-            @Override public void onPlayTogglePanel() { togglePanel(); remoteManager.syncMode(); }
+            @Override public void onPlayTogglePanel() { 
+                togglePanel(); 
+                remoteManager.syncMode(); 
+            }
             @Override public void onPlayOpenSettings() { openSettings(); }
             @Override public boolean onPlayBack() { return false; }
-            // ===== 已移除 onPanelMoveLeft/Right/FocusChanged，因为方向键全部由 ChannelPanelController 处理 =====
             @Override public void onPanelConfirm() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_CENTER); }
             @Override public boolean onPanelBack() {
                 boolean handled = channelPanelController.handleBackPressed();
                 if (!channelPanelController.isPanelOpen()) { remoteManager.syncMode(); }
                 return handled;
             }
-            // ❌ 已删除 onPanelMenu()
             @Override public void onSettingsMoveUp() {}
             @Override public void onSettingsMoveDown() {}
             @Override public void onSettingsConfirm() {}
@@ -349,6 +339,7 @@ public class MainActivity extends AppCompatActivity {
         dateListManager.initDate();
         dateListManager.setOnDateSelectedListener(pos -> channelPanelController.setCurrentDateIndex(pos));
 
+        // ✅ 这里传入 this (MainActivity) 而不是 getApplicationContext()
         channelPanelController = new ChannelPanelController(
                 this, panelLayout, ll_left_panel, ll_right_panel, lvGroup, lvChannelList,
                 lvChannelListEpg, lvDate, lvEpg, btn_show_epg, btn_back_group,
@@ -380,13 +371,24 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ===================== 初始化播放器（创建 PlayerControlManager） =====================
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
         mPlayerManager.setOnPlayerViewRecreatedListener(newPlayerView -> {
             MainActivity.this.playerView = newPlayerView;
-            // 重建时重新初始化手势和控制栏
-            initGestureAndControl(newPlayerView);
+            gestureManager = new GestureManager(MainActivity.this);
+            final PlayerGestureHelper newGestureHelper = gestureManager.create();
+
+            if (touchListener == null) {
+                touchListener = new PlayerTouchListener(MainActivity.this);
+            }
+            touchListener.updateGestureHelper(newGestureHelper);
+            newPlayerView.setOnTouchListener(touchListener);
+            newPlayerView.requestFocus();
+
+            if (playerControlManager != null) {
+                newPlayerView.setUseController(false);
+                playerControlManager.hideExoController();
+            }
         });
 
         mPlayerManager.attachPlayerView(playerView);
@@ -404,37 +406,6 @@ public class MainActivity extends AppCompatActivity {
             }
             appCoreManager.handleSourceFailed(channelName);
         }));
-
-        // 首次初始化手势和控制栏
-        initGestureAndControl(playerView);
-    }
-
-    // ===================== 初始化手势和控制栏（提取为公共方法） =====================
-    private void initGestureAndControl(PlayerView view) {
-        if (gestureManager == null) {
-            gestureManager = new GestureManager(this);
-        }
-        final PlayerGestureHelper newGestureHelper = gestureManager.create();
-
-        if (touchListener == null) {
-            touchListener = new PlayerTouchListener(this);
-        }
-        touchListener.updateGestureHelper(newGestureHelper);
-        view.setOnTouchListener(touchListener);
-        view.requestFocus();
-
-        // 初始化 PlayerControlManager（如果尚未创建）
-        if (playerControlManager == null) {
-            playerControlManager = new PlayerControlManager(this, view, gestureManager, infoDisplayManager);
-        } else {
-            // 如果已存在，更新 playerView 引用
-            // 但 PlayerControlManager 内部持有了 playerView，需要更新
-            // 此处简单重新创建，确保引用一致
-            playerControlManager = new PlayerControlManager(this, view, gestureManager, infoDisplayManager);
-        }
-        // 强制隐藏控制栏（避免意外显示）
-        view.setUseController(false);
-        playerControlManager.hideExoController();
     }
 
     private void initAppCoreManager() {
@@ -447,20 +418,9 @@ public class MainActivity extends AppCompatActivity {
                     channelSourceList.clear();
                     channelSourceList.addAll(finalList);
                     channelPanelController.setChannels(channelSourceList);
-                    
-                    // ✅ 数字输入相关设置：总频道数和监听器
-                    if (infoDisplayManager != null) {
-                        infoDisplayManager.setTotalChannelCount(channelSourceList.size());
-                        infoDisplayManager.setOnChannelNumberSelectedListener(index -> {
-                            channelPanelController.playChannel(index);
-                            if (channelPanelController.isPanelOpen()) {
-                                channelPanelController.hidePanel();
-                            }
-                        });
+                    if (remoteManager != null) {
+                        remoteManager.setTotalChannelCount(channelSourceList.size());
                     }
-
-                    // ❌ 已删除 remoteManager.setTotalChannelCount(...) 因为数字输入已由 InfoDisplayManager 处理
-
                     if (!appCoreManager.hasPlayedWithCache()) {
                         if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                             Channel ch = channelSourceList.get(currentPlayIndex);
@@ -523,8 +483,7 @@ public class MainActivity extends AppCompatActivity {
     private void loadSettings() {
         boolean epg_enable = sp.getBoolean("epg_enable", true);
         channel_reverse = sp.getBoolean("channel_reverse", false);
-        // 数字输入开关已移至 InfoDisplayManager，此处不再设置 remoteManager
-        // boolean number_channel_enable = sp.getBoolean("number_channel_enable", true);
+        number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
         
@@ -537,6 +496,7 @@ public class MainActivity extends AppCompatActivity {
         }
         
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
+        if (remoteManager != null) remoteManager.setNumberChannelEnable(number_channel_enable);
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epg_enable);
             channelPanelController.setReverse(channel_reverse);
@@ -566,7 +526,6 @@ public class MainActivity extends AppCompatActivity {
         appConfig.setLastPlayIndex(index);
         mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName(), channel);
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
-        // ========== 关键修复：增加 infoDisplayManager 非空检查 ==========
         if (infoDisplayManager != null) {
             infoDisplayManager.showInfoBar(channel, live);
             infoDisplayManager.showChannelNum(index + 1);
@@ -587,16 +546,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ============================================================
-    // ✅【核心修复】面板切换时确保 remoteManager 模式正确同步
-    // ============================================================
     public void togglePanel() {
         if (isInCatchUpMode) {
             return;
         }
-        // ✅【新增】在切换前强制设为 PLAY_MODE，避免面板关闭瞬间按键被拦截
-        remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
-        
         channelPanelController.togglePanel();
         remoteManager.syncMode();
 
@@ -605,18 +558,7 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
         }
 
-        if (!channelPanelController.isPanelOpen()) {
-            panelLayout.postDelayed(() -> {
-                channelPanelController.clearPanelFocus();
-                if (playerView != null) {
-                    playerView.setFocusable(true);
-                    playerView.setFocusableInTouchMode(true);
-                    playerView.requestFocus();
-                }
-                // ✅ 再次同步模式，确保 remoteManager 切换回 PLAY_MODE
-                remoteManager.syncMode();
-            }, 100);
-        }
+        // ❌ 已删除重复的焦点恢复逻辑，现在由 ChannelPanelController.togglePanel() 统一处理
     }
 
     public void playPrev() { channelPanelController.playPrev(); }
@@ -662,11 +604,6 @@ public class MainActivity extends AppCompatActivity {
         }
         
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            // ✅ 新增：先让 InfoDisplayManager 处理数字输入
-            if (infoDisplayManager != null && infoDisplayManager.handleNumberKey(keyCode)) {
-                return true;
-            }
-            // 然后交给 remoteManager
             if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
                 return true;
             }
@@ -680,25 +617,21 @@ public class MainActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    // ============================================================
-    // ✅【核心修复】长按 OK 键、菜单键、帮助键都能打开设置
-    // ============================================================
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
         if (isInCatchUpMode && keyCode == KeyEvent.KEYCODE_BACK) {
             return true;
         }
-        // 长按返回键打开设置
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             openSettings();
             return true;
         }
-        // ✅ 新增：长按确认键（OK键）打开设置
+        // ✅ 新增：长按确认键（OK键）也打开设置
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
             openSettings();
             return true;
         }
-        // ✅ 新增：长按菜单键/帮助键打开设置
+        // ✅ 新增：菜单键/帮助键长按也打开设置（可选）
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
             openSettings();
             return true;
@@ -746,7 +679,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ===================== 后台/前台切换播放控制 =====================
     @Override
     protected void onPause() {
         super.onPause();
@@ -804,9 +736,11 @@ public class MainActivity extends AppCompatActivity {
         if (channelPanelController != null) {
             channelPanelController.clearPanelFocus();
             if (!channelPanelController.isPanelOpen()) {
-                playerView.setFocusable(true);
-                playerView.setFocusableInTouchMode(true);
-                playerView.requestFocus();
+                if (playerView != null) {
+                    playerView.setFocusable(true);
+                    playerView.setFocusableInTouchMode(true);
+                    playerView.requestFocus();
+                }
             }
         } else {
             if (playerView != null) {
@@ -848,4 +782,4 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
     }
-}
+  }
