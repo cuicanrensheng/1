@@ -130,9 +130,8 @@ public class MainActivity extends AppCompatActivity {
         if (channelPanelController == null) {
             Log.e("MainActivity", "channelPanelController is null after initialization!");
             Toast.makeText(this, "面板初始化失败，应用可能无法正常工作", Toast.LENGTH_LONG).show();
-            // 仍继续执行，但后续应避免调用 channelPanelController
         } else {
-            channelPanelController.handleFirstLaunch(); // 只有在非空时调用
+            channelPanelController.handleFirstLaunch();
         }
 
         initRemoteManager();
@@ -382,24 +381,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ===================== 初始化播放器（创建 PlayerControlManager） =====================
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
         mPlayerManager.setOnPlayerViewRecreatedListener(newPlayerView -> {
             MainActivity.this.playerView = newPlayerView;
-            gestureManager = new GestureManager(MainActivity.this);
-            final PlayerGestureHelper newGestureHelper = gestureManager.create();
-
-            if (touchListener == null) {
-                touchListener = new PlayerTouchListener(MainActivity.this);
-            }
-            touchListener.updateGestureHelper(newGestureHelper);
-            newPlayerView.setOnTouchListener(touchListener);
-            newPlayerView.requestFocus();
-
-            if (playerControlManager != null) {
-                newPlayerView.setUseController(false);
-                playerControlManager.hideExoController();
-            }
+            // 重建时重新初始化手势和控制栏
+            initGestureAndControl(newPlayerView);
         });
 
         mPlayerManager.attachPlayerView(playerView);
@@ -417,6 +405,37 @@ public class MainActivity extends AppCompatActivity {
             }
             appCoreManager.handleSourceFailed(channelName);
         }));
+
+        // 首次初始化手势和控制栏
+        initGestureAndControl(playerView);
+    }
+
+    // ===================== 初始化手势和控制栏（提取为公共方法） =====================
+    private void initGestureAndControl(PlayerView view) {
+        if (gestureManager == null) {
+            gestureManager = new GestureManager(this);
+        }
+        final PlayerGestureHelper newGestureHelper = gestureManager.create();
+
+        if (touchListener == null) {
+            touchListener = new PlayerTouchListener(this);
+        }
+        touchListener.updateGestureHelper(newGestureHelper);
+        view.setOnTouchListener(touchListener);
+        view.requestFocus();
+
+        // 初始化 PlayerControlManager（如果尚未创建）
+        if (playerControlManager == null) {
+            playerControlManager = new PlayerControlManager(this, view, gestureManager, infoDisplayManager);
+        } else {
+            // 如果已存在，更新 playerView 引用
+            // 但 PlayerControlManager 内部持有了 playerView，需要更新
+            // 此处简单重新创建，确保引用一致
+            playerControlManager = new PlayerControlManager(this, view, gestureManager, infoDisplayManager);
+        }
+        // 强制隐藏控制栏（避免意外显示）
+        view.setUseController(false);
+        playerControlManager.hideExoController();
     }
 
     private void initAppCoreManager() {
@@ -688,6 +707,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ===================== 后台/前台切换播放控制 =====================
     @Override
     protected void onPause() {
         super.onPause();
@@ -696,10 +716,17 @@ public class MainActivity extends AppCompatActivity {
         }
         mMainHandler.removeCallbacksAndMessages(null);
         appCoreManager.onPause();
-        if (pipManager != null) {
-            pipManager.handleOnPause(() -> {
-                if (mPlayerManager != null) mPlayerManager.resume();
-            });
+
+        // 如果不在画中画模式，暂停播放
+        if (pipManager == null || !pipManager.isInPipMode()) {
+            if (mPlayerManager != null) {
+                mPlayerManager.pause();
+            }
+        } else {
+            // 画中画模式下，保持播放（不暂停）
+            if (mPlayerManager != null) {
+                mPlayerManager.resume();
+            }
         }
     }
 
@@ -719,12 +746,18 @@ public class MainActivity extends AppCompatActivity {
         screenRatioManager.apply();
         displayManager.reapplyFullScreen();
 
+        // 如果不在画中画模式，恢复播放
         if (pipManager == null || !pipManager.isInPipMode()) {
+            if (mPlayerManager != null) {
+                mPlayerManager.resume();
+            }
             if (playerControlManager != null) {
                 playerControlManager.onResume();
             }
-            if (pipManager != null && mPlayerManager != null) {
-                pipManager.resumePlayback(mPlayerManager);
+        } else {
+            // 画中画模式下，保持播放
+            if (mPlayerManager != null) {
+                mPlayerManager.resume();
             }
         }
         remoteManager.syncMode();
