@@ -86,6 +86,11 @@ public class MainActivity extends AppCompatActivity {
         return pipManager;
     }
 
+    // ✅ 新增：公开获取 PlayerView 的方法，供 ChannelPanelController 使用
+    public PlayerView getPlayerView() {
+        return playerView;
+    }
+
     private PlayerTouchListener touchListener;
     public PlayerTouchListener getTouchListener() {
         return touchListener;
@@ -339,7 +344,6 @@ public class MainActivity extends AppCompatActivity {
         dateListManager.initDate();
         dateListManager.setOnDateSelectedListener(pos -> channelPanelController.setCurrentDateIndex(pos));
 
-        // ✅ 这里传入 this (MainActivity) 而不是 getApplicationContext()
         channelPanelController = new ChannelPanelController(
                 this, panelLayout, ll_left_panel, ll_right_panel, lvGroup, lvChannelList,
                 lvChannelListEpg, lvDate, lvEpg, btn_show_epg, btn_back_group,
@@ -557,8 +561,6 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.getCurrentMode() != TvRemoteManager.Mode.CHANNEL_PANEL_MODE) {
             remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
         }
-
-        // ❌ 已删除重复的焦点恢复逻辑，现在由 ChannelPanelController.togglePanel() 统一处理
     }
 
     public void playPrev() { channelPanelController.playPrev(); }
@@ -626,12 +628,10 @@ public class MainActivity extends AppCompatActivity {
             openSettings();
             return true;
         }
-        // ✅ 新增：长按确认键（OK键）也打开设置
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
             openSettings();
             return true;
         }
-        // ✅ 新增：菜单键/帮助键长按也打开设置（可选）
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
             openSettings();
             return true;
@@ -688,13 +688,11 @@ public class MainActivity extends AppCompatActivity {
         mMainHandler.removeCallbacksAndMessages(null);
         appCoreManager.onPause();
 
-        // 如果不在画中画模式，暂停播放
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
                 mPlayerManager.pause();
             }
         } else {
-            // 画中画模式下，保持播放（不暂停）
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
             }
@@ -717,7 +715,6 @@ public class MainActivity extends AppCompatActivity {
         screenRatioManager.apply();
         displayManager.reapplyFullScreen();
 
-        // 如果不在画中画模式，恢复播放
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
@@ -726,7 +723,6 @@ public class MainActivity extends AppCompatActivity {
                 playerControlManager.onResume();
             }
         } else {
-            // 画中画模式下，保持播放
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
             }
@@ -782,4 +778,4 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
     }
-  }
+}
