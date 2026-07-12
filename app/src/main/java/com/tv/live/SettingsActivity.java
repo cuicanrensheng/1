@@ -514,6 +514,10 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPlayTogglePanel() {}
             @Override public void onPlayOpenSettings() {}
             @Override public boolean onPlayBack() { return false; }
+            // 新增：媒体键回调空实现（设置页不处理媒体键）
+            @Override public void onPlayMediaPlayPause() {}
+            @Override public void onPlayMediaStop() {}
+            @Override public void onPlayInfo() {}
 
             @Override public void onPanelConfirm() {}
             @Override public boolean onPanelBack() { return false; }
