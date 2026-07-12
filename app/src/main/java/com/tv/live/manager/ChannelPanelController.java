@@ -811,4 +811,4 @@ public class ChannelPanelController {
     public void release() {
         // 无 Handler 需要清理
     }
-}
+ }
