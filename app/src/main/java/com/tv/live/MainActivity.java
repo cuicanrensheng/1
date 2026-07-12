@@ -278,7 +278,7 @@ public class MainActivity extends AppCompatActivity {
                 return handled;
             }
             @Override public void onPanelMenu() { channelPanelController.toggleCurrentFavorite(); }
-            @Override public void onPanelNumber(int number) {}
+            // ===== 已删除 onPanelNumber(int number) =====
             @Override public void onSettingsMoveUp() {}
             @Override public void onSettingsMoveDown() {}
             @Override public void onSettingsConfirm() {}
