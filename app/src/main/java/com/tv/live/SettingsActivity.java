@@ -463,7 +463,7 @@ public class SettingsActivity extends AppCompatActivity {
             // ===== 已删除 onPanelMoveUp/Down/Left/Right/Number/FocusChanged，因为新版接口已移除 =====
             @Override public void onPanelConfirm() {}
             @Override public boolean onPanelBack() { return false; }
-            @Override public void onPanelMenu() {}
+            // ❌ 已删除 onPanelMenu()
             @Override public void onSettingsMoveUp() { updateSettingsFocus(); }
             @Override public void onSettingsMoveDown() { updateSettingsFocus(); }
             @Override public void onSettingsConfirm() { int position = remoteManager.getSettingsFocusPosition(); handleSettingsItemClick(position); }
