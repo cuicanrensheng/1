@@ -584,6 +584,9 @@ public class MainActivity extends AppCompatActivity {
         if (isInCatchUpMode) {
             return;
         }
+        // ✅【新增】在切换前强制设为 PLAY_MODE，避免面板关闭瞬间按键被拦截
+        remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
+        
         channelPanelController.togglePanel();
         remoteManager.syncMode();
 
