@@ -125,10 +125,18 @@ public class MainActivity extends AppCompatActivity {
             playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
         } catch (Exception e) {}
 
+        // ========== 关键修复：调整初始化顺序，增加空指针保护 ==========
         initChannelPanelController();
+        if (channelPanelController == null) {
+            Log.e("MainActivity", "channelPanelController is null after initialization!");
+            Toast.makeText(this, "面板初始化失败，应用可能无法正常工作", Toast.LENGTH_LONG).show();
+            // 仍继续执行，但后续应避免调用 channelPanelController
+        } else {
+            channelPanelController.handleFirstLaunch(); // 只有在非空时调用
+        }
+
         initRemoteManager();
         initPictureInPicture();
-        channelPanelController.handleFirstLaunch();
         initPlayer();
         mPlayerManager.registerDecoderModeReceiver();
         mPlayerManager.registerRendererModeReceiver();
@@ -137,7 +145,9 @@ public class MainActivity extends AppCompatActivity {
         screenRatioManager.apply();
 
         currentPlayIndex = appConfig.getLastPlayIndex();
-        channelPanelController.setCurrentPlayIndex(currentPlayIndex);
+        if (channelPanelController != null) {
+            channelPanelController.setCurrentPlayIndex(currentPlayIndex);
+        }
         remoteManager.setNumberChannelEnable(number_channel_enable);
 
         initAppCoreManager();
@@ -527,8 +537,13 @@ public class MainActivity extends AppCompatActivity {
         appConfig.setLastPlayIndex(index);
         mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName(), channel);
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
-        infoDisplayManager.showInfoBar(channel, live);
-        infoDisplayManager.showChannelNum(index + 1);
+        // ========== 关键修复：增加 infoDisplayManager 非空检查 ==========
+        if (infoDisplayManager != null) {
+            infoDisplayManager.showInfoBar(channel, live);
+            infoDisplayManager.showChannelNum(index + 1);
+        } else {
+            Log.e("MainActivity", "infoDisplayManager is null, cannot show info bar");
+        }
         try {
             appConfig.addRecentChannel(channel.getName());
         } catch (Exception ignored) {}
