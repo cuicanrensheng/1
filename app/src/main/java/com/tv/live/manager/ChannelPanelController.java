@@ -26,7 +26,7 @@ public class ChannelPanelController {
     private static final long CHANNEL_COOLDOWN = 300;
     private static final int MAX_AUTO_SKIP = 10;
 
-    private MainActivity activity;          // ✅ 改为 MainActivity，用于焦点恢复
+    private MainActivity activity;
     private Context context;
     private View panelLayout;
     private ListView lvGroup;
@@ -82,7 +82,7 @@ public class ChannelPanelController {
     }
 
     public ChannelPanelController(
-            MainActivity activity,                     // ✅ 改为 MainActivity
+            MainActivity activity,
             View panelLayout,
             View llLeftPanel,
             View llRightPanel,
@@ -471,7 +471,8 @@ public class ChannelPanelController {
                     panelLayout.clearFocus();
                 }
                 if (activity != null) {
-                    androidx.media3.ui.PlayerView playerView = activity.playerView;
+                    // ✅ 通过公共方法获取 PlayerView
+                    androidx.media3.ui.PlayerView playerView = activity.getPlayerView();
                     if (playerView != null) {
                         playerView.setFocusable(true);
                         playerView.setFocusableInTouchMode(true);
@@ -842,4 +843,4 @@ public class ChannelPanelController {
     public void release() {
         // 无 Handler 需要清理
     }
-    }
+}
