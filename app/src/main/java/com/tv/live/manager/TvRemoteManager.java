@@ -19,10 +19,8 @@ public class TvRemoteManager {
         void onPlayOpenSettings();
         boolean onPlayBack();
 
-        // 面板方向操作统一由 ChannelPanelController 内部处理，这里仅保留业务回调
         void onPanelConfirm();
         boolean onPanelBack();
-        void onPanelMenu();
 
         void onSettingsMoveUp();
         void onSettingsMoveDown();
