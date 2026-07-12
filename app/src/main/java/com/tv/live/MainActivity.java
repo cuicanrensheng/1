@@ -270,10 +270,7 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onPlayTogglePanel() { togglePanel(); remoteManager.syncMode(); }
             @Override public void onPlayOpenSettings() { openSettings(); }
             @Override public boolean onPlayBack() { return false; }
-            @Override public void onPanelMoveUp() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_UP); }
-            @Override public void onPanelMoveDown() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_DOWN); }
-            @Override public void onPanelMoveLeft() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_LEFT); }
-            @Override public void onPanelMoveRight() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_RIGHT); }
+            // ===== 已移除 onPanelMoveLeft/Right/FocusChanged，因为方向键全部由 ChannelPanelController 处理 =====
             @Override public void onPanelConfirm() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_CENTER); }
             @Override public boolean onPanelBack() {
                 boolean handled = channelPanelController.handleBackPressed();
@@ -282,7 +279,6 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override public void onPanelMenu() { channelPanelController.toggleCurrentFavorite(); }
             @Override public void onPanelNumber(int number) {}
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
             @Override public void onSettingsMoveUp() {}
             @Override public void onSettingsMoveDown() {}
             @Override public void onSettingsConfirm() {}
@@ -627,11 +623,10 @@ public class MainActivity extends AppCompatActivity {
         return super.dispatchKeyEvent(event);
     }
 
+    // ===== 已删除 onKeyDown，避免按键被二次处理 =====
+    // 原先 onKeyDown 中的拦截已移入 dispatchKeyEvent，此处仅保留 super 调用
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
-            return true;
-        }
         return super.onKeyDown(keyCode, event);
     }
 
