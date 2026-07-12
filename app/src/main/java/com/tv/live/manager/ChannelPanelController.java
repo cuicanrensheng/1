@@ -665,18 +665,50 @@ public class ChannelPanelController {
         return isReverse;
     }
 
-    // ✅ 完整面板按键导航（左右闭环 + 右键打开右侧面板）
+    // ============================================================
+    // ✅【核心修复】方案三：上下键主动控制 ListView 滚动
+    // ============================================================
     public boolean dispatchKeyEvent(int keyCode) {
         if (panelLayout.getVisibility() != View.VISIBLE) {
             return false;
         }
 
         View currentFocus = panelLayout.findFocus();
-        // 添加日志，便于调试
-        Log.d("PanelDebug", "dispatchKeyEvent keyCode=" + keyCode + ", currentFocus=" + currentFocus);
-
         if (currentFocus == null) return false;
 
+        // ==================== 上下键：让当前焦点所在的 ListView 滚动 ====================
+        if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (currentFocus instanceof ListView) {
+                ListView lv = (ListView) currentFocus;
+                // 获取当前选中位置，如果没有选中项则取第一个可见位置
+                int pos = lv.getSelectedItemPosition();
+                if (pos == -1) {
+                    pos = lv.getFirstVisiblePosition();
+                    if (pos == -1) pos = 0; // 列表为空时的兜底
+                }
+                int count = lv.getCount();
+                if (count == 0) return true; // 列表为空，直接消费按键
+
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    if (pos > 0) {
+                        lv.setSelection(pos - 1);
+                        return true;
+                    }
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    if (pos < count - 1) {
+                        lv.setSelection(pos + 1);
+                        return true;
+                    }
+                }
+                // 到达顶部/底部时仍然返回 true，防止焦点跳离列表
+                return true;
+            } else {
+                // 当前焦点不是 ListView，让系统处理焦点切换
+                return false;
+            }
+        }
+
+        // ==================== 原有左右键、确认、返回等业务逻辑保持不变 ====================
         if (!rightPanelOpen) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
@@ -710,7 +742,6 @@ public class ChannelPanelController {
                         return true;
                     }
                     break;
-                // ===== 修改点：移除了上下键拦截，让它们自然传递到 ListView =====
                 default:
                     break;
             }
@@ -755,7 +786,6 @@ public class ChannelPanelController {
                         return true;
                     }
                     break;
-                // ===== 修改点：移除了上下键拦截，让它们自然传递到 ListView =====
                 default:
                     break;
             }
