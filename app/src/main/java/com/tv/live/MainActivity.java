@@ -91,6 +91,11 @@ public class MainActivity extends AppCompatActivity {
         return touchListener;
     }
 
+    // ✅ 新增：让 ChannelPanelController 可以获取 PlayerView
+    public PlayerView getPlayerView() {
+        return playerView;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
