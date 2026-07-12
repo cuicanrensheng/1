@@ -107,6 +107,9 @@ public class TvRemoteManager {
         return channelNumInput.length() > 0;
     }
 
+    // ============================================================
+    // ✅【核心修复】在面板模式中，只有面板真正打开时才拦截按键
+    // ============================================================
     public boolean dispatchKeyEvent(int keyCode) {
         if (isInPipMode) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -121,7 +124,13 @@ public class TvRemoteManager {
         boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
-                handled = dispatchChannelPanelKey(keyCode);
+                // ✅ 关键修复：只有面板打开时才处理面板按键
+                if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+                    handled = dispatchChannelPanelKey(keyCode);
+                } else {
+                    // 面板未打开，不拦截任何按键
+                    handled = false;
+                }
                 break;
             case SETTINGS_MODE:
                 handled = dispatchSettingsKey(keyCode);
