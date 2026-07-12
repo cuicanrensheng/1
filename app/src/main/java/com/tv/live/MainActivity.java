@@ -655,12 +655,26 @@ public class MainActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    // ============================================================
+    // ✅【核心修复】长按 OK 键、菜单键、帮助键都能打开设置
+    // ============================================================
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
         if (isInCatchUpMode && keyCode == KeyEvent.KEYCODE_BACK) {
             return true;
         }
+        // 长按返回键打开设置
         if (keyCode == KeyEvent.KEYCODE_BACK) {
+            openSettings();
+            return true;
+        }
+        // ✅ 新增：长按确认键（OK键）打开设置
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+            openSettings();
+            return true;
+        }
+        // ✅ 新增：长按菜单键/帮助键打开设置
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
             openSettings();
             return true;
         }
