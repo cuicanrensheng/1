@@ -300,24 +300,19 @@ public class TvRemoteManager {
                     return listener.onPlayBack();
                 }
                 return false;
-            // ===== 修改点：删除了所有数字键 case，让它们落入 default 返回 false =====
             default:
                 return false;
         }
     }
 
+    // ============================================================
+    // ✅【核心修改】删除了上下键拦截，让它们自然传递到 ChannelPanelController
+    // ============================================================
     private boolean dispatchChannelPanelKey(int keyCode) {
         switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_UP:
-                if (listener != null) {
-                    listener.onPanelMoveUp();
-                }
-                return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                if (listener != null) {
-                    listener.onPanelMoveDown();
-                }
-                return true;
+            // ❌ 已移除 KEYCODE_DPAD_UP 和 KEYCODE_DPAD_DOWN 的拦截
+            // 它们将返回 false，从而传递到 channelPanelController.dispatchKeyEvent
+
             case KeyEvent.KEYCODE_DPAD_LEFT:
                 return handlePanelLeftKey();
             case KeyEvent.KEYCODE_DPAD_RIGHT:
@@ -338,7 +333,6 @@ public class TvRemoteManager {
                     listener.onPanelMenu();
                 }
                 return true;
-            // ===== 修改点：删除了所有数字键 case，让它们落入 default 返回 false =====
             default:
                 return false;
         }
