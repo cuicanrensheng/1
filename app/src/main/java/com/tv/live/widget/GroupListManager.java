@@ -3,6 +3,7 @@ package com.tv.live.widget;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -136,13 +137,15 @@ public class GroupListManager {
             groupDisplayList.add(group);
         }
 
-        // 【优化】：引入 ViewHolder 模式
+        // 🟢【改进】使用显式 LayoutInflater 创建视图，避免依赖 super.getView
         adapter = new ArrayAdapter<String>(lvGroup.getContext(), android.R.layout.simple_list_item_1, groupDisplayList) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
                 ViewHolder holder;
                 if (convertView == null) {
-                    convertView = super.getView(position, convertView, parent);
+                    // 显式 inflate 布局
+                    LayoutInflater inflater = LayoutInflater.from(context);
+                    convertView = inflater.inflate(android.R.layout.simple_list_item_1, parent, false);
                     TextView tv = convertView.findViewById(android.R.id.text1);
                     holder = new ViewHolder();
                     holder.tv = tv;
@@ -151,14 +154,29 @@ public class GroupListManager {
                     holder = (ViewHolder) convertView.getTag();
                 }
 
+                // 🔧 增加非空检查
+                if (holder == null || holder.tv == null) {
+                    // 如果 holder 或 tv 为空，重新创建
+                    LayoutInflater inflater = LayoutInflater.from(context);
+                    convertView = inflater.inflate(android.R.layout.simple_list_item_1, parent, false);
+                    TextView tv = convertView.findViewById(android.R.id.text1);
+                    holder = new ViewHolder();
+                    holder.tv = tv;
+                    convertView.setTag(holder);
+                }
+
                 TextView tv = holder.tv;
                 if (tv == null) {
                     return convertView;
                 }
 
+                // 安全设置文本
+                String text = groupDisplayList.get(position);
+                tv.setText(text);
+
+                // 安全设置样式
                 tv.setTextSize(16);
                 tv.setPadding(20, 15, 20, 15);
-                tv.setText(groupDisplayList.get(position));
 
                 if (position == selectedPosition) {
                     if (hasFocus) {
