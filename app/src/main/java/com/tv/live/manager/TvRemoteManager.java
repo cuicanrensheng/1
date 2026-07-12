@@ -12,16 +12,6 @@ public class TvRemoteManager {
         SETTINGS_MODE
     }
 
-    public enum PanelFocus {
-        LEFT_GROUP,
-        LEFT_CHANNEL,
-        LEFT_EPG_BTN,
-        RIGHT_BACK_BTN,
-        RIGHT_CHANNEL,
-        RIGHT_DATE,
-        RIGHT_EPG
-    }
-
     public interface OnRemoteActionListener {
         void onPlayChannelUp();
         void onPlayChannelDown();
@@ -29,15 +19,10 @@ public class TvRemoteManager {
         void onPlayOpenSettings();
         boolean onPlayBack();
 
-        void onPanelMoveUp();
-        void onPanelMoveDown();
-        void onPanelMoveLeft();
-        void onPanelMoveRight();
+        // 面板方向操作统一由 ChannelPanelController 内部处理，这里仅保留业务回调
         void onPanelConfirm();
         boolean onPanelBack();
         void onPanelMenu();
-        void onPanelNumber(int number);
-        void onPanelFocusChanged(PanelFocus newFocus);
 
         void onSettingsMoveUp();
         void onSettingsMoveDown();
@@ -58,9 +43,6 @@ public class TvRemoteManager {
 
     private Mode currentMode = Mode.PLAY_MODE;
     private OnRemoteActionListener listener;
-
-    private PanelFocus currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-    private boolean isRightPanelOpen = false;
 
     private int settingsItemCount = 0;
     private int settingsFocusPosition = 0;
@@ -94,17 +76,6 @@ public class TvRemoteManager {
 
     public void setMode(Mode mode) {
         this.currentMode = mode;
-        switch (mode) {
-            case CHANNEL_PANEL_MODE:
-                resetPanelFocus();
-                break;
-            case SETTINGS_MODE:
-                resetSettingsFocus();
-                break;
-            case PLAY_MODE:
-            default:
-                break;
-        }
     }
 
     public Mode getCurrentMode() {
@@ -249,7 +220,6 @@ public class TvRemoteManager {
             if (currentMode != Mode.CHANNEL_PANEL_MODE) {
                 setMode(Mode.CHANNEL_PANEL_MODE);
             }
-            setRightPanelOpen(channelPanelController.isRightPanelOpen());
         } else {
             if (currentMode != Mode.PLAY_MODE) {
                 setMode(Mode.PLAY_MODE);
@@ -306,17 +276,13 @@ public class TvRemoteManager {
     }
 
     // ============================================================
-    // ✅【核心修改】删除了上下键拦截，让它们自然传递到 ChannelPanelController
+    // ✅【最终精简】上下左右全部交给 ChannelPanelController 统一处理
     // ============================================================
     private boolean dispatchChannelPanelKey(int keyCode) {
         switch (keyCode) {
-            // ❌ 已移除 KEYCODE_DPAD_UP 和 KEYCODE_DPAD_DOWN 的拦截
-            // 它们将返回 false，从而传递到 channelPanelController.dispatchKeyEvent
+            // 方向键全部返回 false，让它们落到 channelPanelController.dispatchKeyEvent
+            // 由 ChannelPanelController 统一控制滚动和焦点切换
 
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                return handlePanelLeftKey();
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                return handlePanelRightKey();
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
                 if (listener != null) {
@@ -336,60 +302,6 @@ public class TvRemoteManager {
             default:
                 return false;
         }
-    }
-
-    private boolean handlePanelLeftKey() {
-        switch (currentPanelFocus) {
-            case LEFT_EPG_BTN:
-                currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-                break;
-            case LEFT_CHANNEL:
-                currentPanelFocus = PanelFocus.LEFT_GROUP;
-                break;
-            case RIGHT_EPG:
-                currentPanelFocus = PanelFocus.RIGHT_DATE;
-                break;
-            case RIGHT_DATE:
-                currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-                break;
-            case RIGHT_CHANNEL:
-                currentPanelFocus = PanelFocus.RIGHT_BACK_BTN;
-                break;
-            default:
-                return false;
-        }
-        if (listener != null) {
-            listener.onPanelMoveLeft();
-            listener.onPanelFocusChanged(currentPanelFocus);
-        }
-        return true;
-    }
-
-    private boolean handlePanelRightKey() {
-        switch (currentPanelFocus) {
-            case LEFT_GROUP:
-                currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-                break;
-            case LEFT_CHANNEL:
-                currentPanelFocus = PanelFocus.LEFT_EPG_BTN;
-                break;
-            case RIGHT_BACK_BTN:
-                currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-                break;
-            case RIGHT_CHANNEL:
-                currentPanelFocus = PanelFocus.RIGHT_DATE;
-                break;
-            case RIGHT_DATE:
-                currentPanelFocus = PanelFocus.RIGHT_EPG;
-                break;
-            default:
-                return false;
-        }
-        if (listener != null) {
-            listener.onPanelMoveRight();
-            listener.onPanelFocusChanged(currentPanelFocus);
-        }
-        return true;
     }
 
     private boolean dispatchSettingsKey(int keyCode) {
@@ -498,27 +410,6 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_8: return 8;
             case KeyEvent.KEYCODE_9: return 9;
             default: return -1;
-        }
-    }
-
-    public void setRightPanelOpen(boolean open) {
-        this.isRightPanelOpen = open;
-        resetPanelFocus();
-    }
-
-    public PanelFocus getCurrentPanelFocus() {
-        return currentPanelFocus;
-    }
-
-    public void setCurrentPanelFocus(PanelFocus focus) {
-        this.currentPanelFocus = focus;
-    }
-
-    public void resetPanelFocus() {
-        if (isRightPanelOpen) {
-            currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-        } else {
-            currentPanelFocus = PanelFocus.LEFT_CHANNEL;
         }
     }
 
