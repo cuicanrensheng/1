@@ -324,6 +324,12 @@ public class UpdateManager {
 
     // 🟢 新增：使用 MediaStore 将 APK 从私有目录复制到公共 Download 目录
     private Uri copyToPublicDownload(Uri privateUri) {
+        // ✅【关键修复】添加 API 版本判断，消除 Lint NewApi Error
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Log.w("UpdateManager", "当前 Android 版本低于 10，无法使用 MediaStore 复制到公共目录");
+            return null;
+        }
+
         try {
             // 1. 准备公共 Download 目录的 ContentValues
             ContentValues values = new ContentValues();
