@@ -119,12 +119,6 @@ public class BootReceiver extends BroadcastReceiver {
     // ====================================================================
     // 判断是否是开机相关的广播
     // ====================================================================
-    /**
-     * 判断是否是开机相关的广播
-     *
-     * @param action 广播 Action
-     * @return true=是开机相关广播，需要处理
-     */
     private boolean isBootRelatedAction(String action) {
         if (action == null) {
             return false;
@@ -140,12 +134,6 @@ public class BootReceiver extends BroadcastReceiver {
     // ====================================================================
     // 根据广播类型获取延迟时间
     // ====================================================================
-    /**
-     * 根据广播类型获取延迟启动时间
-     *
-     * @param action 广播 Action
-     * @return 延迟时间（毫秒）
-     */
     private long getDelayByAction(String action) {
         if (action == null) {
             return START_DELAY_MS;
@@ -161,107 +149,79 @@ public class BootReceiver extends BroadcastReceiver {
     // ====================================================================
     // 调度延迟启动（用 AlarmManager 更可靠）
     // ====================================================================
-    /**
-     * 调度延迟启动应用
-     *
-     * 【为什么用 AlarmManager 而不是 Handler？】
-     * 广播接收器的生命周期很短（只有 10 秒左右），
-     * 如果用 Handler postDelayed，可能还没执行完接收器就被销毁了。
-     * 用 AlarmManager 设置一个一次性闹钟，更可靠。
-     *
-     * @param context 上下文
-     * @param delayMs 延迟时间（毫秒）
-     */
     private void scheduleDelayedStart(Context context, long delayMs) {
         try {
             AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager == null) {
+                Log.e(TAG, "AlarmManager 不可用，尝试直接启动");
+                startMainActivity(context);
+                return;
+            }
 
             Intent startIntent = new Intent(context, BootStartReceiver.class);
             startIntent.setAction("com.tv.live.START_APP");
+
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            // Android 12+ 必须指定 FLAG_IMMUTABLE 或 FLAG_MUTABLE
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags |= PendingIntent.FLAG_IMMUTABLE;
+            }
 
             PendingIntent pendingIntent = PendingIntent.getBroadcast(
                     context,
                     0,
                     startIntent,
-                    getPendingIntentFlags()
+                    flags
             );
 
             long triggerAt = System.currentTimeMillis() + delayMs;
 
-            // 设置一次性闹钟
-            if (alarmManager != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    // Android 6.0+ 使用 setExactAndAllowWhileIdle
-                    // 即使在低电耗模式下也能触发
-                    alarmManager.setExactAndAllowWhileIdle(
-                            AlarmManager.RTC_WAKEUP,
-                            triggerAt,
-                            pendingIntent
-                    );
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    // Android 4.4+ 使用 setExact
-                    alarmManager.setExact(
-                            AlarmManager.RTC_WAKEUP,
-                            triggerAt,
-                            pendingIntent
-                    );
-                } else {
-                    // 低版本使用 set
-                    alarmManager.set(
-                            AlarmManager.RTC_WAKEUP,
-                            triggerAt,
-                            pendingIntent
-                    );
+            // ✅【关键修复】Android 12+ 检查是否可以使用精确闹钟
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (!alarmManager.canScheduleExactAlarms()) {
+                    Log.w(TAG, "无法使用精确闹钟，降级为非精确闹钟");
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                    return;
                 }
-                Log.d(TAG, "已设置延迟启动闹钟，" + delayMs + "ms 后启动");
             }
+
+            // 设置闹钟（优先使用精确闹钟）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                );
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                alarmManager.setExact(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                );
+            } else {
+                alarmManager.set(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                );
+            }
+            Log.d(TAG, "已设置延迟启动闹钟，" + delayMs + "ms 后启动");
 
         } catch (Exception e) {
             Log.e(TAG, "设置延迟启动失败，尝试直接启动", e);
             // 兜底方案：直接启动（可能失败，但总比不启动好）
-            try {
-                startMainActivity(context);
-            } catch (Exception e2) {
-                Log.e(TAG, "直接启动也失败", e2);
-            }
+            startMainActivity(context);
         }
-    }
-
-    // ====================================================================
-    // 获取 PendingIntent 的 flags（适配不同安卓版本）
-    // ====================================================================
-    /**
-     * 获取 PendingIntent 的 flags
-     * 适配不同安卓版本：
-     * - Android 12+ 必须指定 IMMUTABLE 或 MUTABLE
-     * - 低版本使用 FLAG_UPDATE_CURRENT
-     *
-     * @return PendingIntent flags
-     */
-    private int getPendingIntentFlags() {
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        // Android 6.0+ 可以加上 IMMUTABLE，更安全
-        // 注意：Android 12+ 必须指定 IMMUTABLE 或 MUTABLE
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-        return flags;
     }
 
     // ====================================================================
     // 启动主页面（兜底方法）
     // ====================================================================
-    /**
-     * 直接启动主页面
-     *
-     * @param context 上下文
-     */
     private void startMainActivity(Context context) {
         try {
             Intent mainIntent = new Intent(context, MainActivity.class);
             mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             mainIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            // 加上从广播启动的标志
             mainIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
             context.startActivity(mainIntent);
             Log.d(TAG, "已启动 MainActivity");
