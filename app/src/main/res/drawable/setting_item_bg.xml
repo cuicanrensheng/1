@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 聚焦/选中时：蓝色高亮背景 -->
+    <!-- 聚焦/选中/按下：蓝色圆角高亮 -->
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="#3340A9FF" />
@@ -13,7 +13,13 @@
             <corners android:radius="6dp" />
         </shape>
     </item>
-    <!-- ✅ 默认状态：改成和外框一样的半透明深色 #B30A0A1A -->
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#3340A9FF" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+    <!-- 默认背景直接复用面板panel_bg的颜色，和外框一致 -->
     <item>
         <shape android:shape="rectangle">
             <solid android:color="#B30A0A1A" />
