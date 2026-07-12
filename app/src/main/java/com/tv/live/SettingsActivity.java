@@ -85,6 +85,57 @@ public class SettingsActivity extends AppCompatActivity {
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable focusUpdateRunnable;
 
+    // ===================== 新增：设置页焦点管理 =====================
+    private int settingsFocusPosition = 0;
+    private int settingsItemCount = 0;
+
+    public void setSettingsItemCount(int count) {
+        this.settingsItemCount = count;
+        if (settingsFocusPosition >= count) {
+            settingsFocusPosition = count - 1;
+        }
+        if (settingsFocusPosition < 0) {
+            settingsFocusPosition = 0;
+        }
+    }
+
+    public int getSettingsItemCount() {
+        return settingsItemCount;
+    }
+
+    public int getSettingsFocusPosition() {
+        return settingsFocusPosition;
+    }
+
+    public void setSettingsFocusPosition(int position) {
+        if (position >= 0 && position < settingsItemCount) {
+            this.settingsFocusPosition = position;
+        }
+    }
+
+    public void resetSettingsFocus() {
+        settingsFocusPosition = 0;
+    }
+
+    public boolean handleSettingsMoveUp() {
+        if (settingsFocusPosition > 0) {
+            settingsFocusPosition--;
+            updateSettingsFocus();
+            return true;
+        }
+        return false;
+    }
+
+    public boolean handleSettingsMoveDown() {
+        if (settingsFocusPosition < settingsItemCount - 1) {
+            settingsFocusPosition++;
+            updateSettingsFocus();
+            return true;
+        }
+        return false;
+    }
+    // ============================================================
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -146,6 +197,8 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
         initSettingsItemList();
+        // 设置选项总数，供焦点管理使用
+        setSettingsItemCount(settingsItemList.size());
         initRemoteManager();
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
@@ -439,9 +492,9 @@ public class SettingsActivity extends AppCompatActivity {
                 item.setFocusableInTouchMode(true);
                 item.setOnFocusChangeListener((v, hasFocus) -> {
                     if (hasFocus && remoteManager != null) {
-                        int currentPos = remoteManager.getSettingsFocusPosition();
-                        if (currentPos != position) {
-                            remoteManager.setSettingsFocusPosition(position);
+                        // 当焦点变化时，更新本地的焦点位置
+                        if (settingsFocusPosition != position) {
+                            settingsFocusPosition = position;
                             updateSettingsFocus();
                         }
                     }
@@ -453,29 +506,40 @@ public class SettingsActivity extends AppCompatActivity {
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
-        remoteManager.setSettingsItemCount(settingsItemList.size());
+        // 不再通过 remoteManager 管理焦点，而是由 SettingsActivity 自身管理
+        // remoteManager 只需要知道设置项个数，用于分发按键
+        // 我们已经在本 Activity 中设置了 itemCount
+
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
             @Override public void onPlayChannelUp() {}
             @Override public void onPlayChannelDown() {}
             @Override public void onPlayTogglePanel() {}
             @Override public void onPlayOpenSettings() {}
             @Override public boolean onPlayBack() { return false; }
-            // ===== 已删除 onPanelMoveUp/Down/Left/Right/Number/FocusChanged，因为新版接口已移除 =====
+
             @Override public void onPanelConfirm() {}
             @Override public boolean onPanelBack() { return false; }
-            // ❌ 已删除 onPanelMenu()
-            @Override public void onSettingsMoveUp() { updateSettingsFocus(); }
-            @Override public void onSettingsMoveDown() { updateSettingsFocus(); }
-            @Override public void onSettingsConfirm() { int position = remoteManager.getSettingsFocusPosition(); handleSettingsItemClick(position); }
+
+            // 将设置页的焦点移动委托给 SettingsActivity 自身
+            @Override public void onSettingsMoveUp() { handleSettingsMoveUp(); }
+            @Override public void onSettingsMoveDown() { handleSettingsMoveDown(); }
+            @Override public void onSettingsConfirm() { handleSettingsItemClick(settingsFocusPosition); }
             @Override public boolean onSettingsBack() { finish(); return true; }
             @Override public void onSettingsMenu() { finish(); }
-            @Override public void onSettingsFocusChanged(int position) { updateSettingsFocus(); }
+            @Override public void onSettingsFocusChanged(int position) {
+                setSettingsFocusPosition(position);
+                updateSettingsFocus();
+            }
+
             @Override public boolean onPipBack() { return false; }
             @Override public void onRequestPlayFocus() {}
             @Override public void onChannelNumberSelected(int channelIndex) {}
             @Override public void onShowChannelNumber(String number) {}
             @Override public void onHideChannelNumber() {}
         });
+
+        // 初始化焦点
+        resetSettingsFocus();
         updateSettingsFocus();
     }
 
@@ -709,18 +773,17 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    // 更新设置页焦点样式
     private void updateSettingsFocus() {
-        if (remoteManager == null) return;
-        int selectedPosition = remoteManager.getSettingsFocusPosition();
-        if (selectedPosition < 0 || selectedPosition >= settingsItemList.size()) return;
+        if (settingsFocusPosition < 0 || settingsFocusPosition >= settingsItemList.size()) return;
 
-        View target = settingsItemList.get(selectedPosition);
+        View target = settingsItemList.get(settingsFocusPosition);
         if (target == null) return;
 
         for (int i = 0; i < settingsItemList.size(); i++) {
             View item = settingsItemList.get(i);
             if (item == null) continue;
-            if (i == selectedPosition) {
+            if (i == settingsFocusPosition) {
                 setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
             } else {
                 setItemStyle(item, "#FFFFFF", Typeface.NORMAL, Color.TRANSPARENT);
