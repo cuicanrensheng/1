@@ -275,6 +275,26 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override public void onPlayOpenSettings() { openSettings(); }
             @Override public boolean onPlayBack() { return false; }
+            // ===== 媒体键回调实现 =====
+            @Override public void onPlayMediaPlayPause() {
+                if (mPlayerManager != null) {
+                    mPlayerManager.togglePlayWhenReady();
+                }
+            }
+            @Override public void onPlayMediaStop() {
+                if (mPlayerManager != null) {
+                    mPlayerManager.pause();
+                }
+            }
+            @Override public void onPlayInfo() {
+                if (infoDisplayManager != null && currentPlayIndex >= 0
+                        && currentPlayIndex < channelSourceList.size()) {
+                    Channel ch = channelSourceList.get(currentPlayIndex);
+                    TVPlayerManager.LiveInfo live =
+                            (mPlayerManager != null) ? mPlayerManager.getLiveInfo() : null;
+                    infoDisplayManager.showInfoBar(ch, live);
+                }
+            }
             @Override public void onPanelConfirm() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_CENTER); }
             @Override public boolean onPanelBack() {
                 boolean handled = channelPanelController.handleBackPressed();
@@ -319,6 +339,12 @@ public class MainActivity extends AppCompatActivity {
                 tv_bitrate, tv_current_program_name, tv_current_time_range, progress_program,
                 tv_remaining_time, tv_next_program_name, tv_next_time_range
         );
+        // ✅【按键修复】数字键切台回调连接
+        infoDisplayManager.setOnChannelNumberSelectedListener(channelIndex -> {
+            if (channelPanelController != null) {
+                channelPanelController.playChannel(channelIndex);
+            }
+        });
     }
 
     private void initChannelPanelController() {
@@ -430,6 +456,9 @@ public class MainActivity extends AppCompatActivity {
                     channelPanelController.setChannels(channelSourceList);
                     if (remoteManager != null) {
                         remoteManager.setTotalChannelCount(channelSourceList.size());
+                    }
+                    if (infoDisplayManager != null) {
+                        infoDisplayManager.setTotalChannelCount(channelSourceList.size());
                     }
                     if (!appCoreManager.hasPlayedWithCache()) {
                         if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
@@ -603,15 +632,51 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
-        
-        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                openSettings();
+        int action = event.getAction();
+
+        // ========== ACTION_DOWN：对需要支持长按的键，先启动 startTracking ==========
+        // （必须在消费前调用，否则 onKeyLongPress 无法触发；放在最前面确保不会被其它分支提前 return 跳过）
+        if (action == KeyEvent.ACTION_DOWN) {
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_BACK:
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_MEDIA_PLAY:
+                case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                case KeyEvent.KEYCODE_INFO:
+                case KeyEvent.KEYCODE_CHANNEL_UP:
+                case KeyEvent.KEYCODE_CHANNEL_DOWN:
+                    event.startTracking();
+                    break;
+                default:
+                    break;
             }
-            return true;
         }
-        
-        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+
+        // ========== 数字键 0~9：直接交给 InfoDisplayManager 处理（切台）==========
+        if (number_channel_enable && action == KeyEvent.ACTION_DOWN
+                && infoDisplayManager != null
+                && !isInCatchUpMode
+                && !isPanelOpen()) {
+            if (infoDisplayManager.handleNumberKey(keyCode)) {
+                return true;
+            }
+        }
+
+        // ========== MENU / HELP / SETTINGS：仅 ACTION_DOWN 打开设置，不吞 ACTION_UP ==========
+        if (keyCode == KeyEvent.KEYCODE_MENU
+                || keyCode == KeyEvent.KEYCODE_HELP
+                || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+            if (action == KeyEvent.ACTION_DOWN) {
+                openSettings();
+                return true;
+            }
+            // ACTION_UP / ACTION_MULTIPLE：交给系统默认处理（不主动消费，避免重复触发）
+            return super.dispatchKeyEvent(event);
+        }
+
+        if (action == KeyEvent.ACTION_DOWN) {
             if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
                 return true;
             }
@@ -620,26 +685,46 @@ public class MainActivity extends AppCompatActivity {
         return super.dispatchKeyEvent(event);
     }
 
+    private boolean isPanelOpen() {
+        return channelPanelController != null && channelPanelController.isPanelOpen();
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // 只有 dispatchKeyEvent 未消费的键才会走到这里。
+        // 为了兼容：对需要长按的键仍然补上 startTracking，作为兜底。
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_INFO:
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                event.startTracking();
+                return true;
+            default:
+                break;
+        }
         return super.onKeyDown(keyCode, event);
     }
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        // 回看模式下：BACK 长按直接返回 true，不打开设置
         if (isInCatchUpMode && keyCode == KeyEvent.KEYCODE_BACK) {
             return true;
         }
+        // BACK 长按：若面板打开则先关面板，否则打开设置
         if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (channelPanelController != null && channelPanelController.handleBackPressed()) {
+                if (remoteManager != null) remoteManager.syncMode();
+                return true;
+            }
             openSettings();
             return true;
         }
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-            openSettings();
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP) {
-            openSettings();
+        // DPAD_CENTER / ENTER 长按：符合用户心智 → 暂停/继续（不打开设置）
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (mPlayerManager != null) {
+                mPlayerManager.togglePlayWhenReady();
+            }
             return true;
         }
         if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
