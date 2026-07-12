@@ -351,7 +351,6 @@ public class MainActivity extends AppCompatActivity {
         channelPanelController.setOnChannelChangeListener((channel, index) -> playChannel(channel, index));
     }
 
-    // 🔧 修复：改为 public static，并让 updateGestureHelper 变为 public
     public static class PlayerTouchListener implements View.OnTouchListener {
         private final WeakReference<MainActivity> activityRef;
         private PlayerGestureHelper gestureHelper;
@@ -387,7 +386,6 @@ public class MainActivity extends AppCompatActivity {
             newPlayerView.setOnTouchListener(touchListener);
             newPlayerView.requestFocus();
 
-            // ✅【核心修复】PlayerView 重建后，立刻强制彻底禁用控制栏功能
             if (playerControlManager != null) {
                 newPlayerView.setUseController(false);
                 playerControlManager.hideExoController();
@@ -598,12 +596,10 @@ public class MainActivity extends AppCompatActivity {
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
-    // ✅【核心修复】将 dispatchKeyEvent 的拦截顺序重新排列，优先保障 remoteManager 能收到方向键和确认键
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
         
-        // 1. 优先处理菜单/帮助/设置键，始终走打开设置
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 openSettings();
@@ -611,8 +607,6 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         
-        // 2. ✅【核心修复】让 TvRemoteManager 优先处理剩余按键（方向键、确认键、返回键等）
-        // 关键：只在 ACTION_DOWN 时处理，避免 ACTION_UP 导致数字重复输入
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
                 return true;
@@ -622,8 +616,6 @@ public class MainActivity extends AppCompatActivity {
         return super.dispatchKeyEvent(event);
     }
 
-    // ===== 已删除 onKeyDown，避免按键被二次处理 =====
-    // 原先 onKeyDown 中的拦截已移入 dispatchKeyEvent，此处仅保留 super 调用
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         return super.onKeyDown(keyCode, event);
