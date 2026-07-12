@@ -73,6 +73,22 @@ public class AppCoreManager {
         this.cacheManager = CacheManager.getInstance(context);
     }
 
+    // ====================================================================
+    // ✅ NPE 防御：真机首次启动时 LiveSourceLoader 异步回调与 onDestroy() 存在竞态，
+    //             会导致 channelSourceList == null 或 channels == null → 崩。
+    //             以下两个包私有方法供 TDD 单元测试直接调用。
+    // ====================================================================
+
+    /** @return channels 非 null（若原始为 null，则返回空 ArrayList；否则原对象） */
+    static <T> List<T> sanitizeChannels(List<T> channels) {
+        return (channels != null) ? channels : new ArrayList<>();
+    }
+
+    /** @return existing 非 null（若原始为 null，则新建空 ArrayList；否则原对象） */
+    static <T> List<T> ensureChannelListNotNull(List<T> existing) {
+        return (existing != null) ? existing : new ArrayList<>();
+    }
+
     // ========== 1. 直播源 & EPG 加载 ==========
     public void loadLiveAndEpg() {
         log("【直播源】开始加载直播源...");
@@ -113,19 +129,23 @@ public class AppCoreManager {
         LiveSourceLoader.getInstance(context).load(new LiveSourceLoader.LoadCallback() {
             @Override
             public void onSuccess(List<Channel> channels) {
-                log("【网络】直播源加载成功，频道总数：" + channels.size());
+                // 🛡️ NPE 防御 1：PlaylistParser.parse 可能返回 null（网络失败 / 解析异常）
+                List<Channel> safeChannels = sanitizeChannels(channels);
+                log("【网络】直播源加载成功，频道总数：" + safeChannels.size());
                 synchronized (channelListLock) {
+                    // 🛡️ NPE 防御 2：onDestroy() 可能已把 channelSourceList 置 null（异步回调竞态）
+                    channelSourceList = ensureChannelListNotNull(channelSourceList);
                     if (channelSourceList.isEmpty()) {
                         channelSourceList.clear();
-                        channelSourceList.addAll(channels);
+                        channelSourceList.addAll(safeChannels);
                     } else {
-                        mergeChannels(channels);
+                        mergeChannels(safeChannels);
                     }
                 }
                 isLoading = false;
                 timeoutHandler.removeCallbacksAndMessages(null);
                 if (dataLoadListener != null) {
-                    dataLoadListener.onLiveSourceLoaded(channels, false);
+                    dataLoadListener.onLiveSourceLoaded(safeChannels, false);
                 }
                 log("【网络】直播源列表已更新");
                 loadEpg();
@@ -356,7 +376,13 @@ public class AppCoreManager {
             playerManager.release();
         }
         synchronized (channelListLock) {
-            channelSourceList = null;
+            // 🛡️ 修复：不再赋值为 null，改为 clear() —— 避免 LiveSourceLoader 异步回调回来时
+            //         读到 null channelSourceList 导致 isEmpty() NPE（真机 PID 30860 崩溃根因）
+            if (channelSourceList != null) {
+                channelSourceList.clear();
+            } else {
+                channelSourceList = new ArrayList<>();
+            }
         }
     }
 
