@@ -1,5 +1,5 @@
 package com.tv.live;
-
+import android.util.Log;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
