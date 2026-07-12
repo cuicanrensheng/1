@@ -2,6 +2,7 @@ package com.tv.live.manager;
 
 import android.content.Context;
 import android.graphics.Typeface;
+import android.util.Log; // ✅ 新增导入
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ListView;
@@ -471,8 +472,8 @@ public class ChannelPanelController {
                     panelLayout.clearFocus();
                 }
                 if (activity != null) {
-                    // ✅ 直接访问 activity.playerView
-                    androidx.media3.ui.PlayerView playerView = activity.playerView;
+                    // ✅ 通过 getPlayerView() 获取 PlayerView 实例
+                    androidx.media3.ui.PlayerView playerView = activity.getPlayerView();
                     if (playerView != null) {
                         playerView.setFocusable(true);
                         playerView.setFocusableInTouchMode(true);
