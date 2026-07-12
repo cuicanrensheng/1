@@ -17,7 +17,6 @@
         android:focusable="false" />
 
     <!-- 设置面板 -->
-    <!-- ✅【关键修改】新增 android:scrollbars="none"，彻底解决设置页 ScrollView 的 mutate() 空指针崩溃 -->
     <ScrollView
         android:id="@+id/settings_content"
         android:layout_width="240dp"
@@ -50,7 +49,9 @@
                 android:paddingBottom="10dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_log"
+                android:nextFocusDown="@id/item_reverse">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -90,7 +91,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_boot"
+                android:nextFocusDown="@id/item_pip">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -116,7 +119,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_reverse"
+                android:nextFocusDown="@id/item_channel_line">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -142,7 +147,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_pip"
+                android:nextFocusDown="@id/item_decoder">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -169,7 +176,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_channel_line"
+                android:nextFocusDown="@id/item_renderer">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -196,7 +205,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_decoder"
+                android:nextFocusDown="@id/tv_screen_ratio">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -226,7 +237,9 @@
                 android:textSize="16sp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true"/>
+                android:clickable="true"
+                android:nextFocusUp="@id/item_renderer"
+                android:nextFocusDown="@id/item_resolution"/>
 
             <!-- 清晰度选择 -->
             <LinearLayout
@@ -238,7 +251,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/tv_screen_ratio"
+                android:nextFocusDown="@id/item_redirect">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -275,7 +290,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_resolution"
+                android:nextFocusDown="@id/item_live_subscribe">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -307,7 +324,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_redirect"
+                android:nextFocusDown="@id/item_epg_subscribe">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -326,7 +345,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_live_subscribe"
+                android:nextFocusDown="@id/item_check_update">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -353,7 +374,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_epg_subscribe"
+                android:nextFocusDown="@id/item_version_info">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -382,7 +405,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_check_update"
+                android:nextFocusDown="@id/item_log">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -420,7 +445,9 @@
                 android:paddingEnd="8dp"
                 android:background="@drawable/setting_item_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:clickable="true"
+                android:nextFocusUp="@id/item_version_info"
+                android:nextFocusDown="@id/item_boot">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
