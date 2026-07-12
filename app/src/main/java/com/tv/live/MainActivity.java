@@ -147,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
         if (channelPanelController != null) {
             channelPanelController.setCurrentPlayIndex(currentPlayIndex);
         }
-        remoteManager.setNumberChannelEnable(number_channel_enable);
+        // 数字输入相关设置已移至 InfoDisplayManager，此处不再设置 remoteManager
 
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
@@ -448,6 +448,18 @@ public class MainActivity extends AppCompatActivity {
                     channelSourceList.clear();
                     channelSourceList.addAll(finalList);
                     channelPanelController.setChannels(channelSourceList);
+                    
+                    // ✅ 数字输入相关设置：总频道数和监听器
+                    if (infoDisplayManager != null) {
+                        infoDisplayManager.setTotalChannelCount(channelSourceList.size());
+                        infoDisplayManager.setOnChannelNumberSelectedListener(index -> {
+                            channelPanelController.playChannel(index);
+                            if (channelPanelController.isPanelOpen()) {
+                                channelPanelController.hidePanel();
+                            }
+                        });
+                    }
+
                     if (remoteManager != null) {
                         remoteManager.setTotalChannelCount(channelSourceList.size());
                     }
@@ -513,7 +525,8 @@ public class MainActivity extends AppCompatActivity {
     private void loadSettings() {
         boolean epg_enable = sp.getBoolean("epg_enable", true);
         channel_reverse = sp.getBoolean("channel_reverse", false);
-        number_channel_enable = sp.getBoolean("number_channel_enable", true);
+        // 数字输入开关已移至 InfoDisplayManager，此处不再设置 remoteManager
+        // boolean number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
         
@@ -526,7 +539,7 @@ public class MainActivity extends AppCompatActivity {
         }
         
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
-        if (remoteManager != null) remoteManager.setNumberChannelEnable(number_channel_enable);
+        // 数字输入相关设置已在 initAppCoreManager 中通过 infoDisplayManager 设置
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epg_enable);
             channelPanelController.setReverse(channel_reverse);
@@ -652,6 +665,11 @@ public class MainActivity extends AppCompatActivity {
         }
         
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            // ✅ 新增：先让 InfoDisplayManager 处理数字输入
+            if (infoDisplayManager != null && infoDisplayManager.handleNumberKey(keyCode)) {
+                return true;
+            }
+            // 然后交给 remoteManager
             if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
                 return true;
             }
