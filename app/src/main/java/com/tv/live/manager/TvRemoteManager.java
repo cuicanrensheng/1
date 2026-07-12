@@ -157,17 +157,14 @@ public class TvRemoteManager {
         return false;
     }
 
+    // ============================================================
+    // ✅【删除长按处理】所有长按交由 MainActivity.onKeyLongPress 统一处理
+    // ============================================================
     public boolean dispatchKeyLongPress(int keyCode) {
         if (isInPipMode) {
             return false;
         }
-
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-            if (listener != null) {
-                listener.onPlayOpenSettings();
-            }
-            return true;
-        }
+        // 所有长按事件全部由 MainActivity.onKeyLongPress 处理，这里不再拦截
         return false;
     }
 
