@@ -1,7 +1,5 @@
 package com.tv.live.manager;
 
-import android.os.Handler;
-import android.os.Looper;
 import android.view.KeyEvent;
 
 public class TvRemoteManager {
@@ -37,37 +35,10 @@ public class TvRemoteManager {
         void onHideChannelNumber();
     }
 
-    private static final long CHANNEL_NUM_TIMEOUT = 2000;
-
     private Mode currentMode = Mode.PLAY_MODE;
     private OnRemoteActionListener listener;
-
-    private int settingsItemCount = 0;
-    private int settingsFocusPosition = 0;
-
     private boolean isInPipMode = false;
     private ChannelPanelController channelPanelController;
-
-    private final StringBuilder channelNumInput = new StringBuilder();
-    private final Handler channelNumHandler = new Handler(Looper.getMainLooper());
-    private boolean numberChannelEnable = true;
-    private int totalChannelCount = 0;
-
-    private final Runnable channelNumConfirmRunnable = new Runnable() {
-        @Override
-        public void run() {
-            confirmChannelNum();
-        }
-    };
-
-    private final Runnable hideChannelNumRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (listener != null) {
-                listener.onHideChannelNumber();
-            }
-        }
-    };
 
     public TvRemoteManager() {
     }
@@ -92,24 +63,6 @@ public class TvRemoteManager {
         this.channelPanelController = controller;
     }
 
-    public void setNumberChannelEnable(boolean enable) {
-        this.numberChannelEnable = enable;
-        if (!enable && isNumberInputting()) {
-            cancelNumberInput();
-        }
-    }
-
-    public void setTotalChannelCount(int count) {
-        this.totalChannelCount = count;
-    }
-
-    public boolean isNumberInputting() {
-        return channelNumInput.length() > 0;
-    }
-
-    // ============================================================
-    // ✅【核心修复】在面板模式中，只有面板真正打开时才拦截按键
-    // ============================================================
     public boolean dispatchKeyEvent(int keyCode) {
         if (isInPipMode) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -124,11 +77,9 @@ public class TvRemoteManager {
         boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
-                // ✅ 关键修复：只有面板打开时才处理面板按键
                 if (channelPanelController != null && channelPanelController.isPanelOpen()) {
                     handled = dispatchChannelPanelKey(keyCode);
                 } else {
-                    // 面板未打开，不拦截任何按键
                     handled = false;
                 }
                 break;
@@ -144,27 +95,20 @@ public class TvRemoteManager {
             return true;
         }
 
-        if (handleNumberKey(keyCode)) {
+        // 数字输入已移至 InfoDisplayManager，此处不再处理
+        // 但为了保持兼容，仍调用 channelPanelController.dispatchKeyEvent
+        if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
             return true;
-        }
-
-        if (channelPanelController != null) {
-            if (channelPanelController.dispatchKeyEvent(keyCode)) {
-                return true;
-            }
         }
 
         return false;
     }
 
-    // ============================================================
-    // ✅【删除长按处理】所有长按交由 MainActivity.onKeyLongPress 统一处理
-    // ============================================================
     public boolean dispatchKeyLongPress(int keyCode) {
         if (isInPipMode) {
             return false;
         }
-        // 所有长按事件全部由 MainActivity.onKeyLongPress 处理，这里不再拦截
+        // 所有长按交由 MainActivity.onKeyLongPress 处理
         return false;
     }
 
@@ -174,11 +118,6 @@ public class TvRemoteManager {
                 return listener.onPipBack();
             }
             return false;
-        }
-
-        if (isNumberInputting()) {
-            cancelNumberInput();
-            return true;
         }
 
         boolean handled = false;
@@ -205,14 +144,12 @@ public class TvRemoteManager {
             return true;
         }
 
-        if (channelPanelController != null) {
-            if (channelPanelController.handleBackPressed()) {
-                syncMode();
-                if (listener != null) {
-                    listener.onRequestPlayFocus();
-                }
-                return true;
+        if (channelPanelController != null && channelPanelController.handleBackPressed()) {
+            syncMode();
+            if (listener != null) {
+                listener.onRequestPlayFocus();
             }
+            return true;
         }
 
         return false;
@@ -234,74 +171,42 @@ public class TvRemoteManager {
     private boolean dispatchPlayKey(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
-                if (listener != null) {
-                    listener.onPlayChannelUp();
-                }
+                if (listener != null) listener.onPlayChannelUp();
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                if (listener != null) {
-                    listener.onPlayChannelDown();
-                }
+                if (listener != null) listener.onPlayChannelDown();
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                if (isNumberInputting()) {
-                    confirmChannelNum();
-                    return true;
-                }
-                if (listener != null) {
-                    listener.onPlayTogglePanel();
-                }
+                if (listener != null) listener.onPlayTogglePanel();
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                if (listener != null) {
-                    listener.onPlayTogglePanel();
-                }
+                if (listener != null) listener.onPlayTogglePanel();
                 return true;
             case KeyEvent.KEYCODE_MENU:
-                if (listener != null) {
-                    listener.onPlayOpenSettings();
-                }
-                return true;
             case KeyEvent.KEYCODE_HELP:
-                if (listener != null) {
-                    listener.onPlayOpenSettings();
-                }
+                if (listener != null) listener.onPlayOpenSettings();
                 return true;
             case KeyEvent.KEYCODE_BACK:
-                if (listener != null) {
-                    return listener.onPlayBack();
-                }
+                if (listener != null) return listener.onPlayBack();
                 return false;
             default:
                 return false;
         }
     }
 
-    // ============================================================
-    // ✅【最终精简】上下左右全部交给 ChannelPanelController 统一处理
-    // ============================================================
     private boolean dispatchChannelPanelKey(int keyCode) {
         switch (keyCode) {
-            // 方向键全部返回 false，让它们落到 channelPanelController.dispatchKeyEvent
-            // 由 ChannelPanelController 统一控制滚动和焦点切换
-
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                if (listener != null) {
-                    listener.onPanelConfirm();
-                }
+                if (listener != null) listener.onPanelConfirm();
                 return true;
             case KeyEvent.KEYCODE_BACK:
-                if (listener != null) {
-                    return listener.onPanelBack();
-                }
+                if (listener != null) return listener.onPanelBack();
                 return false;
             case KeyEvent.KEYCODE_MENU:
-                if (listener != null) {
-                    listener.onPlayOpenSettings(); // ✅ 替换为 onPlayOpenSettings()
-                }
+                if (listener != null) listener.onPlayOpenSettings();
                 return true;
             default:
                 return false;
@@ -311,144 +216,27 @@ public class TvRemoteManager {
     private boolean dispatchSettingsKey(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
-                return handleSettingsMoveUp();
+                if (listener != null) listener.onSettingsMoveUp();
+                return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                return handleSettingsMoveDown();
+                if (listener != null) listener.onSettingsMoveDown();
+                return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                if (listener != null) {
-                    listener.onSettingsConfirm();
-                }
+                if (listener != null) listener.onSettingsConfirm();
                 return true;
             case KeyEvent.KEYCODE_BACK:
-                if (listener != null) {
-                    return listener.onSettingsBack();
-                }
+                if (listener != null) return listener.onSettingsBack();
                 return false;
             case KeyEvent.KEYCODE_MENU:
-                if (listener != null) {
-                    listener.onSettingsMenu();
-                }
+                if (listener != null) listener.onSettingsMenu();
                 return true;
             default:
                 return false;
         }
     }
 
-    private boolean handleSettingsMoveUp() {
-        if (settingsFocusPosition > 0) {
-            settingsFocusPosition--;
-            if (listener != null) {
-                listener.onSettingsMoveUp();
-                listener.onSettingsFocusChanged(settingsFocusPosition);
-            }
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    private boolean handleSettingsMoveDown() {
-        if (settingsFocusPosition < settingsItemCount - 1) {
-            settingsFocusPosition++;
-            if (listener != null) {
-                listener.onSettingsMoveDown();
-                listener.onSettingsFocusChanged(settingsFocusPosition);
-            }
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    public boolean handleNumberKey(int keyCode) {
-        if (!numberChannelEnable) return false;
-        int num = keyCodeToNumber(keyCode);
-        if (num == -1) return false;
-        channelNumInput.append(num);
-        if (listener != null) {
-            listener.onShowChannelNumber(channelNumInput.toString());
-        }
-        channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
-        channelNumHandler.postDelayed(channelNumConfirmRunnable, CHANNEL_NUM_TIMEOUT);
-        return true;
-    }
-
-    public void confirmChannelNum() {
-        if (channelNumInput.length() == 0) return;
-        try {
-            int channelNum = Integer.parseInt(channelNumInput.toString());
-            if (channelNum >= 1 && channelNum <= totalChannelCount) {
-                int index = channelNum - 1;
-                if (listener != null) {
-                    listener.onChannelNumberSelected(index);
-                }
-            }
-        } catch (NumberFormatException e) {
-        }
-        channelNumInput.setLength(0);
-        channelNumHandler.removeCallbacks(hideChannelNumRunnable);
-        channelNumHandler.postDelayed(hideChannelNumRunnable, 1000);
-    }
-
-    public void cancelNumberInput() {
-        if (channelNumInput.length() > 0) {
-            channelNumInput.setLength(0);
-            channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
-            if (listener != null) {
-                listener.onHideChannelNumber();
-            }
-        }
-    }
-
-    private int keyCodeToNumber(int keyCode) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_0: return 0;
-            case KeyEvent.KEYCODE_1: return 1;
-            case KeyEvent.KEYCODE_2: return 2;
-            case KeyEvent.KEYCODE_3: return 3;
-            case KeyEvent.KEYCODE_4: return 4;
-            case KeyEvent.KEYCODE_5: return 5;
-            case KeyEvent.KEYCODE_6: return 6;
-            case KeyEvent.KEYCODE_7: return 7;
-            case KeyEvent.KEYCODE_8: return 8;
-            case KeyEvent.KEYCODE_9: return 9;
-            default: return -1;
-        }
-    }
-
-    public void setSettingsItemCount(int count) {
-        this.settingsItemCount = count;
-        if (settingsFocusPosition >= count) {
-            settingsFocusPosition = count - 1;
-        }
-        if (settingsFocusPosition < 0) {
-            settingsFocusPosition = 0;
-        }
-    }
-
-    public int getSettingsItemCount() {
-        return settingsItemCount;
-    }
-
-    public int getSettingsFocusPosition() {
-        return settingsFocusPosition;
-    }
-
-    public void setSettingsFocusPosition(int position) {
-        if (position >= 0 && position < settingsItemCount) {
-            this.settingsFocusPosition = position;
-        }
-    }
-
-    public void resetSettingsFocus() {
-        settingsFocusPosition = 0;
-    }
-
     public void release() {
-        channelNumHandler.removeCallbacks(channelNumConfirmRunnable);
-        channelNumHandler.removeCallbacks(hideChannelNumRunnable);
-        channelNumInput.setLength(0);
         listener = null;
         channelPanelController = null;
     }
