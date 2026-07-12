@@ -277,8 +277,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!channelPanelController.isPanelOpen()) { remoteManager.syncMode(); }
                 return handled;
             }
-            @Override public void onPanelMenu() { channelPanelController.toggleCurrentFavorite(); }
-            // ===== 已删除 onPanelNumber(int number) =====
+            // ❌ 已删除 onPanelMenu()
             @Override public void onSettingsMoveUp() {}
             @Override public void onSettingsMoveDown() {}
             @Override public void onSettingsConfirm() {}
