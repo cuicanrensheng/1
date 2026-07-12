@@ -667,6 +667,7 @@ public class ChannelPanelController {
 
     // ============================================================
     // ✅【核心修复】方案三：上下键主动控制 ListView 滚动
+    // ✅【完整 OK 键支持】所有可交互控件都能响应确认键
     // ============================================================
     public boolean dispatchKeyEvent(int keyCode) {
         if (panelLayout.getVisibility() != View.VISIBLE) {
@@ -708,7 +709,37 @@ public class ChannelPanelController {
             }
         }
 
-        // ==================== 原有左右键、确认、返回等业务逻辑保持不变 ====================
+        // ==================== OK/确认键：统一处理所有控件上的确认操作 ====================
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (currentFocus == lvChannelList) {
+                int pos = lvChannelList.getSelectedItemPosition();
+                if (pos >= 0 && pos < lvChannelList.getCount()) {
+                    onChannelClicked(pos);
+                    return true;
+                }
+            } else if (currentFocus == lvGroup) {
+                int pos = lvGroup.getSelectedItemPosition();
+                if (pos >= 0 && pos < lvGroup.getCount()) {
+                    onGroupClicked(pos);
+                    return true;
+                }
+            } else if (currentFocus == lvChannelListEpg) {
+                int pos = lvChannelListEpg.getSelectedItemPosition();
+                if (pos >= 0 && pos < lvChannelListEpg.getCount()) {
+                    onChannelClicked(pos);
+                    return true;
+                }
+            } else if (currentFocus == btnShowEpg) {
+                onEpgButtonClicked();
+                return true;
+            } else if (currentFocus == btnBackGroup) {
+                onBackGroupClicked();
+                return true;
+            }
+            return false;
+        }
+
+        // ==================== 原有左右键业务逻辑保持不变 ====================
         if (!rightPanelOpen) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
@@ -732,13 +763,6 @@ public class ChannelPanelController {
                     }
                     if (currentFocus == lvChannelList) {
                         lvGroup.requestFocus();
-                        return true;
-                    }
-                    break;
-                case KeyEvent.KEYCODE_DPAD_CENTER:
-                case KeyEvent.KEYCODE_ENTER:
-                    if (currentFocus == btnShowEpg) {
-                        onEpgButtonClicked();
                         return true;
                     }
                     break;
@@ -779,13 +803,6 @@ public class ChannelPanelController {
                         return true;
                     }
                     break;
-                case KeyEvent.KEYCODE_DPAD_CENTER:
-                case KeyEvent.KEYCODE_ENTER:
-                    if (currentFocus == btnBackGroup) {
-                        onBackGroupClicked();
-                        return true;
-                    }
-                    break;
                 default:
                     break;
             }
@@ -811,4 +828,4 @@ public class ChannelPanelController {
     public void release() {
         // 无 Handler 需要清理
     }
- }
+}
