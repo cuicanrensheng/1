@@ -294,7 +294,7 @@ public class TvRemoteManager {
                 return false;
             case KeyEvent.KEYCODE_MENU:
                 if (listener != null) {
-                    listener.onPanelMenu();
+                    listener.onPlayOpenSettings(); // ✅ 替换为 onPlayOpenSettings()
                 }
                 return true;
             default:
