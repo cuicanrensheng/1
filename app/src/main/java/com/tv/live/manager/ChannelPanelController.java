@@ -2,14 +2,13 @@ package com.tv.live.manager;
 
 import android.content.Context;
 import android.graphics.Typeface;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.ListView;
 import android.widget.TextView;
 
 import com.tv.live.Channel;
+import com.tv.live.MainActivity;
 import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
@@ -27,6 +26,7 @@ public class ChannelPanelController {
     private static final long CHANNEL_COOLDOWN = 300;
     private static final int MAX_AUTO_SKIP = 10;
 
+    private MainActivity activity;          // ✅ 改为 MainActivity，用于焦点恢复
     private Context context;
     private View panelLayout;
     private ListView lvGroup;
@@ -82,7 +82,7 @@ public class ChannelPanelController {
     }
 
     public ChannelPanelController(
-            Context context,
+            MainActivity activity,                     // ✅ 改为 MainActivity
             View panelLayout,
             View llLeftPanel,
             View llRightPanel,
@@ -100,7 +100,8 @@ public class ChannelPanelController {
             EpgManagerWrapper epgManagerWrapper,
             PanelManager panelManager
     ) {
-        this.context = context.getApplicationContext();
+        this.activity = activity;
+        this.context = activity.getApplicationContext();
         this.panelLayout = panelLayout;
         this.llLeftPanel = llLeftPanel;
         this.llRightPanel = llRightPanel;
@@ -452,9 +453,10 @@ public class ChannelPanelController {
         // 调用 PanelManager 切换可见性
         panelManager.toggle(channelSourceList, currentPlayIndex, dateListManager);
 
-        // 如果面板打开，延迟 100ms 设置焦点（确保 UI 已渲染）
-        if (isPanelOpen()) {
-            panelLayout.postDelayed(() -> {
+        // ✅【关键修复】无论打开还是关闭，都在 100ms 后统一处理焦点
+        panelLayout.postDelayed(() -> {
+            if (isPanelOpen()) {
+                // 面板打开：焦点给频道列表
                 clearAllFocusStyles();
                 currentFocusPanel = "left";
                 leftFocusView = "channel";
@@ -463,8 +465,21 @@ public class ChannelPanelController {
                 lvChannelList.setFocusableInTouchMode(true);
                 lvChannelList.requestFocus();
                 lvChannelList.setSelection(getChannelListSelection());
-            }, 100);
-        }
+            } else {
+                // 面板关闭：焦点还给播放器
+                if (panelLayout != null) {
+                    panelLayout.clearFocus();
+                }
+                if (activity != null) {
+                    androidx.media3.ui.PlayerView playerView = activity.playerView;
+                    if (playerView != null) {
+                        playerView.setFocusable(true);
+                        playerView.setFocusableInTouchMode(true);
+                        playerView.requestFocus();
+                    }
+                }
+            }
+        }, 100);
 
         if (panelStateListener != null) {
             panelStateListener.onPanelStateChanged(willOpen);
@@ -667,7 +682,6 @@ public class ChannelPanelController {
 
     // ============================================================
     // ✅【核心修复】方案三：上下键主动控制 ListView 滚动
-    // ✅【完整 OK 键支持】所有可交互控件都能响应确认键
     // ============================================================
     public boolean dispatchKeyEvent(int keyCode) {
         if (panelLayout.getVisibility() != View.VISIBLE) {
@@ -828,4 +842,4 @@ public class ChannelPanelController {
     public void release() {
         // 无 Handler 需要清理
     }
-}
+    }
