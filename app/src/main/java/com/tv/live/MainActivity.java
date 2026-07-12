@@ -577,6 +577,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ============================================================
+    // ✅【核心修复】面板切换时确保 remoteManager 模式正确同步
+    // ============================================================
     public void togglePanel() {
         if (isInCatchUpMode) {
             return;
@@ -592,9 +595,13 @@ public class MainActivity extends AppCompatActivity {
         if (!channelPanelController.isPanelOpen()) {
             panelLayout.postDelayed(() -> {
                 channelPanelController.clearPanelFocus();
-                playerView.setFocusable(true);
-                playerView.setFocusableInTouchMode(true);
-                playerView.requestFocus();
+                if (playerView != null) {
+                    playerView.setFocusable(true);
+                    playerView.setFocusableInTouchMode(true);
+                    playerView.requestFocus();
+                }
+                // ✅ 再次同步模式，确保 remoteManager 切换回 PLAY_MODE
+                remoteManager.syncMode();
             }, 100);
         }
     }
