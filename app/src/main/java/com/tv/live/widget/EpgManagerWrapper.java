@@ -18,7 +18,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.core.content.ContextCompat; // 🔧 新增导入
+import androidx.core.content.ContextCompat;
 
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
@@ -148,11 +148,12 @@ public class EpgManagerWrapper {
                             playingIndex = i;
                         }
                     }
-                    if (playing != null && playingIndex > 0) {
-                        data.remove(playing);
-                        data.add(0, playing);
-                        playingIndex = 0;
-                    }
+                    // ===== ✅【核心修改】删除以下代码（不再把当前节目移到首位） =====
+                    // if (playing != null && playingIndex > 0) {
+                    //     data.remove(playing);
+                    //     data.add(0, playing);
+                    //     playingIndex = 0;
+                    // }
                 } else {
                     playingIndex = -1;
                     for (int i = 0; i < data.size(); i++) {
@@ -183,8 +184,35 @@ public class EpgManagerWrapper {
                 }
                 lvEpg.setSelection(selectedPosition);
                 adapter.notifyDataSetChanged();
+
+                // ✅【新增】加载完成后自动滚动到当前节目位置
+                scrollToCurrentProgram(finalData);
             });
         }).start();
+    }
+
+    /**
+     * ✅ 自动滚动到当前正在播放的节目位置
+     */
+    private void scrollToCurrentProgram(List<Channel.EpgItem> epgList) {
+        if (epgList == null || epgList.isEmpty() || selectDayIndex != 0) {
+            return; // 仅在“今天”视图下自动滚动
+        }
+        String now = getNow();
+        for (int i = 0; i < epgList.size(); i++) {
+            Channel.EpgItem item = epgList.get(i);
+            String start = item.time;
+            String end = epgEndTimeMap.get(item);
+            if (start != null && end != null && isTimeBetween(now, start, end)) {
+                final int scrollPos = i;
+                lvEpg.post(() -> {
+                    lvEpg.setSelection(scrollPos);
+                    // 如果想要让该项居中显示，可以用以下方式：
+                    lvEpg.setSelectionFromTop(scrollPos, lvEpg.getHeight() / 2);
+                });
+                break;
+            }
+        }
     }
 
     private boolean isTimeBetween(String now, String start, String end) {
@@ -221,7 +249,6 @@ public class EpgManagerWrapper {
                 Calendar.getInstance().get(Calendar.MINUTE));
     }
 
-    // 🟢【关键修复】针对 Android 13+ 的广播注册安全限制
     private void registerReminderReceiver() {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
@@ -233,7 +260,6 @@ public class EpgManagerWrapper {
             }
         };
         IntentFilter filter = new IntentFilter(ACTION_REMINDER);
-        // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED，兼容所有 API
         ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
@@ -244,10 +270,9 @@ public class EpgManagerWrapper {
         private List<Channel.EpgItem> list;
         private final LayoutInflater inflater;
         private int dayIndex;
-        private String currentNowStr; // 🟢 缓存当前时间字符串
+        private String currentNowStr;
         private final SimpleDateFormat sdfFull = new SimpleDateFormat("yyyyMMddHHmmss", Locale.CHINA);
 
-        // 🟢 复用单例 OnClickListener 避免重复 new
         private final View.OnClickListener actionClickListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -258,7 +283,6 @@ public class EpgManagerWrapper {
                 Channel.EpgItem item = actionTag.item;
                 String key = actionTag.key;
 
-                // 复用日历对象，减少 GC
                 if (actionTag.isPast) {
                     // 回看逻辑
                     try {
@@ -287,20 +311,12 @@ public class EpgManagerWrapper {
 
                         if (ctx instanceof MainActivity) {
                             MainActivity activity = (MainActivity) ctx;
-
-                            // 🔥【联动 1】关闭频道面板（通过公共访问器）
                             ChannelPanelController controller = activity.getChannelPanelController();
                             if (controller != null && controller.isPanelOpen()) {
                                 controller.hidePanel();
                             }
-
-                            // 🔴【联动 3】标记当前进入了回看模式
                             activity.setCatchUpMode(true);
-
-                            // 🔥【联动 4】触发 ExoPlayer 原生控制栏
                             activity.showExoController();
-
-                            // 播放回看流
                             activity.mPlayerManager.playUrl(catchUrl);
                         }
                         Toast.makeText(ctx, "回看：" + item.title, Toast.LENGTH_SHORT).show();
@@ -308,7 +324,6 @@ public class EpgManagerWrapper {
                         Toast.makeText(ctx, "回看失败", Toast.LENGTH_SHORT).show();
                     }
                 } else {
-                    // 预约/取消预约逻辑
                     if (bookedSet.contains(key)) {
                         bookedSet.remove(key);
                         Toast.makeText(ctx, "已取消预约", Toast.LENGTH_SHORT).show();
@@ -316,7 +331,6 @@ public class EpgManagerWrapper {
                         bookedSet.add(key);
                         Toast.makeText(ctx, "已预约：" + item.title, Toast.LENGTH_SHORT).show();
                     }
-                    // 🟢 改用局部更新，避免全量刷新掉帧
                     updateActionButtonState(v, actionTag);
                 }
             }
@@ -336,7 +350,7 @@ public class EpgManagerWrapper {
             this.list.clear();
             this.list.addAll(list);
             this.dayIndex = dayIndex;
-            this.currentNowStr = getNow(); // 缓存一次当前时间
+            this.currentNowStr = getNow();
             notifyDataSetChanged();
         }
 
@@ -365,7 +379,6 @@ public class EpgManagerWrapper {
             holder.tv_time.setText(item.time + "-" + endTime);
             holder.tv_title.setText(item.title);
 
-            // 重置样式
             holder.tv_dayName.setTextColor(Color.WHITE);
             holder.tv_time.setTextColor(Color.LTGRAY);
             holder.tv_title.setTextColor(Color.WHITE);
@@ -393,7 +406,6 @@ public class EpgManagerWrapper {
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
             
-            // 🟢 优化：缓存 now 字符串，避免重复获取
             if (dayIndex == 0) {
                 if (currentNowStr == null) currentNowStr = getNow();
                 try {
@@ -403,7 +415,6 @@ public class EpgManagerWrapper {
                 } catch (Exception ignored) {}
             }
 
-            // 🟢 构建保存 Tag，供复用监听器使用
             ItemActionTag tag = new ItemActionTag();
             tag.item = item;
             tag.key = key;
@@ -434,7 +445,6 @@ public class EpgManagerWrapper {
             return convertView;
         }
 
-        // 🟢 局部更新按钮状态，避免调用全局 notifyDataSetChanged
         private void updateActionButtonState(View rootView, ItemActionTag tag) {
             TextView actionBtn = rootView.findViewById(R.id.tv_action);
             if (actionBtn == null) return;
@@ -454,12 +464,10 @@ public class EpgManagerWrapper {
             TextView tv_action;
         }
 
-        // 🔧【修复】去掉 static 关键字，因为 ItemActionTag 定义在非静态内部类 EpgAdapter 内部
         private class ItemActionTag {
             Channel.EpgItem item;
             String key;
             boolean isPast;
         }
     }
-    // ================= 🛠️ 优化结束 =================
-}
+ }
