@@ -1,5 +1,6 @@
 package com.tv.live.manager;
 
+import android.annotation.SuppressLint; // ✅ 新增导入
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
@@ -12,6 +13,7 @@ import com.tv.live.PlayerGestureHelper;
 /**
  * 播放器控制栏管理器
  */
+@SuppressLint("UnsafeOptInUsageError") // ✅ 消除 Media3 不稳定 API 的 Lint 错误
 public class PlayerControlManager {
 
     private final MainActivity activity;
