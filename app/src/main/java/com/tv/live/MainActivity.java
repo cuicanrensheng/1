@@ -147,7 +147,6 @@ public class MainActivity extends AppCompatActivity {
         if (channelPanelController != null) {
             channelPanelController.setCurrentPlayIndex(currentPlayIndex);
         }
-        // 数字输入相关设置已移至 InfoDisplayManager，此处不再设置 remoteManager
 
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
@@ -460,9 +459,8 @@ public class MainActivity extends AppCompatActivity {
                         });
                     }
 
-                    if (remoteManager != null) {
-                        remoteManager.setTotalChannelCount(channelSourceList.size());
-                    }
+                    // ❌ 已删除 remoteManager.setTotalChannelCount(...) 因为数字输入已由 InfoDisplayManager 处理
+
                     if (!appCoreManager.hasPlayedWithCache()) {
                         if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                             Channel ch = channelSourceList.get(currentPlayIndex);
@@ -539,7 +537,6 @@ public class MainActivity extends AppCompatActivity {
         }
         
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
-        // 数字输入相关设置已在 initAppCoreManager 中通过 infoDisplayManager 设置
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epg_enable);
             channelPanelController.setReverse(channel_reverse);
