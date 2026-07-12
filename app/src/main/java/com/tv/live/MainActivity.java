@@ -86,11 +86,6 @@ public class MainActivity extends AppCompatActivity {
         return pipManager;
     }
 
-    // ✅ 新增：公开获取 PlayerView 的方法，供 ChannelPanelController 使用
-    public PlayerView getPlayerView() {
-        return playerView;
-    }
-
     private PlayerTouchListener touchListener;
     public PlayerTouchListener getTouchListener() {
         return touchListener;
@@ -393,6 +388,12 @@ public class MainActivity extends AppCompatActivity {
                 newPlayerView.setUseController(false);
                 playerControlManager.hideExoController();
             }
+
+            // ✅【方案三核心】PlayerView 重建后强制恢复焦点
+            newPlayerView.setFocusable(true);
+            newPlayerView.setFocusableInTouchMode(true);
+            newPlayerView.requestFocus();
+            Log.d("MainActivity", "PlayerView 重建完成，焦点已强制恢复");
         });
 
         mPlayerManager.attachPlayerView(playerView);
@@ -736,6 +737,7 @@ public class MainActivity extends AppCompatActivity {
                     playerView.setFocusable(true);
                     playerView.setFocusableInTouchMode(true);
                     playerView.requestFocus();
+                    Log.d("MainActivity", "onResume: 焦点已归还给 PlayerView");
                 }
             }
         } else {
@@ -778,4 +780,4 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
     }
-}
+ }
