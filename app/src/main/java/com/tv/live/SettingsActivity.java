@@ -460,15 +460,10 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPlayTogglePanel() {}
             @Override public void onPlayOpenSettings() {}
             @Override public boolean onPlayBack() { return false; }
-            @Override public void onPanelMoveUp() {}
-            @Override public void onPanelMoveDown() {}
-            @Override public void onPanelMoveLeft() {}
-            @Override public void onPanelMoveRight() {}
+            // ===== 已删除 onPanelMoveUp/Down/Left/Right/Number/FocusChanged，因为新版接口已移除 =====
             @Override public void onPanelConfirm() {}
             @Override public boolean onPanelBack() { return false; }
             @Override public void onPanelMenu() {}
-            @Override public void onPanelNumber(int number) {}
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
             @Override public void onSettingsMoveUp() { updateSettingsFocus(); }
             @Override public void onSettingsMoveDown() { updateSettingsFocus(); }
             @Override public void onSettingsConfirm() { int position = remoteManager.getSettingsFocusPosition(); handleSettingsItemClick(position); }
