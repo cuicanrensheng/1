@@ -2,7 +2,6 @@ package com.tv.live;
 
 import android.text.Spannable;
 import android.text.SpannableString;
-import android.text.style.ForegroundColorSpan;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -41,6 +40,9 @@ import java.util.List;
 
 /**
  * 设置页面 Activity
+ * 【已重构】完全使用 Android 原生焦点导航，不再手动管理焦点和样式。
+ * 布局 XML 中必须为每个可聚焦项添加 android:nextFocusUp/Down 等属性，
+ * 并确保具有 android:focusable="true"。
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
@@ -59,8 +61,6 @@ public class SettingsActivity extends AppCompatActivity {
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
     
     private SharedPreferences sp;
-    private TvRemoteManager remoteManager;
-    private List<View> settingsItemList = new ArrayList<>();
     private ScrollView scrollView;
     
     private BootStartManager bootStartManager;
@@ -83,58 +83,6 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
-    private Runnable focusUpdateRunnable;
-
-    // ===================== 设置页焦点管理 =====================
-    private int settingsFocusPosition = 0;
-    private int settingsItemCount = 0;
-
-    public void setSettingsItemCount(int count) {
-        this.settingsItemCount = count;
-        if (settingsFocusPosition >= count) {
-            settingsFocusPosition = count - 1;
-        }
-        if (settingsFocusPosition < 0) {
-            settingsFocusPosition = 0;
-        }
-    }
-
-    public int getSettingsItemCount() {
-        return settingsItemCount;
-    }
-
-    public int getSettingsFocusPosition() {
-        return settingsFocusPosition;
-    }
-
-    public void setSettingsFocusPosition(int position) {
-        if (position >= 0 && position < settingsItemCount) {
-            this.settingsFocusPosition = position;
-        }
-    }
-
-    public void resetSettingsFocus() {
-        settingsFocusPosition = 0;
-    }
-
-    public boolean handleSettingsMoveUp() {
-        if (settingsFocusPosition > 0) {
-            settingsFocusPosition--;
-            updateSettingsFocus();
-            return true;
-        }
-        return false;
-    }
-
-    public boolean handleSettingsMoveDown() {
-        if (settingsFocusPosition < settingsItemCount - 1) {
-            settingsFocusPosition++;
-            updateSettingsFocus();
-            return true;
-        }
-        return false;
-    }
-    // ============================================================
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -196,10 +144,8 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe = findViewById(R.id.item_live_subscribe);
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
-        initSettingsItemList();
-        // 设置选项总数，供焦点管理使用
-        setSettingsItemCount(settingsItemList.size());
-        initRemoteManager();
+        // 不再需要 initSettingsItemList() 和焦点管理，但为了保持点击事件仍然保留原点击监听
+        setupItemClickListeners();
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
         int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
@@ -263,6 +209,18 @@ public class SettingsActivity extends AppCompatActivity {
         if (epgManager.size() == 0) {
             epgManager.addSource("默认节目单", UrlConfig.EPG_URL);
         }
+
+        // ✅【重要】设置初始焦点为第一个可聚焦项
+        View firstItem = findViewById(R.id.item_boot);
+        if (firstItem != null) {
+            firstItem.requestFocus();
+        }
+    }
+
+    // ===================== 保留原有点击监听（不再管理焦点样式） =====================
+    private void setupItemClickListeners() {
+        // 所有点击监听已经在 onCreate 中逐个设置，这里仅作结构保留
+        // 如需统一处理，可在此添加，但当前保持原样。
     }
 
     private void showVersionInfoDialog() {
@@ -444,101 +402,6 @@ public class SettingsActivity extends AppCompatActivity {
             getWindow().getDecorView().setSystemUiVisibility(uiOptions);
         } catch (Exception e) {
         }
-    }
-
-    private android.util.SparseArray<TextView> itemTextViews = new android.util.SparseArray<>();
-
-    private void initSettingsItemList() {
-        settingsItemList.clear();
-        itemTextViews.clear();
-
-        settingsItemList.add(findViewById(R.id.item_boot));
-        settingsItemList.add(findViewById(R.id.item_reverse));
-        settingsItemList.add(findViewById(R.id.item_pip));
-        settingsItemList.add(findViewById(R.id.item_channel_line));
-        settingsItemList.add(findViewById(R.id.item_decoder));
-        settingsItemList.add(findViewById(R.id.item_renderer));
-        settingsItemList.add(findViewById(R.id.tv_screen_ratio));
-        settingsItemList.add(itemResolution);
-        settingsItemList.add(findViewById(R.id.item_redirect));
-        settingsItemList.add(itemLiveSubscribe);
-        settingsItemList.add(itemEpgSubscribe);
-        settingsItemList.add(findViewById(R.id.item_check_update));
-        settingsItemList.add(itemLog);
-        settingsItemList.add(itemVersionInfo);
-
-        for (int i = settingsItemList.size() - 1; i >= 0; i--) {
-            if (settingsItemList.get(i) == null) {
-                settingsItemList.remove(i);
-            }
-        }
-
-        for (int i = 0; i < settingsItemList.size(); i++) {
-            View view = settingsItemList.get(i);
-            if (view instanceof TextView) {
-                itemTextViews.put(i, (TextView) view);
-            } else if (view instanceof ViewGroup) {
-                TextView tv = findFirstTextView((ViewGroup) view);
-                if (tv != null) {
-                    itemTextViews.put(i, tv);
-                }
-            }
-        }
-
-        // ✅【优化】在 onFocusChange 中仅更新位置和样式，不再调用 updateSettingsFocus()
-        for (int i = 0; i < settingsItemList.size(); i++) {
-            final int position = i;
-            View item = settingsItemList.get(i);
-            if (item != null) {
-                item.setFocusableInTouchMode(true);
-                item.setOnFocusChangeListener((v, hasFocus) -> {
-                    if (hasFocus) {
-                        settingsFocusPosition = position;
-                        // 直接设置高亮样式，不触发 updateSettingsFocus() 避免循环
-                        setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
-                    } else {
-                        setItemStyle(item, "#FFFFFF", Typeface.NORMAL, Color.TRANSPARENT);
-                    }
-                });
-            }
-        }
-    }
-
-    private void initRemoteManager() {
-        remoteManager = new TvRemoteManager();
-        remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
-
-        remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
-            @Override public void onPlayChannelUp() {}
-            @Override public void onPlayChannelDown() {}
-            @Override public void onPlayTogglePanel() {}
-            @Override public void onPlayOpenSettings() {}
-            @Override public boolean onPlayBack() { return false; }
-
-            @Override public void onPanelConfirm() {}
-            @Override public boolean onPanelBack() { return false; }
-
-            // 将设置页的焦点移动委托给 SettingsActivity 自身
-            @Override public void onSettingsMoveUp() { handleSettingsMoveUp(); }
-            @Override public void onSettingsMoveDown() { handleSettingsMoveDown(); }
-            @Override public void onSettingsConfirm() { handleSettingsItemClick(settingsFocusPosition); }
-            @Override public boolean onSettingsBack() { finish(); return true; }
-            @Override public void onSettingsMenu() { finish(); }
-            @Override public void onSettingsFocusChanged(int position) {
-                setSettingsFocusPosition(position);
-                updateSettingsFocus();
-            }
-
-            @Override public boolean onPipBack() { return false; }
-            @Override public void onRequestPlayFocus() {}
-            @Override public void onChannelNumberSelected(int channelIndex) {}
-            @Override public void onShowChannelNumber(String number) {}
-            @Override public void onHideChannelNumber() {}
-        });
-
-        // 初始化焦点
-        resetSettingsFocus();
-        updateSettingsFocus();
     }
 
     private void initListeners() {
@@ -748,7 +611,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ✅【原生关闭】按下菜单/帮助/设置键直接关闭设置页
+    // ✅【原生关闭】按下菜单/帮助/设置键直接关闭设置页（其他键由系统焦点处理）
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
@@ -757,111 +620,22 @@ public class SettingsActivity extends AppCompatActivity {
                 finish();
                 return true;
             }
-            if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
-                return true;
-            }
         }
         return super.dispatchKeyEvent(event);
     }
 
     // ===== 已删除 onKeyDown，避免按键被二次处理 =====
-    // 原先 onKeyDown 中的拦截已移入 dispatchKeyEvent，此处仅保留 super 调用
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         return super.onKeyDown(keyCode, event);
     }
 
-    // 更新设置页焦点样式
-    private void updateSettingsFocus() {
-        if (settingsFocusPosition < 0 || settingsFocusPosition >= settingsItemList.size()) return;
-
-        View target = settingsItemList.get(settingsFocusPosition);
-        if (target == null) return;
-
-        for (int i = 0; i < settingsItemList.size(); i++) {
-            View item = settingsItemList.get(i);
-            if (item == null) continue;
-            if (i == settingsFocusPosition) {
-                setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
-            } else {
-                setItemStyle(item, "#FFFFFF", Typeface.NORMAL, Color.TRANSPARENT);
-            }
-        }
-
-        // 滚动到目标项并请求焦点
-        if (focusUpdateRunnable != null) {
-            mainHandler.removeCallbacks(focusUpdateRunnable);
-        }
-        focusUpdateRunnable = () -> {
-            scrollToView(target);
-            // ✅ 仅当目标尚未获得焦点时才请求，避免重复
-            if (!target.hasFocus()) {
-                target.requestFocus();
-            }
-        };
-        mainHandler.post(focusUpdateRunnable);
-    }
-
-    private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
-        item.setBackgroundColor(bgColor);
-        if (item instanceof TextView) {
-            TextView tv = (TextView) item;
-            tv.setTextColor(Color.parseColor(textColor));
-            tv.setTypeface(null, typefaceStyle);
-        } else {
-            int index = settingsItemList.indexOf(item);
-            TextView tv = null;
-            if (index >= 0 && itemTextViews != null) {
-                tv = itemTextViews.get(index);
-            }
-            if (tv == null) {
-                if (item instanceof ViewGroup) {
-                    tv = findFirstTextView((ViewGroup) item);
-                }
-            }
-            if (tv != null) {
-                tv.setTextColor(Color.parseColor(textColor));
-                tv.setTypeface(null, typefaceStyle);
-            }
-        }
-    }
-
-    private TextView findFirstTextView(ViewGroup viewGroup) {
-        if (viewGroup == null) return null;
-        for (int i = 0; i < viewGroup.getChildCount(); i++) {
-            View child = viewGroup.getChildAt(i);
-            if (child instanceof TextView) {
-                return (TextView) child;
-            } else if (child instanceof ViewGroup) {
-                TextView result = findFirstTextView((ViewGroup) child);
-                if (result != null) {
-                    return result;
-                }
-            }
-        }
-        return null;
-    }
-
-    private void scrollToView(View view) {
-        if (scrollView == null || view == null) return;
-        int viewTop = view.getTop();
-        int viewBottom = view.getBottom();
-        int scrollViewHeight = scrollView.getHeight();
-        int currScroll = scrollView.getScrollY();
-
-        if (viewTop < currScroll) {
-            scrollView.scrollTo(0, Math.max(0, viewTop - 50));
-        } else if (viewBottom > currScroll + scrollViewHeight) {
-            scrollView.scrollTo(0, viewBottom - scrollViewHeight + 50);
-        }
-    }
-
-    private void handleSettingsItemClick(int position) {
-        if (position < 0 || position >= settingsItemList.size()) return;
-        View item = settingsItemList.get(position);
-        if (item == null) return;
-        item.performClick();
-    }
+    // ============================================================
+    // 以下方法已移除：initSettingsItemList()、updateSettingsFocus()、
+    // setItemStyle()、findFirstTextView()、scrollToView()、handleSettingsItemClick()
+    // 以及所有手动焦点管理变量（settingsFocusPosition, settingsItemList, itemTextViews 等）
+    // 全部由系统焦点管理替代。
+    // ============================================================
 
     private void showRatioDialog() {
         final String[] ratios = {"全屏", "填充", "原始"};
@@ -1049,10 +823,6 @@ public class SettingsActivity extends AppCompatActivity {
             updateManager.release();
         }
         mainHandler.removeCallbacksAndMessages(null);
-        remoteManager = null;
-        settingsItemList.clear();
-        settingsItemList = null;
-        itemTextViews.clear();
-        itemTextViews = null;
+        // 不再需要 remoteManager 和 settingsItemList 的清理
     }
 }
