@@ -16,6 +16,10 @@ public class TvRemoteManager {
         void onPlayTogglePanel();
         void onPlayOpenSettings();
         boolean onPlayBack();
+        // 媒体键回调
+        void onPlayMediaPlayPause();
+        void onPlayMediaStop();
+        void onPlayInfo();
 
         void onPanelConfirm();
         boolean onPanelBack();
@@ -88,6 +92,9 @@ public class TvRemoteManager {
             return false;
         }
 
+        // ✅【按键修复】按键前同步模式，防止「面板已打开但模式还在 PLAY_MODE」的不一致
+        syncMode();
+
         boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
@@ -109,6 +116,7 @@ public class TvRemoteManager {
             return true;
         }
 
+        // 兜底：CHANNEL_PANEL_MODE 打开但模式未同步等边缘场景
         if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
             return true;
         }
@@ -182,9 +190,11 @@ public class TvRemoteManager {
     private boolean dispatchPlayKey(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_CHANNEL_UP:       // 媒体键：上一频道
                 if (listener != null) listener.onPlayChannelUp();
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_CHANNEL_DOWN:     // 媒体键：下一频道
                 if (listener != null) listener.onPlayChannelDown();
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
@@ -202,12 +212,30 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_BACK:
                 if (listener != null) return listener.onPlayBack();
                 return false;
+            // ===== 媒体键扩展支持 =====
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                if (listener != null) listener.onPlayMediaPlayPause();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_STOP:
+                if (listener != null) listener.onPlayMediaStop();
+                return true;
+            case KeyEvent.KEYCODE_INFO:
+            case KeyEvent.KEYCODE_TV:               // 部分遥控器「电视」键 = 显示信息条
+                if (listener != null) listener.onPlayInfo();
+                return true;
             default:
                 return false;
         }
     }
 
     private boolean dispatchChannelPanelKey(int keyCode) {
+        // ✅【核心修复】CHANNEL_PANEL_MODE 自行处理上下左右键，不再依赖兜底 fallback
+        // 直接委托给 ChannelPanelController.dispatchKeyEvent（里面已经完整处理滚动/左右切换）
+        if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
+            return true;
+        }
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -241,6 +269,10 @@ public class TvRemoteManager {
                 return false;
             case KeyEvent.KEYCODE_MENU:
                 if (listener != null) listener.onSettingsMenu();
+                return true;
+            // ✅【按键修复】DPAD_LEFT / DPAD_RIGHT 在设置页统一消费，避免焦点飞出 ScrollView
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
                 return true;
             default:
                 return false;
