@@ -1,26 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 遥控器按键获得焦点时 -->
+    <!-- 聚焦/选中/按下时蓝色高亮（不变） -->
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="#3340A9FF" />
             <corners android:radius="6dp" />
         </shape>
     </item>
-    <!-- ✅ 新增：手机触摸点击（按下）时 -->
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <solid android:color="#3340A9FF" />
             <corners android:radius="6dp" />
         </shape>
     </item>
-    <!-- 选中状态 -->
     <item android:state_selected="true">
         <shape android:shape="rectangle">
             <solid android:color="#3340A9FF" />
             <corners android:radius="6dp" />
         </shape>
     </item>
-    <!-- 默认状态：完全透明 -->
-    <item android:drawable="@android:color/transparent" />
+    <!-- ✅ 默认状态：改成和外框一样的半透明深色 #B30A0A1A -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#B30A0A1A" />
+        </shape>
+    </item>
 </selector>
