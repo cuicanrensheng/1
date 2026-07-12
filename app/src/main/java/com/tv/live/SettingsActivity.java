@@ -85,7 +85,7 @@ public class SettingsActivity extends AppCompatActivity {
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable focusUpdateRunnable;
 
-    // ===================== 新增：设置页焦点管理 =====================
+    // ===================== 设置页焦点管理 =====================
     private int settingsFocusPosition = 0;
     private int settingsItemCount = 0;
 
@@ -485,18 +485,19 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
+        // ✅【优化】在 onFocusChange 中仅更新位置和样式，不再调用 updateSettingsFocus()
         for (int i = 0; i < settingsItemList.size(); i++) {
             final int position = i;
             View item = settingsItemList.get(i);
             if (item != null) {
                 item.setFocusableInTouchMode(true);
                 item.setOnFocusChangeListener((v, hasFocus) -> {
-                    if (hasFocus && remoteManager != null) {
-                        // 当焦点变化时，更新本地的焦点位置
-                        if (settingsFocusPosition != position) {
-                            settingsFocusPosition = position;
-                            updateSettingsFocus();
-                        }
+                    if (hasFocus) {
+                        settingsFocusPosition = position;
+                        // 直接设置高亮样式，不触发 updateSettingsFocus() 避免循环
+                        setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
+                    } else {
+                        setItemStyle(item, "#FFFFFF", Typeface.NORMAL, Color.TRANSPARENT);
                     }
                 });
             }
@@ -506,9 +507,6 @@ public class SettingsActivity extends AppCompatActivity {
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
-        // 不再通过 remoteManager 管理焦点，而是由 SettingsActivity 自身管理
-        // remoteManager 只需要知道设置项个数，用于分发按键
-        // 我们已经在本 Activity 中设置了 itemCount
 
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
             @Override public void onPlayChannelUp() {}
@@ -790,12 +788,16 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
+        // 滚动到目标项并请求焦点
         if (focusUpdateRunnable != null) {
             mainHandler.removeCallbacks(focusUpdateRunnable);
         }
         focusUpdateRunnable = () -> {
             scrollToView(target);
-            target.requestFocus();
+            // ✅ 仅当目标尚未获得焦点时才请求，避免重复
+            if (!target.hasFocus()) {
+                target.requestFocus();
+            }
         };
         mainHandler.post(focusUpdateRunnable);
     }
