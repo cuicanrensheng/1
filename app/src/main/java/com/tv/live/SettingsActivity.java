@@ -707,11 +707,10 @@ public class SettingsActivity extends AppCompatActivity {
         return super.dispatchKeyEvent(event);
     }
 
+    // ===== 已删除 onKeyDown，避免按键被二次处理 =====
+    // 原先 onKeyDown 中的拦截已移入 dispatchKeyEvent，此处仅保留 super 调用
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
-            return true;
-        }
         return super.onKeyDown(keyCode, event);
     }
 
