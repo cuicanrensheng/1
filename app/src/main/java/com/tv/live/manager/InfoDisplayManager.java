@@ -5,6 +5,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
+import android.view.KeyEvent;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -22,12 +23,15 @@ import java.util.Locale;
 
 /**
  * 信息展示管理器【优化版：彻底隔离主线程与EPG计算】
+ * 整合数字输入管理（原 TvRemoteManager 中的相关逻辑）
  */
 public class InfoDisplayManager {
     // ===================== 定时延时常量 =====================
     private static final long INFO_BAR_HIDE_DELAY = 3000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
     private static final long PROGRAM_PROGRESS_INTERVAL = 30000;
+    // 新增：数字输入超时
+    private static final long CHANNEL_NUM_INPUT_TIMEOUT = 2000;
 
     // ===================== UI控件引用 =====================
     private Context context;
@@ -50,6 +54,7 @@ public class InfoDisplayManager {
     // 🟢【新增】释放状态标记，防止销毁后继续更新 UI
     private boolean isReleased = false;
 
+    // ========== 原有任务 ==========
     private final Runnable hideInfoBarTask = new Runnable() {
         @Override
         public void run() {
@@ -75,6 +80,22 @@ public class InfoDisplayManager {
             mainHandler.postDelayed(this, PROGRAM_PROGRESS_INTERVAL);
         }
     };
+
+    // ========== 新增：数字输入相关 ==========
+    private final StringBuilder channelNumInput = new StringBuilder();
+    private int totalChannelCount = 0;
+    private OnChannelNumberSelectedListener numberSelectedListener;
+
+    private final Runnable channelNumConfirmRunnable = new Runnable() {
+        @Override
+        public void run() {
+            confirmChannelNum();
+        }
+    };
+
+    public interface OnChannelNumberSelectedListener {
+        void onChannelNumberSelected(int channelIndex);
+    }
 
     // ===================== 构造方法 =====================
     public InfoDisplayManager(Context context,
@@ -105,6 +126,73 @@ public class InfoDisplayManager {
         this.tvNextTimeRange = tvNextTimeRange;
         if(tvTagAudio != null){
             tvTagAudio.setText("立体声");
+        }
+    }
+
+    // ===================== 新增：数字输入管理 =====================
+    public void setTotalChannelCount(int count) {
+        this.totalChannelCount = count;
+    }
+
+    public void setOnChannelNumberSelectedListener(OnChannelNumberSelectedListener listener) {
+        this.numberSelectedListener = listener;
+    }
+
+    public boolean isNumberInputting() {
+        return channelNumInput.length() > 0;
+    }
+
+    public boolean handleNumberKey(int keyCode) {
+        if (tvChannelNum == null) return false;
+        int num = keyCodeToNumber(keyCode);
+        if (num == -1) return false;
+        channelNumInput.append(num);
+        // 复用原有显示方法
+        showChannelNum(Integer.parseInt(channelNumInput.toString()));
+        mainHandler.removeCallbacks(channelNumConfirmRunnable);
+        mainHandler.postDelayed(channelNumConfirmRunnable, CHANNEL_NUM_INPUT_TIMEOUT);
+        return true;
+    }
+
+    public void confirmChannelNum() {
+        if (channelNumInput.length() == 0) return;
+        try {
+            int channelNum = Integer.parseInt(channelNumInput.toString());
+            if (channelNum >= 1 && channelNum <= totalChannelCount) {
+                int index = channelNum - 1;
+                if (numberSelectedListener != null) {
+                    numberSelectedListener.onChannelNumberSelected(index);
+                }
+            }
+        } catch (NumberFormatException ignored) {
+        }
+        channelNumInput.setLength(0);
+        // 延迟隐藏数字提示（复用原有 hideChannelNumTask）
+        mainHandler.removeCallbacks(hideChannelNumTask);
+        mainHandler.postDelayed(hideChannelNumTask, 1000);
+    }
+
+    public void cancelNumberInput() {
+        if (channelNumInput.length() > 0) {
+            channelNumInput.setLength(0);
+            mainHandler.removeCallbacks(channelNumConfirmRunnable);
+            hideChannelNum();
+        }
+    }
+
+    private int keyCodeToNumber(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_0: return 0;
+            case KeyEvent.KEYCODE_1: return 1;
+            case KeyEvent.KEYCODE_2: return 2;
+            case KeyEvent.KEYCODE_3: return 3;
+            case KeyEvent.KEYCODE_4: return 4;
+            case KeyEvent.KEYCODE_5: return 5;
+            case KeyEvent.KEYCODE_6: return 6;
+            case KeyEvent.KEYCODE_7: return 7;
+            case KeyEvent.KEYCODE_8: return 8;
+            case KeyEvent.KEYCODE_9: return 9;
+            default: return -1;
         }
     }
 
@@ -495,6 +583,9 @@ public class InfoDisplayManager {
         tvRemainingTime = null;
         tvNextProgramName = null;
         tvNextTimeRange = null;
+        // 新增：清空数字输入相关
+        channelNumInput.setLength(0);
+        numberSelectedListener = null;
     }
 
     // ============================================================
