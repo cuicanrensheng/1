@@ -40,6 +40,10 @@ public class TvRemoteManager {
     private boolean isInPipMode = false;
     private ChannelPanelController channelPanelController;
 
+    // ✅ 恢复数字输入相关的成员变量（虽然不再使用，但保留以兼容旧调用）
+    private boolean numberChannelEnable = true;
+    private int totalChannelCount = 0;
+
     public TvRemoteManager() {
     }
 
@@ -61,6 +65,16 @@ public class TvRemoteManager {
 
     public void setChannelPanelController(ChannelPanelController controller) {
         this.channelPanelController = controller;
+    }
+
+    // ✅ 恢复 setNumberChannelEnable
+    public void setNumberChannelEnable(boolean enable) {
+        this.numberChannelEnable = enable;
+    }
+
+    // ✅ 恢复 setTotalChannelCount
+    public void setTotalChannelCount(int count) {
+        this.totalChannelCount = count;
     }
 
     public boolean dispatchKeyEvent(int keyCode) {
@@ -95,8 +109,6 @@ public class TvRemoteManager {
             return true;
         }
 
-        // 数字输入已移至 InfoDisplayManager，此处不再处理
-        // 但为了保持兼容，仍调用 channelPanelController.dispatchKeyEvent
         if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
             return true;
         }
@@ -108,7 +120,6 @@ public class TvRemoteManager {
         if (isInPipMode) {
             return false;
         }
-        // 所有长按交由 MainActivity.onKeyLongPress 处理
         return false;
     }
 
