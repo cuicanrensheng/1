@@ -1,6 +1,6 @@
 package com.tv.live;
 
-import android.annotation.SuppressLint; // 🟢 已导入
+import android.annotation.SuppressLint;
 import android.widget.Toast;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -17,7 +17,6 @@ import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
-import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 
@@ -42,7 +41,7 @@ import androidx.media3.exoplayer.trackselection.MappingTrackSelector;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
-import androidx.core.content.ContextCompat; // 🔧 新增导入
+import androidx.core.content.ContextCompat;
 
 import com.tv.live.util.NetUtil;
 import com.tv.live.exception.RedirectFailedException;
@@ -67,9 +66,6 @@ import javax.net.ssl.HttpsURLConnection;
 
 import okhttp3.Headers;
 
-// 🟢【两个关键修复】
-// 1. @SuppressLint("UnsafeOptInUsageError") - 解决 Media3 不稳定 API 的 Lint 错误
-// 2. @SuppressLint("StaticFieldLeak") - 消除静态 Context 持有警告（ApplicationContext 安全）
 @SuppressLint({"UnsafeOptInUsageError", "StaticFieldLeak"})
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
@@ -139,31 +135,31 @@ public class TVPlayerManager {
 
     private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
-    // 修复：记录当前已应用的渲染器类型（texture=true / surface=false），
-    // 用于在 attachPlayerView / 广播切换时避免无差别地重建 PlayerView
     private Boolean mCurrentUseTexture = null;
 
-    // 清晰度相关
     private final Object variantListLock = new Object();
     private volatile List<Variant> variantList = new ArrayList<>();
     private volatile boolean isParsingMasterPlaylist = false;
 
     private SharedPreferences sp;
 
-    // 解析主播放列表使用的单线程池，避免 new Thread 泛滥
     private static final ExecutorService sPlaylistExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "TVPlayer-PlaylistParser");
         t.setDaemon(true);
         return t;
     });
 
-    // 清晰度实体类
+    // 🔴 新增：用于前后台切换花屏修复
+    private long lastPlaybackPosition = 0;
+    private boolean lastPlayWhenReady = true;
+    private boolean selfHealAttempted = false; // 解码器自愈限流标志
+
     public static class Variant {
         public String url;
         public int bandwidth;
         public int width;
         public int height;
-        public String resolutionLabel; // 如 "720p", "1080p"
+        public String resolutionLabel;
 
         Variant(String url, int bandwidth, int width, int height) {
             this.url = url;
@@ -208,7 +204,6 @@ public class TVPlayerManager {
             @Override
             public void run() {
                 if (player == null || !player.isPlaying()) {
-                    // 修复：暂停/播放未就绪时重置卡死检测状态，避免恢复播放后立刻被误判为卡死
                     lastPosition = 0;
                     lastPositionUpdateTime = System.currentTimeMillis();
                     mHandler.postDelayed(this, 2000);
@@ -247,8 +242,6 @@ public class TVPlayerManager {
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
         SoftwareFirstMediaCodecSelector codecSelector = new SoftwareFirstMediaCodecSelector(mDecoderMode);
         renderersFactory.setMediaCodecSelector(codecSelector);
-        // ✅ 双重兜底：第一个被选中的解码器初始化失败时，自动回退到下一个候选
-        //    配合黑名单过滤，最大程度避免 Androws / c2.intel.goldfish.* 等 Error 0x80000000
         renderersFactory.setEnableDecoderFallback(true);
 
         switch (mDecoderMode) {
@@ -289,7 +282,6 @@ public class TVPlayerManager {
         }
 
         initPlayerListener();
-        // 修复：CookieSyncManager 在 API 21+ 已废弃，CookieManager 会自动同步
         CookieManager.getInstance().setAcceptCookie(true);
     }
 
@@ -301,11 +293,6 @@ public class TVPlayerManager {
         return lowerName.startsWith("omx.google.") || lowerName.startsWith("c2.android.");
     }
 
-    /**
-     * 修复：更可靠的 HLS URL 判断——只看 URL 的 path 部分是否以 .m3u8 结尾，
-     * 避免 URL 查询参数包含 "m3u8" 时误判（如 ?debug=m3u8）。
-     * 兼容带 query 的地址：http://x.com/stream.m3u8?token=xxx
-     */
     private static boolean isHlsUrl(String url) {
         if (TextUtils.isEmpty(url)) return false;
         try {
@@ -313,10 +300,8 @@ public class TVPlayerManager {
             String path = uri.getPath();
             if (TextUtils.isEmpty(path)) return false;
             String lower = path.toLowerCase(Locale.ROOT);
-            // 兼容 m3u8 和 variant m3u8
             return lower.endsWith(".m3u8") || lower.endsWith(".m3u");
         } catch (Exception e) {
-            // URI 解析失败回退到原始但更严格的 contains（针对 path-like 段）
             String lower = url.toLowerCase(Locale.ROOT);
             int q = lower.indexOf('?');
             String beforeQuery = q >= 0 ? lower.substring(0, q) : lower;
@@ -330,26 +315,38 @@ public class TVPlayerManager {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放异常: " + error.getMessage());
-                // 修复：配合 performDecoderSwitch，发生错误时也重置切换状态
                 isSwitching = false;
 
-                Throwable rootCause = error.getCause();
-                boolean isRedirectError = false;
-                // 修复：增加遍历深度限制，防御异常 cause 链循环
+                // 🔴 判断是否为解码器崩溃/初始化失败
+                boolean isDecoderError = false;
+                if (error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
+                    error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED) {
+                    isDecoderError = true;
+                }
+                Throwable cause = error.getCause();
                 int depth = 0;
-                while (rootCause != null && depth < 20) {
-                    if (rootCause instanceof RedirectFailedException) {
-                        isRedirectError = true;
+                while (cause != null && depth < 10) {
+                    if (cause instanceof MediaCodec.CodecException) {
+                        isDecoderError = true;
                         break;
                     }
-                    rootCause = rootCause.getCause();
+                    cause = cause.getCause();
                     depth++;
                 }
 
-                // 修复：先处理内部逻辑（切备源/通知源失效），最后再通知外部，
-                // 避免外部在 onPlayError 中 release 或 setState 打断内部流程
+                // 🔴 解码器自愈逻辑（仅执行1次）
+                if (isDecoderError && !selfHealAttempted) {
+                    selfHealAttempted = true;
+                    Log.i(TAG, "触发解码器自愈：重建MediaCodec实例，强制刷新");
+                    long currentPos = (player != null) ? player.getCurrentPosition() : 0;
+                    long seekPos = Math.max(0, currentPos - 200);
+                    playUrlInternal(currentUrl, seekPos);
+                    return;
+                }
+
+                // 🔴 原有备用源切换/失败通知
                 boolean backupSwitched = false;
-                if (!isRedirectError) {
+                if (!isDecoderError) {
                     backupSwitched = trySwitchBackup();
                 }
 
@@ -370,7 +367,6 @@ public class TVPlayerManager {
                     updateWakeLock(true);
                     notifyLiveInfoUpdate();
                     showChannelAndAutoHide();
-                    // 修复：播放就绪时重置 isSwitching 切换状态
                     isSwitching = false;
                     if (listener != null) listener.onPlayReady();
                     retryCount = 0;
@@ -391,7 +387,6 @@ public class TVPlayerManager {
                     if (listener != null) listener.onPlayEnd();
                     autoRetry("播放结束");
                 } else if (state == Player.STATE_IDLE) {
-                    // 修复：STATE_IDLE 时同样清理切换状态（prepare 失败或 stop 后）
                     isSwitching = false;
                     if (listener != null) listener.onIdle();
                     updateWakeLock(false);
@@ -459,13 +454,11 @@ public class TVPlayerManager {
         isRetrying = false;
     }
 
-    // 修复：新增重载，优先使用 Throwable 判断重定向错误，不再依赖脆弱的字符串匹配
     private void autoRetry(String reason) {
         autoRetry(reason, null);
     }
 
     private void autoRetry(String reason, Throwable cause) {
-        // 优先基于异常类型判断是否为重定向失败（最可靠）
         if (cause != null) {
             Throwable t = cause;
             int depth = 0;
@@ -475,7 +468,6 @@ public class TVPlayerManager {
                 depth++;
             }
         }
-        // 兼容旧调用：仅传字符串时做严格判断（不再含含糊的"重定向"中文词）
         if (cause == null && reason != null && reason.contains("RedirectFailedException")) {
             return;
         }
@@ -504,6 +496,7 @@ public class TVPlayerManager {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
         dLog("手动切换解码器模式：" + mode);
+        selfHealAttempted = false; // 🔴 重置自愈标志
         if (player != null) performDecoderSwitch();
     }
 
@@ -514,7 +507,6 @@ public class TVPlayerManager {
         }
         isSwitching = true;
         long currentPosition = player != null ? player.getCurrentPosition() : 0;
-        // 修复：删除未使用的 wasPlaying 死代码
 
         try {
             mHandler.removeCallbacks(stuckCheckRunnable);
@@ -541,8 +533,6 @@ public class TVPlayerManager {
                         playerView.setPlayer(player);
                     }
                 } finally {
-                    // 修复：只有在没有 URL 需要重播时，才在这里重置 isSwitching
-                    // 如果有 URL，等播放状态回调（STATE_READY/onPlayerError）或超时再重置
                     if (!hasUrl) isSwitching = false;
                 }
             });
@@ -550,6 +540,7 @@ public class TVPlayerManager {
         if (hasUrl) {
             retryCount = 0;
             isRetrying = false;
+            selfHealAttempted = false; // 🔴 重置自愈标志
 
             if (mDecoderMode == DECODER_MODE_SOFT) {
                 Toast.makeText(context, "已切换至 软解模式", Toast.LENGTH_SHORT).show();
@@ -560,7 +551,6 @@ public class TVPlayerManager {
             }
 
             playUrlInternal(currentUrl, currentPosition);
-            // 修复：增加兜底超时恢复 isSwitching，避免极端情况下永远卡在切换中
             mHandler.postDelayed(() -> { isSwitching = false; }, 30000);
         } else if (playerView == null) {
             isSwitching = false;
@@ -571,7 +561,6 @@ public class TVPlayerManager {
         return mDecoderMode;
     }
 
-    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
         try {
@@ -610,21 +599,17 @@ public class TVPlayerManager {
     }
 
     private void switchRenderer(boolean useTexture) {
-        // 修复：player 为 null 时直接返回，避免 NPE
         if (player == null || playerView == null || context == null) return;
-        // 修复：如果当前已是目标渲染模式，直接跳过，避免无差别重建 PlayerView
         if (mCurrentUseTexture != null && mCurrentUseTexture == useTexture) {
             if (playerView.getPlayer() != player) playerView.setPlayer(player);
             return;
         }
-        // 修复：父容器泛化为 ViewGroup，不再强转 FrameLayout，兼容任何布局
         ViewParent rawParent = playerView.getParent();
         if (!(rawParent instanceof ViewGroup)) return;
         ViewGroup parent = (ViewGroup) rawParent;
 
         View blackMask = new View(context);
         blackMask.setBackgroundColor(Color.BLACK);
-        // 使用通用 ViewGroup.LayoutParams，兼容所有父容器类型
         ViewGroup.LayoutParams maskParams = new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         parent.addView(blackMask, maskParams);
@@ -683,12 +668,10 @@ public class TVPlayerManager {
             blackMask.animate().alpha(0f).setDuration(250).withEndAction(() -> parentFinal.removeView(blackMask)).start();
         }, 100);
 
-        // 修复：记录当前生效的渲染模式，下次调用时可短路跳过
         mCurrentUseTexture = useTexture;
         isRenderingSwitching = false;
     }
 
-    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -774,6 +757,7 @@ public class TVPlayerManager {
         cancelRetry();
         retryCount = 0;
         isRetrying = false;
+        selfHealAttempted = false; // 🔴 每次正常播放重置自愈标志
         initialPlayStartTime = 0;
         resetPerformanceStats();
         playUrlInternal(url, 0);
@@ -878,7 +862,6 @@ public class TVPlayerManager {
                 if (listener != null) listener.onPlayError("源跳转失败：" + e.getMessage());
                 return;
             }
-            // 修复：传入异常对象，autoRetry 基于类型判断重定向错误而非字符串
             autoRetry("播放异常：" + e.getMessage(), e);
         }
     }
@@ -891,7 +874,6 @@ public class TVPlayerManager {
             try {
                 dLog("开始解析主播放列表: " + masterUrl);
                 URL url = new URL(masterUrl);
-                // 修复：改为通用 HttpURLConnection，同时支持 http:// 和 https://
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setConnectTimeout(5000);
                 connection.setReadTimeout(5000);
@@ -900,7 +882,6 @@ public class TVPlayerManager {
                 if (cookies != null) connection.setRequestProperty("Cookie", cookies);
 
                 StringBuilder content = new StringBuilder();
-                // 修复：try-with-resources 确保 InputStream/BufferedReader 异常时也关闭
                 try (InputStream is = connection.getInputStream();
                      BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
                     String line;
@@ -926,8 +907,6 @@ public class TVPlayerManager {
 
     private void parseMasterPlaylist(String playlist, String baseUrl) {
         List<Variant> list = new ArrayList<>();
-        // 修复：拆分正则——先找 STREAM-INF 行，再分别提取 BANDWIDTH/RESOLUTION，
-        // 不再依赖两者在属性中的先后顺序，符合 HLS 规范。
         Pattern streamInfPattern = Pattern.compile("^#EXT-X-STREAM-INF:", Pattern.CASE_INSENSITIVE);
         Pattern bandwidthPattern = Pattern.compile("BANDWIDTH=(\\d+)", Pattern.CASE_INSENSITIVE);
         Pattern resolutionPattern = Pattern.compile("RESOLUTION=(\\d+)x(\\d+)", Pattern.CASE_INSENSITIVE);
@@ -939,7 +918,7 @@ public class TVPlayerManager {
             if (!streamInfPattern.matcher(line).find()) continue;
 
             Matcher bwMatcher = bandwidthPattern.matcher(line);
-            if (!bwMatcher.find()) continue; // STREAM-INF 必须有 BANDWIDTH，否则跳过
+            if (!bwMatcher.find()) continue;
             int bandwidth = Integer.parseInt(bwMatcher.group(1));
 
             int width = 0, height = 0;
@@ -1095,14 +1074,9 @@ public class TVPlayerManager {
         return info;
     }
 
-    /**
-     * 修复：把媒体 MIME 类型映射成用户友好的可读名称。
-     * 未识别的类型返回原值（避免信息丢失）。
-     */
     private static String friendlyMime(String mimeType) {
         if (TextUtils.isEmpty(mimeType)) return "未知";
         String m = mimeType.toLowerCase(Locale.ROOT);
-        // ---- 视频 ----
         if (m.contains("avc") || m.contains("h264") || m.endsWith("/264")) return "H.264";
         if (m.contains("hevc") || m.contains("h265")) return "H.265 (HEVC)";
         if (m.contains("av1")) return "AV1";
@@ -1111,7 +1085,6 @@ public class TVPlayerManager {
         if (m.contains("mpeg2") || m.contains("mp2v")) return "MPEG-2";
         if (m.contains("mpeg4") || m.contains("mp4v")) return "MPEG-4";
         if (m.contains("wmv")) return "WMV";
-        // ---- 音频 ----
         if (m.contains("mp4a") || m.contains("aac") || m.contains("mpeg4-generic")) return "AAC";
         if (m.contains("ac3")) return "AC-3";
         if (m.contains("eac3") || m.contains("ec3")) return "E-AC-3 (Dolby Digital Plus)";
@@ -1162,9 +1135,6 @@ public class TVPlayerManager {
         } catch (Exception ignored) {}
     }
 
-    /**
-     * 切换播放/暂停状态（DPAD_CENTER 长按、媒体键调用）
-     */
     public void togglePlayWhenReady() {
         try {
             if (player == null) return;
@@ -1183,6 +1153,32 @@ public class TVPlayerManager {
                     && player.getPlaybackState() != androidx.media3.common.Player.STATE_ENDED;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    // 🔴 新增：前台切后台（非PIP模式）
+    public void onBackgroundNoPip() {
+        if (player == null) return;
+        lastPlaybackPosition = player.getCurrentPosition();
+        lastPlayWhenReady = player.getPlayWhenReady();
+        player.pause();
+        if (playerView != null) {
+            playerView.setPlayer(null); // 强制释放旧Surface引用
+        }
+    }
+
+    // 🔴 新增：后台切前台（非PIP模式）
+    public void onForegroundRestore() {
+        if (player == null || playerView == null) return;
+        playerView.setPlayer(player);
+        player.setPlayWhenReady(lastPlayWhenReady);
+        long seekPos = lastPlaybackPosition - 200;
+        if (seekPos < 0) seekPos = 0;
+        player.seekTo(seekPos); // 强制请求IDR帧
+        if (lastPlayWhenReady) {
+            player.play();
+        } else {
+            player.pause();
         }
     }
 
@@ -1206,28 +1202,18 @@ public class TVPlayerManager {
                 playerView.setPlayer(null);
                 playerView = null;
             }
-            // 修复：instance = null 必须放在所有清理动作的最后，
-            // 防止其他线程在清理中途创建新实例造成状态混乱
             instance = null;
         } catch (Exception e) {
             Log.e(TAG, "释放异常", e);
         }
     }
 
-    // ======================================================================
-    // 解码策略（TDD 单元测试可直接调用）
-    //   应用顺序：先过滤【不稳定硬件解码器黑名单】，再按 mode 排序/筛选
-    //   目的：修复 Androws 模拟器上 c2.intel.goldfish.h264.decoder 崩溃（Error 0x80000000）
-    // ======================================================================
-
-    /** Androws / Hyper-V 模拟器里的"假硬解"，实际不稳定且会抛 0x80000000 */
     private static final String[] UNSTABLE_HARDWARE_BLACKLIST_LOWER = new String[] {
-            "c2.intel.goldfish.",      // Androws / 腾讯移动应用引擎 Intel Goldfish 硬解（100% 复现 0x80000000）
-            "omx.google.android.",     // Google 官方也把它标成 hardware，实际是纯软件模拟，慢又易崩
-            "c2.amlogic.avc.decoder.awesome",  // 部分晶晨盒子驱动有 bug，需手动黑名单（可按实际情况增删）
+            "c2.intel.goldfish.",
+            "omx.google.android.",
+            "c2.amlogic.avc.decoder.awesome",
     };
 
-    /** @return true 表示这个编解码器名字命中黑名单 */
     static boolean isUnstableHardwareDecoder(String codecName) {
         if (codecName == null) return false;
         String lower = codecName.toLowerCase(Locale.ROOT);
@@ -1237,17 +1223,9 @@ public class TVPlayerManager {
         return false;
     }
 
-    /**
-     * 包私有（测试可直接调用）：对外公开的解码器过滤 + 排序策略
-     *
-     * @param allCodecs MediaCodecUtil.getDecoderInfos 返回的原始列表
-     * @param mode      DECODER_MODE_AUTO / DECODER_MODE_SOFT / DECODER_MODE_HARD
-     * @return 处理后的解码器列表
-     */
     static List<MediaCodecInfo> applyCodecPolicy(List<MediaCodecInfo> allCodecs, int mode) {
         if (allCodecs == null || allCodecs.isEmpty()) return allCodecs;
 
-        // Step 1: 所有模式先过一次黑名单（去掉 goldfish 等不稳定假硬件）
         List<MediaCodecInfo> afterBlacklist = new ArrayList<>();
         for (MediaCodecInfo codec : allCodecs) {
             if (codec == null) continue;
@@ -1255,14 +1233,11 @@ public class TVPlayerManager {
             afterBlacklist.add(codec);
         }
         if (afterBlacklist.isEmpty()) {
-            // 兜底：黑名单后没有候选了——退回原始列表（避免完全无解码器可用）
             afterBlacklist = new ArrayList<>(allCodecs);
         }
 
-        // Step 2: 按 mode 分类处理
         switch (mode) {
             case DECODER_MODE_HARD: {
-                // 只要硬件解码器（同时再次保留黑名单结果）
                 List<MediaCodecInfo> hard = new ArrayList<>();
                 for (MediaCodecInfo codec : afterBlacklist) {
                     if (!isSoftwareDecoder(codec)) hard.add(codec);
@@ -1270,7 +1245,6 @@ public class TVPlayerManager {
                 return hard.isEmpty() ? afterBlacklist : hard;
             }
             case DECODER_MODE_SOFT: {
-                // 软件排前，硬件兜底放末尾
                 List<MediaCodecInfo> soft = new ArrayList<>();
                 List<MediaCodecInfo> hard = new ArrayList<>();
                 for (MediaCodecInfo codec : afterBlacklist) {
