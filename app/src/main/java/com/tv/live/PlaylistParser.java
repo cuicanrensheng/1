@@ -81,8 +81,9 @@ public class PlaylistParser {
 
                 Channel existing = channelMap.get(key);
                 if (existing != null) {
-                    // 🚫 已取消：当主源无效时自动跳转备用源
-                    // existing.addBackupUrl(uri); 
+                    // ✅【核心修改】取消注释！将重复解析到的备用源地址添加到列表中
+                    // 仅仅做存储，完全不影响播放器自动选择逻辑，备用源留给用户手动切换
+                    existing.addBackupUrl(uri); 
                     
                     // 🟢【核心修改】只要解析到有效的分组名称，就无条件覆盖旧分组！
                     if (group != null && !group.isEmpty()) {
