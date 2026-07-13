@@ -32,7 +32,7 @@
         android:orientation="vertical"
         android:gravity="center_horizontal">
 
-        <!-- 休息一会 -->
+        <!-- 确认退出（核心修改：替换为 Tint 浅蓝色） -->
         <Button
             android:id="@+id/btn_rest"
             android:layout_width="match_parent"
@@ -40,12 +40,13 @@
             android:text="确认退出"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
-            android:background="@drawable/exit_btn_bg"
             android:layout_marginBottom="12dp"
             android:focusable="true"
-            android:clickable="true" />
+            android:clickable="true"
+            android:backgroundTint="#6699FF"
+            android:backgroundTintMode="src_over" />
 
-        <!-- 设置选项 -->
+        <!-- 设置选项（核心修改：替换为 Tint 浅蓝色） -->
         <Button
             android:id="@+id/btn_settings"
             android:layout_width="match_parent"
@@ -53,9 +54,11 @@
             android:text="设置选项"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
-            android:background="@drawable/exit_btn_bg"
             android:focusable="true"
-            android:clickable="true" />
+            android:clickable="true"
+            android:layout_marginTop="0dp"
+            android:backgroundTint="#6699FF"
+            android:backgroundTintMode="src_over" />
 
         <!-- 版本信息小字 -->
         <TextView
