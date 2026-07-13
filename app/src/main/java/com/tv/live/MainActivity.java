@@ -638,7 +638,7 @@ public class MainActivity extends AppCompatActivity {
     public void playNext() { channelPanelController.playNext(); }
 
     // ============================================================
-    // ✅ 退出确认菜单（完全复刻截图样式）- 已整合所有修复
+    // ✅ 退出确认菜单（完全复刻截图样式）- 已修复顺序错误
     // ============================================================
     public void showExitMenu() {
         // 如果已经显示，就不重复打开
@@ -653,20 +653,40 @@ public class MainActivity extends AppCompatActivity {
         Button btnRest = view.findViewById(R.id.btn_rest);
         Button btnSettings = view.findViewById(R.id.btn_settings);
 
-        // ✅【修复1】弹窗显示后，立刻让“休息一会”获得焦点（解决遥控器确认键无响应）
-        exitMenuDialog.setOnShowListener(dialog -> {
-            btnRest.requestFocus();
-        });
+        // ✅【关键修复】先创建弹窗对象，再设置监听器
+        exitMenuDialog = builder.create();
+
+        if (exitMenuDialog != null) {
+            // ✅【修复1】弹窗显示后，立刻让“休息一会”获得焦点（解决遥控器确认键无响应）
+            exitMenuDialog.setOnShowListener(dialog -> {
+                btnRest.requestFocus();
+            });
+
+            if (exitMenuDialog.getWindow() != null) {
+                exitMenuDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                WindowManager.LayoutParams lp = exitMenuDialog.getWindow().getAttributes();
+                lp.dimAmount = 0.5f; // 背景变暗程度
+                exitMenuDialog.getWindow().setAttributes(lp);
+                exitMenuDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+            
+            exitMenuDialog.setOnDismissListener(dialog -> exitMenuDialog = null);
+            exitMenuDialog.show();
+        }
 
         // ✅【修复2】“休息一会” → 关闭应用
         btnRest.setOnClickListener(v -> {
-            exitMenuDialog.dismiss();
+            if (exitMenuDialog != null) {
+                exitMenuDialog.dismiss();
+            }
             finishAffinity(); // 彻底退出应用
         });
 
         // ✅【修复3】“设置选项” → 打开设置（带焦点归还和延迟）
         btnSettings.setOnClickListener(v -> {
-            exitMenuDialog.dismiss();
+            if (exitMenuDialog != null) {
+                exitMenuDialog.dismiss();
+            }
             
             // 立刻把焦点还给 PlayerView（防止遥控器失效）
             if (playerView != null) {
@@ -680,18 +700,6 @@ public class MainActivity extends AppCompatActivity {
                 openSettings();
             }, 100);
         });
-
-        // 创建弹窗
-        exitMenuDialog = builder.create();
-        if (exitMenuDialog.getWindow() != null) {
-            exitMenuDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            WindowManager.LayoutParams lp = exitMenuDialog.getWindow().getAttributes();
-            lp.dimAmount = 0.5f; // 背景变暗程度
-            exitMenuDialog.getWindow().setAttributes(lp);
-            exitMenuDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        }
-        exitMenuDialog.setOnDismissListener(dialog -> exitMenuDialog = null);
-        exitMenuDialog.show();
     }
 
     @Override
