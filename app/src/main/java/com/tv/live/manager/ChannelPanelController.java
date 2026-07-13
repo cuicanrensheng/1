@@ -253,7 +253,7 @@ public class ChannelPanelController {
             channelListManager.setChannelsByGroup(channelSourceList, groupName, currentPlayIndex);
         }
 
-        // ✅【核心修复】切换分组后，同步右侧列表的高亮并滚动到当前频道位置（兼顾手机触屏和电视）
+        // ✅【修复】切换分组后，同步右侧列表的高亮并滚动到当前频道位置（兼顾手机触屏和电视）
         if (channelListManager != null && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
             // 1. 在右侧列表中，找到当前播放的频道
             Channel currentChannel = channelSourceList.get(currentPlayIndex);
@@ -264,14 +264,11 @@ public class ChannelPanelController {
                     break;
                 }
             }
-            // 2. 让右侧列表能直观看到当前频道
+            // 2. 让右侧列表能直观看到当前频道（物理滚动到该位置）
             if (targetPos >= 0) {
-                lvChannelList.setSelection(targetPos); // 物理滚动到该位置
-                channelListManager.setSelectedPosition(targetPos); // 刷新显示高亮
+                lvChannelList.setSelection(targetPos);
             } else {
-                // 如果当前频道不在这个分组里，默认选中列表第一项
                 lvChannelList.setSelection(0);
-                channelListManager.setSelectedPosition(0);
             }
 
             // 3. 强制让右侧列表重新获得控制焦点（手机触屏模式至关重要）
