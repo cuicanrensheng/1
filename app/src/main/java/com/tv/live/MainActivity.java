@@ -532,6 +532,20 @@ public class MainActivity extends AppCompatActivity {
                     }
                     displayManager.hideLoading();
                     log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channelSourceList.size());
+
+                    // ✅【终极修复】UI 渲染完成后，通过 View ID 强抢左侧面板焦点
+                    mMainHandler.postDelayed(() -> {
+                        if (panelLayout != null) {
+                            // 直接用 findViewById 在面板布局里捞左侧分组 ListView
+                            View groupView = panelLayout.findViewById(R.id.lv_group);
+                            if (groupView != null) {
+                                groupView.setFocusable(true);
+                                groupView.setFocusableInTouchMode(true);
+                                groupView.requestFocus();
+                                Log.d("MainActivity", "✅ 切换源后，已强制把焦点归还给左侧分组列表");
+                            }
+                        }
+                    }, 150);
                 });
             }
 
@@ -1016,4 +1030,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
-                                             }
+    }
