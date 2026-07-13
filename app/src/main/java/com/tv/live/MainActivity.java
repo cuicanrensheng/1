@@ -3,12 +3,14 @@ package com.tv.live;
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -17,6 +19,7 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ListView;
@@ -32,7 +35,6 @@ import androidx.media3.ui.PlayerView;
 import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
 import com.tv.live.manager.*;
-import com.tv.live.util.KeyCodeInterceptor;
 import com.tv.live.util.LogCollector;
 import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
@@ -111,10 +113,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        // ✅【新增】初始化万能按键拦截器
-        KeyCodeInterceptor.init(this);
-        
         mInstanceRef = new WeakReference<>(this);
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
@@ -752,11 +750,6 @@ public class MainActivity extends AppCompatActivity {
         int keyCode = event.getKeyCode();
         int action = event.getAction();
 
-        // ✅【新增】将按键交给万能拦截器处理（必须在所有逻辑之前）
-        if (KeyCodeInterceptor.handleKeyEvent(keyCode, action)) {
-            return true;  // 按键已被消费（打开设置）
-        }
-
         if (action == KeyEvent.ACTION_DOWN) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_BACK:
@@ -784,7 +777,11 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // ❌【已删除】原 KEYCODE_MENU / KEYCODE_SETTINGS 判断已由拦截器接管
+        if (keyCode == KeyEvent.KEYCODE_MENU
+                || keyCode == KeyEvent.KEYCODE_HELP
+                || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+            return super.dispatchKeyEvent(event);
+        }
 
         if (action == KeyEvent.ACTION_DOWN) {
             if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
@@ -977,9 +974,6 @@ public class MainActivity extends AppCompatActivity {
             }
             exitMenuDialog = null;
         }
-
-        // ✅【新增】释放拦截器引用
-        KeyCodeInterceptor.release();
 
         if (unlockReceiver != null) {
             try {
