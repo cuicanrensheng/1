@@ -20,7 +20,7 @@ public class PlayerControlManager {
     private final InfoDisplayManager infoDisplayManager;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    private GestureManager gestureManager; // 改为可更新
+    private GestureManager gestureManager;
     private boolean isControllerShowing = false;
 
     private final Runnable hideControllerRunnable = new Runnable() {
@@ -41,7 +41,6 @@ public class PlayerControlManager {
         this.infoDisplayManager = infoDisplayManager;
     }
 
-    // ✅ 新增：当 GestureManager 重建时，更新内部引用
     public void updateGestureManager(GestureManager newGestureManager) {
         this.gestureManager = newGestureManager;
     }
@@ -51,7 +50,6 @@ public class PlayerControlManager {
     }
 
     public void showExoController() {
-        // 🛡️ 只有回看模式才允许显示控制栏
         if (!activity.isInCatchUpMode()) return;
 
         PlayerView currentPlayerView = activity.getPlayerView();
@@ -63,7 +61,6 @@ public class PlayerControlManager {
 
         mainHandler.removeCallbacks(hideControllerRunnable);
 
-        // 临时移除自定义触摸监听，避免与 ExoPlayer 控制栏冲突
         if (activity.getTouchListener() != null) {
             currentPlayerView.setOnTouchListener(null);
         }
@@ -84,13 +81,10 @@ public class PlayerControlManager {
 
         mainHandler.removeCallbacks(hideControllerRunnable);
 
-        // 1. 先隐藏UI
         currentPlayerView.hideController();
-        // 2. 强制剥夺控制栏的响应权限
         currentPlayerView.setUseController(false);
         isControllerShowing = false;
 
-        // 恢复自定义触摸监听
         if (activity.getTouchListener() != null) {
             if (gestureManager != null) {
                 final PlayerGestureHelper newGestureHelper = gestureManager.create();
