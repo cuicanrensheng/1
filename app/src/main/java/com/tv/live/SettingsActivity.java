@@ -571,31 +571,72 @@ public class SettingsActivity extends AppCompatActivity {
             Toast.makeText(this, "当前直播源不支持清晰度切换", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         String[] items = resolutions.toArray(new String[0]);
 
-        new AlertDialog.Builder(this)
-                .setTitle("选择清晰度")
-                .setItems(items, (dialog, which) -> {
-                    String selectedLabel = items[which];
-                    int targetHeight = 0;
-                    if (selectedLabel.contains("4K")) targetHeight = 2160;
-                    else if (selectedLabel.contains("1080p")) targetHeight = 1080;
-                    else if (selectedLabel.contains("720p")) targetHeight = 720;
-                    else {
-                        try {
-                            targetHeight = Integer.parseInt(selectedLabel.replace("p", ""));
-                        } catch (Exception ignored) {}
-                    }
+        // 1. 创建统一的暗色背景 ListView
+        ListView listView = new ListView(this);
+        listView.setBackgroundColor(0xFF272B3A); // 与其他弹窗保持一致的暗色
+        listView.setDivider(new ColorDrawable(0x33FFFFFF));
+        listView.setDividerHeight(1);
+        listView.setPadding(0, 16, 0, 16);
 
-                    if (targetHeight > 0) {
-                        playerManager.switchToResolution(targetHeight);
-                        tv_resolution_status.setText(selectedLabel);
-                        Toast.makeText(SettingsActivity.this, "已切换至: " + selectedLabel, Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
+        // 2. 定制 Adapter，使文字颜色变为白色，字号变大
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_single_choice, items) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View view = super.getView(position, convertView, parent);
+                TextView tv = view.findViewById(android.R.id.text1);
+                tv.setTextColor(Color.WHITE);
+                tv.setTextSize(16);
+                return view;
+            }
+        };
+        listView.setAdapter(adapter);
+        listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+
+        // 3. 点击事件
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            String selectedLabel = items[position];
+            int targetHeight = 0;
+            if (selectedLabel.contains("4K")) targetHeight = 2160;
+            else if (selectedLabel.contains("1080p")) targetHeight = 1080;
+            else if (selectedLabel.contains("720p")) targetHeight = 720;
+            else {
+                try {
+                    targetHeight = Integer.parseInt(selectedLabel.replace("p", ""));
+                } catch (Exception ignored) {}
+            }
+
+            if (targetHeight > 0) {
+                playerManager.switchToResolution(targetHeight);
+                tv_resolution_status.setText(selectedLabel);
+                Toast.makeText(SettingsActivity.this, "已切换至: " + selectedLabel, Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // 4. 创建与 ListView 完美搭配的暗色标题
+        TextView titleView = new TextView(this);
+        titleView.setText("选择清晰度");
+        titleView.setTextColor(Color.WHITE);
+        titleView.setTextSize(20);
+        titleView.setPadding(24, 24, 24, 0);
+
+        // 5. 组合到线性布局中
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundColor(0xFF272B3A);
+        layout.addView(titleView);
+        layout.addView(listView);
+
+        // 6. 构建 AlertDialog 并设置透明背景
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(layout)
+                .create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
     }
 
     private void showSubscriptionDialog(String spKey, String title) {
