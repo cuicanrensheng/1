@@ -12,6 +12,9 @@ public class Channel {
     private String group;
     private String channelId;
 
+    // 🟢【新增】记录当前选中的线路索引 (0=主源, 1及以上=备用源)
+    private int currentLineIndex = 0;
+
     public Channel(String name, String mainPlayUrl, String group, String channelId) {
         this.name = name;
         this.mainPlayUrl = mainPlayUrl;
@@ -27,12 +30,27 @@ public class Channel {
         }
     }
 
-    // ====== 兼容旧项目原有代码，保留getPlayUrl()，返回主源地址 ======
+    // ====== 【核心修改】根据选中的线路索引返回对应的播放地址 ======
     public String getPlayUrl() {
+        // 如果选中了备用源，且备用源列表有对应索引，则返回备用源
+        if (currentLineIndex > 0 && currentLineIndex - 1 < backupUrls.size()) {
+            return backupUrls.get(currentLineIndex - 1);
+        }
+        // 否则默认返回主源
         return mainPlayUrl;
     }
 
-    // 新接口：获取主播放地址
+    // 🟢【新增】设置当前线路索引（供设置页或切换线路逻辑调用）
+    public void setCurrentLineIndex(int index) {
+        this.currentLineIndex = index;
+    }
+
+    // 🟢【新增】获取当前线路索引
+    public int getCurrentLineIndex() {
+        return currentLineIndex;
+    }
+
+    // 新接口：获取主播放地址（备用逻辑可能需要用到）
     public String getMainPlayUrl() {
         return mainPlayUrl;
     }
