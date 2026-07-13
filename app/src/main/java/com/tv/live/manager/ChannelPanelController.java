@@ -276,10 +276,10 @@ public class ChannelPanelController {
             return;
         }
         
-        // ✅ 防止 currentPlayIndex 越界导致崩溃
+        // ✅【修改】索引越界时，重置为最后一个有效索引，而不是 0
         if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
-            currentPlayIndex = 0;
-            Log.w("ChannelPanelController", "playPrev: currentPlayIndex 越界，已重置为 0");
+            currentPlayIndex = channelSourceList.size() - 1;
+            Log.w("ChannelPanelController", "playPrev: currentPlayIndex 越界，已重置为最后一个有效索引 " + currentPlayIndex);
         }
 
         Channel currentChannel = channelSourceList.get(currentPlayIndex);
@@ -319,10 +319,10 @@ public class ChannelPanelController {
             return;
         }
         
-        // ✅ 防止 currentPlayIndex 越界导致崩溃
+        // ✅【修改】索引越界时，重置为最后一个有效索引，而不是 0
         if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
-            currentPlayIndex = 0;
-            Log.w("ChannelPanelController", "playNext: currentPlayIndex 越界，已重置为 0");
+            currentPlayIndex = channelSourceList.size() - 1;
+            Log.w("ChannelPanelController", "playNext: currentPlayIndex 越界，已重置为最后一个有效索引 " + currentPlayIndex);
         }
 
         Channel currentChannel = channelSourceList.get(currentPlayIndex);
@@ -453,7 +453,6 @@ public class ChannelPanelController {
     public void togglePanel() {
         boolean willOpen = !isPanelOpen();
 
-        // 准备数据
         if (willOpen) {
             if (GroupListManager.GROUP_ALL.equals(currentGroupName)
                     || currentGroupName.isEmpty()
@@ -465,19 +464,15 @@ public class ChannelPanelController {
             channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
         }
 
-        // 调用 PanelManager 切换可见性
         panelManager.toggle(channelSourceList, currentPlayIndex, dateListManager);
 
-        // ✅【生命周期加固】无论打开还是关闭，都在 100ms 后统一处理焦点
         panelLayout.postDelayed(() -> {
-            // ✅【新增】检查 Activity 是否正在销毁，防止生命周期竞态
             if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
                 Log.d("ChannelPanelController", "togglePanel postDelayed: Activity已销毁，取消焦点操作");
                 return;
             }
 
             if (isPanelOpen()) {
-                // 面板打开：焦点给频道列表
                 clearAllFocusStyles();
                 currentFocusPanel = "left";
                 leftFocusView = "channel";
@@ -487,13 +482,11 @@ public class ChannelPanelController {
                 lvChannelList.requestFocus();
                 lvChannelList.setSelection(getChannelListSelection());
             } else {
-                // 面板关闭：焦点还给播放器
                 if (panelLayout != null) {
                     panelLayout.clearFocus();
                 }
                 if (activity != null) {
                     androidx.media3.ui.PlayerView playerView = activity.getPlayerView();
-                    // ✅【新增】增加 playerView 判空保护
                     if (playerView != null) {
                         playerView.setFocusable(true);
                         playerView.setFocusableInTouchMode(true);
@@ -528,7 +521,6 @@ public class ChannelPanelController {
     }
 
     public void handleFirstLaunch() {
-        // 已移除自动隐藏逻辑，无需额外操作
         mIsFirstLaunch = false;
     }
 
@@ -556,7 +548,6 @@ public class ChannelPanelController {
             channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
             if (llRightPanel != null) {
                 llRightPanel.postDelayed(() -> {
-                    // ✅【新增】生命周期保护
                     if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
                         return;
                     }
@@ -586,7 +577,6 @@ public class ChannelPanelController {
             epgPanelOpen = false;
             if (llLeftPanel != null) {
                 llLeftPanel.postDelayed(() -> {
-                    // ✅【新增】生命周期保护
                     if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
                         return;
                     }
@@ -611,7 +601,6 @@ public class ChannelPanelController {
             epgPanelOpen = false;
             if (llLeftPanel != null) {
                 llLeftPanel.postDelayed(() -> {
-                    // ✅【新增】生命周期保护
                     if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
                         return;
                     }
@@ -717,9 +706,6 @@ public class ChannelPanelController {
         return isReverse;
     }
 
-    // ============================================================
-    // ✅ 上下键主动控制 ListView 滚动
-    // ============================================================
     public boolean dispatchKeyEvent(int keyCode) {
         if (panelLayout.getVisibility() != View.VISIBLE) {
             return false;
@@ -728,7 +714,6 @@ public class ChannelPanelController {
         View currentFocus = panelLayout.findFocus();
         if (currentFocus == null) return false;
 
-        // ==================== 上下键：让当前焦点所在的 ListView 滚动 ====================
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
             if (currentFocus instanceof ListView) {
                 ListView lv = (ListView) currentFocus;
@@ -757,7 +742,6 @@ public class ChannelPanelController {
             }
         }
 
-        // ==================== OK/确认键 ====================
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
             if (currentFocus == lvChannelList) {
                 int pos = lvChannelList.getSelectedItemPosition();
@@ -787,7 +771,6 @@ public class ChannelPanelController {
             return false;
         }
 
-        // ==================== 原有左右键业务逻辑 ====================
         if (!rightPanelOpen) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
@@ -872,11 +855,9 @@ public class ChannelPanelController {
         this.panelStateListener = listener;
     }
 
-    // ✅【关键修复】释放引用，防止 Activity 内存泄漏
     public void release() {
         Log.d("ChannelPanelController", "release: 清理引用");
         this.activity = null;
         this.context = null;
-        // 其他需要释放的引用（如有）
     }
 }
