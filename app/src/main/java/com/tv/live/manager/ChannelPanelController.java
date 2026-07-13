@@ -276,7 +276,6 @@ public class ChannelPanelController {
             return;
         }
         
-        // ✅【修改】索引越界时，重置为最后一个有效索引，而不是 0
         if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
             currentPlayIndex = channelSourceList.size() - 1;
             Log.w("ChannelPanelController", "playPrev: currentPlayIndex 越界，已重置为最后一个有效索引 " + currentPlayIndex);
@@ -319,7 +318,6 @@ public class ChannelPanelController {
             return;
         }
         
-        // ✅【修改】索引越界时，重置为最后一个有效索引，而不是 0
         if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
             currentPlayIndex = channelSourceList.size() - 1;
             Log.w("ChannelPanelController", "playNext: currentPlayIndex 越界，已重置为最后一个有效索引 " + currentPlayIndex);
@@ -447,9 +445,6 @@ public class ChannelPanelController {
         this.currentPlayIndex = index;
     }
 
-    /**
-     * 核心切换逻辑：完全依赖 panelLayout 的当前可见性，没有自动隐藏干扰
-     */
     public void togglePanel() {
         boolean willOpen = !isPanelOpen();
 
@@ -855,8 +850,88 @@ public class ChannelPanelController {
         this.panelStateListener = listener;
     }
 
+    // 🛠️【修复】彻底的级联释放，同时清除所有持有 Activity 的引用链
     public void release() {
-        Log.d("ChannelPanelController", "release: 清理引用");
+        Log.d("ChannelPanelController", "release: 级联清理所有组件引用");
+
+        if (groupListManager != null) {
+            groupListManager.release();
+            groupListManager = null;
+        }
+        if (channelListManager != null) {
+            channelListManager.release();
+            channelListManager = null;
+        }
+        if (channelListManagerEpg != null) {
+            channelListManagerEpg.release();
+            channelListManagerEpg = null;
+        }
+        if (dateListManager != null) {
+            dateListManager.release();
+            dateListManager = null;
+        }
+        if (epgManagerWrapper != null) {
+            epgManagerWrapper.release();
+            epgManagerWrapper = null;
+        }
+        if (panelManager != null) {
+            panelManager = null;
+        }
+
+        // 清除外部监听器
+        channelChangeListener = null;
+        panelStateListener = null;
+
+        // 释放大容器数据
+        if (channelSourceList != null) {
+            channelSourceList.clear();
+            channelSourceList = null;
+        }
+        if (currentGroupChannelList != null) {
+            currentGroupChannelList.clear();
+            currentGroupChannelList = null;
+        }
+
+        // 清除所有 View 的监听器（避免适配器/内部类持有 Context 和 Activity）
+        if (lvGroup != null) {
+            lvGroup.setAdapter(null);
+            lvGroup.setOnItemClickListener(null);
+            lvGroup.setOnItemSelectedListener(null);
+            lvGroup.setOnFocusChangeListener(null);
+        }
+        if (lvChannelList != null) {
+            lvChannelList.setAdapter(null);
+            lvChannelList.setOnItemClickListener(null);
+            lvChannelList.setOnItemSelectedListener(null);
+            lvChannelList.setOnFocusChangeListener(null);
+        }
+        if (lvChannelListEpg != null) {
+            lvChannelListEpg.setAdapter(null);
+            lvChannelListEpg.setOnItemClickListener(null);
+            lvChannelListEpg.setOnItemSelectedListener(null);
+            lvChannelListEpg.setOnFocusChangeListener(null);
+        }
+        if (lvDate != null) {
+            lvDate.setAdapter(null);
+            lvDate.setOnItemClickListener(null);
+            lvDate.setOnItemSelectedListener(null);
+            lvDate.setOnFocusChangeListener(null);
+        }
+        if (lvEpg != null) {
+            lvEpg.setAdapter(null);
+            lvEpg.setOnItemClickListener(null);
+            lvEpg.setOnItemSelectedListener(null);
+            lvEpg.setOnFocusChangeListener(null);
+        }
+        if (btnShowEpg != null) {
+            btnShowEpg.setOnClickListener(null);
+            btnShowEpg.setOnFocusChangeListener(null);
+        }
+        if (btnBackGroup != null) {
+            btnBackGroup.setOnClickListener(null);
+            btnBackGroup.setOnFocusChangeListener(null);
+        }
+
         this.activity = null;
         this.context = null;
     }
