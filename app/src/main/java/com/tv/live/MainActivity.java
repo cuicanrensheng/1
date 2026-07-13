@@ -1,8 +1,11 @@
 package com.tv.live;
 
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
@@ -70,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean number_channel_enable;
 
     private boolean isOpeningSettings = false;
-    private long lastSettingsOpenTime = 0; // ✅ 新增：记录上次打开设置的时间
+    private long lastSettingsOpenTime = 0; // ✅ 记录上次打开设置的时间
 
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences sp;
@@ -84,6 +87,9 @@ public class MainActivity extends AppCompatActivity {
 
     // ✅ 退出确认对话框（弹窗）
     private AlertDialog exitMenuDialog = null;
+
+    // ✅ 新增：SettingsActivity 解锁广播接收器
+    private BroadcastReceiver unlockReceiver;
 
     public static MainActivity getRunningInstance() {
         return mInstanceRef != null ? mInstanceRef.get() : null;
@@ -156,6 +162,18 @@ public class MainActivity extends AppCompatActivity {
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
         new Thread(() -> appCoreManager.loadLiveAndEpg()).start();
+
+        // ✅ 注册 SettingsActivity 解锁广播接收器
+        unlockReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if ("com.tv.live.UNLOCK_SETTINGS".equals(intent.getAction())) {
+                    isOpeningSettings = false;
+                    Log.d("MainActivity", "📡 收到解锁广播，isOpeningSettings 已重置");
+                }
+            }
+        };
+        registerReceiver(unlockReceiver, new IntentFilter("com.tv.live.UNLOCK_SETTINGS"));
     }
 
     public void showLogWindow() {
@@ -968,5 +986,15 @@ public class MainActivity extends AppCompatActivity {
         if (playerControlManager != null) {
             playerControlManager.release();
         }
+
+        // ✅ 取消注册 SettingsActivity 解锁广播接收器
+        if (unlockReceiver != null) {
+            try {
+                unregisterReceiver(unlockReceiver);
+            } catch (Exception e) {
+                // 忽略
+            }
+            unlockReceiver = null;
+        }
     }
- }
+}
