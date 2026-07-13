@@ -20,6 +20,9 @@ import android.view.ViewParent;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 
+// 🔴【关键修复】新增 android.media.MediaCodec 导入，解决编译错误
+import android.media.MediaCodec;
+
 import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
@@ -326,6 +329,7 @@ public class TVPlayerManager {
                 Throwable cause = error.getCause();
                 int depth = 0;
                 while (cause != null && depth < 10) {
+                    // ✅【修复】此处引用了 android.media.MediaCodec.CodecException，已导入
                     if (cause instanceof MediaCodec.CodecException) {
                         isDecoderError = true;
                         break;
