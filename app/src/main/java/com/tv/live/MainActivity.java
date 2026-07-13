@@ -70,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean number_channel_enable;
 
     private boolean isOpeningSettings = false;
+    private long lastSettingsOpenTime = 0; // ✅ 新增：记录上次打开设置的时间
 
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences sp;
@@ -619,7 +620,7 @@ public class MainActivity extends AppCompatActivity {
     public void playNext() { channelPanelController.playNext(); }
 
     // ============================================================
-    // ✅ 退出确认菜单（完全复刻截图样式）
+    // ✅ 退出确认菜单（完全复刻截图样式）- 已整合所有修复
     // ============================================================
     public void showExitMenu() {
         // 如果已经显示，就不重复打开
@@ -634,20 +635,32 @@ public class MainActivity extends AppCompatActivity {
         Button btnRest = view.findViewById(R.id.btn_rest);
         Button btnSettings = view.findViewById(R.id.btn_settings);
 
-        // 默认焦点给第一个按钮
-        btnRest.requestFocus();
+        // ✅【修复1】弹窗显示后，立刻让“休息一会”获得焦点（解决遥控器确认键无响应）
+        exitMenuDialog.setOnShowListener(dialog -> {
+            btnRest.requestFocus();
+        });
 
-        // 按钮点击事件
+        // ✅【修复2】“休息一会” → 关闭应用
         btnRest.setOnClickListener(v -> {
-            // ✅ "休息一会" → 关闭应用
             exitMenuDialog.dismiss();
             finishAffinity(); // 彻底退出应用
         });
 
+        // ✅【修复3】“设置选项” → 打开设置（带焦点归还和延迟）
         btnSettings.setOnClickListener(v -> {
-            // ✅ "设置选项" → 打开设置
             exitMenuDialog.dismiss();
-            openSettings();
+            
+            // 立刻把焦点还给 PlayerView（防止遥控器失效）
+            if (playerView != null) {
+                playerView.setFocusable(true);
+                playerView.setFocusableInTouchMode(true);
+                playerView.requestFocus();
+            }
+
+            // 延迟 100ms 再打开设置（确保焦点切换完成）
+            mMainHandler.postDelayed(() -> {
+                openSettings();
+            }, 100);
         });
 
         // 创建弹窗
@@ -686,11 +699,29 @@ public class MainActivity extends AppCompatActivity {
         showExitMenu();
     }
 
+    // ============================================================
+    // ✅ openSettings 已整合所有修复（5秒超时自动解锁）
+    // ============================================================
     public void openSettings() {
-        if (isOpeningSettings) return;
+        long now = System.currentTimeMillis();
+
+        // ✅【修复4】5秒超时自动解锁 isOpeningSettings，防止死锁
+        if (isOpeningSettings) {
+            if (now - lastSettingsOpenTime > 5000) {
+                Log.d("Settings", "🔄 强制解锁 isOpeningSettings（超过 5 秒）");
+                isOpeningSettings = false;
+            } else {
+                Log.d("Settings", "⛔ isOpeningSettings 为 true，被拦截（距离上次尝试不到 5 秒）");
+                return;
+            }
+        }
+
         if (isInCatchUpMode) return;
 
+        // ✅ 记录本次打开时间（用于超时解锁）
+        lastSettingsOpenTime = now;
         isOpeningSettings = true;
+
         appCoreManager.beforeOpenSettings();
 
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
@@ -938,4 +969,4 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
     }
-}
+ }
