@@ -2,7 +2,7 @@ package com.tv.live.manager;
 
 import android.content.Context;
 import android.graphics.Typeface;
-import android.util.Log; // ✅ 新增导入
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ListView;
@@ -27,7 +27,7 @@ public class ChannelPanelController {
     private static final long CHANNEL_COOLDOWN = 300;
     private static final int MAX_AUTO_SKIP = 10;
 
-    private MainActivity activity;          // ✅ 改为 MainActivity，用于焦点恢复
+    private MainActivity activity;
     private Context context;
     private View panelLayout;
     private ListView lvGroup;
@@ -83,7 +83,7 @@ public class ChannelPanelController {
     }
 
     public ChannelPanelController(
-            MainActivity activity,                     // ✅ 改为 MainActivity
+            MainActivity activity,
             View panelLayout,
             View llLeftPanel,
             View llRightPanel,
@@ -276,7 +276,7 @@ public class ChannelPanelController {
             return;
         }
         
-        // ✅【新增】防止 currentPlayIndex 越界导致崩溃
+        // ✅ 防止 currentPlayIndex 越界导致崩溃
         if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
             currentPlayIndex = 0;
             Log.w("ChannelPanelController", "playPrev: currentPlayIndex 越界，已重置为 0");
@@ -319,7 +319,7 @@ public class ChannelPanelController {
             return;
         }
         
-        // ✅【新增】防止 currentPlayIndex 越界导致崩溃
+        // ✅ 防止 currentPlayIndex 越界导致崩溃
         if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
             currentPlayIndex = 0;
             Log.w("ChannelPanelController", "playNext: currentPlayIndex 越界，已重置为 0");
@@ -468,8 +468,14 @@ public class ChannelPanelController {
         // 调用 PanelManager 切换可见性
         panelManager.toggle(channelSourceList, currentPlayIndex, dateListManager);
 
-        // ✅【关键修复】无论打开还是关闭，都在 100ms 后统一处理焦点
+        // ✅【生命周期加固】无论打开还是关闭，都在 100ms 后统一处理焦点
         panelLayout.postDelayed(() -> {
+            // ✅【新增】检查 Activity 是否正在销毁，防止生命周期竞态
+            if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+                Log.d("ChannelPanelController", "togglePanel postDelayed: Activity已销毁，取消焦点操作");
+                return;
+            }
+
             if (isPanelOpen()) {
                 // 面板打开：焦点给频道列表
                 clearAllFocusStyles();
@@ -486,13 +492,15 @@ public class ChannelPanelController {
                     panelLayout.clearFocus();
                 }
                 if (activity != null) {
-                    // ✅ 通过 getPlayerView() 获取 PlayerView 实例
                     androidx.media3.ui.PlayerView playerView = activity.getPlayerView();
+                    // ✅【新增】增加 playerView 判空保护
                     if (playerView != null) {
                         playerView.setFocusable(true);
                         playerView.setFocusableInTouchMode(true);
                         playerView.requestFocus();
                         Log.d("ChannelPanelController", "焦点已归还给 PlayerView");
+                    } else {
+                        Log.w("ChannelPanelController", "togglePanel: getPlayerView() 返回 null，无法归还焦点");
                     }
                 }
             }
@@ -548,6 +556,10 @@ public class ChannelPanelController {
             channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
             if (llRightPanel != null) {
                 llRightPanel.postDelayed(() -> {
+                    // ✅【新增】生命周期保护
+                    if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+                        return;
+                    }
                     clearAllFocusStyles();
                     currentFocusPanel = "right";
                     rightFocusView = "channel";
@@ -574,6 +586,10 @@ public class ChannelPanelController {
             epgPanelOpen = false;
             if (llLeftPanel != null) {
                 llLeftPanel.postDelayed(() -> {
+                    // ✅【新增】生命周期保护
+                    if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+                        return;
+                    }
                     clearAllFocusStyles();
                     currentFocusPanel = "left";
                     leftFocusView = "channel";
@@ -595,6 +611,10 @@ public class ChannelPanelController {
             epgPanelOpen = false;
             if (llLeftPanel != null) {
                 llLeftPanel.postDelayed(() -> {
+                    // ✅【新增】生命周期保护
+                    if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+                        return;
+                    }
                     clearAllFocusStyles();
                     currentFocusPanel = "left";
                     leftFocusView = "channel";
@@ -698,7 +718,7 @@ public class ChannelPanelController {
     }
 
     // ============================================================
-    // ✅【核心修复】方案三：上下键主动控制 ListView 滚动
+    // ✅ 上下键主动控制 ListView 滚动
     // ============================================================
     public boolean dispatchKeyEvent(int keyCode) {
         if (panelLayout.getVisibility() != View.VISIBLE) {
@@ -712,14 +732,13 @@ public class ChannelPanelController {
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
             if (currentFocus instanceof ListView) {
                 ListView lv = (ListView) currentFocus;
-                // 获取当前选中位置，如果没有选中项则取第一个可见位置
                 int pos = lv.getSelectedItemPosition();
                 if (pos == -1) {
                     pos = lv.getFirstVisiblePosition();
-                    if (pos == -1) pos = 0; // 列表为空时的兜底
+                    if (pos == -1) pos = 0;
                 }
                 int count = lv.getCount();
-                if (count == 0) return true; // 列表为空，直接消费按键
+                if (count == 0) return true;
 
                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                     if (pos > 0) {
@@ -732,15 +751,13 @@ public class ChannelPanelController {
                         return true;
                     }
                 }
-                // 到达顶部/底部时仍然返回 true，防止焦点跳离列表
                 return true;
             } else {
-                // 当前焦点不是 ListView，让系统处理焦点切换
                 return false;
             }
         }
 
-        // ==================== OK/确认键：统一处理所有控件上的确认操作 ====================
+        // ==================== OK/确认键 ====================
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
             if (currentFocus == lvChannelList) {
                 int pos = lvChannelList.getSelectedItemPosition();
@@ -770,7 +787,7 @@ public class ChannelPanelController {
             return false;
         }
 
-        // ==================== 原有左右键业务逻辑保持不变 ====================
+        // ==================== 原有左右键业务逻辑 ====================
         if (!rightPanelOpen) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
@@ -841,7 +858,6 @@ public class ChannelPanelController {
         return false;
     }
 
-    // ✅ 由外部统一清除面板焦点
     public void clearPanelFocus() {
         if (panelLayout != null) {
             panelLayout.clearFocus();
@@ -856,7 +872,11 @@ public class ChannelPanelController {
         this.panelStateListener = listener;
     }
 
+    // ✅【关键修复】释放引用，防止 Activity 内存泄漏
     public void release() {
-        // 无 Handler 需要清理
+        Log.d("ChannelPanelController", "release: 清理引用");
+        this.activity = null;
+        this.context = null;
+        // 其他需要释放的引用（如有）
     }
 }
