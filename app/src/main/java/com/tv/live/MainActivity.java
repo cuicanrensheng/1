@@ -865,24 +865,24 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 🔴 修改后：区分PIP/设置页的onPause
     @Override
     protected void onPause() {
         super.onPause();
         if (isOpeningSettings) {
-            return; // 设置页透明覆盖，播放器仍可见，不解绑
+            return;
+        }
+        mMainHandler.removeCallbacksAndMessages(null);
+        if (appCoreManager != null) {
+            appCoreManager.onPause();
         }
 
-        // 🔴 修改：根据是否PIP模式决定调用策略
         if (pipManager == null || !pipManager.isInPipMode()) {
-            // 非PIP模式：执行真正的后台解绑 + 暂停
-            if (mPlayerManager != null) {
-                mPlayerManager.onBackgroundNoPip();
-            }
-        } else {
-            // PIP模式：只暂停，不解绑（PIP小窗仍需渲染）
             if (mPlayerManager != null) {
                 mPlayerManager.pause();
+            }
+        } else {
+            if (mPlayerManager != null) {
+                mPlayerManager.resume();
             }
         }
     }
@@ -893,7 +893,6 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.setStopCalled(true);
     }
 
-    // 🔴 修改后：区分PIP/设置页的onResume
     @Override
     protected void onResume() {
         super.onResume();
@@ -904,22 +903,18 @@ public class MainActivity extends AppCompatActivity {
         screenRatioManager.apply();
         displayManager.reapplyFullScreen();
 
-        // 🔴 修改：根据是否PIP模式决定调用策略
         if (pipManager == null || !pipManager.isInPipMode()) {
-            // 非PIP模式：执行前台恢复（重绑 + seek强制I帧）
             if (mPlayerManager != null) {
-                mPlayerManager.onForegroundRestore();
+                mPlayerManager.resume();
             }
             if (playerControlManager != null) {
                 playerControlManager.onResume();
             }
         } else {
-            // PIP模式：只恢复播放，不seek（避免PIP窗口闪烁）
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
             }
         }
-
         remoteManager.syncMode();
 
         if (channelPanelController != null) {
@@ -972,6 +967,7 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
 
+        // ✅【新增】主动清理退出弹窗，防止 WindowLeaked 和内存泄漏
         if (exitMenuDialog != null) {
             if (exitMenuDialog.isShowing()) {
                 exitMenuDialog.dismiss();
