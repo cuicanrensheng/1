@@ -26,7 +26,7 @@ public class GroupListManager {
     /** 分组列表 ListView */
     private final ListView lvGroup;
     /** 上下文 */
-    private final Context context;
+    private Context context;
     /** 分组显示名称列表（已预拼接好数量） */
     private List<String> groupDisplayList;
     /** 分组原始名称列表 */
@@ -46,7 +46,6 @@ public class GroupListManager {
     /** 特殊分组：全部频道 */
     public static final String GROUP_ALL = "全部";
 
-    // 🟢【优化】预定义颜色常量
     private static final int COLOR_BLUE_TEXT = 0xFF40A9FF;
     private static final int COLOR_BLUE_BG = 0x3340A9FF;
     private static final int COLOR_WHITE_TEXT = 0xFFFFFFFF;
@@ -137,13 +136,11 @@ public class GroupListManager {
             groupDisplayList.add(group);
         }
 
-        // 🟢【改进】使用显式 LayoutInflater 创建视图，避免依赖 super.getView
         adapter = new ArrayAdapter<String>(lvGroup.getContext(), android.R.layout.simple_list_item_1, groupDisplayList) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
                 ViewHolder holder;
                 if (convertView == null) {
-                    // 显式 inflate 布局
                     LayoutInflater inflater = LayoutInflater.from(context);
                     convertView = inflater.inflate(android.R.layout.simple_list_item_1, parent, false);
                     TextView tv = convertView.findViewById(android.R.id.text1);
@@ -154,9 +151,7 @@ public class GroupListManager {
                     holder = (ViewHolder) convertView.getTag();
                 }
 
-                // 🔧 增加非空检查
                 if (holder == null || holder.tv == null) {
-                    // 如果 holder 或 tv 为空，重新创建
                     LayoutInflater inflater = LayoutInflater.from(context);
                     convertView = inflater.inflate(android.R.layout.simple_list_item_1, parent, false);
                     TextView tv = convertView.findViewById(android.R.id.text1);
@@ -170,11 +165,9 @@ public class GroupListManager {
                     return convertView;
                 }
 
-                // 安全设置文本
                 String text = groupDisplayList.get(position);
                 tv.setText(text);
 
-                // 安全设置样式
                 tv.setTextSize(16);
                 tv.setPadding(20, 15, 20, 15);
 
@@ -244,8 +237,30 @@ public class GroupListManager {
 
     public void onBackPressed() {}
 
-    // 【优化】：静态内部类 ViewHolder
     private static class ViewHolder {
         TextView tv;
+    }
+
+    // 🛠️【新增】释放资源切断引用
+    public void release() {
+        if (adapter != null) {
+            adapter.clear();
+            adapter = null;
+        }
+        if (lvGroup != null) {
+            lvGroup.setAdapter(null);
+            lvGroup.setOnItemSelectedListener(null);
+            lvGroup.setOnItemClickListener(null);
+        }
+        if (groupDisplayList != null) {
+            groupDisplayList.clear();
+            groupDisplayList = null;
+        }
+        if (groupNameList != null) {
+            groupNameList.clear();
+            groupNameList = null;
+        }
+        listener = null;
+        context = null;
     }
 }
