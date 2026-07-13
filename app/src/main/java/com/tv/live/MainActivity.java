@@ -81,7 +81,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isInCatchUpMode = false;
 
-    // ✅ 新增：退出确认对话框（弹窗）
+    // ✅ 退出确认对话框（弹窗）
     private AlertDialog exitMenuDialog = null;
 
     public static MainActivity getRunningInstance() {
@@ -101,7 +101,6 @@ public class MainActivity extends AppCompatActivity {
         return touchListener;
     }
 
-    // ✅ 对外暴露 PlayerView 实例
     public PlayerView getPlayerView() {
         return playerView;
     }
@@ -283,7 +282,10 @@ public class MainActivity extends AppCompatActivity {
                 togglePanel(); 
                 remoteManager.syncMode(); 
             }
-            @Override public void onPlayOpenSettings() { openSettings(); }
+            @Override public void onPlayOpenSettings() {
+                // ✅ 菜单键/帮助键不再直接打开设置，由系统优先接管，避免冲突
+                // 用户可以通过退出弹窗中的“设置选项”按钮进入应用设置
+            }
             @Override public boolean onPlayBack() { return false; }
             // ===== 媒体键回调实现 =====
             @Override public void onPlayMediaPlayPause() {
@@ -617,9 +619,8 @@ public class MainActivity extends AppCompatActivity {
     public void playNext() { channelPanelController.playNext(); }
 
     // ============================================================
-    // ✅ 新增：退出确认菜单（完全复刻截图样式）
-    // ==========================================================
-
+    // ✅ 退出确认菜单（完全复刻截图样式）
+    // ============================================================
     public void showExitMenu() {
         // 如果已经显示，就不重复打开
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
@@ -738,15 +739,13 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // ========== MENU / HELP / SETTINGS：仅 ACTION_DOWN 打开设置，不吞 ACTION_UP ==========
+        // ========== MENU / HELP / SETTINGS：完全交给系统，避免冲突 ==========
+        // 这些按键是电视系统的常用按键（如系统设置菜单、原生帮助菜单）。
+        // 如果应用拦截并弹出自己的设置页，会导致焦点失效、遥控器卡死。
+        // 因此，直接交给 super，让电视系统优先响应。
         if (keyCode == KeyEvent.KEYCODE_MENU
                 || keyCode == KeyEvent.KEYCODE_HELP
                 || keyCode == KeyEvent.KEYCODE_SETTINGS) {
-            if (action == KeyEvent.ACTION_DOWN) {
-                openSettings();
-                return true;
-            }
-            // ACTION_UP / ACTION_MULTIPLE：交给系统默认处理（不主动消费，避免重复触发）
             return super.dispatchKeyEvent(event);
         }
 
@@ -794,13 +793,8 @@ public class MainActivity extends AppCompatActivity {
             openSettings();
             return true;
         }
-        // DPAD_CENTER / ENTER 长按：符合用户心智 → 暂停/继续（不打开设置）
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (mPlayerManager != null) {
-                mPlayerManager.togglePlayWhenReady();
-            }
-            return true;
-        }
+        // ❌ 移除 DPAD_CENTER / ENTER 长按打开设置的功能
+        // 现在只能通过退出菜单中的“设置选项”进入设置
         if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
             return true;
         }
