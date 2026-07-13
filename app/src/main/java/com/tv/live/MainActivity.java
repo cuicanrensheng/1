@@ -1,24 +1,31 @@
 package com.tv.live;
 
 import android.annotation.SuppressLint;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.media3.ui.PlayerView;
 
@@ -74,6 +81,9 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isInCatchUpMode = false;
 
+    // ✅ 新增：退出确认对话框（弹窗）
+    private AlertDialog exitMenuDialog = null;
+
     public static MainActivity getRunningInstance() {
         return mInstanceRef != null ? mInstanceRef.get() : null;
     }
@@ -91,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
         return touchListener;
     }
 
-    // ✅ 新增：对外暴露 PlayerView 实例
+    // ✅ 对外暴露 PlayerView 实例
     public PlayerView getPlayerView() {
         return playerView;
     }
@@ -606,14 +616,74 @@ public class MainActivity extends AppCompatActivity {
     public void playPrev() { channelPanelController.playPrev(); }
     public void playNext() { channelPanelController.playNext(); }
 
+    // ============================================================
+    // ✅ 新增：退出确认菜单（完全复刻截图样式）
+    // ============================================================
+    private AlertDialog exitMenuDialog = null;
+
+    public void showExitMenu() {
+        // 如果已经显示，就不重复打开
+        if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
+            return;
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_exit_menu, null);
+        builder.setView(view);
+
+        Button btnRest = view.findViewById(R.id.btn_rest);
+        Button btnSettings = view.findViewById(R.id.btn_settings);
+
+        // 默认焦点给第一个按钮
+        btnRest.requestFocus();
+
+        // 按钮点击事件
+        btnRest.setOnClickListener(v -> {
+            // ✅ "休息一会" → 关闭应用
+            exitMenuDialog.dismiss();
+            finishAffinity(); // 彻底退出应用
+        });
+
+        btnSettings.setOnClickListener(v -> {
+            // ✅ "设置选项" → 打开设置
+            exitMenuDialog.dismiss();
+            openSettings();
+        });
+
+        // 创建弹窗
+        exitMenuDialog = builder.create();
+        if (exitMenuDialog.getWindow() != null) {
+            exitMenuDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams lp = exitMenuDialog.getWindow().getAttributes();
+            lp.dimAmount = 0.5f; // 背景变暗程度
+            exitMenuDialog.getWindow().setAttributes(lp);
+            exitMenuDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+        exitMenuDialog.setOnDismissListener(dialog -> exitMenuDialog = null);
+        exitMenuDialog.show();
+    }
+
     @Override
     public void onBackPressed() {
+        // 回看模式下控制栏打开时，优先关闭控制栏
         if (isInCatchUpMode && playerControlManager != null && playerControlManager.isControllerShowing()) {
             exitPlaybackMode();
             return;
         }
-        if (remoteManager != null && remoteManager.handleBackPressed()) return;
-        super.onBackPressed();
+
+        // 如果遥控器按键被 remoteManager 拦截了（比如面板打开时），让 remoteManager 先处理
+        if (remoteManager != null && remoteManager.handleBackPressed()) {
+            return;
+        }
+
+        // 如果已经显示退出菜单，按返回键关闭菜单（而不是再弹一个）
+        if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
+            exitMenuDialog.dismiss();
+            return;
+        }
+
+        // ✅ 显示退出确认菜单
+        showExitMenu();
     }
 
     public void openSettings() {
