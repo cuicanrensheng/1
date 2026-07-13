@@ -42,7 +42,7 @@ import java.util.Set;
  */
 public class EpgManagerWrapper {
     private final ListView lvEpg;
-    private final Context context;
+    private Context context;
     private EpgAdapter adapter;
     private final Set<String> bookedSet = new HashSet<>();
     private final Map<Channel.EpgItem, String> epgEndTimeMap = new HashMap<>();
@@ -50,6 +50,9 @@ public class EpgManagerWrapper {
     private int selectedPosition = 0;
     private int playingIndex = -1;
     private int selectDayIndex = 0;
+    
+    // 🛠️【修复】将局部变量提升为成员变量，保证 unregisterReceiver 能匹配
+    private BroadcastReceiver reminderReceiver; 
 
     public EpgManagerWrapper(Context context, ListView lvEpg) {
         this.context = context;
@@ -148,12 +151,6 @@ public class EpgManagerWrapper {
                             playingIndex = i;
                         }
                     }
-                    // ===== ✅【核心修改】删除以下代码（不再把当前节目移到首位） =====
-                    // if (playing != null && playingIndex > 0) {
-                    //     data.remove(playing);
-                    //     data.add(0, playing);
-                    //     playingIndex = 0;
-                    // }
                 } else {
                     playingIndex = -1;
                     for (int i = 0; i < data.size(); i++) {
@@ -184,19 +181,14 @@ public class EpgManagerWrapper {
                 }
                 lvEpg.setSelection(selectedPosition);
                 adapter.notifyDataSetChanged();
-
-                // ✅【新增】加载完成后自动滚动到当前节目位置
                 scrollToCurrentProgram(finalData);
             });
         }).start();
     }
 
-    /**
-     * ✅ 自动滚动到当前正在播放的节目位置
-     */
     private void scrollToCurrentProgram(List<Channel.EpgItem> epgList) {
         if (epgList == null || epgList.isEmpty() || selectDayIndex != 0) {
-            return; // 仅在“今天”视图下自动滚动
+            return;
         }
         String now = getNow();
         for (int i = 0; i < epgList.size(); i++) {
@@ -207,7 +199,6 @@ public class EpgManagerWrapper {
                 final int scrollPos = i;
                 lvEpg.post(() -> {
                     lvEpg.setSelection(scrollPos);
-                    // 如果想要让该项居中显示，可以用以下方式：
                     lvEpg.setSelectionFromTop(scrollPos, lvEpg.getHeight() / 2);
                 });
                 break;
@@ -249,8 +240,9 @@ public class EpgManagerWrapper {
                 Calendar.getInstance().get(Calendar.MINUTE));
     }
 
+    // 🛠️【修复】使用成员变量 reminderReceiver
     private void registerReminderReceiver() {
-        BroadcastReceiver receiver = new BroadcastReceiver() {
+        reminderReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (ACTION_REMINDER.equals(intent.getAction())) {
@@ -260,10 +252,31 @@ public class EpgManagerWrapper {
             }
         };
         IntentFilter filter = new IntentFilter(ACTION_REMINDER);
-        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
+        ContextCompat.registerReceiver(context, reminderReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
-    // ================= 🛠️ 核心优化的 Adapter 部分 =================
+    // 🛠️【新增】释放资源切断引用
+    public void release() {
+        if (context != null && reminderReceiver != null) {
+            try {
+                context.unregisterReceiver(reminderReceiver);
+            } catch (Exception ignored) {}
+            reminderReceiver = null;
+        }
+        if (adapter != null) {
+            adapter.clear();
+            adapter = null;
+        }
+        bookedSet.clear();
+        epgEndTimeMap.clear();
+        if (lvEpg != null) {
+            lvEpg.setAdapter(null);
+            lvEpg.setOnItemSelectedListener(null);
+            lvEpg.setOnFocusChangeListener(null);
+        }
+        context = null;
+    }
+
     private class EpgAdapter extends ArrayAdapter<Channel.EpgItem> {
         private final Context ctx;
         private Channel currentChannel;
@@ -284,7 +297,6 @@ public class EpgManagerWrapper {
                 String key = actionTag.key;
 
                 if (actionTag.isPast) {
-                    // 回看逻辑
                     try {
                         String liveUrl = currentChannel.getPlayUrl();
                         if (TextUtils.isEmpty(liveUrl)) {
@@ -449,7 +461,7 @@ public class EpgManagerWrapper {
             TextView actionBtn = rootView.findViewById(R.id.tv_action);
             if (actionBtn == null) return;
             if (tag.isPast) {
-                // 回看按钮无状态变化，不需要更新
+                // 回看按钮无状态变化
             } else {
                 boolean isBooked = bookedSet.contains(tag.key);
                 actionBtn.setText(isBooked ? "已预约" : "预约");
@@ -470,4 +482,4 @@ public class EpgManagerWrapper {
             boolean isPast;
         }
     }
- }
+}
