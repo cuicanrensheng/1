@@ -95,6 +95,11 @@ public class TvRemoteManager {
         // ✅【按键修复】按键前同步模式，防止「面板已打开但模式还在 PLAY_MODE」的不一致
         syncMode();
 
+        // ✅【新增兜底】如果当前是 SETTINGS_MODE，但 SettingsActivity 已经关闭（listener 无法处理），直接返回 false
+        if (currentMode == Mode.SETTINGS_MODE && listener == null) {
+            return false;
+        }
+
         boolean handled = false;
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
