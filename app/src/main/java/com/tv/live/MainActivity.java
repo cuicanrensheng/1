@@ -503,6 +503,10 @@ public class MainActivity extends AppCompatActivity {
                         currentPlayIndex = 0;
                         Log.d("MainActivity", "currentPlayIndex 越界，已自动重置为 0");
                     }
+
+                    // ✅【修复核心】在每次刷新数据后，重置标志位，防止重叠触发导致焦点抢占
+                    appCoreManager.setHasPlayedWithCache(true);
+
                     if (!appCoreManager.hasPlayedWithCache()) {
                         if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                             Channel ch = channelSourceList.get(currentPlayIndex);
