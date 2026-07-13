@@ -146,12 +146,10 @@ public class MainActivity extends AppCompatActivity {
         initPictureInPicture();
         channelPanelController.handleFirstLaunch();
 
-        // ✅【修复】先初始化 Player（创建 mPlayerManager），再加载设置
         initPlayer();
         mPlayerManager.registerDecoderModeReceiver();
         mPlayerManager.registerRendererModeReceiver();
 
-        // ✅【修复】loadSettings 移到 initPlayer 之后，避免 mPlayerManager 空指针
         loadSettings();
 
         screenRatioManager = new ScreenRatioManager(mPlayerManager, appConfig);
@@ -165,7 +163,6 @@ public class MainActivity extends AppCompatActivity {
         displayManager.showLoading("正在加载直播源...");
         new Thread(() -> appCoreManager.loadLiveAndEpg()).start();
 
-        // 注册 SettingsActivity 解锁广播接收器
         unlockReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -434,14 +431,12 @@ public class MainActivity extends AppCompatActivity {
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
 
-        // ✅【修复】先创建 GestureManager 和 PlayerControlManager
         gestureManager = new GestureManager(this);
         playerControlManager = new PlayerControlManager(this, gestureManager, infoDisplayManager);
 
         mPlayerManager.setOnPlayerViewRecreatedListener(newPlayerView -> {
             MainActivity.this.playerView = newPlayerView;
 
-            // ✅【修复】PlayerView 重建时同步更新 GestureManager 和 PlayerControlManager
             gestureManager = new GestureManager(MainActivity.this);
             final PlayerGestureHelper newGestureHelper = gestureManager.create();
 
@@ -456,13 +451,11 @@ public class MainActivity extends AppCompatActivity {
             newPlayerView.setOnTouchListener(touchListener);
             newPlayerView.requestFocus();
 
-            // 强制使用自定义控制，关闭 ExoPlayer 原生控制栏
             if (playerControlManager != null) {
                 newPlayerView.setUseController(false);
                 playerControlManager.hideExoController();
             }
 
-            // 强制恢复焦点
             newPlayerView.setFocusable(true);
             newPlayerView.setFocusableInTouchMode(true);
             newPlayerView.requestFocus();
@@ -580,7 +573,6 @@ public class MainActivity extends AppCompatActivity {
             mode = TVPlayerManager.DECODER_MODE_SOFT;
         }
         
-        // ✅【修复】mPlayerManager 已在 initPlayer 中初始化，此处可安全调用
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
         if (remoteManager != null) remoteManager.setNumberChannelEnable(number_channel_enable);
         if (channelPanelController != null) {
@@ -648,7 +640,6 @@ public class MainActivity extends AppCompatActivity {
     public void playPrev() { channelPanelController.playPrev(); }
     public void playNext() { channelPanelController.playNext(); }
 
-    // ✅ 退出确认菜单（已修复空指针和焦点问题）
     public void showExitMenu() {
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             return;
@@ -723,7 +714,6 @@ public class MainActivity extends AppCompatActivity {
         showExitMenu();
     }
 
-    // ✅ openSettings 已整合 5 秒超时自动解锁逻辑
     public void openSettings() {
         long now = System.currentTimeMillis();
 
@@ -787,7 +777,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 系统菜单/帮助/设置键完全交给系统，避免冲突
         if (keyCode == KeyEvent.KEYCODE_MENU
                 || keyCode == KeyEvent.KEYCODE_HELP
                 || keyCode == KeyEvent.KEYCODE_SETTINGS) {
@@ -883,7 +872,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         mMainHandler.removeCallbacksAndMessages(null);
-        // ✅【修复】增加 appCoreManager 判空，防止 NPE
         if (appCoreManager != null) {
             appCoreManager.onPause();
         }
@@ -977,6 +965,14 @@ public class MainActivity extends AppCompatActivity {
         if (mPlayerManager != null) mPlayerManager.release();
         if (playerControlManager != null) {
             playerControlManager.release();
+        }
+
+        // ✅【新增】主动清理退出弹窗，防止 WindowLeaked 和内存泄漏
+        if (exitMenuDialog != null) {
+            if (exitMenuDialog.isShowing()) {
+                exitMenuDialog.dismiss();
+            }
+            exitMenuDialog = null;
         }
 
         if (unlockReceiver != null) {
