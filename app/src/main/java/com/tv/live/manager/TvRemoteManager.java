@@ -210,10 +210,7 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 if (listener != null) listener.onPlayTogglePanel();
                 return true;
-            case KeyEvent.KEYCODE_MENU:
-            case KeyEvent.KEYCODE_HELP:
-                if (listener != null) listener.onPlayOpenSettings();
-                return true;
+            // ===== 已删除 MENU / HELP 键，它们不再触发打开设置 =====
             case KeyEvent.KEYCODE_BACK:
                 if (listener != null) return listener.onPlayBack();
                 return false;
@@ -249,9 +246,7 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_BACK:
                 if (listener != null) return listener.onPanelBack();
                 return false;
-            case KeyEvent.KEYCODE_MENU:
-                if (listener != null) listener.onPlayOpenSettings();
-                return true;
+            // ===== 已删除 MENU 键，不再触发打开设置 =====
             default:
                 return false;
         }
