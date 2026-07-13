@@ -252,30 +252,6 @@ public class ChannelPanelController {
             }
             channelListManager.setChannelsByGroup(channelSourceList, groupName, currentPlayIndex);
         }
-
-        // ✅【修复】切换分组后，同步右侧列表的高亮并滚动到当前频道位置（兼顾手机触屏和电视）
-        if (channelListManager != null && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-            // 1. 在右侧列表中，找到当前播放的频道
-            Channel currentChannel = channelSourceList.get(currentPlayIndex);
-            int targetPos = -1;
-            for (int i = 0; i < currentGroupChannelList.size(); i++) {
-                if (currentGroupChannelList.get(i).getName().equals(currentChannel.getName())) {
-                    targetPos = i;
-                    break;
-                }
-            }
-            // 2. 让右侧列表能直观看到当前频道（物理滚动到该位置）
-            if (targetPos >= 0) {
-                lvChannelList.setSelection(targetPos);
-            } else {
-                lvChannelList.setSelection(0);
-            }
-
-            // 3. 强制让右侧列表重新获得控制焦点（手机触屏模式至关重要）
-            lvChannelList.setFocusable(true);
-            lvChannelList.setFocusableInTouchMode(true);
-            lvChannelList.requestFocus();
-        }
     }
 
     public String getCurrentGroupName() {
@@ -959,4 +935,4 @@ public class ChannelPanelController {
         this.activity = null;
         this.context = null;
     }
-    }
+ }
