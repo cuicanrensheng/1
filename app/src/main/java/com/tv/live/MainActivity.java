@@ -638,7 +638,7 @@ public class MainActivity extends AppCompatActivity {
     public void playNext() { channelPanelController.playNext(); }
 
     // ============================================================
-    // ✅ 退出确认菜单（完全复刻截图样式）- 已修复顺序错误
+    // ✅ 退出确认菜单（完全复刻截图样式）- 已整合所有修复
     // ============================================================
     public void showExitMenu() {
         // 如果已经显示，就不重复打开
@@ -841,13 +841,13 @@ public class MainActivity extends AppCompatActivity {
         if (isInCatchUpMode && keyCode == KeyEvent.KEYCODE_BACK) {
             return true;
         }
-        // BACK 长按：若面板打开则先关面板，否则打开设置
+        // BACK 长按：若面板打开则先关面板，否则什么都不做（不再打开设置）
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (channelPanelController != null && channelPanelController.handleBackPressed()) {
                 if (remoteManager != null) remoteManager.syncMode();
                 return true;
             }
-            openSettings();
+            // ✅ 删掉 openSettings()，现在长按返回键只会消费按键，不会跳转设置
             return true;
         }
         // ❌ 移除 DPAD_CENTER / ENTER 长按打开设置的功能
