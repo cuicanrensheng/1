@@ -23,7 +23,7 @@ public class DateListManager {
     /** 日期列表 ListView */
     private final ListView lvDate;
     /** 上下文 */
-    private final Context context;
+    private Context context;
     /** 当前选中位置 */
     private int selectedPosition = 0;
     /** 日期选中监听器 */
@@ -33,7 +33,6 @@ public class DateListManager {
     /** 显示的日期文本列表 */
     private List<String> dateDisplayList;
 
-    // 🟢【优化1】预定义颜色常量
     private static final int COLOR_BLUE = 0xFF40A9FF;
     private static final int COLOR_BG_BLUE = 0x3340A9FF;
     private static final int COLOR_WHITE = 0xFFFFFFFF;
@@ -114,7 +113,6 @@ public class DateListManager {
 
             int month = cal.get(Calendar.MONTH) + 1;
             int day = cal.get(Calendar.DAY_OF_MONTH);
-            // 【优化】：使用 String.format 代替拼接
             String dateStr = String.format("%d/%d", month, day);
 
             dateDisplayList.add(weekStr + "\n" + dateStr);
@@ -173,5 +171,24 @@ public class DateListManager {
         if (adapter != null) {
             adapter.notifyDataSetChanged();
         }
+    }
+
+    // 🛠️【新增】释放资源切断引用
+    public void release() {
+        if (adapter != null) {
+            adapter.clear();
+            adapter = null;
+        }
+        if (lvDate != null) {
+            lvDate.setAdapter(null);
+            lvDate.setOnItemSelectedListener(null);
+            lvDate.setOnItemClickListener(null);
+        }
+        if (dateDisplayList != null) {
+            dateDisplayList.clear();
+            dateDisplayList = null;
+        }
+        listener = null;
+        context = null;
     }
 }
