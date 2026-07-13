@@ -460,6 +460,11 @@ public class MainActivity extends AppCompatActivity {
                     if (infoDisplayManager != null) {
                         infoDisplayManager.setTotalChannelCount(channelSourceList.size());
                     }
+                    // ✅【修复方案一】列表加载完成后，强制把 currentPlayIndex 限制在有效范围内
+                    if (currentPlayIndex >= channelSourceList.size()) {
+                        currentPlayIndex = 0;
+                        Log.d("MainActivity", "currentPlayIndex 越界，已自动重置为 0");
+                    }
                     if (!appCoreManager.hasPlayedWithCache()) {
                         if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                             Channel ch = channelSourceList.get(currentPlayIndex);
