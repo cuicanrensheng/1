@@ -706,8 +706,15 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        // ✅【修复点】按返回键关闭退出弹窗，并强制归还焦点
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             exitMenuDialog.dismiss();
+            exitMenuDialog = null; 
+            if (playerView != null) {
+                playerView.setFocusable(true);
+                playerView.setFocusableInTouchMode(true);
+                playerView.requestFocus();
+            }
             return;
         }
 
@@ -967,7 +974,6 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
 
-        // ✅【新增】主动清理退出弹窗，防止 WindowLeaked 和内存泄漏
         if (exitMenuDialog != null) {
             if (exitMenuDialog.isShowing()) {
                 exitMenuDialog.dismiss();
