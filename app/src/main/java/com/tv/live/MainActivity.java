@@ -73,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean number_channel_enable;
 
     private boolean isOpeningSettings = false;
-    private long lastSettingsOpenTime = 0; // ✅ 记录上次打开设置的时间
+    private long lastSettingsOpenTime = 0;
 
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences sp;
@@ -85,10 +85,8 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isInCatchUpMode = false;
 
-    // ✅ 退出确认对话框（弹窗）
     private AlertDialog exitMenuDialog = null;
 
-    // ✅ 新增：SettingsActivity 解锁广播接收器
     private BroadcastReceiver unlockReceiver;
 
     public static MainActivity getRunningInstance() {
@@ -129,7 +127,6 @@ public class MainActivity extends AppCompatActivity {
 
         initInfoDisplayManager();
         appConfig = AppConfig.getInstance(this);
-        loadSettings();
 
         String customLive = appConfig.getCustomLiveUrl();
         String customEpg = appConfig.getCustomEpgUrl();
@@ -148,9 +145,14 @@ public class MainActivity extends AppCompatActivity {
         initRemoteManager();
         initPictureInPicture();
         channelPanelController.handleFirstLaunch();
+
+        // ✅【修复】先初始化 Player（创建 mPlayerManager），再加载设置
         initPlayer();
         mPlayerManager.registerDecoderModeReceiver();
         mPlayerManager.registerRendererModeReceiver();
+
+        // ✅【修复】loadSettings 移到 initPlayer 之后，避免 mPlayerManager 空指针
+        loadSettings();
 
         screenRatioManager = new ScreenRatioManager(mPlayerManager, appConfig);
         screenRatioManager.apply();
@@ -163,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
         displayManager.showLoading("正在加载直播源...");
         new Thread(() -> appCoreManager.loadLiveAndEpg()).start();
 
-        // ✅ 注册 SettingsActivity 解锁广播接收器
+        // 注册 SettingsActivity 解锁广播接收器
         unlockReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -302,11 +304,9 @@ public class MainActivity extends AppCompatActivity {
                 remoteManager.syncMode(); 
             }
             @Override public void onPlayOpenSettings() {
-                // ✅ 菜单键/帮助键不再直接打开设置，由系统优先接管，避免冲突
-                // 用户可以通过退出弹窗中的“设置选项”按钮进入应用设置
+                // 菜单键/帮助键不再直接打开设置，由系统优先接管
             }
             @Override public boolean onPlayBack() { return false; }
-            // ===== 媒体键回调实现 =====
             @Override public void onPlayMediaPlayPause() {
                 if (mPlayerManager != null) {
                     mPlayerManager.togglePlayWhenReady();
@@ -370,7 +370,6 @@ public class MainActivity extends AppCompatActivity {
                 tv_bitrate, tv_current_program_name, tv_current_time_range, progress_program,
                 tv_remaining_time, tv_next_program_name, tv_next_time_range
         );
-        // ✅【按键修复】数字键切台回调连接
         infoDisplayManager.setOnChannelNumberSelectedListener(channelIndex -> {
             if (channelPanelController != null) {
                 channelPanelController.playChannel(channelIndex);
@@ -434,10 +433,21 @@ public class MainActivity extends AppCompatActivity {
 
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
+
+        // ✅【修复】先创建 GestureManager 和 PlayerControlManager
+        gestureManager = new GestureManager(this);
+        playerControlManager = new PlayerControlManager(this, gestureManager, infoDisplayManager);
+
         mPlayerManager.setOnPlayerViewRecreatedListener(newPlayerView -> {
             MainActivity.this.playerView = newPlayerView;
+
+            // ✅【修复】PlayerView 重建时同步更新 GestureManager 和 PlayerControlManager
             gestureManager = new GestureManager(MainActivity.this);
             final PlayerGestureHelper newGestureHelper = gestureManager.create();
+
+            if (playerControlManager != null) {
+                playerControlManager.updateGestureManager(gestureManager);
+            }
 
             if (touchListener == null) {
                 touchListener = new PlayerTouchListener(MainActivity.this);
@@ -446,12 +456,13 @@ public class MainActivity extends AppCompatActivity {
             newPlayerView.setOnTouchListener(touchListener);
             newPlayerView.requestFocus();
 
+            // 强制使用自定义控制，关闭 ExoPlayer 原生控制栏
             if (playerControlManager != null) {
                 newPlayerView.setUseController(false);
                 playerControlManager.hideExoController();
             }
 
-            // ✅【方案三核心】PlayerView 重建后强制恢复焦点
+            // 强制恢复焦点
             newPlayerView.setFocusable(true);
             newPlayerView.setFocusableInTouchMode(true);
             newPlayerView.requestFocus();
@@ -491,7 +502,6 @@ public class MainActivity extends AppCompatActivity {
                     if (infoDisplayManager != null) {
                         infoDisplayManager.setTotalChannelCount(channelSourceList.size());
                     }
-                    // ✅【修复方案一】列表加载完成后，强制把 currentPlayIndex 限制在有效范围内
                     if (currentPlayIndex >= channelSourceList.size()) {
                         currentPlayIndex = 0;
                         Log.d("MainActivity", "currentPlayIndex 越界，已自动重置为 0");
@@ -570,6 +580,7 @@ public class MainActivity extends AppCompatActivity {
             mode = TVPlayerManager.DECODER_MODE_SOFT;
         }
         
+        // ✅【修复】mPlayerManager 已在 initPlayer 中初始化，此处可安全调用
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
         if (remoteManager != null) remoteManager.setNumberChannelEnable(number_channel_enable);
         if (channelPanelController != null) {
@@ -637,11 +648,8 @@ public class MainActivity extends AppCompatActivity {
     public void playPrev() { channelPanelController.playPrev(); }
     public void playNext() { channelPanelController.playNext(); }
 
-    // ============================================================
-    // ✅ 退出确认菜单（完全复刻截图样式）- 已整合所有修复
-    // ============================================================
+    // ✅ 退出确认菜单（已修复空指针和焦点问题）
     public void showExitMenu() {
-        // 如果已经显示，就不重复打开
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             return;
         }
@@ -653,11 +661,9 @@ public class MainActivity extends AppCompatActivity {
         Button btnRest = view.findViewById(R.id.btn_rest);
         Button btnSettings = view.findViewById(R.id.btn_settings);
 
-        // ✅【关键修复】先创建弹窗对象，再设置监听器
         exitMenuDialog = builder.create();
 
         if (exitMenuDialog != null) {
-            // ✅【修复1】弹窗显示后，立刻让“休息一会”获得焦点（解决遥控器确认键无响应）
             exitMenuDialog.setOnShowListener(dialog -> {
                 btnRest.requestFocus();
             });
@@ -665,7 +671,7 @@ public class MainActivity extends AppCompatActivity {
             if (exitMenuDialog.getWindow() != null) {
                 exitMenuDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
                 WindowManager.LayoutParams lp = exitMenuDialog.getWindow().getAttributes();
-                lp.dimAmount = 0.5f; // 背景变暗程度
+                lp.dimAmount = 0.5f;
                 exitMenuDialog.getWindow().setAttributes(lp);
                 exitMenuDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
@@ -674,28 +680,24 @@ public class MainActivity extends AppCompatActivity {
             exitMenuDialog.show();
         }
 
-        // ✅【修复2】“休息一会” → 关闭应用
         btnRest.setOnClickListener(v -> {
             if (exitMenuDialog != null) {
                 exitMenuDialog.dismiss();
             }
-            finishAffinity(); // 彻底退出应用
+            finishAffinity();
         });
 
-        // ✅【修复3】“设置选项” → 打开设置（带焦点归还和延迟）
         btnSettings.setOnClickListener(v -> {
             if (exitMenuDialog != null) {
                 exitMenuDialog.dismiss();
             }
             
-            // 立刻把焦点还给 PlayerView（防止遥控器失效）
             if (playerView != null) {
                 playerView.setFocusable(true);
                 playerView.setFocusableInTouchMode(true);
                 playerView.requestFocus();
             }
 
-            // 延迟 100ms 再打开设置（确保焦点切换完成）
             mMainHandler.postDelayed(() -> {
                 openSettings();
             }, 100);
@@ -704,34 +706,27 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        // 回看模式下控制栏打开时，优先关闭控制栏
         if (isInCatchUpMode && playerControlManager != null && playerControlManager.isControllerShowing()) {
             exitPlaybackMode();
             return;
         }
 
-        // 如果遥控器按键被 remoteManager 拦截了（比如面板打开时），让 remoteManager 先处理
         if (remoteManager != null && remoteManager.handleBackPressed()) {
             return;
         }
 
-        // 如果已经显示退出菜单，按返回键关闭菜单（而不是再弹一个）
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             exitMenuDialog.dismiss();
             return;
         }
 
-        // ✅ 显示退出确认菜单
         showExitMenu();
     }
 
-    // ============================================================
-    // ✅ openSettings 已整合所有修复（5秒超时自动解锁）
-    // ============================================================
+    // ✅ openSettings 已整合 5 秒超时自动解锁逻辑
     public void openSettings() {
         long now = System.currentTimeMillis();
 
-        // ✅【修复4】5秒超时自动解锁 isOpeningSettings，防止死锁
         if (isOpeningSettings) {
             if (now - lastSettingsOpenTime > 5000) {
                 Log.d("Settings", "🔄 强制解锁 isOpeningSettings（超过 5 秒）");
@@ -744,7 +739,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (isInCatchUpMode) return;
 
-        // ✅ 记录本次打开时间（用于超时解锁）
         lastSettingsOpenTime = now;
         isOpeningSettings = true;
 
@@ -766,8 +760,6 @@ public class MainActivity extends AppCompatActivity {
         int keyCode = event.getKeyCode();
         int action = event.getAction();
 
-        // ========== ACTION_DOWN：对需要支持长按的键，先启动 startTracking ==========
-        // （必须在消费前调用，否则 onKeyLongPress 无法触发；放在最前面确保不会被其它分支提前 return 跳过）
         if (action == KeyEvent.ACTION_DOWN) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_BACK:
@@ -786,7 +778,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // ========== 数字键 0~9：直接交给 InfoDisplayManager 处理（切台）==========
         if (number_channel_enable && action == KeyEvent.ACTION_DOWN
                 && infoDisplayManager != null
                 && !isInCatchUpMode
@@ -796,10 +787,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // ========== MENU / HELP / SETTINGS：完全交给系统，避免冲突 ==========
-        // 这些按键是电视系统的常用按键（如系统设置菜单、原生帮助菜单）。
-        // 如果应用拦截并弹出自己的设置页，会导致焦点失效、遥控器卡死。
-        // 因此，直接交给 super，让电视系统优先响应。
+        // 系统菜单/帮助/设置键完全交给系统，避免冲突
         if (keyCode == KeyEvent.KEYCODE_MENU
                 || keyCode == KeyEvent.KEYCODE_HELP
                 || keyCode == KeyEvent.KEYCODE_SETTINGS) {
@@ -821,8 +809,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 只有 dispatchKeyEvent 未消费的键才会走到这里。
-        // 为了兼容：对需要长按的键仍然补上 startTracking，作为兜底。
         switch (keyCode) {
             case KeyEvent.KEYCODE_BACK:
             case KeyEvent.KEYCODE_INFO:
@@ -837,21 +823,16 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        // 回看模式下：BACK 长按直接返回 true，不打开设置
         if (isInCatchUpMode && keyCode == KeyEvent.KEYCODE_BACK) {
             return true;
         }
-        // BACK 长按：若面板打开则先关面板，否则什么都不做（不再打开设置）
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (channelPanelController != null && channelPanelController.handleBackPressed()) {
                 if (remoteManager != null) remoteManager.syncMode();
                 return true;
             }
-            // ✅ 删掉 openSettings()，现在长按返回键只会消费按键，不会跳转设置
             return true;
         }
-        // ❌ 移除 DPAD_CENTER / ENTER 长按打开设置的功能
-        // 现在只能通过退出菜单中的“设置选项”进入设置
         if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
             return true;
         }
@@ -902,7 +883,10 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         mMainHandler.removeCallbacksAndMessages(null);
-        appCoreManager.onPause();
+        // ✅【修复】增加 appCoreManager 判空，防止 NPE
+        if (appCoreManager != null) {
+            appCoreManager.onPause();
+        }
 
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
@@ -995,7 +979,6 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
 
-        // ✅ 取消注册 SettingsActivity 解锁广播接收器
         if (unlockReceiver != null) {
             try {
                 unregisterReceiver(unlockReceiver);
