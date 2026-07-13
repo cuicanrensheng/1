@@ -493,6 +493,22 @@ public class MainActivity extends AppCompatActivity {
                     channelSourceList.clear();
                     channelSourceList.addAll(finalList);
                     channelPanelController.setChannels(channelSourceList);
+
+                    // ✅【核心修复】切换备用源/重载数据后，强制刷新左侧面板的分组状态和高亮
+                    if (channelPanelController != null) {
+                        // 1. 获取当前频道属于哪个分组
+                        String currentGroup = "";
+                        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                            Channel ch = channelSourceList.get(currentPlayIndex);
+                            if (ch != null) currentGroup = ch.getGroup();
+                        }
+                        // 2. 同步左侧分组列表的选中状态
+                        if (currentGroup != null && !currentGroup.isEmpty()) {
+                            // 利用已有的 playChannel 机制把分组也切过去
+                            channelPanelController.playChannel(currentPlayIndex);
+                        }
+                    }
+
                     if (remoteManager != null) {
                         remoteManager.setTotalChannelCount(channelSourceList.size());
                     }
@@ -504,7 +520,7 @@ public class MainActivity extends AppCompatActivity {
                         Log.d("MainActivity", "currentPlayIndex 越界，已自动重置为 0");
                     }
 
-                    // ✅【修复核心】在每次刷新数据后，重置标志位，防止重叠触发导致焦点抢占
+                    // ✅【关键】防止重载数据时再次触发 initial play
                     appCoreManager.setHasPlayedWithCache(true);
 
                     if (!appCoreManager.hasPlayedWithCache()) {
@@ -1000,4 +1016,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
-}
+                                             }
