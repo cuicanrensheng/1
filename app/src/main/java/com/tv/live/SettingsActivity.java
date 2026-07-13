@@ -1058,5 +1058,9 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList = null;
         itemTextViews.clear();
         itemTextViews = null;
+
+        // ✅【新增】设置页关闭时发送解锁广播，防止 isOpeningSettings 死锁
+        Intent unlockIntent = new Intent("com.tv.live.UNLOCK_SETTINGS");
+        sendBroadcast(unlockIntent);
     }
-}
+    }
