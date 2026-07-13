@@ -19,32 +19,6 @@ import java.util.List;
 
 /**
  * 频道列表管理器
- *
- * 【2026-06-21 修复：当前播放指示】
- * 【新增功能】
- * 正在播放的频道前面显示 ▶️ 播放图标，一目了然。
- *
- * 【2026-06-21 新增：支持筛选后的频道列表】
- * 【说明】
- * 新增 setFilteredChannels() 方法，用于显示收藏、最近观看等筛选后的列表。
- *
- * 【2026-06-21 新增：长按收藏/取消收藏】
- * 【说明】
- * 触屏模式下，长按频道项可以收藏/取消收藏该频道。
- *
- * 【2026-06-21 修复：空列表也要更新适配器】
- * 【说明】
- * 收藏/最近观看列表为空时，也要更新 ListView，
- * 不然会停留在上一个分组的内容，造成混淆。
- *
- * 【2026-06-24 修改：增加焦点态样式区分】
- * 【修改说明】
- * 新增 hasFocus 变量和 setFocused 方法，区分"有焦点的选中"和"无焦点的选中"。
- * 
- * 【样式规范】
- * - 有焦点 + 选中：浅蓝色背景 + 蓝色文字 + 加粗
- * - 无焦点 + 选中：蓝色文字 + 透明背景
- * - 未选中：白色文字 + 透明背景
  */
 public class ChannelListManager {
     /** 频道列表 ListView */
@@ -54,7 +28,6 @@ public class ChannelListManager {
     /** 当前播放位置（正在播放的频道） */
     private int currentPlayIndex = 0;
 
-    // 🟢【优化1】预定义颜色常量，彻底避免 getView 中反复解析字符串
     private static final int COLOR_BLUE = 0xFF40A9FF;
     private static final int COLOR_BG_BLUE = 0x3340A9FF;
     private static final int COLOR_WHITE = 0xFFFFFFFF;
@@ -144,9 +117,6 @@ public class ChannelListManager {
         return hasFocus;
     }
 
-    // ====================================================================
-    // 显示全部频道
-    // ====================================================================
     public void setChannels(List<Channel> channelSourceList, int currentPlayIndex) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
 
@@ -160,7 +130,6 @@ public class ChannelListManager {
                 R.layout.item_channel, names) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
-                // 🟢【核心优化】引入 ViewHolder 模式，彻底消灭卡顿
                 ViewHolder holder;
                 if (convertView == null) {
                     convertView = LayoutInflater.from(getContext())
@@ -173,18 +142,15 @@ public class ChannelListManager {
                     holder = (ViewHolder) convertView.getTag();
                 }
 
-                // ✅ 当前播放的频道显示 ▶️ 图标
                 if (position == currentPlayIndex) {
                     holder.tvIndex.setText("▶");
                 } else {
-                    // 🟢 虽然这里需要转字符串，但为了可读性保留。若有极度高频滑动需求，可提前转成 String 数组缓存。
                     holder.tvIndex.setText(String.valueOf(position + 1));
                 }
 
                 holder.tvChannel.setText(getItem(position));
                 holder.tvChannel.setTextSize(16);
 
-                // 🟢 直接使用预定义的静态颜色常量
                 if (position == selectedPosition) {
                     if (hasFocus) {
                         holder.tvChannel.setTextColor(COLOR_BLUE);
@@ -212,9 +178,6 @@ public class ChannelListManager {
         lvChannelList.setSelection(selectedPosition);
     }
 
-    // ====================================================================
-    // 按分组显示频道
-    // ====================================================================
     public void setChannelsByGroup(List<Channel> channelSourceList, String group, int currentPlayIndex) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
 
@@ -237,7 +200,6 @@ public class ChannelListManager {
                 R.layout.item_channel, names) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
-                // 🟢【核心优化】引入 ViewHolder
                 ViewHolder holder;
                 if (convertView == null) {
                     convertView = LayoutInflater.from(getContext())
@@ -286,9 +248,6 @@ public class ChannelListManager {
         lvChannelList.setSelection(selectedPosition);
     }
 
-    // ====================================================================
-    // ✅ 显示筛选后的频道列表
-    // ====================================================================
     public void setFilteredChannels(List<Channel> filteredChannels, String currentPlayChannelName) {
         List<String> names = new ArrayList<>();
         int playIndex = 0;
@@ -311,7 +270,6 @@ public class ChannelListManager {
                 R.layout.item_channel, names) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
-                // 🟢【核心优化】引入 ViewHolder
                 ViewHolder holder;
                 if (convertView == null) {
                     convertView = LayoutInflater.from(getContext())
@@ -360,9 +318,20 @@ public class ChannelListManager {
         lvChannelList.setSelection(selectedPosition);
     }
 
-    // 🟢【新增】静态内部类 ViewHolder，极低内存占用
     private static class ViewHolder {
         TextView tvIndex;
         TextView tvChannel;
+    }
+
+    // 🛠️【新增】释放资源切断引用
+    public void release() {
+        if (lvChannelList != null) {
+            lvChannelList.setAdapter(null);
+            lvChannelList.setOnItemClickListener(null);
+            lvChannelList.setOnItemLongClickListener(null);
+            lvChannelList.setOnItemSelectedListener(null);
+        }
+        onChannelClickListener = null;
+        onChannelLongClickListener = null;
     }
 }
