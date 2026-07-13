@@ -275,6 +275,13 @@ public class ChannelPanelController {
         if (channelSourceList == null || channelSourceList.isEmpty()) {
             return;
         }
+        
+        // ✅【新增】防止 currentPlayIndex 越界导致崩溃
+        if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
+            currentPlayIndex = 0;
+            Log.w("ChannelPanelController", "playPrev: currentPlayIndex 越界，已重置为 0");
+        }
+
         Channel currentChannel = channelSourceList.get(currentPlayIndex);
         String currentGroup = currentChannel.getGroup();
         List<Channel> groupChannels = new ArrayList<>();
@@ -311,6 +318,13 @@ public class ChannelPanelController {
         if (channelSourceList == null || channelSourceList.isEmpty()) {
             return;
         }
+        
+        // ✅【新增】防止 currentPlayIndex 越界导致崩溃
+        if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
+            currentPlayIndex = 0;
+            Log.w("ChannelPanelController", "playNext: currentPlayIndex 越界，已重置为 0");
+        }
+
         Channel currentChannel = channelSourceList.get(currentPlayIndex);
         String currentGroup = currentChannel.getGroup();
         List<Channel> groupChannels = new ArrayList<>();
