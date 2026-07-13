@@ -3,14 +3,12 @@ package com.tv.live;
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -19,7 +17,6 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ListView;
@@ -30,6 +27,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.media3.ui.PlayerView;
 
 import com.tv.live.config.AppConfig;
@@ -172,7 +170,13 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         };
-        registerReceiver(unlockReceiver, new IntentFilter("com.tv.live.UNLOCK_SETTINGS"));
+        // ✅【关键修复】使用 ContextCompat.registerReceiver 并指定 RECEIVER_NOT_EXPORTED，兼容 Android 14 以上版本
+        ContextCompat.registerReceiver(
+            this,
+            unlockReceiver,
+            new IntentFilter("com.tv.live.UNLOCK_SETTINGS"),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        );
     }
 
     public void showLogWindow() {
@@ -719,6 +723,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         showExitMenu();
+
+        // ✅【新增】增加父类调用，彻底消除 Lint 警告并确保系统手势逻辑正常工作
+        super.onBackPressed();
     }
 
     public void openSettings() {
