@@ -724,8 +724,7 @@ public class MainActivity extends AppCompatActivity {
 
         showExitMenu();
 
-        // ✅【新增】增加父类调用，彻底消除 Lint 警告并确保系统手势逻辑正常工作
-        super.onBackPressed();
+        // 🔥【已删除】 super.onBackPressed();  // 删除了这行，弹窗将稳定留在屏幕上，不会突然退出
     }
 
     public void openSettings() {
