@@ -87,6 +87,8 @@ public class MainActivity extends AppCompatActivity {
 
     private BroadcastReceiver unlockReceiver;
 
+    // 已移除 RemoteKeyHandler
+
     public static MainActivity getRunningInstance() {
         return mInstanceRef != null ? mInstanceRef.get() : null;
     }
@@ -99,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
         return pipManager;
     }
 
-    // 🟢 新增：供外部（SettingsActivity）调用的遥控器同步方法
+    // 保留 syncRemoteManagerMode（供外部调用）
     public void syncRemoteManagerMode() {
         if (remoteManager != null) {
             remoteManager.syncMode();
@@ -179,7 +181,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         };
-        // ✅【关键修复】使用 ContextCompat.registerReceiver 并指定 RECEIVER_NOT_EXPORTED，兼容 Android 14 以上版本
         ContextCompat.registerReceiver(
             this,
             unlockReceiver,
@@ -503,17 +504,13 @@ public class MainActivity extends AppCompatActivity {
                     channelSourceList.addAll(finalList);
                     channelPanelController.setChannels(channelSourceList);
 
-                    // ✅【核心修复】切换备用源/重载数据后，强制刷新左侧面板的分组状态和高亮
                     if (channelPanelController != null) {
-                        // 1. 获取当前频道属于哪个分组
                         String currentGroup = "";
                         if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                             Channel ch = channelSourceList.get(currentPlayIndex);
                             if (ch != null) currentGroup = ch.getGroup();
                         }
-                        // 2. 同步左侧分组列表的选中状态
                         if (currentGroup != null && !currentGroup.isEmpty()) {
-                            // 利用已有的 playChannel 机制把分组也切过去
                             channelPanelController.playChannel(currentPlayIndex);
                         }
                     }
@@ -529,7 +526,6 @@ public class MainActivity extends AppCompatActivity {
                         Log.d("MainActivity", "currentPlayIndex 越界，已自动重置为 0");
                     }
 
-                    // ✅【关键】防止重载数据时再次触发 initial play
                     appCoreManager.setHasPlayedWithCache(true);
 
                     if (!appCoreManager.hasPlayedWithCache()) {
@@ -541,8 +537,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                     displayManager.hideLoading();
                     log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channelSourceList.size());
-
-                    // ✅【已删除】此处原来的 postDelayed 抢焦点冲突代码已移除，现在完全由 ChannelPanelController.playChannel 管理焦点
                 });
             }
 
@@ -658,7 +652,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         
-        // ✅【修复核心一】：每次播放/切换频道后，强制同步左侧分组 UI
         if (channelPanelController != null && channel != null) {
             channelPanelController.syncCurrentGroup(channel.getGroup());
         }
@@ -676,7 +669,6 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
         }
         
-        // ✅【修复核心二】：打开面板时强制同步当前分组，确保 UI 状态正确
         if (channelPanelController != null 
                 && currentPlayIndex >= 0 
                 && currentPlayIndex < channelSourceList.size()) {
@@ -756,7 +748,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // ✅【修复点】按返回键关闭退出弹窗，并强制归还焦点
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             exitMenuDialog.dismiss();
             exitMenuDialog = null; 
@@ -769,8 +760,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         showExitMenu();
-
-        // 🔥【已删除】 super.onBackPressed();  // 删除了这行，弹窗将稳定留在屏幕上，不会突然退出
     }
 
     public void openSettings() {
@@ -804,7 +793,6 @@ public class MainActivity extends AppCompatActivity {
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
-    // 🟢 修改：先交给 remoteKeyHandler 处理
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
@@ -827,6 +815,8 @@ public class MainActivity extends AppCompatActivity {
                     break;
             }
         }
+
+        // 已移除 RemoteKeyHandler
 
         if (number_channel_enable && action == KeyEvent.ACTION_DOWN
                 && infoDisplayManager != null
@@ -852,8 +842,7 @@ public class MainActivity extends AppCompatActivity {
         return super.dispatchKeyEvent(event);
     }
 
-    // 🟢 修改：改为 public，供 RemoteKeyHandler 调用
-    public boolean isPanelOpen() {
+    private boolean isPanelOpen() {
         return channelPanelController != null && channelPanelController.isPanelOpen();
     }
 
@@ -1028,6 +1017,8 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
 
+        // 已移除 RemoteKeyHandler 释放
+
         if (exitMenuDialog != null) {
             if (exitMenuDialog.isShowing()) {
                 exitMenuDialog.dismiss();
@@ -1044,4 +1035,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
- }
+}
