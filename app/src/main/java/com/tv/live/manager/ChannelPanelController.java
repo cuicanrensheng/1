@@ -252,6 +252,26 @@ public class ChannelPanelController {
             }
             channelListManager.setChannelsByGroup(channelSourceList, groupName, currentPlayIndex);
         }
+
+        // ✅ 切换分组后，让右侧列表滚动到当前频道，并高亮它
+        if (channelListManager != null && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+            Channel currentChannel = channelSourceList.get(currentPlayIndex);
+            int targetPos = -1;
+            for (int i = 0; i < currentGroupChannelList.size(); i++) {
+                if (currentGroupChannelList.get(i).getName().equals(currentChannel.getName())) {
+                    targetPos = i;
+                    break;
+                }
+            }
+            if (targetPos >= 0) {
+                lvChannelList.setSelection(targetPos);
+            } else {
+                lvChannelList.setSelection(0);
+            }
+            // 我们不再强制抢焦点，让触屏自然响应点击
+            lvChannelList.setFocusable(true);
+            lvChannelList.setFocusableInTouchMode(true);
+        }
     }
 
     public String getCurrentGroupName() {
@@ -402,20 +422,15 @@ public class ChannelPanelController {
         channelListManagerEpg.setChannels(channelSourceList, index);
         epgManagerWrapper.refresh(ch, channelSourceList, currentSelectedDateIndex);
 
-        // ✅【核心修复】切换备用源导致左侧面板“死机”的问题，强制将焦点和激活状态交还给左侧分组列表
+        // ✅【最终修复】移除所有强制抢焦点的代码，只保证两者都可以被触屏点击
+        // 让系统去处理点击交互，想点左点左，想点右点右
         if (lvGroup != null) {
-            // 先清空旧焦点，确保 requestFocus 100%生效
-            lvGroup.clearFocus(); 
             lvGroup.setFocusable(true);
             lvGroup.setFocusableInTouchMode(true);
-            lvGroup.requestFocus(); // 主动抢夺焦点，唤醒左侧面板
-
-            // ✅ 再加一个延迟，确保在 togglePanel 的 100ms 延迟执行完后再抢一次，彻底覆盖任何冲突
-            lvGroup.postDelayed(() -> {
-                if (lvGroup != null && !lvGroup.hasFocus()) {
-                    lvGroup.requestFocus();
-                }
-            }, 200);
+        }
+        if (lvChannelList != null) {
+            lvChannelList.setFocusable(true);
+            lvChannelList.setFocusableInTouchMode(true);
         }
 
         if (channelChangeListener != null) {
@@ -486,17 +501,20 @@ public class ChannelPanelController {
 
             if (isPanelOpen()) {
                 clearAllFocusStyles();
-                // ✅【修复核心】默认让左侧分组列表获得焦点和高亮
+                // ✅ 重置样式同步，但不强制把焦点抢给谁
                 currentFocusPanel = "left";
-                leftFocusView = "group"; 
+                leftFocusView = "channel";
                 syncFocusStyle();
                 
-                // 强制焦点落到分组列表上
-                lvGroup.setFocusable(true);
-                lvGroup.setFocusableInTouchMode(true);
-                lvGroup.requestFocus();
+                // 只保证左侧频道列表可以响应用户的触摸
+                lvChannelList.setFocusable(true);
+                lvChannelList.setFocusableInTouchMode(true);
 
-                // ✅【重要】右侧只负责滚动到当前位置，千万不要抢 requestFocus
+                // 确保右侧EPG列表也能响应
+                lvChannelListEpg.setFocusable(true);
+                lvChannelListEpg.setFocusableInTouchMode(true);
+
+                // 滚到当前正在播放的频道
                 lvChannelList.setSelection(getChannelListSelection());
 
             } else {
@@ -575,7 +593,6 @@ public class ChannelPanelController {
                     syncFocusStyle();
                     lvChannelListEpg.setFocusable(true);
                     lvChannelListEpg.setFocusableInTouchMode(true);
-                    lvChannelListEpg.requestFocus();
                     lvChannelListEpg.setSelection(currentPlayIndex);
                 }, 100);
             }
@@ -604,7 +621,6 @@ public class ChannelPanelController {
                     syncFocusStyle();
                     lvChannelList.setFocusable(true);
                     lvChannelList.setFocusableInTouchMode(true);
-                    lvChannelList.requestFocus();
                     lvChannelList.setSelection(getChannelListSelection());
                 }, 100);
             }
@@ -628,7 +644,6 @@ public class ChannelPanelController {
                     syncFocusStyle();
                     lvChannelList.setFocusable(true);
                     lvChannelList.setFocusableInTouchMode(true);
-                    lvChannelList.requestFocus();
                     lvChannelList.setSelection(getChannelListSelection());
                 }, 100);
             }
