@@ -301,7 +301,8 @@ public class MainActivity extends AppCompatActivity {
                 togglePanel();
             }
             @Override public void onPlayOpenSettings() {
-                // 菜单键不再打开设置
+                // 🟢 修复：菜单键打开设置
+                openSettings();
             }
             @Override public boolean onPlayBack() { return false; }
 
@@ -791,10 +792,14 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // 🟢 修复：菜单键/帮助键/设置键直接打开设置（兜底）
         if (keyCode == KeyEvent.KEYCODE_MENU
                 || keyCode == KeyEvent.KEYCODE_HELP
                 || keyCode == KeyEvent.KEYCODE_SETTINGS) {
-            return super.dispatchKeyEvent(event);
+            if (!isPanelOpen() && !isInCatchUpMode) {
+                openSettings();
+                return true;
+            }
         }
 
         return super.dispatchKeyEvent(event);
@@ -985,4 +990,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
-    }
+}
