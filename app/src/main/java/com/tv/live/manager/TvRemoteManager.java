@@ -3,14 +3,16 @@ package com.tv.live.manager;
 import android.util.Log;
 import android.view.KeyEvent;
 
+import com.tv.live.ChannelPanelController;
+
 /**
  * 电视遥控器统一管理器
  *
  * 【职责】
  * 统一管理所有遥控器按键操作，支持三种模式：
- * 1. 播放模式（PLAY_MODE）—— 全屏播放时
- * 2. 频道面板模式（CHANNEL_PANEL_MODE）—— 频道面板打开时
- * 3. 设置模式（SETTINGS_MODE）—— 设置页面打开时
+ * 1. 播放模式（PLAY_MODE）- 全屏播放时
+ * 2. 频道面板模式（CHANNEL_PANEL_MODE）- 频道面板打开时
+ * 3. 设置模式（SETTINGS_MODE）- 设置页面打开时
  *
  * 【设计原则】
  * 1. 单一入口：所有按键都走 dispatchKeyEvent()
@@ -18,24 +20,12 @@ import android.view.KeyEvent;
  * 3. 焦点记忆：记住每个模式下的焦点位置
  * 4. 边界友好：到达边界时有日志，不崩溃
  * 5. 日志完整：每个按键都记录，方便排查
- *
- * 【使用方式】
- * 1. 创建实例：TvRemoteManager remoteManager = new TvRemoteManager()
- * 2. 设置模式：remoteManager.setMode(Mode.CHANNEL_PANEL_MODE)
- * 3. 设置回调：remoteManager.setOnRemoteActionListener(listener)
- * 4. 分发按键：remoteManager.dispatchKeyEvent(keyCode)
- *
- * 【日志说明】所有日志均使用 android.util.Log.d，Tag 为 "TvRemoteManager"
  */
 public class TvRemoteManager {
 
-    // ====================== 日志 TAG ======================
     private static final String TAG = "TvRemoteManager";
 
     // ====================== 模式枚举 ======================
-    /**
-     * 遥控器工作模式
-     */
     public enum Mode {
         PLAY_MODE,           // 播放模式（全屏播放）
         CHANNEL_PANEL_MODE,  // 频道面板模式
@@ -43,9 +33,6 @@ public class TvRemoteManager {
     }
 
     // ====================== 频道面板焦点位置枚举 ======================
-    /**
-     * 频道面板焦点位置
-     */
     public enum PanelFocus {
         LEFT_GROUP,      // 左侧 - 分组列表
         LEFT_CHANNEL,    // 左侧 - 频道列表
@@ -57,116 +44,72 @@ public class TvRemoteManager {
     }
 
     // ====================== 回调接口 ======================
-    /**
-     * 遥控器动作回调监听器
-     * 所有按键事件通过此接口通知外部
-     */
     public interface OnRemoteActionListener {
 
         // ================== 播放模式回调 ==================
-
-        /** 上键（播放模式：上一台） */
         void onPlayChannelUp();
-
-        /** 下键（播放模式：下一台） */
         void onPlayChannelDown();
-
-        /** OK键（播放模式：切换面板） */
         void onPlayTogglePanel();
-
-        /** 菜单键（播放模式：打开设置） */
         void onPlayOpenSettings();
-
-        /** 返回键（播放模式：退出应用/返回） */
         boolean onPlayBack();
 
+        // 🟢 新增：媒体键回调
+        void onPlayMediaPlayPause();
+        void onPlayMediaStop();
+        void onPlayInfo();
+
         // ================== 频道面板模式回调 ==================
-
-        /** 上键（面板模式：列表上移） */
         void onPanelMoveUp();
-
-        /** 下键（面板模式：列表下移） */
         void onPanelMoveDown();
-
-        /** 左键（面板模式：向左切换列） */
         void onPanelMoveLeft();
-
-        /** 右键（面板模式：向右切换列） */
         void onPanelMoveRight();
-
-        /** OK键（面板模式：选中当前项） */
         void onPanelConfirm();
-
-        /** 返回键（面板模式：返回/关闭） */
         boolean onPanelBack();
-
-        /** 菜单键（面板模式：关闭面板） */
         void onPanelMenu();
-
-        /** 数字键（面板模式：数字选台） */
         void onPanelNumber(int number);
-
-        /** 焦点面板变化 */
         void onPanelFocusChanged(PanelFocus newFocus);
 
+        // 🟢 新增：画中画及焦点回调
+        boolean onPipBack();
+        void onRequestPlayFocus();
+
+        // 🟢 新增：数字选台回调
+        void onChannelNumberSelected(int channelIndex);
+        void onShowChannelNumber(String number);
+        void onHideChannelNumber();
+
         // ================== 设置模式回调 ==================
-
-        /** 上键（设置模式：上移一项） */
         void onSettingsMoveUp();
-
-        /** 下键（设置模式：下移一项） */
         void onSettingsMoveDown();
-
-        /** OK键（设置模式：选中当前项） */
         void onSettingsConfirm();
-
-        /** 返回键（设置模式：关闭设置） */
         boolean onSettingsBack();
-
-        /** 菜单键（设置模式：关闭设置） */
         void onSettingsMenu();
-
-        /** 焦点位置变化 */
         void onSettingsFocusChanged(int position);
     }
 
     // ====================== 成员变量 ======================
-
-    /** 当前模式 */
     private Mode currentMode = Mode.PLAY_MODE;
-
-    /** 回调监听器 */
     private OnRemoteActionListener listener;
-
-    // ---------- 频道面板模式相关 ----------
-    /** 频道面板当前焦点位置 */
     private PanelFocus currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-    /** 右侧面板是否打开 */
     private boolean isRightPanelOpen = false;
-
-    // ---------- 设置模式相关 ----------
-    /** 设置项总数 */
     private int settingsItemCount = 0;
-    /** 设置当前焦点位置 */
     private int settingsFocusPosition = 0;
 
-    // ====================== 构造函数 ======================
+    // 🟢 新增成员变量（兼容新版）
+    private ChannelPanelController channelPanelController;
+    private boolean isInPipMode = false;
+    private boolean numberChannelEnable = true;
+    private int totalChannelCount = 0;
 
+    // ====================== 构造函数 ======================
     public TvRemoteManager() {
-        // 默认播放模式
     }
 
     // ====================== 模式切换 ======================
-
-    /**
-     * 设置当前模式
-     * @param mode 新模式
-     */
     public void setMode(Mode mode) {
         this.currentMode = mode;
         Log.d(TAG, "切换模式：" + mode);
 
-        // 切换模式时重置焦点
         switch (mode) {
             case CHANNEL_PANEL_MODE:
                 resetPanelFocus();
@@ -176,37 +119,20 @@ public class TvRemoteManager {
                 break;
             case PLAY_MODE:
             default:
-                // 播放模式不需要特殊处理
                 break;
         }
     }
 
-    /**
-     * 获取当前模式
-     * @return 当前模式
-     */
     public Mode getCurrentMode() {
         return currentMode;
     }
 
     // ====================== 设置回调监听器 ======================
-
-    /**
-     * 设置回调监听器
-     * @param listener 回调接口实现
-     */
     public void setOnRemoteActionListener(OnRemoteActionListener listener) {
         this.listener = listener;
     }
 
     // ====================== 核心：按键分发 ======================
-
-    /**
-     * 分发遥控器按键事件（统一入口）
-     *
-     * @param keyCode 按键码
-     * @return true=已处理，false=未处理（继续向上传递）
-     */
     public boolean dispatchKeyEvent(int keyCode) {
         switch (currentMode) {
             case CHANNEL_PANEL_MODE:
@@ -222,65 +148,51 @@ public class TvRemoteManager {
     // ====================================================================
     // 一、播放模式按键处理
     // ====================================================================
-
-    /**
-     * 播放模式按键分发
-     * @param keyCode 按键码
-     * @return 是否处理
-     */
     private boolean dispatchPlayKey(int keyCode) {
         switch (keyCode) {
-            // 上键：上一台
             case KeyEvent.KEYCODE_DPAD_UP:
-                Log.d(TAG, "播放模式 上键 → 上一台");
-                if (listener != null) {
-                    listener.onPlayChannelUp();
-                }
+                Log.d(TAG, "播放 上键 → 上一台");
+                if (listener != null) listener.onPlayChannelUp();
                 return true;
-
-            // 下键：下一台
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                Log.d(TAG, "播放模式 下键 → 下一台");
-                if (listener != null) {
-                    listener.onPlayChannelDown();
-                }
+                Log.d(TAG, "播放 下键 → 下一台");
+                if (listener != null) listener.onPlayChannelDown();
                 return true;
-
-            // OK键/确认键：切换频道面板
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                Log.d(TAG, "播放模式 OK键 → 切换面板");
-                if (listener != null) {
-                    listener.onPlayTogglePanel();
-                }
+                Log.d(TAG, "播放 OK键 → 切换面板");
+                if (listener != null) listener.onPlayTogglePanel();
                 return true;
-
-            // 左右键：切换频道面板
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                Log.d(TAG, "播放模式 左右键 → 切换面板");
-                if (listener != null) {
-                    listener.onPlayTogglePanel();
-                }
+                Log.d(TAG, "播放 左右键 → 切换面板");
+                if (listener != null) listener.onPlayTogglePanel();
                 return true;
-
-            // 菜单键：打开设置
             case KeyEvent.KEYCODE_MENU:
-                Log.d(TAG, "播放模式 菜单键 → 打开设置");
-                if (listener != null) {
-                    listener.onPlayOpenSettings();
-                }
+                Log.d(TAG, "播放 菜单键 → 打开设置");
+                if (listener != null) listener.onPlayOpenSettings();
                 return true;
-
-            // 返回键
             case KeyEvent.KEYCODE_BACK:
-                Log.d(TAG, "播放模式 返回键");
-                if (listener != null) {
-                    return listener.onPlayBack();
-                }
+                Log.d(TAG, "播放 返回键");
+                if (listener != null) return listener.onPlayBack();
                 return false;
-
-            // 数字键：数字选台
+            // 🟢 新增：媒体键支持
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                Log.d(TAG, "播放 播放/暂停键");
+                if (listener != null) listener.onPlayMediaPlayPause();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_STOP:
+                Log.d(TAG, "播放 停止键");
+                if (listener != null) listener.onPlayMediaStop();
+                return true;
+            case KeyEvent.KEYCODE_INFO:
+            case KeyEvent.KEYCODE_TV:
+                Log.d(TAG, "播放 信息键");
+                if (listener != null) listener.onPlayInfo();
+                return true;
+            // 数字键
             case KeyEvent.KEYCODE_0:
             case KeyEvent.KEYCODE_1:
             case KeyEvent.KEYCODE_2:
@@ -292,12 +204,9 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_8:
             case KeyEvent.KEYCODE_9:
                 int number = keyCode - KeyEvent.KEYCODE_0;
-                Log.d(TAG, "播放模式 数字键 → " + number);
-                if (listener != null) {
-                    listener.onPanelNumber(number);
-                }
+                Log.d(TAG, "播放 数字键 → " + number);
+                if (listener != null) listener.onPanelNumber(number);
                 return true;
-
             default:
                 return false;
         }
@@ -306,64 +215,33 @@ public class TvRemoteManager {
     // ====================================================================
     // 二、频道面板模式按键处理
     // ====================================================================
-
-    /**
-     * 频道面板模式按键分发
-     * @param keyCode 按键码
-     * @return 是否处理
-     */
     private boolean dispatchChannelPanelKey(int keyCode) {
         switch (keyCode) {
-            // 上键：列表上移
             case KeyEvent.KEYCODE_DPAD_UP:
-                Log.d(TAG, "面板模式 上键，当前焦点：" + currentPanelFocus);
-                if (listener != null) {
-                    listener.onPanelMoveUp();
-                }
+                Log.d(TAG, "面板 上键，焦点：" + currentPanelFocus);
+                if (listener != null) listener.onPanelMoveUp();
                 return true;
-
-            // 下键：列表下移
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                Log.d(TAG, "面板模式 下键，当前焦点：" + currentPanelFocus);
-                if (listener != null) {
-                    listener.onPanelMoveDown();
-                }
+                Log.d(TAG, "面板 下键，焦点：" + currentPanelFocus);
+                if (listener != null) listener.onPanelMoveDown();
                 return true;
-
-            // 左键：向左切换列
             case KeyEvent.KEYCODE_DPAD_LEFT:
                 return handlePanelLeftKey();
-
-            // 右键：向右切换列
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 return handlePanelRightKey();
-
-            // OK键/确认键：选中当前项
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                Log.d(TAG, "面板模式 OK键，当前焦点：" + currentPanelFocus);
-                if (listener != null) {
-                    listener.onPanelConfirm();
-                }
+                Log.d(TAG, "面板 OK键，焦点：" + currentPanelFocus);
+                if (listener != null) listener.onPanelConfirm();
                 return true;
-
-            // 返回键：返回/关闭面板
             case KeyEvent.KEYCODE_BACK:
-                Log.d(TAG, "面板模式 返回键");
-                if (listener != null) {
-                    return listener.onPanelBack();
-                }
+                Log.d(TAG, "面板 返回键");
+                if (listener != null) return listener.onPanelBack();
                 return false;
-
-            // 菜单键：关闭面板
             case KeyEvent.KEYCODE_MENU:
-                Log.d(TAG, "面板模式 菜单键 → 关闭面板");
-                if (listener != null) {
-                    listener.onPanelMenu();
-                }
+                Log.d(TAG, "面板 菜单键 → 关闭面板");
+                if (listener != null) listener.onPanelMenu();
                 return true;
-
-            // 数字键：数字选台
             case KeyEvent.KEYCODE_0:
             case KeyEvent.KEYCODE_1:
             case KeyEvent.KEYCODE_2:
@@ -375,188 +253,107 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_8:
             case KeyEvent.KEYCODE_9:
                 int number = keyCode - KeyEvent.KEYCODE_0;
-                Log.d(TAG, "面板模式 数字键 → " + number);
-                if (listener != null) {
-                    listener.onPanelNumber(number);
-                }
+                Log.d(TAG, "面板 数字键 → " + number);
+                if (listener != null) listener.onPanelNumber(number);
                 return true;
-
             default:
                 return false;
         }
     }
 
-    /**
-     * 处理面板左键（向左切换列）
-     * @return true=已处理
-     */
     private boolean handlePanelLeftKey() {
         PanelFocus oldFocus = currentPanelFocus;
-
         switch (currentPanelFocus) {
-            case LEFT_EPG_BTN:
-                // 节目单按钮 → 频道列表
-                currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-                break;
-            case LEFT_CHANNEL:
-                // 频道列表 → 分组列表
-                currentPanelFocus = PanelFocus.LEFT_GROUP;
-                break;
-            case RIGHT_EPG:
-                // EPG列表 → 日期列表
-                currentPanelFocus = PanelFocus.RIGHT_DATE;
-                break;
-            case RIGHT_DATE:
-                // 日期列表 → 频道列表
-                currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-                break;
-            case RIGHT_CHANNEL:
-                // 频道列表 → 返回按钮
-                currentPanelFocus = PanelFocus.RIGHT_BACK_BTN;
-                break;
+            case LEFT_EPG_BTN: currentPanelFocus = PanelFocus.LEFT_CHANNEL; break;
+            case LEFT_CHANNEL: currentPanelFocus = PanelFocus.LEFT_GROUP; break;
+            case RIGHT_EPG: currentPanelFocus = PanelFocus.RIGHT_DATE; break;
+            case RIGHT_DATE: currentPanelFocus = PanelFocus.RIGHT_CHANNEL; break;
+            case RIGHT_CHANNEL: currentPanelFocus = PanelFocus.RIGHT_BACK_BTN; break;
             default:
-                // 已经在最左边了
-                Log.d(TAG, "面板模式 左键 → 已在最左侧，无法左移");
+                Log.d(TAG, "面板 左键 → 已在最左侧，无法左移");
                 return false;
         }
-
-        Log.d(TAG, "面板模式 左键 → " + oldFocus + " → " + currentPanelFocus);
-
+        Log.d(TAG, "面板 左键 → " + oldFocus + " → " + currentPanelFocus);
         if (listener != null) {
             listener.onPanelMoveLeft();
             listener.onPanelFocusChanged(currentPanelFocus);
         }
-
         return true;
     }
 
-    /**
-     * 处理面板右键（向右切换列）
-     * @return true=已处理
-     */
     private boolean handlePanelRightKey() {
         PanelFocus oldFocus = currentPanelFocus;
-
         switch (currentPanelFocus) {
-            case LEFT_GROUP:
-                // 分组列表 → 频道列表
-                currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-                break;
-            case LEFT_CHANNEL:
-                // 频道列表 → 节目单按钮
-                currentPanelFocus = PanelFocus.LEFT_EPG_BTN;
-                break;
-            case RIGHT_BACK_BTN:
-                // 返回按钮 → 频道列表
-                currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-                break;
-            case RIGHT_CHANNEL:
-                // 频道列表 → 日期列表
-                currentPanelFocus = PanelFocus.RIGHT_DATE;
-                break;
-            case RIGHT_DATE:
-                // 日期列表 → EPG列表
-                currentPanelFocus = PanelFocus.RIGHT_EPG;
-                break;
+            case LEFT_GROUP: currentPanelFocus = PanelFocus.LEFT_CHANNEL; break;
+            case LEFT_CHANNEL: currentPanelFocus = PanelFocus.LEFT_EPG_BTN; break;
+            case RIGHT_BACK_BTN: currentPanelFocus = PanelFocus.RIGHT_CHANNEL; break;
+            case RIGHT_CHANNEL: currentPanelFocus = PanelFocus.RIGHT_DATE; break;
+            case RIGHT_DATE: currentPanelFocus = PanelFocus.RIGHT_EPG; break;
             default:
-                // 已经在最右边了
-                Log.d(TAG, "面板模式 右键 → 已在最右侧，无法右移");
+                Log.d(TAG, "面板 右键 → 已在最右侧，无法右移");
                 return false;
         }
-
-        Log.d(TAG, "面板模式 右键 → " + oldFocus + " → " + currentPanelFocus);
-
+        Log.d(TAG, "面板 右键 → " + oldFocus + " → " + currentPanelFocus);
         if (listener != null) {
             listener.onPanelMoveRight();
             listener.onPanelFocusChanged(currentPanelFocus);
         }
-
         return true;
     }
 
     // ====================================================================
     // 三、设置页面模式按键处理
     // ====================================================================
-
-    /**
-     * 设置模式按键分发
-     * @param keyCode 按键码
-     * @return 是否处理
-     */
     private boolean dispatchSettingsKey(int keyCode) {
         switch (keyCode) {
-            // 上键：上移一项
             case KeyEvent.KEYCODE_DPAD_UP:
                 return handleSettingsMoveUp();
-
-            // 下键：下移一项
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 return handleSettingsMoveDown();
-
-            // OK键/确认键：选中当前项
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                Log.d(TAG, "设置模式 OK键 → 第 " + settingsFocusPosition + " 项");
-                if (listener != null) {
-                    listener.onSettingsConfirm();
-                }
+                Log.d(TAG, "设置 OK键 → 第 " + settingsFocusPosition + " 项");
+                if (listener != null) listener.onSettingsConfirm();
                 return true;
-
-            // 返回键：关闭设置
             case KeyEvent.KEYCODE_BACK:
-                Log.d(TAG, "设置模式 返回键 → 关闭设置");
-                if (listener != null) {
-                    return listener.onSettingsBack();
-                }
+                Log.d(TAG, "设置 返回键 → 关闭设置");
+                if (listener != null) return listener.onSettingsBack();
                 return false;
-
-            // 菜单键：关闭设置
             case KeyEvent.KEYCODE_MENU:
-                Log.d(TAG, "设置模式 菜单键 → 关闭设置");
-                if (listener != null) {
-                    listener.onSettingsMenu();
-                }
+                Log.d(TAG, "设置 菜单键 → 关闭设置");
+                if (listener != null) listener.onSettingsMenu();
                 return true;
-
             default:
                 return false;
         }
     }
 
-    /**
-     * 处理设置上移
-     * @return true=已处理
-     */
     private boolean handleSettingsMoveUp() {
         if (settingsFocusPosition > 0) {
             settingsFocusPosition--;
-            Log.d(TAG, "设置模式 上移 → 第 " + settingsFocusPosition + " 项");
+            Log.d(TAG, "设置 上移 → 第 " + settingsFocusPosition + " 项");
             if (listener != null) {
                 listener.onSettingsMoveUp();
                 listener.onSettingsFocusChanged(settingsFocusPosition);
             }
             return true;
         } else {
-            Log.d(TAG, "设置模式 上移 → 已在顶部");
+            Log.d(TAG, "设置 上移 → 已在顶部");
             return false;
         }
     }
 
-    /**
-     * 处理设置下移
-     * @return true=已处理
-     */
     private boolean handleSettingsMoveDown() {
         if (settingsFocusPosition < settingsItemCount - 1) {
             settingsFocusPosition++;
-            Log.d(TAG, "设置模式 下移 → 第 " + settingsFocusPosition + " 项");
+            Log.d(TAG, "设置 下移 → 第 " + settingsFocusPosition + " 项");
             if (listener != null) {
                 listener.onSettingsMoveDown();
                 listener.onSettingsFocusChanged(settingsFocusPosition);
             }
             return true;
         } else {
-            Log.d(TAG, "设置模式 下移 → 已在底部");
+            Log.d(TAG, "设置 下移 → 已在底部");
             return false;
         }
     }
@@ -564,86 +361,42 @@ public class TvRemoteManager {
     // ====================================================================
     // 频道面板相关辅助方法
     // ====================================================================
-
-    /**
-     * 设置右侧面板是否打开
-     * @param open true=右侧面板打开
-     */
     public void setRightPanelOpen(boolean open) {
         this.isRightPanelOpen = open;
-        // 切换面板时重置焦点
         resetPanelFocus();
     }
 
-    /**
-     * 获取当前面板焦点位置
-     * @return 当前面板焦点枚举
-     */
     public PanelFocus getCurrentPanelFocus() {
         return currentPanelFocus;
     }
 
-    /**
-     * 设置当前面板焦点位置
-     * @param focus 新的焦点位置
-     */
     public void setCurrentPanelFocus(PanelFocus focus) {
         this.currentPanelFocus = focus;
         Log.d(TAG, "设置面板焦点：" + focus);
     }
 
-    /**
-     * 重置面板焦点到默认位置
-     * 根据 isRightPanelOpen 自动选择左侧或右侧的默认焦点
-     */
     public void resetPanelFocus() {
-        if (isRightPanelOpen) {
-            currentPanelFocus = PanelFocus.RIGHT_CHANNEL;
-        } else {
-            currentPanelFocus = PanelFocus.LEFT_CHANNEL;
-        }
+        currentPanelFocus = isRightPanelOpen ? PanelFocus.RIGHT_CHANNEL : PanelFocus.LEFT_CHANNEL;
         Log.d(TAG, "重置面板焦点：" + currentPanelFocus);
     }
 
     // ====================================================================
     // 设置页面相关辅助方法
     // ====================================================================
-
-    /**
-     * 设置设置项总数
-     * @param count 设置项总数
-     */
     public void setSettingsItemCount(int count) {
         this.settingsItemCount = count;
-        // 确保当前焦点在有效范围内
-        if (settingsFocusPosition >= count) {
-            settingsFocusPosition = count - 1;
-        }
-        if (settingsFocusPosition < 0) {
-            settingsFocusPosition = 0;
-        }
+        if (settingsFocusPosition >= count) settingsFocusPosition = count - 1;
+        if (settingsFocusPosition < 0) settingsFocusPosition = 0;
     }
 
-    /**
-     * 获取设置项总数
-     * @return 设置项总数
-     */
     public int getSettingsItemCount() {
         return settingsItemCount;
     }
 
-    /**
-     * 获取设置当前焦点位置
-     * @return 焦点位置
-     */
     public int getSettingsFocusPosition() {
         return settingsFocusPosition;
     }
 
-    /**
-     * 设置设置焦点位置
-     * @param position 新的焦点位置（0 ~ settingsItemCount-1）
-     */
     public void setSettingsFocusPosition(int position) {
         if (position >= 0 && position < settingsItemCount) {
             this.settingsFocusPosition = position;
@@ -651,11 +404,75 @@ public class TvRemoteManager {
         }
     }
 
-    /**
-     * 重置设置焦点到第一项
-     */
     public void resetSettingsFocus() {
         settingsFocusPosition = 0;
         Log.d(TAG, "重置设置焦点到第一项");
     }
-}
+
+    // ====================================================================
+    // 🟢 新增方法（兼容新版）
+    // ====================================================================
+    public void setChannelPanelController(ChannelPanelController controller) {
+        this.channelPanelController = controller;
+    }
+
+    public void syncMode() {
+        if (channelPanelController == null) return;
+        if (channelPanelController.isPanelOpen()) {
+            if (currentMode != Mode.CHANNEL_PANEL_MODE) {
+                setMode(Mode.CHANNEL_PANEL_MODE);
+            }
+            setRightPanelOpen(channelPanelController.isRightPanelOpen());
+        } else {
+            if (currentMode != Mode.PLAY_MODE) {
+                setMode(Mode.PLAY_MODE);
+            }
+        }
+    }
+
+    public void setInPipMode(boolean inPip) {
+        this.isInPipMode = inPip;
+    }
+
+    public void setNumberChannelEnable(boolean enable) {
+        this.numberChannelEnable = enable;
+    }
+
+    public void setTotalChannelCount(int count) {
+        this.totalChannelCount = count;
+    }
+
+    public boolean dispatchKeyLongPress(int keyCode) {
+        return false;
+    }
+
+    public boolean handleBackPressed() {
+        if (isInPipMode) {
+            return false;
+        }
+        switch (currentMode) {
+            case CHANNEL_PANEL_MODE:
+                if (channelPanelController != null) {
+                    return channelPanelController.handleBackPressed();
+                }
+                break;
+            case SETTINGS_MODE:
+                if (listener != null) {
+                    return listener.onSettingsBack();
+                }
+                break;
+            case PLAY_MODE:
+            default:
+                if (listener != null) {
+                    return listener.onPlayBack();
+                }
+                break;
+        }
+        return false;
+    }
+
+    public void release() {
+        listener = null;
+        channelPanelController = null;
+    }
+ }
