@@ -379,7 +379,16 @@ public class SettingsActivity extends AppCompatActivity {
             Toast.makeText(this, "请先播放一个频道，再切换线路", Toast.LENGTH_SHORT).show();
             return;
         }
-        int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
+
+        // 获取当前频道的唯一标识（优先使用 channelId，没有则用 name）
+        String channelKey = currentChannel.getChannelId();
+        if (TextUtils.isEmpty(channelKey)) {
+            channelKey = currentChannel.getName();
+        }
+        // ✅ 读取该频道独立保存的线路索引，若不存在则默认 0（主源）
+        String prefKey = "channel_line_index_" + channelKey;
+        int currentLineIndex = sp.getInt(prefKey, 0);
+
         List<String> lineList = new ArrayList<>();
         lineList.add("主源");
         for (int i = 1; i <= currentChannel.getBackupUrls().size(); i++) {
@@ -388,7 +397,11 @@ public class SettingsActivity extends AppCompatActivity {
         String[] lineArray = lineList.toArray(new String[0]);
 
         showDarkSingleChoiceDialog("频道线路选择", lineArray, currentLineIndex, (which) -> {
+            // ✅ 保存为该频道独立线路索引
+            sp.edit().putInt(prefKey, which).apply();
+            // 同时兼容旧全局键（为了向后兼容，可保留或删除）
             sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
+
             tv_channel_line.setText(lineArray[which]);
             
             Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
