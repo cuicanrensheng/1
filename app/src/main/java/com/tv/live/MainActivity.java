@@ -134,6 +134,8 @@ public class MainActivity extends AppCompatActivity {
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
 
         playerView = findViewById(R.id.player_view);
+        // 🟢【修复】将 PlayerView 背景设为黑色，消除电视启动时的白屏现象
+        playerView.setBackgroundColor(Color.BLACK);
         playerView.setUseController(true);
         try {
             playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
@@ -301,8 +303,7 @@ public class MainActivity extends AppCompatActivity {
                 togglePanel();
             }
             @Override public void onPlayOpenSettings() {
-                // 🟢 修复：菜单键打开设置
-                openSettings();
+                // 菜单键不再打开设置
             }
             @Override public boolean onPlayBack() { return false; }
 
@@ -792,14 +793,10 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 🟢 修复：菜单键/帮助键/设置键直接打开设置（兜底）
         if (keyCode == KeyEvent.KEYCODE_MENU
                 || keyCode == KeyEvent.KEYCODE_HELP
                 || keyCode == KeyEvent.KEYCODE_SETTINGS) {
-            if (!isPanelOpen() && !isInCatchUpMode) {
-                openSettings();
-                return true;
-            }
+            return super.dispatchKeyEvent(event);
         }
 
         return super.dispatchKeyEvent(event);
@@ -914,6 +911,8 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
+                // 🟢【核心修复】强制重新绑定 SurfaceView，解决从设置页返回后黑屏的问题
+                mPlayerManager.attachPlayerView(playerView);
             }
             if (playerControlManager != null) {
                 playerControlManager.onResume();
@@ -923,6 +922,8 @@ public class MainActivity extends AppCompatActivity {
                 mPlayerManager.resume();
             }
         }
+
+        remoteManager.syncMode();
 
         if (channelPanelController != null) {
             channelPanelController.clearPanelFocus();
