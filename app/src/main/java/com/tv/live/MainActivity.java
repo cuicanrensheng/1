@@ -46,7 +46,7 @@ import java.util.List;
 @SuppressLint("UnsafeOptInUsageError")
 public class MainActivity extends AppCompatActivity {
     private static WeakReference<MainActivity> mInstanceRef;
-    
+
     public List<Channel> channelSourceList = new ArrayList<>(512);
     public int currentPlayIndex = 0;
 
@@ -87,8 +87,6 @@ public class MainActivity extends AppCompatActivity {
 
     private BroadcastReceiver unlockReceiver;
 
-    // 已移除 RemoteKeyHandler
-
     public static MainActivity getRunningInstance() {
         return mInstanceRef != null ? mInstanceRef.get() : null;
     }
@@ -99,15 +97,6 @@ public class MainActivity extends AppCompatActivity {
 
     public PictureInPictureManager getPipManager() {
         return pipManager;
-    }
-
-    // 保留 syncRemoteManagerMode（供外部调用）
-    public void syncRemoteManagerMode() {
-        if (remoteManager != null) {
-            remoteManager.syncMode();
-        } else {
-            Log.w("MainActivity", "syncRemoteManagerMode: remoteManager 为空，无法同步");
-        }
     }
 
     private PlayerTouchListener touchListener;
@@ -166,7 +155,6 @@ public class MainActivity extends AppCompatActivity {
 
         currentPlayIndex = appConfig.getLastPlayIndex();
         channelPanelController.setCurrentPlayIndex(currentPlayIndex);
-        remoteManager.setNumberChannelEnable(number_channel_enable);
 
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
@@ -300,7 +288,6 @@ public class MainActivity extends AppCompatActivity {
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
-        remoteManager.setChannelPanelController(channelPanelController);
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
             @Override public void onPlayChannelUp() {
                 exitPlaybackMode();
@@ -310,57 +297,58 @@ public class MainActivity extends AppCompatActivity {
                 exitPlaybackMode();
                 channelPanelController.switchDown();
             }
-            @Override public void onPlayTogglePanel() { 
-                togglePanel(); 
-                remoteManager.syncMode(); 
+            @Override public void onPlayTogglePanel() {
+                togglePanel();
             }
             @Override public void onPlayOpenSettings() {
-                // 菜单键/帮助键不再直接打开设置，由系统优先接管
+                // 菜单键不再打开设置
             }
             @Override public boolean onPlayBack() { return false; }
-            @Override public void onPlayMediaPlayPause() {
-                if (mPlayerManager != null) {
-                    mPlayerManager.togglePlayWhenReady();
-                }
+
+            // 面板模式回调
+            @Override public void onPanelMoveUp() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_UP);
             }
-            @Override public void onPlayMediaStop() {
-                if (mPlayerManager != null) {
-                    mPlayerManager.pause();
-                }
+            @Override public void onPanelMoveDown() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_DOWN);
             }
-            @Override public void onPlayInfo() {
-                if (infoDisplayManager != null && currentPlayIndex >= 0
-                        && currentPlayIndex < channelSourceList.size()) {
-                    Channel ch = channelSourceList.get(currentPlayIndex);
-                    TVPlayerManager.LiveInfo live =
-                            (mPlayerManager != null) ? mPlayerManager.getLiveInfo() : null;
-                    infoDisplayManager.showInfoBar(ch, live);
-                }
+            @Override public void onPanelMoveLeft() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_LEFT);
             }
-            @Override public void onPanelConfirm() { channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_CENTER); }
+            @Override public void onPanelMoveRight() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_RIGHT);
+            }
+            @Override public void onPanelConfirm() {
+                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_CENTER);
+            }
             @Override public boolean onPanelBack() {
                 boolean handled = channelPanelController.handleBackPressed();
-                if (!channelPanelController.isPanelOpen()) { remoteManager.syncMode(); }
                 return handled;
             }
+            @Override public void onPanelMenu() {
+                boolean isFavorite = channelPanelController.toggleCurrentFavorite();
+                // 日志可选
+            }
+            @Override public void onPanelNumber(int number) {
+                // 数字选台交给其他处理
+                int keyCode = KeyEvent.KEYCODE_0 + number;
+                // 由ChannelNumberManager处理，后面补充
+            }
+            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {
+                // 焦点变化
+            }
+
+            // 设置模式回调（设置页不需要）
             @Override public void onSettingsMoveUp() {}
             @Override public void onSettingsMoveDown() {}
             @Override public void onSettingsConfirm() {}
             @Override public boolean onSettingsBack() { return false; }
             @Override public void onSettingsMenu() {}
             @Override public void onSettingsFocusChanged(int position) {}
-            @Override public boolean onPipBack() { moveTaskToBack(false); return true; }
-            @Override public void onRequestPlayFocus() {
-                if (playerView != null) {
-                    playerView.setFocusable(true);
-                    playerView.setFocusableInTouchMode(true);
-                    playerView.requestFocus();
-                }
-            }
-            @Override public void onChannelNumberSelected(int channelIndex) { channelPanelController.playChannel(channelIndex); }
-            @Override public void onShowChannelNumber(String number) { try { infoDisplayManager.showChannelNum(Integer.parseInt(number)); } catch (Exception ignored) {} }
-            @Override public void onHideChannelNumber() { infoDisplayManager.hideChannelNum(); }
         });
+
+        // 设置面板焦点初始位置
+        remoteManager.setSettingsItemCount(0); // 设置页用不到
     }
 
     private void initInfoDisplayManager() {
@@ -397,8 +385,8 @@ public class MainActivity extends AppCompatActivity {
         ListView lvChannelListEpg = findViewById(R.id.lv_channel_list_epg);
         ListView lvDate = findViewById(R.id.lv_date);
         ListView lvEpg = findViewById(R.id.lv_epg);
-        TextView btn_show_epg = findViewById(R.id.btn_show_epg);
-        TextView btn_back_group = findViewById(R.id.btn_back_group);
+        TextView btnShowEpg = findViewById(R.id.btn_show_epg);
+        TextView btnBackGroup = findViewById(R.id.btn_back_group);
 
         EpgManager.getInstance(this);
         ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
@@ -413,7 +401,7 @@ public class MainActivity extends AppCompatActivity {
 
         channelPanelController = new ChannelPanelController(
                 this, panelLayout, ll_left_panel, ll_right_panel, lvGroup, lvChannelList,
-                lvChannelListEpg, lvDate, lvEpg, btn_show_epg, btn_back_group,
+                lvChannelListEpg, lvDate, lvEpg, btnShowEpg, btnBackGroup,
                 groupListManager, channelListManager, channelListManagerEpg,
                 dateListManager, epgManagerWrapper, panelManager
         );
@@ -515,12 +503,6 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
 
-                    if (remoteManager != null) {
-                        remoteManager.setTotalChannelCount(channelSourceList.size());
-                    }
-                    if (infoDisplayManager != null) {
-                        infoDisplayManager.setTotalChannelCount(channelSourceList.size());
-                    }
                     if (currentPlayIndex >= channelSourceList.size()) {
                         currentPlayIndex = 0;
                         Log.d("MainActivity", "currentPlayIndex 越界，已自动重置为 0");
@@ -593,7 +575,7 @@ public class MainActivity extends AppCompatActivity {
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
-        
+
         String decoderMode = sp.getString("decoder_mode", "auto");
         int mode = TVPlayerManager.DECODER_MODE_AUTO;
         if ("hard".equals(decoderMode)) {
@@ -601,9 +583,8 @@ public class MainActivity extends AppCompatActivity {
         } else if ("soft".equals(decoderMode)) {
             mode = TVPlayerManager.DECODER_MODE_SOFT;
         }
-        
+
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
-        if (remoteManager != null) remoteManager.setNumberChannelEnable(number_channel_enable);
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epg_enable);
             channelPanelController.setReverse(channel_reverse);
@@ -651,10 +632,8 @@ public class MainActivity extends AppCompatActivity {
                 log("【画中画】同步频道信息失败：" + e.getMessage());
             }
         }
-        
-        if (channelPanelController != null && channel != null) {
-            channelPanelController.syncCurrentGroup(channel.getGroup());
-        }
+
+        // 移除 syncCurrentGroup，老版本没有该方法
     }
 
     public void togglePanel() {
@@ -662,21 +641,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         channelPanelController.togglePanel();
-        remoteManager.syncMode();
 
-        if (channelPanelController.isPanelOpen() && 
-            remoteManager.getCurrentMode() != TvRemoteManager.Mode.CHANNEL_PANEL_MODE) {
-            remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
-        }
-        
-        if (channelPanelController != null 
-                && currentPlayIndex >= 0 
-                && currentPlayIndex < channelSourceList.size()) {
-            Channel ch = channelSourceList.get(currentPlayIndex);
-            if (ch != null) {
-                channelPanelController.syncCurrentGroup(ch.getGroup());
-            }
-        }
+        // 移除 remoteManager.syncMode()
     }
 
     public void playPrev() { channelPanelController.playPrev(); }
@@ -708,7 +674,7 @@ public class MainActivity extends AppCompatActivity {
                 exitMenuDialog.getWindow().setAttributes(lp);
                 exitMenuDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
-            
+
             exitMenuDialog.setOnDismissListener(dialog -> exitMenuDialog = null);
             exitMenuDialog.show();
         }
@@ -724,7 +690,7 @@ public class MainActivity extends AppCompatActivity {
             if (exitMenuDialog != null) {
                 exitMenuDialog.dismiss();
             }
-            
+
             if (playerView != null) {
                 playerView.setFocusable(true);
                 playerView.setFocusableInTouchMode(true);
@@ -744,13 +710,13 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (remoteManager != null && remoteManager.handleBackPressed()) {
+        if (remoteManager != null && remoteManager.dispatchKeyEvent(KeyEvent.KEYCODE_BACK)) {
             return;
         }
 
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             exitMenuDialog.dismiss();
-            exitMenuDialog = null; 
+            exitMenuDialog = null;
             if (playerView != null) {
                 playerView.setFocusable(true);
                 playerView.setFocusableInTouchMode(true);
@@ -803,12 +769,6 @@ public class MainActivity extends AppCompatActivity {
                 case KeyEvent.KEYCODE_BACK:
                 case KeyEvent.KEYCODE_DPAD_CENTER:
                 case KeyEvent.KEYCODE_ENTER:
-                case KeyEvent.KEYCODE_MEDIA_PLAY:
-                case KeyEvent.KEYCODE_MEDIA_PAUSE:
-                case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-                case KeyEvent.KEYCODE_INFO:
-                case KeyEvent.KEYCODE_CHANNEL_UP:
-                case KeyEvent.KEYCODE_CHANNEL_DOWN:
                     event.startTracking();
                     break;
                 default:
@@ -816,8 +776,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 已移除 RemoteKeyHandler
+        // 先交给 remoteManager 处理
+        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
+            return true;
+        }
 
+        // 数字选台
         if (number_channel_enable && action == KeyEvent.ACTION_DOWN
                 && infoDisplayManager != null
                 && !isInCatchUpMode
@@ -831,12 +795,6 @@ public class MainActivity extends AppCompatActivity {
                 || keyCode == KeyEvent.KEYCODE_HELP
                 || keyCode == KeyEvent.KEYCODE_SETTINGS) {
             return super.dispatchKeyEvent(event);
-        }
-
-        if (action == KeyEvent.ACTION_DOWN) {
-            if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
-                return true;
-            }
         }
 
         return super.dispatchKeyEvent(event);
@@ -867,14 +825,11 @@ public class MainActivity extends AppCompatActivity {
         }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (channelPanelController != null && channelPanelController.handleBackPressed()) {
-                if (remoteManager != null) remoteManager.syncMode();
                 return true;
             }
             return true;
         }
-        if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
-            return true;
-        }
+        // 老版本没有 dispatchKeyLongPress
         return super.onKeyLongPress(keyCode, event);
     }
 
@@ -891,7 +846,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode);
-        if (remoteManager != null) remoteManager.setInPipMode(isInPictureInPictureMode);
         if (pipManager != null) {
             try {
                 pipManager.onPipModeChanged(this, isInPictureInPictureMode);
@@ -903,7 +857,6 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 pipManager.handleExitPip(() -> {});
                 pipManager.handleExitPipRestore(this, displayManager, playerView, mPlayerManager, channelSourceList, currentPlayIndex, infoDisplayManager);
-                remoteManager.syncMode();
             }
         }
     }
@@ -965,7 +918,6 @@ public class MainActivity extends AppCompatActivity {
                 mPlayerManager.resume();
             }
         }
-        remoteManager.syncMode();
 
         if (channelPanelController != null) {
             channelPanelController.clearPanelFocus();
@@ -1004,10 +956,10 @@ public class MainActivity extends AppCompatActivity {
             mInstanceRef.clear();
             mInstanceRef = null;
         }
-        
+
         mMainHandler.removeCallbacksAndMessages(null);
         if (infoDisplayManager != null) infoDisplayManager.release();
-        if (remoteManager != null) remoteManager.release();
+        // remoteManager 老版本没有 release()
         if (displayManager != null) displayManager.release();
         if (channelPanelController != null) channelPanelController.release();
         if (appCoreManager != null) appCoreManager.release();
@@ -1016,8 +968,6 @@ public class MainActivity extends AppCompatActivity {
         if (playerControlManager != null) {
             playerControlManager.release();
         }
-
-        // 已移除 RemoteKeyHandler 释放
 
         if (exitMenuDialog != null) {
             if (exitMenuDialog.isShowing()) {
@@ -1035,4 +985,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
-}
+    }
