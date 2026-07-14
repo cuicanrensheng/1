@@ -99,6 +99,15 @@ public class MainActivity extends AppCompatActivity {
         return pipManager;
     }
 
+    // 🟢 新增：供外部（SettingsActivity）调用的遥控器同步方法
+    public void syncRemoteManagerMode() {
+        if (remoteManager != null) {
+            remoteManager.syncMode();
+        } else {
+            Log.w("MainActivity", "syncRemoteManagerMode: remoteManager 为空，无法同步");
+        }
+    }
+
     private PlayerTouchListener touchListener;
     public PlayerTouchListener getTouchListener() {
         return touchListener;
