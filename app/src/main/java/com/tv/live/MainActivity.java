@@ -907,7 +907,8 @@ public class MainActivity extends AppCompatActivity {
         return super.dispatchKeyEvent(event);
     }
 
-    private boolean isPanelOpen() {
+    // 🟢 修改：改为 public，供 RemoteKeyHandler 调用
+    public boolean isPanelOpen() {
         return channelPanelController != null && channelPanelController.isPanelOpen();
     }
 
@@ -1109,4 +1110,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
- }
+}
