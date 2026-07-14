@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputFilter;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -203,7 +204,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
 
-        // ✅【修复UI同步】改为读取当前频道的独立线路索引，而不是全局的 KEY_CHANNEL_LINE_INDEX
+        // 读取当前频道的独立线路索引
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         Channel currentChannel = playerManager.getCurrentChannel();
         int currentLineIndex = 0;
@@ -388,6 +389,9 @@ public class SettingsActivity extends AppCompatActivity {
         dialog.show();
     }
 
+    // =========================================================================
+    // 🟢 修改点：showChannelLineDialog 方法已加入切换线路后同步遥控器模式
+    // =========================================================================
     private void showChannelLineDialog() {
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         Channel currentChannel = playerManager.getCurrentChannel();
@@ -401,7 +405,7 @@ public class SettingsActivity extends AppCompatActivity {
         if (TextUtils.isEmpty(channelKey)) {
             channelKey = currentChannel.getName();
         }
-        // ✅ 读取该频道独立保存的线路索引，若不存在则默认 0（主源）
+        // 读取该频道独立保存的线路索引，若不存在则默认 0（主源）
         String prefKey = "channel_line_index_" + channelKey;
         int currentLineIndex = sp.getInt(prefKey, 0);
 
@@ -413,7 +417,7 @@ public class SettingsActivity extends AppCompatActivity {
         String[] lineArray = lineList.toArray(new String[0]);
 
         showDarkSingleChoiceDialog("频道线路选择", lineArray, currentLineIndex, (which) -> {
-            // ✅ 保存为该频道独立线路索引
+            // 保存为该频道独立线路索引
             sp.edit().putInt(prefKey, which).apply();
             // 同时兼容旧全局键（为了向后兼容）
             sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
@@ -425,8 +429,18 @@ public class SettingsActivity extends AppCompatActivity {
             sendBroadcast(intent);
             
             Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
+
+            // 🟢 【修复新增】切换线路后同步遥控器，强制刷新主界面分组及遥控器模式
+            MainActivity main = MainActivity.getRunningInstance();
+            if (main != null && main.remoteManager != null) {
+                // 同步遥控器模式（内部会刷新分组高亮、方向逻辑等）
+                main.remoteManager.syncMode();
+            } else {
+                Log.w("SettingsActivity", "切换线路后同步遥控器失败：MainActivity 或 remoteManager 为空");
+            }
         });
     }
+    // =========================================================================
 
     private void initRedirectDefaultConfig() {
         if (!sp.contains(KEY_REDIRECT_MAX_COUNT)) {
@@ -514,7 +528,6 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
-        // ✅【优化】在 onFocusChange 中仅更新位置和样式，不再调用 updateSettingsFocus()
         for (int i = 0; i < settingsItemList.size(); i++) {
             final int position = i;
             View item = settingsItemList.get(i);
@@ -523,7 +536,6 @@ public class SettingsActivity extends AppCompatActivity {
                 item.setOnFocusChangeListener((v, hasFocus) -> {
                     if (hasFocus) {
                         settingsFocusPosition = position;
-                        // 直接设置高亮样式，不触发 updateSettingsFocus() 避免循环
                         setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
                     } else {
                         setItemStyle(item, "#FFFFFF", Typeface.NORMAL, Color.TRANSPARENT);
@@ -543,7 +555,6 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPlayTogglePanel() {}
             @Override public void onPlayOpenSettings() {}
             @Override public boolean onPlayBack() { return false; }
-            // 新增：媒体键回调空实现（设置页不处理媒体键）
             @Override public void onPlayMediaPlayPause() {}
             @Override public void onPlayMediaStop() {}
             @Override public void onPlayInfo() {}
@@ -551,7 +562,6 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPanelConfirm() {}
             @Override public boolean onPanelBack() { return false; }
 
-            // 将设置页的焦点移动委托给 SettingsActivity 自身
             @Override public void onSettingsMoveUp() { handleSettingsMoveUp(); }
             @Override public void onSettingsMoveDown() { handleSettingsMoveDown(); }
             @Override public void onSettingsConfirm() { handleSettingsItemClick(settingsFocusPosition); }
@@ -569,7 +579,6 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onHideChannelNumber() {}
         });
 
-        // 初始化焦点
         resetSettingsFocus();
         updateSettingsFocus();
     }
@@ -603,14 +612,12 @@ public class SettingsActivity extends AppCompatActivity {
 
         String[] items = resolutions.toArray(new String[0]);
 
-        // 1. 创建统一的暗色背景 ListView
         ListView listView = new ListView(this);
-        listView.setBackgroundColor(0xFF272B3A); // 与其他弹窗保持一致的暗色
+        listView.setBackgroundColor(0xFF272B3A);
         listView.setDivider(new ColorDrawable(0x33FFFFFF));
         listView.setDividerHeight(1);
         listView.setPadding(0, 16, 0, 16);
 
-        // 2. 定制 Adapter，使文字颜色变为白色，字号变大
         ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_single_choice, items) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
@@ -624,7 +631,6 @@ public class SettingsActivity extends AppCompatActivity {
         listView.setAdapter(adapter);
         listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
-        // 3. 点击事件
         listView.setOnItemClickListener((parent, view, position, id) -> {
             String selectedLabel = items[position];
             int targetHeight = 0;
@@ -644,21 +650,18 @@ public class SettingsActivity extends AppCompatActivity {
             }
         });
 
-        // 4. 创建与 ListView 完美搭配的暗色标题
         TextView titleView = new TextView(this);
         titleView.setText("选择清晰度");
         titleView.setTextColor(Color.WHITE);
         titleView.setTextSize(20);
         titleView.setPadding(24, 24, 24, 0);
 
-        // 5. 组合到线性布局中
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setBackgroundColor(0xFF272B3A);
         layout.addView(titleView);
         layout.addView(listView);
 
-        // 6. 构建 AlertDialog 并设置透明背景
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(layout)
                 .create();
@@ -822,7 +825,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ✅【原生关闭】按下菜单/帮助/设置键直接关闭设置页
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
@@ -838,8 +840,6 @@ public class SettingsActivity extends AppCompatActivity {
         return super.dispatchKeyEvent(event);
     }
 
-    // ===== 已删除 onKeyDown，避免按键被二次处理 =====
-    // 原先 onKeyDown 中的拦截已移入 dispatchKeyEvent，此处仅保留 super 调用
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         return super.onKeyDown(keyCode, event);
@@ -862,13 +862,11 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
-        // 滚动到目标项并请求焦点
         if (focusUpdateRunnable != null) {
             mainHandler.removeCallbacks(focusUpdateRunnable);
         }
         focusUpdateRunnable = () -> {
             scrollToView(target);
-            // ✅ 仅当目标尚未获得焦点时才请求，避免重复
             if (!target.hasFocus()) {
                 target.requestFocus();
             }
@@ -1129,10 +1127,8 @@ public class SettingsActivity extends AppCompatActivity {
         itemTextViews.clear();
         itemTextViews = null;
 
-        // ✅【修复】设置页关闭时发送解锁广播，防止 isOpeningSettings 死锁
-        // 🔥 改为显式广播，消除 UnsafeImplicitIntentLaunch Lint 错误
         Intent unlockIntent = new Intent("com.tv.live.UNLOCK_SETTINGS");
-        unlockIntent.setPackage(getPackageName()); // 指定包名
+        unlockIntent.setPackage(getPackageName());
         sendBroadcast(unlockIntent);
     }
 }
