@@ -438,6 +438,43 @@ public class ChannelPanelController {
         }
     }
 
+    // =========================================================================
+    // 🟢【新增核心同步 API，解决分组面板 UI 状态撕裂的关键修复】
+    // =========================================================================
+
+    /** 根据分组名切换分组并刷新列表 */
+    public void switchGroupByName(String groupName) {
+        if (groupName == null || groupListManager == null) return;
+        int pos = groupListManager.getGroupPosition(groupName);
+        if (pos >= 0) {
+            groupListManager.setSelectedPosition(pos);
+        }
+        if (lvGroup != null) {
+            lvGroup.setItemChecked(pos, true);
+            lvGroup.setSelection(pos);
+            lvGroup.invalidateViews();
+        }
+    }
+
+    /** 强制刷新分组适配器选中项 */
+    public void refreshGroupList() {
+        if (lvGroup != null && groupListManager != null) {
+            lvGroup.post(() -> {
+                groupListManager.setSelectedPosition(groupListManager.getSelectedPosition());
+                lvGroup.invalidateViews();
+            });
+        }
+    }
+
+    /** 同步当前播放频道的分组，供外部调用 */
+    public void syncCurrentGroup(String groupName) {
+        if (groupName == null) return;
+        switchGroupByName(groupName);
+        refreshGroupList();
+    }
+
+    // =========================================================================
+
     private boolean handleChannelLongClick(String channelName, boolean isRightPanel) {
         return false;
     }
