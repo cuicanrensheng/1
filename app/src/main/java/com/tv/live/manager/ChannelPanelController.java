@@ -486,13 +486,19 @@ public class ChannelPanelController {
 
             if (isPanelOpen()) {
                 clearAllFocusStyles();
+                // ✅【修复核心】默认让左侧分组列表获得焦点和高亮
                 currentFocusPanel = "left";
-                leftFocusView = "channel";
+                leftFocusView = "group"; 
                 syncFocusStyle();
-                lvChannelList.setFocusable(true);
-                lvChannelList.setFocusableInTouchMode(true);
-                lvChannelList.requestFocus();
+                
+                // 强制焦点落到分组列表上
+                lvGroup.setFocusable(true);
+                lvGroup.setFocusableInTouchMode(true);
+                lvGroup.requestFocus();
+
+                // ✅【重要】右侧只负责滚动到当前位置，千万不要抢 requestFocus
                 lvChannelList.setSelection(getChannelListSelection());
+
             } else {
                 if (panelLayout != null) {
                     panelLayout.clearFocus();
