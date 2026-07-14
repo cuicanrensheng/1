@@ -35,7 +35,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 
-import com.tv.live.manager.RemoteKeyHandler;
 import com.tv.live.manager.TvRemoteManager;
 
 import java.util.ArrayList;
@@ -86,9 +85,6 @@ public class SettingsActivity extends AppCompatActivity {
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable focusUpdateRunnable;
-
-    // 🟢 新增：远程按键处理器
-    private RemoteKeyHandler remoteKeyHandler;
 
     // ===================== 设置页焦点管理 =====================
     private int settingsFocusPosition = 0;
@@ -205,15 +201,6 @@ public class SettingsActivity extends AppCompatActivity {
         // 设置选项总数，供焦点管理使用
         setSettingsItemCount(settingsItemList.size());
         initRemoteManager();
-
-        // 🟢 初始化远程按键处理器（设置面板模式）
-        remoteKeyHandler = new RemoteKeyHandler(
-                this,
-                scrollView,
-                settingsItemList.size(),
-                this
-        );
-        remoteKeyHandler.onSettingsPanelOpened();
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
 
@@ -837,14 +824,8 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢 修改：先交给 remoteKeyHandler 处理
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // 先交给远程按键处理器处理
-        if (remoteKeyHandler != null && remoteKeyHandler.dispatchKeyEvent(event.getKeyCode(), event)) {
-            return true;
-        }
-
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int keyCode = event.getKeyCode();
             if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
@@ -863,7 +844,6 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    // 🟢 修改为 public，供 RemoteKeyHandler 调用
     public void updateSettingsFocus() {
         if (settingsFocusPosition < 0 || settingsFocusPosition >= settingsItemList.size()) return;
 
@@ -946,7 +926,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢 修改为 public，供 RemoteKeyHandler 调用
     public void handleSettingsItemClick(int position) {
         if (position < 0 || position >= settingsItemList.size()) return;
         View item = settingsItemList.get(position);
@@ -1130,7 +1109,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 🟢 修改：释放 remoteKeyHandler
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -1147,14 +1125,8 @@ public class SettingsActivity extends AppCompatActivity {
         itemTextViews.clear();
         itemTextViews = null;
 
-        // 释放远程按键处理器
-        if (remoteKeyHandler != null) {
-            remoteKeyHandler.release();
-            remoteKeyHandler = null;
-        }
-
         Intent unlockIntent = new Intent("com.tv.live.UNLOCK_SETTINGS");
         unlockIntent.setPackage(getPackageName());
         sendBroadcast(unlockIntent);
     }
-    }
+ }
