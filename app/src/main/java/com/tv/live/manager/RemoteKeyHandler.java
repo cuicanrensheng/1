@@ -3,6 +3,7 @@ package com.tv.live.manager;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -14,6 +15,8 @@ import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
 import com.tv.live.widget.GroupListManager;
+
+import java.util.List;
 
 /**
  * 遥控器按键处理器 - 统一处理所有面板按键
@@ -33,14 +36,14 @@ public class RemoteKeyHandler {
     }
 
     // ===================== 引用 =====================
-    private final MainActivity mainActivity;
-    private final ChannelPanelController controller;
-    private final GroupListManager groupListManager;
-    private final ChannelListManager channelListManager;
-    private final ChannelListManager channelListManagerEpg;
-    private final DateListManager dateListManager;
-    private final EpgManagerWrapper epgManagerWrapper;
-    private final SettingsActivity settingsActivity;
+    private MainActivity mainActivity;
+    private ChannelPanelController controller;
+    private GroupListManager groupListManager;
+    private ChannelListManager channelListManager;
+    private ChannelListManager channelListManagerEpg;
+    private DateListManager dateListManager;
+    private EpgManagerWrapper epgManagerWrapper;
+    private SettingsActivity settingsActivity;
     
     private View llLeftPanel;
     private View llRightPanel;
@@ -53,8 +56,9 @@ public class RemoteKeyHandler {
     private ListView lvDate;
     private ListView lvEpg;
     
-    // 设置面板的列表
-    private ListView lvSettings;
+    // 设置面板的滚动视图
+    private ScrollView scrollView;
+    private int settingsItemCount = 0;
 
     // ===================== 状态 =====================
     private Mode currentMode = Mode.CHANNEL_PANEL;
@@ -70,7 +74,6 @@ public class RemoteKeyHandler {
     
     /** 设置面板焦点位置 */
     private int settingsFocusPosition = 0;
-    private int settingsItemCount = 0;
 
     /** 长按OK计时器 */
     private long okPressStartTime = 0;
@@ -78,7 +81,7 @@ public class RemoteKeyHandler {
     private static final long OK_LONG_PRESS_DURATION = 3000; // 3秒
 
     /** 上下文 */
-    private final Context context;
+    private Context context;
 
     // ===================== 构造函数 =====================
     /**
@@ -128,7 +131,7 @@ public class RemoteKeyHandler {
      */
     public RemoteKeyHandler(
             SettingsActivity settingsActivity,
-            ListView lvSettings,
+            ScrollView scrollView,
             int settingsItemCount,
             Context context) {
         this.mainActivity = null;
@@ -148,7 +151,7 @@ public class RemoteKeyHandler {
         this.lvDate = null;
         this.lvEpg = null;
         this.settingsActivity = settingsActivity;
-        this.lvSettings = lvSettings;
+        this.scrollView = scrollView;
         this.settingsItemCount = settingsItemCount;
         this.context = context;
         this.currentMode = Mode.SETTINGS_PANEL;
@@ -307,13 +310,17 @@ public class RemoteKeyHandler {
         if ("left".equals(currentPanel)) {
             if (currentFocus == lvChannelList) {
                 // 频道列表 → 分组
-                lvGroup.requestFocus();
+                if (lvGroup != null) {
+                    lvGroup.requestFocus();
+                }
                 currentFocusView = "group";
                 updateFocusStyle();
                 return true;
             } else if (currentFocus == btnShowEpg) {
                 // 节目单按钮 → 频道列表
-                lvChannelList.requestFocus();
+                if (lvChannelList != null) {
+                    lvChannelList.requestFocus();
+                }
                 currentFocusView = "channel";
                 updateFocusStyle();
                 return true;
@@ -328,13 +335,17 @@ public class RemoteKeyHandler {
         if ("left".equals(currentPanel)) {
             if (currentFocus == lvGroup) {
                 // 分组 → 频道列表
-                lvChannelList.requestFocus();
+                if (lvChannelList != null) {
+                    lvChannelList.requestFocus();
+                }
                 currentFocusView = "channel";
                 updateFocusStyle();
                 return true;
             } else if (currentFocus == lvChannelList) {
                 // 频道列表 → 节目单按钮
-                btnShowEpg.requestFocus();
+                if (btnShowEpg != null) {
+                    btnShowEpg.requestFocus();
+                }
                 currentFocusView = "epgBtn";
                 updateFocusStyle();
                 return true;
@@ -349,13 +360,17 @@ public class RemoteKeyHandler {
         if ("right".equals(currentPanel)) {
             if (currentFocus == lvGroup) {
                 // 分组 → 频道组按钮
-                btnBackGroup.requestFocus();
+                if (btnBackGroup != null) {
+                    btnBackGroup.requestFocus();
+                }
                 currentFocusView = "backBtn";
                 updateFocusStyle();
                 return true;
             } else if (currentFocus == lvDate) {
                 // 日期 → 分组
-                lvGroup.requestFocus();
+                if (lvGroup != null) {
+                    lvGroup.requestFocus();
+                }
                 currentFocusView = "group";
                 updateFocusStyle();
                 return true;
@@ -840,8 +855,9 @@ public class RemoteKeyHandler {
      * 设置面板关闭时调用
      */
     public void onSettingsPanelClosed() {
-        // 清除所有焦点
-        if (lvSettings != null) lvSettings.clearFocus();
+        if (scrollView != null) {
+            scrollView.clearFocus();
+        }
         Toast.makeText(context, "已退出设置面板", Toast.LENGTH_SHORT).show();
     }
 
@@ -883,7 +899,6 @@ public class RemoteKeyHandler {
      * 释放资源
      */
     public void release() {
-        // 清除所有引用
         mainActivity = null;
         controller = null;
         groupListManager = null;
@@ -901,7 +916,7 @@ public class RemoteKeyHandler {
         lvChannelListEpg = null;
         lvDate = null;
         lvEpg = null;
-        lvSettings = null;
+        scrollView = null;
         context = null;
     }
-  }
+ }
