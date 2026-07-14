@@ -318,6 +318,16 @@ public class ChannelListManager {
         lvChannelList.setSelection(selectedPosition);
     }
 
+    // 🟢 新增：设置选中位置，供 RemoteKeyHandler 调用
+    public void setSelectedPosition(int position) {
+        if (position < 0 || position >= lvChannelList.getCount()) return;
+        this.selectedPosition = position;
+        lvChannelList.setSelection(position);
+        if (lvChannelList.getAdapter() != null) {
+            ((ArrayAdapter<?>) lvChannelList.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
     private static class ViewHolder {
         TextView tvIndex;
         TextView tvChannel;
