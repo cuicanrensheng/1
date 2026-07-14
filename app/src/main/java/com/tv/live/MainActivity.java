@@ -134,7 +134,6 @@ public class MainActivity extends AppCompatActivity {
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
 
         playerView = findViewById(R.id.player_view);
-        // 🟢【修复】将 PlayerView 背景设为黑色，消除电视启动时的白屏现象
         playerView.setBackgroundColor(Color.BLACK);
         playerView.setUseController(true);
         try {
@@ -329,18 +328,15 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override public void onPanelMenu() {
                 boolean isFavorite = channelPanelController.toggleCurrentFavorite();
-                // 日志可选
             }
             @Override public void onPanelNumber(int number) {
                 // 数字选台交给其他处理
                 int keyCode = KeyEvent.KEYCODE_0 + number;
-                // 由ChannelNumberManager处理，后面补充
             }
             @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {
                 // 焦点变化
             }
 
-            // 设置模式回调（设置页不需要）
             @Override public void onSettingsMoveUp() {}
             @Override public void onSettingsMoveDown() {}
             @Override public void onSettingsConfirm() {}
@@ -349,8 +345,7 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onSettingsFocusChanged(int position) {}
         });
 
-        // 设置面板焦点初始位置
-        remoteManager.setSettingsItemCount(0); // 设置页用不到
+        remoteManager.setSettingsItemCount(0);
     }
 
     private void initInfoDisplayManager() {
@@ -634,8 +629,6 @@ public class MainActivity extends AppCompatActivity {
                 log("【画中画】同步频道信息失败：" + e.getMessage());
             }
         }
-
-        // 移除 syncCurrentGroup，老版本没有该方法
     }
 
     public void togglePanel() {
@@ -644,7 +637,15 @@ public class MainActivity extends AppCompatActivity {
         }
         channelPanelController.togglePanel();
 
-        // 移除 remoteManager.syncMode()
+        // 老版本通知远程管理器面板状态
+        if (channelPanelController != null) {
+            if (channelPanelController.isPanelOpen()) {
+                remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
+                remoteManager.setRightPanelOpen(channelPanelController.isRightPanelOpen());
+            } else {
+                remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
+            }
+        }
     }
 
     public void playPrev() { channelPanelController.playPrev(); }
@@ -778,12 +779,10 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 先交给 remoteManager 处理
         if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
 
-        // 数字选台
         if (number_channel_enable && action == KeyEvent.ACTION_DOWN
                 && infoDisplayManager != null
                 && !isInCatchUpMode
@@ -831,7 +830,6 @@ public class MainActivity extends AppCompatActivity {
             }
             return true;
         }
-        // 老版本没有 dispatchKeyLongPress
         return super.onKeyLongPress(keyCode, event);
     }
 
@@ -911,7 +909,6 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
-                // 🟢【核心修复】强制重新绑定 SurfaceView，解决从设置页返回后黑屏的问题
                 mPlayerManager.attachPlayerView(playerView);
             }
             if (playerControlManager != null) {
@@ -922,8 +919,6 @@ public class MainActivity extends AppCompatActivity {
                 mPlayerManager.resume();
             }
         }
-
-        remoteManager.syncMode();
 
         if (channelPanelController != null) {
             channelPanelController.clearPanelFocus();
@@ -965,7 +960,6 @@ public class MainActivity extends AppCompatActivity {
 
         mMainHandler.removeCallbacksAndMessages(null);
         if (infoDisplayManager != null) infoDisplayManager.release();
-        // remoteManager 老版本没有 release()
         if (displayManager != null) displayManager.release();
         if (channelPanelController != null) channelPanelController.release();
         if (appCoreManager != null) appCoreManager.release();
@@ -991,4 +985,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
-}
+    }
