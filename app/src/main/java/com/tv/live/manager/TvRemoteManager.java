@@ -1,17 +1,16 @@
 package com.tv.live.manager;
 
+import android.util.Log;
 import android.view.KeyEvent;
-
-import com.tv.live.SettingsActivity;
 
 /**
  * 电视遥控器统一管理器
  *
  * 【职责】
  * 统一管理所有遥控器按键操作，支持三种模式：
- * 1. 播放模式（PLAY_MODE）- 全屏播放时
- * 2. 频道面板模式（CHANNEL_PANEL_MODE）- 频道面板打开时
- * 3. 设置模式（SETTINGS_MODE）- 设置页面打开时
+ * 1. 播放模式（PLAY_MODE）—— 全屏播放时
+ * 2. 频道面板模式（CHANNEL_PANEL_MODE）—— 频道面板打开时
+ * 3. 设置模式（SETTINGS_MODE）—— 设置页面打开时
  *
  * 【设计原则】
  * 1. 单一入口：所有按键都走 dispatchKeyEvent()
@@ -25,11 +24,15 @@ import com.tv.live.SettingsActivity;
  * 2. 设置模式：remoteManager.setMode(Mode.CHANNEL_PANEL_MODE)
  * 3. 设置回调：remoteManager.setOnRemoteActionListener(listener)
  * 4. 分发按键：remoteManager.dispatchKeyEvent(keyCode)
+ *
+ * 【日志说明】所有日志均使用 android.util.Log.d，Tag 为 "TvRemoteManager"
  */
 public class TvRemoteManager {
 
-    // ====================== 模式枚举 ======================
+    // ====================== 日志 TAG ======================
+    private static final String TAG = "TvRemoteManager";
 
+    // ====================== 模式枚举 ======================
     /**
      * 遥控器工作模式
      */
@@ -40,7 +43,6 @@ public class TvRemoteManager {
     }
 
     // ====================== 频道面板焦点位置枚举 ======================
-
     /**
      * 频道面板焦点位置
      */
@@ -55,9 +57,9 @@ public class TvRemoteManager {
     }
 
     // ====================== 回调接口 ======================
-
     /**
      * 遥控器动作回调监听器
+     * 所有按键事件通过此接口通知外部
      */
     public interface OnRemoteActionListener {
 
@@ -158,10 +160,11 @@ public class TvRemoteManager {
 
     /**
      * 设置当前模式
+     * @param mode 新模式
      */
     public void setMode(Mode mode) {
         this.currentMode = mode;
-        SettingsActivity.logOperation("【遥控】切换模式：" + mode);
+        Log.d(TAG, "切换模式：" + mode);
 
         // 切换模式时重置焦点
         switch (mode) {
@@ -180,6 +183,7 @@ public class TvRemoteManager {
 
     /**
      * 获取当前模式
+     * @return 当前模式
      */
     public Mode getCurrentMode() {
         return currentMode;
@@ -187,6 +191,10 @@ public class TvRemoteManager {
 
     // ====================== 设置回调监听器 ======================
 
+    /**
+     * 设置回调监听器
+     * @param listener 回调接口实现
+     */
     public void setOnRemoteActionListener(OnRemoteActionListener listener) {
         this.listener = listener;
     }
@@ -217,12 +225,14 @@ public class TvRemoteManager {
 
     /**
      * 播放模式按键分发
+     * @param keyCode 按键码
+     * @return 是否处理
      */
     private boolean dispatchPlayKey(int keyCode) {
         switch (keyCode) {
             // 上键：上一台
             case KeyEvent.KEYCODE_DPAD_UP:
-                SettingsActivity.logOperation("【遥控-播放】上键 → 上一台");
+                Log.d(TAG, "播放模式 上键 → 上一台");
                 if (listener != null) {
                     listener.onPlayChannelUp();
                 }
@@ -230,7 +240,7 @@ public class TvRemoteManager {
 
             // 下键：下一台
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                SettingsActivity.logOperation("【遥控-播放】下键 → 下一台");
+                Log.d(TAG, "播放模式 下键 → 下一台");
                 if (listener != null) {
                     listener.onPlayChannelDown();
                 }
@@ -239,7 +249,7 @@ public class TvRemoteManager {
             // OK键/确认键：切换频道面板
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                SettingsActivity.logOperation("【遥控-播放】OK键 → 切换面板");
+                Log.d(TAG, "播放模式 OK键 → 切换面板");
                 if (listener != null) {
                     listener.onPlayTogglePanel();
                 }
@@ -248,7 +258,7 @@ public class TvRemoteManager {
             // 左右键：切换频道面板
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                SettingsActivity.logOperation("【遥控-播放】左右键 → 切换面板");
+                Log.d(TAG, "播放模式 左右键 → 切换面板");
                 if (listener != null) {
                     listener.onPlayTogglePanel();
                 }
@@ -256,7 +266,7 @@ public class TvRemoteManager {
 
             // 菜单键：打开设置
             case KeyEvent.KEYCODE_MENU:
-                SettingsActivity.logOperation("【遥控-播放】菜单键 → 打开设置");
+                Log.d(TAG, "播放模式 菜单键 → 打开设置");
                 if (listener != null) {
                     listener.onPlayOpenSettings();
                 }
@@ -264,7 +274,7 @@ public class TvRemoteManager {
 
             // 返回键
             case KeyEvent.KEYCODE_BACK:
-                SettingsActivity.logOperation("【遥控-播放】返回键");
+                Log.d(TAG, "播放模式 返回键");
                 if (listener != null) {
                     return listener.onPlayBack();
                 }
@@ -282,7 +292,7 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_8:
             case KeyEvent.KEYCODE_9:
                 int number = keyCode - KeyEvent.KEYCODE_0;
-                SettingsActivity.logOperation("【遥控-播放】数字键 → " + number);
+                Log.d(TAG, "播放模式 数字键 → " + number);
                 if (listener != null) {
                     listener.onPanelNumber(number);
                 }
@@ -299,12 +309,14 @@ public class TvRemoteManager {
 
     /**
      * 频道面板模式按键分发
+     * @param keyCode 按键码
+     * @return 是否处理
      */
     private boolean dispatchChannelPanelKey(int keyCode) {
         switch (keyCode) {
             // 上键：列表上移
             case KeyEvent.KEYCODE_DPAD_UP:
-                SettingsActivity.logOperation("【遥控-面板】上键 → 当前焦点：" + currentPanelFocus);
+                Log.d(TAG, "面板模式 上键，当前焦点：" + currentPanelFocus);
                 if (listener != null) {
                     listener.onPanelMoveUp();
                 }
@@ -312,7 +324,7 @@ public class TvRemoteManager {
 
             // 下键：列表下移
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                SettingsActivity.logOperation("【遥控-面板】下键 → 当前焦点：" + currentPanelFocus);
+                Log.d(TAG, "面板模式 下键，当前焦点：" + currentPanelFocus);
                 if (listener != null) {
                     listener.onPanelMoveDown();
                 }
@@ -329,7 +341,7 @@ public class TvRemoteManager {
             // OK键/确认键：选中当前项
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                SettingsActivity.logOperation("【遥控-面板】OK键 → 当前焦点：" + currentPanelFocus);
+                Log.d(TAG, "面板模式 OK键，当前焦点：" + currentPanelFocus);
                 if (listener != null) {
                     listener.onPanelConfirm();
                 }
@@ -337,7 +349,7 @@ public class TvRemoteManager {
 
             // 返回键：返回/关闭面板
             case KeyEvent.KEYCODE_BACK:
-                SettingsActivity.logOperation("【遥控-面板】返回键");
+                Log.d(TAG, "面板模式 返回键");
                 if (listener != null) {
                     return listener.onPanelBack();
                 }
@@ -345,7 +357,7 @@ public class TvRemoteManager {
 
             // 菜单键：关闭面板
             case KeyEvent.KEYCODE_MENU:
-                SettingsActivity.logOperation("【遥控-面板】菜单键 → 关闭面板");
+                Log.d(TAG, "面板模式 菜单键 → 关闭面板");
                 if (listener != null) {
                     listener.onPanelMenu();
                 }
@@ -363,7 +375,7 @@ public class TvRemoteManager {
             case KeyEvent.KEYCODE_8:
             case KeyEvent.KEYCODE_9:
                 int number = keyCode - KeyEvent.KEYCODE_0;
-                SettingsActivity.logOperation("【遥控-面板】数字键 → " + number);
+                Log.d(TAG, "面板模式 数字键 → " + number);
                 if (listener != null) {
                     listener.onPanelNumber(number);
                 }
@@ -376,6 +388,7 @@ public class TvRemoteManager {
 
     /**
      * 处理面板左键（向左切换列）
+     * @return true=已处理
      */
     private boolean handlePanelLeftKey() {
         PanelFocus oldFocus = currentPanelFocus;
@@ -403,11 +416,11 @@ public class TvRemoteManager {
                 break;
             default:
                 // 已经在最左边了
-                SettingsActivity.logOperation("【遥控-面板】左键 → 已在最左侧，无法左移");
+                Log.d(TAG, "面板模式 左键 → 已在最左侧，无法左移");
                 return false;
         }
 
-        SettingsActivity.logOperation("【遥控-面板】左键 → " + oldFocus + " → " + currentPanelFocus);
+        Log.d(TAG, "面板模式 左键 → " + oldFocus + " → " + currentPanelFocus);
 
         if (listener != null) {
             listener.onPanelMoveLeft();
@@ -419,6 +432,7 @@ public class TvRemoteManager {
 
     /**
      * 处理面板右键（向右切换列）
+     * @return true=已处理
      */
     private boolean handlePanelRightKey() {
         PanelFocus oldFocus = currentPanelFocus;
@@ -446,11 +460,11 @@ public class TvRemoteManager {
                 break;
             default:
                 // 已经在最右边了
-                SettingsActivity.logOperation("【遥控-面板】右键 → 已在最右侧，无法右移");
+                Log.d(TAG, "面板模式 右键 → 已在最右侧，无法右移");
                 return false;
         }
 
-        SettingsActivity.logOperation("【遥控-面板】右键 → " + oldFocus + " → " + currentPanelFocus);
+        Log.d(TAG, "面板模式 右键 → " + oldFocus + " → " + currentPanelFocus);
 
         if (listener != null) {
             listener.onPanelMoveRight();
@@ -466,6 +480,8 @@ public class TvRemoteManager {
 
     /**
      * 设置模式按键分发
+     * @param keyCode 按键码
+     * @return 是否处理
      */
     private boolean dispatchSettingsKey(int keyCode) {
         switch (keyCode) {
@@ -480,7 +496,7 @@ public class TvRemoteManager {
             // OK键/确认键：选中当前项
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                SettingsActivity.logOperation("【遥控-设置】OK键 → 第 " + settingsFocusPosition + " 项");
+                Log.d(TAG, "设置模式 OK键 → 第 " + settingsFocusPosition + " 项");
                 if (listener != null) {
                     listener.onSettingsConfirm();
                 }
@@ -488,7 +504,7 @@ public class TvRemoteManager {
 
             // 返回键：关闭设置
             case KeyEvent.KEYCODE_BACK:
-                SettingsActivity.logOperation("【遥控-设置】返回键 → 关闭设置");
+                Log.d(TAG, "设置模式 返回键 → 关闭设置");
                 if (listener != null) {
                     return listener.onSettingsBack();
                 }
@@ -496,7 +512,7 @@ public class TvRemoteManager {
 
             // 菜单键：关闭设置
             case KeyEvent.KEYCODE_MENU:
-                SettingsActivity.logOperation("【遥控-设置】菜单键 → 关闭设置");
+                Log.d(TAG, "设置模式 菜单键 → 关闭设置");
                 if (listener != null) {
                     listener.onSettingsMenu();
                 }
@@ -509,36 +525,38 @@ public class TvRemoteManager {
 
     /**
      * 处理设置上移
+     * @return true=已处理
      */
     private boolean handleSettingsMoveUp() {
         if (settingsFocusPosition > 0) {
             settingsFocusPosition--;
-            SettingsActivity.logOperation("【遥控-设置】上移 → 第 " + settingsFocusPosition + " 项");
+            Log.d(TAG, "设置模式 上移 → 第 " + settingsFocusPosition + " 项");
             if (listener != null) {
                 listener.onSettingsMoveUp();
                 listener.onSettingsFocusChanged(settingsFocusPosition);
             }
             return true;
         } else {
-            SettingsActivity.logOperation("【遥控-设置】上移 → 已在顶部");
+            Log.d(TAG, "设置模式 上移 → 已在顶部");
             return false;
         }
     }
 
     /**
      * 处理设置下移
+     * @return true=已处理
      */
     private boolean handleSettingsMoveDown() {
         if (settingsFocusPosition < settingsItemCount - 1) {
             settingsFocusPosition++;
-            SettingsActivity.logOperation("【遥控-设置】下移 → 第 " + settingsFocusPosition + " 项");
+            Log.d(TAG, "设置模式 下移 → 第 " + settingsFocusPosition + " 项");
             if (listener != null) {
                 listener.onSettingsMoveDown();
                 listener.onSettingsFocusChanged(settingsFocusPosition);
             }
             return true;
         } else {
-            SettingsActivity.logOperation("【遥控-设置】下移 → 已在底部");
+            Log.d(TAG, "设置模式 下移 → 已在底部");
             return false;
         }
     }
@@ -549,6 +567,7 @@ public class TvRemoteManager {
 
     /**
      * 设置右侧面板是否打开
+     * @param open true=右侧面板打开
      */
     public void setRightPanelOpen(boolean open) {
         this.isRightPanelOpen = open;
@@ -558,6 +577,7 @@ public class TvRemoteManager {
 
     /**
      * 获取当前面板焦点位置
+     * @return 当前面板焦点枚举
      */
     public PanelFocus getCurrentPanelFocus() {
         return currentPanelFocus;
@@ -565,14 +585,16 @@ public class TvRemoteManager {
 
     /**
      * 设置当前面板焦点位置
+     * @param focus 新的焦点位置
      */
     public void setCurrentPanelFocus(PanelFocus focus) {
         this.currentPanelFocus = focus;
-        SettingsActivity.logOperation("【遥控-面板】设置焦点：" + focus);
+        Log.d(TAG, "设置面板焦点：" + focus);
     }
 
     /**
      * 重置面板焦点到默认位置
+     * 根据 isRightPanelOpen 自动选择左侧或右侧的默认焦点
      */
     public void resetPanelFocus() {
         if (isRightPanelOpen) {
@@ -580,7 +602,7 @@ public class TvRemoteManager {
         } else {
             currentPanelFocus = PanelFocus.LEFT_CHANNEL;
         }
-        SettingsActivity.logOperation("【遥控-面板】重置焦点：" + currentPanelFocus);
+        Log.d(TAG, "重置面板焦点：" + currentPanelFocus);
     }
 
     // ====================================================================
@@ -589,6 +611,7 @@ public class TvRemoteManager {
 
     /**
      * 设置设置项总数
+     * @param count 设置项总数
      */
     public void setSettingsItemCount(int count) {
         this.settingsItemCount = count;
@@ -603,6 +626,7 @@ public class TvRemoteManager {
 
     /**
      * 获取设置项总数
+     * @return 设置项总数
      */
     public int getSettingsItemCount() {
         return settingsItemCount;
@@ -610,6 +634,7 @@ public class TvRemoteManager {
 
     /**
      * 获取设置当前焦点位置
+     * @return 焦点位置
      */
     public int getSettingsFocusPosition() {
         return settingsFocusPosition;
@@ -617,11 +642,12 @@ public class TvRemoteManager {
 
     /**
      * 设置设置焦点位置
+     * @param position 新的焦点位置（0 ~ settingsItemCount-1）
      */
     public void setSettingsFocusPosition(int position) {
         if (position >= 0 && position < settingsItemCount) {
             this.settingsFocusPosition = position;
-            SettingsActivity.logOperation("【遥控-设置】设置焦点：第 " + position + " 项");
+            Log.d(TAG, "设置焦点：第 " + position + " 项");
         }
     }
 
@@ -630,6 +656,6 @@ public class TvRemoteManager {
      */
     public void resetSettingsFocus() {
         settingsFocusPosition = 0;
-        SettingsActivity.logOperation("【遥控-设置】重置焦点到第一项");
+        Log.d(TAG, "重置设置焦点到第一项");
     }
 }
