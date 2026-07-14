@@ -527,17 +527,25 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
+    // ===================== 修改点：完整实现所有接口方法 =====================
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
 
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
+            // ================== 播放模式（设置页用不到） ==================
             @Override public void onPlayChannelUp() {}
             @Override public void onPlayChannelDown() {}
             @Override public void onPlayTogglePanel() {}
             @Override public void onPlayOpenSettings() {}
             @Override public boolean onPlayBack() { return false; }
 
+            // 🟢 新增：媒体键（空实现）
+            @Override public void onPlayMediaPlayPause() {}
+            @Override public void onPlayMediaStop() {}
+            @Override public void onPlayInfo() {}
+
+            // ================== 面板模式（设置页用不到） ==================
             @Override public void onPanelMoveUp() {}
             @Override public void onPanelMoveDown() {}
             @Override public void onPanelMoveLeft() {}
@@ -548,11 +556,32 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPanelNumber(int number) {}
             @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
 
-            @Override public void onSettingsMoveUp() { handleSettingsMoveUp(); }
-            @Override public void onSettingsMoveDown() { handleSettingsMoveDown(); }
-            @Override public void onSettingsConfirm() { handleSettingsItemClick(settingsFocusPosition); }
-            @Override public boolean onSettingsBack() { finish(); return true; }
-            @Override public void onSettingsMenu() { finish(); }
+            // 🟢 新增：画中画及焦点（空实现）
+            @Override public boolean onPipBack() { return false; }
+            @Override public void onRequestPlayFocus() {}
+
+            // 🟢 新增：数字选台（空实现）
+            @Override public void onChannelNumberSelected(int channelIndex) {}
+            @Override public void onShowChannelNumber(String number) {}
+            @Override public void onHideChannelNumber() {}
+
+            // ================== 设置模式（核心实现） ==================
+            @Override public void onSettingsMoveUp() {
+                handleSettingsMoveUp();
+            }
+            @Override public void onSettingsMoveDown() {
+                handleSettingsMoveDown();
+            }
+            @Override public void onSettingsConfirm() {
+                handleSettingsItemClick(settingsFocusPosition);
+            }
+            @Override public boolean onSettingsBack() {
+                finish();
+                return true;
+            }
+            @Override public void onSettingsMenu() {
+                finish();
+            }
             @Override public void onSettingsFocusChanged(int position) {
                 setSettingsFocusPosition(position);
                 updateSettingsFocus();
@@ -1107,4 +1136,4 @@ public class SettingsActivity extends AppCompatActivity {
         itemTextViews.clear();
         itemTextViews = null;
     }
-    }
+}
