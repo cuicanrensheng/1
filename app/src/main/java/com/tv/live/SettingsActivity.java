@@ -390,7 +390,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     // =========================================================================
-    // 🟢 修改点：showChannelLineDialog 方法已加入切换线路后同步遥控器模式
+    // 🟢 修改点：showChannelLineDialog 方法已改为调用 main.syncRemoteManagerMode()
     // =========================================================================
     private void showChannelLineDialog() {
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
@@ -430,13 +430,12 @@ public class SettingsActivity extends AppCompatActivity {
             
             Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
 
-            // 🟢 【修复新增】切换线路后同步遥控器，强制刷新主界面分组及遥控器模式
+            // 🟢 【修复新增】切换线路后同步遥控器，通过公开方法访问 MainActivity
             MainActivity main = MainActivity.getRunningInstance();
-            if (main != null && main.remoteManager != null) {
-                // 同步遥控器模式（内部会刷新分组高亮、方向逻辑等）
-                main.remoteManager.syncMode();
+            if (main != null) {
+                main.syncRemoteManagerMode(); // 内部会判空 remoteManager
             } else {
-                Log.w("SettingsActivity", "切换线路后同步遥控器失败：MainActivity 或 remoteManager 为空");
+                Log.w("SettingsActivity", "切换线路后同步遥控器失败：MainActivity 为空");
             }
         });
     }
