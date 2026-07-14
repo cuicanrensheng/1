@@ -86,6 +86,9 @@ public class TVPlayerManager {
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
 
+    // ✅【修复编译错误】补全缺失的全局线路索引 Key 常量
+    private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
+
     private static volatile TVPlayerManager instance;
     private Context context;
     private ExoPlayer player;
@@ -784,7 +787,7 @@ public class TVPlayerManager {
                 }
                 String prefKey = "channel_line_index_" + channelKey;
                 int lineIndex = sp.getInt(prefKey, 0);
-                // 如果没有独立设置，则回退到全局索引（兼容旧版）
+                // 如果没有独立设置，则回退到全局索引（兼容旧版，常量已补全）
                 if (lineIndex == 0 && sp.contains(KEY_CHANNEL_LINE_INDEX)) {
                     lineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
                 }
