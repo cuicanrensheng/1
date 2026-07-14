@@ -917,6 +917,19 @@ public class ChannelPanelController {
         this.panelStateListener = listener;
     }
 
+    // 🟢 新增：syncCurrentGroup 方法，用于同步分组选中状态
+    public void syncCurrentGroup(String groupName) {
+        if (groupName == null || groupListManager == null) return;
+        int pos = groupListManager.getGroupPosition(groupName);
+        if (pos >= 0) {
+            groupListManager.setSelectedPosition(pos);
+            if (lvGroup != null) {
+                lvGroup.setItemChecked(pos, true);
+                lvGroup.setSelection(pos);
+            }
+        }
+    }
+
     public void release() {
         Log.d("ChannelPanelController", "release: 级联清理所有组件引用");
 
@@ -998,4 +1011,4 @@ public class ChannelPanelController {
         this.activity = null;
         this.context = null;
     }
- }
+}
