@@ -234,7 +234,6 @@ public class ChannelPanelController {
     }
 
     private void onGroupClicked(int position) {
-        // 🛡️ 使用 lvGroup.getCount() 检查边界
         if (groupListManager == null || position < 0 || position >= lvGroup.getCount()) {
             Log.w("ChannelPanelController", "onGroupClicked: 无效位置 " + position);
             return;
@@ -449,7 +448,6 @@ public class ChannelPanelController {
     }
 
     private void onChannelClicked(int position) {
-        // 🛡️ 添加边界检查，防止越界
         if (currentGroupChannelList == null || currentGroupChannelList.isEmpty()) {
             Log.w("ChannelPanelController", "onChannelClicked: 当前分组频道列表为空");
             return;
@@ -751,8 +749,12 @@ public class ChannelPanelController {
             return false;
         }
 
+        // 🟢【修复】获取当前焦点视图，并增加空指针判断
         View currentFocus = panelLayout.findFocus();
-        if (currentFocus == null) return false;
+        if (currentFocus == null) {
+            // 如果找不到焦点，返回false让上层去处理默认焦点
+            return false;
+        }
 
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
             if (currentFocus instanceof ListView) {
@@ -815,12 +817,16 @@ public class ChannelPanelController {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
                     if (currentFocus == lvGroup) {
-                        lvChannelList.requestFocus();
-                        return true;
+                        if (lvChannelList != null) {
+                            lvChannelList.requestFocus();
+                            return true;
+                        }
                     }
                     if (currentFocus == lvChannelList) {
-                        btnShowEpg.requestFocus();
-                        return true;
+                        if (btnShowEpg != null) {
+                            btnShowEpg.requestFocus();
+                            return true;
+                        }
                     }
                     if (currentFocus == btnShowEpg) {
                         onEpgButtonClicked();
@@ -829,12 +835,16 @@ public class ChannelPanelController {
                     break;
                 case KeyEvent.KEYCODE_DPAD_LEFT:
                     if (currentFocus == btnShowEpg) {
-                        lvChannelList.requestFocus();
-                        return true;
+                        if (lvChannelList != null) {
+                            lvChannelList.requestFocus();
+                            return true;
+                        }
                     }
                     if (currentFocus == lvChannelList) {
-                        lvGroup.requestFocus();
-                        return true;
+                        if (lvGroup != null) {
+                            lvGroup.requestFocus();
+                            return true;
+                        }
                     }
                     break;
                 default:
@@ -844,16 +854,22 @@ public class ChannelPanelController {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_LEFT:
                     if (currentFocus == lvEpg) {
-                        lvDate.requestFocus();
-                        return true;
+                        if (lvDate != null) {
+                            lvDate.requestFocus();
+                            return true;
+                        }
                     }
                     if (currentFocus == lvDate) {
-                        lvChannelListEpg.requestFocus();
-                        return true;
+                        if (lvChannelListEpg != null) {
+                            lvChannelListEpg.requestFocus();
+                            return true;
+                        }
                     }
                     if (currentFocus == lvChannelListEpg) {
-                        btnBackGroup.requestFocus();
-                        return true;
+                        if (btnBackGroup != null) {
+                            btnBackGroup.requestFocus();
+                            return true;
+                        }
                     }
                     if (currentFocus == btnBackGroup) {
                         onBackGroupClicked();
@@ -862,16 +878,22 @@ public class ChannelPanelController {
                     break;
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
                     if (currentFocus == btnBackGroup) {
-                        lvChannelListEpg.requestFocus();
-                        return true;
+                        if (lvChannelListEpg != null) {
+                            lvChannelListEpg.requestFocus();
+                            return true;
+                        }
                     }
                     if (currentFocus == lvChannelListEpg) {
-                        lvDate.requestFocus();
-                        return true;
+                        if (lvDate != null) {
+                            lvDate.requestFocus();
+                            return true;
+                        }
                     }
                     if (currentFocus == lvDate) {
-                        lvEpg.requestFocus();
-                        return true;
+                        if (lvEpg != null) {
+                            lvEpg.requestFocus();
+                            return true;
+                        }
                     }
                     break;
                 default:
@@ -976,4 +998,4 @@ public class ChannelPanelController {
         this.activity = null;
         this.context = null;
     }
-}
+ }
