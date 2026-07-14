@@ -503,45 +503,61 @@ public class WebServerManager {
                 "</html>";
     }
 
-    // ====================== 日志页面 (不变) ======================
+    // ====================== 日志页面（从内存读取） ======================
+
+    /**
+     * 构建日志页面 - 从 MainActivity.logList 读取应用日志
+     */
     private String buildLogPage() {
-        String playLogContent = getSystemLogs();
+        // 1. 获取 MainActivity 的 logList
+        List<String> logList = null;
+        MainActivity activity = MainActivity.getRunningInstance();
+        if (activity != null) {
+            logList = activity.logList;
+        }
 
-        String[] playLines = playLogContent.split("\n");
-        StringBuilder playLogHtml = new StringBuilder();
-        for (int i = Math.min(playLines.length - 1, 500); i >= 0; i--) {
-            String line = playLines[i];
-            if (line == null || line.trim().isEmpty()) continue;
+        // 2. 构建日志条目 HTML
+        StringBuilder logHtml = new StringBuilder();
+        if (logList != null && !logList.isEmpty()) {
+            // 倒序显示：最新的日志在最上面
+            for (int i = logList.size() - 1; i >= 0; i--) {
+                String line = logList.get(i);
+                if (line == null || line.trim().isEmpty()) continue;
 
-            String time = "";
-            String content = line;
-            if (line.contains(" ") && line.length() > 15) {
-                int timeStart = line.indexOf(" ");
-                int timeEnd = line.indexOf(" ", timeStart + 1);
-                if (timeStart > 0 && timeEnd > timeStart) {
-                    time = line.substring(timeStart, timeEnd).trim();
-                    content = line.substring(timeEnd).trim();
+                String time = "";
+                String content = line;
+                if (line.startsWith("【") && line.contains("】")) {
+                    int end = line.indexOf("】");
+                    time = line.substring(1, end);
+                    content = line.substring(end + 1);
                 }
+                // 判断是否包含错误关键词
+                boolean isError = content.contains("错误") || content.contains("失败") ||
+                        content.contains("异常") || content.contains("ERROR");
+                String levelColor = isError ? "#F5222D" : "#1890FF";
+                String icon = isError ? "✕" : "i";
+
+                logHtml.append("        <div class=\"log-item\">\n");
+                logHtml.append("            <div class=\"log-icon\" style=\"background: ").append(levelColor).append(";\">").append(icon).append("</div>\n");
+                logHtml.append("            <div class=\"log-content\">\n");
+                logHtml.append("                <div class=\"log-level\" style=\"color: ").append(levelColor).append(";\">").append(isError ? "ERROR" : "INFO").append("</div>\n");
+                logHtml.append("                <div class=\"log-text\">").append(escapeHtml(content)).append("</div>\n");
+                logHtml.append("            </div>\n");
+                logHtml.append("            <div class=\"log-time\">").append(time).append("</div>\n");
+                logHtml.append("        </div>\n");
             }
-
-            boolean isError = content.contains("错误") || content.contains("失败")
-                    || content.contains("异常") || content.contains("ERROR") || content.contains("E/");
-            String levelColor = isError ? "#F5222D" : "#1890FF";
-            String icon = isError ? "✕" : "i";
-
-            playLogHtml.append("        <div class=\"log-item\">\n");
-            playLogHtml.append("            <div class=\"log-icon\" style=\"background: ").append(levelColor).append(";\">").append(icon).append("</div>\n");
-            playLogHtml.append("            <div class=\"log-content\">\n");
-            playLogHtml.append("                <div class=\"log-level\" style=\"color: ").append(levelColor).append(";\">").append(isError ? "ERROR" : "INFO").append("</div>\n");
-            playLogHtml.append("                <div class=\"log-text\">").append(escapeHtml(content)).append("</div>\n");
-            playLogHtml.append("            </div>\n");
-            playLogHtml.append("            <div class=\"log-time\">").append(time).append("</div>\n");
-            playLogHtml.append("        </div>\n");
-        }
-        if (playLogHtml.length() == 0) {
-            playLogHtml.append("        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">暂无原生日志</div>\n");
+        } else {
+            logHtml.append("        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">暂无日志</div>\n");
         }
 
+        // 3. 拼接完整页面（复用原有的 HTML 框架）
+        return buildLogPageHtml(logHtml.toString());
+    }
+
+    /**
+     * 生成完整的 HTML 外壳（复用您原有的结构和样式）
+     */
+    private String buildLogPageHtml(String logContentHtml) {
         return "<!DOCTYPE html>\n" +
                 "<html lang=\"zh-CN\">\n" +
                 "<head>\n" +
@@ -586,17 +602,17 @@ public class WebServerManager {
                 "        <div class=\"tab-item\" onclick=\"switchTab('play')\">播放日志</div>\n" +
                 "    </div>\n" +
                 "\n" +
-                "    <!-- 原操作日志面板（现在统一展示原生日志） -->\n" +
+                "    <!-- 原操作日志面板（现在直接展示应用内存日志） -->\n" +
                 "    <div id=\"panel-operation\" class=\"log-panel active\">\n" +
                 "        <div class=\"log-list\">\n" +
-                "        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">原生日志已合并展示，此处无额外操作日志</div>\n" +
+                logContentHtml +
                 "        </div>\n" +
                 "    </div>\n" +
                 "\n" +
-                "    <!-- 播放日志面板（抓取 Logcat 替换原 PLAY_LOG） -->\n" +
+                "    <!-- 播放日志面板（不再使用，但保留标签） -->\n" +
                 "    <div id=\"panel-play\" class=\"log-panel\">\n" +
                 "        <div class=\"log-list\">\n" +
-                playLogHtml.toString() +
+                "        <div style=\"padding: 40px 20px; text-align: center; color: #999; font-size: 14px;\">已合并至系统日志</div>\n" +
                 "        </div>\n" +
                 "    </div>\n" +
                 "\n" +
@@ -656,43 +672,6 @@ public class WebServerManager {
                 "    </div>\n" +
                 "</body>\n" +
                 "</html>";
-    }
-
-    // ============================================================
-    // 🟢【优化】调用原生 logcat 抓取系统日志，增加超时保护
-    // ============================================================
-    private String getSystemLogs() {
-        StringBuilder logResult = new StringBuilder();
-        try {
-            Process process = Runtime.getRuntime().exec("logcat -d -v time -t 500");
-            
-            // 🟢【修复】区分 Android 版本，解决 API 26 以下崩溃问题
-            boolean completed = false;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // API 26+ 使用带超时参数的方法
-                completed = process.waitFor(2000, TimeUnit.MILLISECONDS);
-            } else {
-                // API 21-25 使用不带超时参数的方法（防止 NoSuchMethodError）
-                process.waitFor();
-                completed = true;
-            }
-
-            if (!completed) {
-                process.destroy();
-                return "日志抓取超时，请稍后重试...";
-            }
-
-            BufferedReader bufferedReader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()));
-
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                logResult.append(line).append("\n");
-            }
-        } catch (Exception e) {
-            return "加载日志失败：" + e.getMessage();
-        }
-        return logResult.toString();
     }
 
     private String escapeHtml(String str) {
