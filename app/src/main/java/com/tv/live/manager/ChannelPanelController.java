@@ -234,8 +234,8 @@ public class ChannelPanelController {
     }
 
     private void onGroupClicked(int position) {
-        // 🛡️ 添加边界检查，防止越界
-        if (groupListManager == null || position < 0 || position >= groupListManager.getGroupCount()) {
+        // 🛡️ 使用 lvGroup.getCount() 检查边界
+        if (groupListManager == null || position < 0 || position >= lvGroup.getCount()) {
             Log.w("ChannelPanelController", "onGroupClicked: 无效位置 " + position);
             return;
         }
@@ -976,4 +976,4 @@ public class ChannelPanelController {
         this.activity = null;
         this.context = null;
     }
- }
+}
