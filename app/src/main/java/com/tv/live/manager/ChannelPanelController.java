@@ -71,8 +71,7 @@ public class ChannelPanelController {
     private boolean isSwitchingChannel = false;
     private int autoSkipCount = 0;
 
-    // 🟢 新增：回看模式标记
-    private boolean isInCatchUpMode = false;
+    // 已移除 isInCatchUpMode
 
     private OnChannelChangeListener channelChangeListener;
     private OnPanelStateListener panelStateListener;
@@ -203,8 +202,8 @@ public class ChannelPanelController {
         btnBackGroup.setBackgroundColor(0x00000000);
     }
 
-    // 🟢 修改：将 syncFocusStyle 改为 public
-    public void syncFocusStyle() {
+    // 恢复为 private
+    private void syncFocusStyle() {
         clearAllFocusStyles();
         if ("left".equals(currentFocusPanel)) {
             if ("group".equals(leftFocusView)) {
@@ -237,8 +236,8 @@ public class ChannelPanelController {
         channelListManagerEpg.setChannels(channels, currentPlayIndex);
     }
 
-    // 🟢 修改：将 onGroupClicked 改为 public
-    public void onGroupClicked(int position) {
+    // 恢复为 private
+    private void onGroupClicked(int position) {
         groupListManager.setSelectedPosition(position);
         lvGroup.setItemChecked(position, true);
         lvGroup.setSelection(position);
@@ -258,7 +257,6 @@ public class ChannelPanelController {
             channelListManager.setChannelsByGroup(channelSourceList, groupName, currentPlayIndex);
         }
 
-        // ✅ 切换分组后，让右侧列表滚动到当前频道，并高亮它
         if (channelListManager != null && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
             Channel currentChannel = channelSourceList.get(currentPlayIndex);
             int targetPos = -1;
@@ -273,7 +271,6 @@ public class ChannelPanelController {
             } else {
                 lvChannelList.setSelection(0);
             }
-            // 我们不再强制抢焦点，让触屏自然响应点击
             lvChannelList.setFocusable(true);
             lvChannelList.setFocusableInTouchMode(true);
         }
@@ -427,8 +424,6 @@ public class ChannelPanelController {
         channelListManagerEpg.setChannels(channelSourceList, index);
         epgManagerWrapper.refresh(ch, channelSourceList, currentSelectedDateIndex);
 
-        // ✅【最终修复】移除所有强制抢焦点的代码，只保证两者都可以被触屏点击
-        // 让系统去处理点击交互，想点左点左，想点右点右
         if (lvGroup != null) {
             lvGroup.setFocusable(true);
             lvGroup.setFocusableInTouchMode(true);
@@ -443,83 +438,7 @@ public class ChannelPanelController {
         }
     }
 
-    // =========================================================================
-    // 🟢【新增核心同步 API，解决分组面板 UI 状态撕裂的关键修复】
-    // =========================================================================
-
-    /** 根据分组名切换分组并刷新列表 */
-    public void switchGroupByName(String groupName) {
-        if (groupName == null || groupListManager == null) return;
-        int pos = groupListManager.getGroupPosition(groupName);
-        if (pos >= 0) {
-            groupListManager.setSelectedPosition(pos);
-        }
-        if (lvGroup != null) {
-            lvGroup.setItemChecked(pos, true);
-            lvGroup.setSelection(pos);
-            lvGroup.invalidateViews();
-        }
-    }
-
-    /** 强制刷新分组适配器选中项 */
-    public void refreshGroupList() {
-        if (lvGroup != null && groupListManager != null) {
-            lvGroup.post(() -> {
-                groupListManager.setSelectedPosition(groupListManager.getSelectedPosition());
-                lvGroup.invalidateViews();
-            });
-        }
-    }
-
-    /** 同步当前播放频道的分组，供外部调用 */
-    public void syncCurrentGroup(String groupName) {
-        if (groupName == null) return;
-        switchGroupByName(groupName);
-        refreshGroupList();
-    }
-
-    // =========================================================================
-    // 🟢【新增：获取各管理器实例的方法，供 RemoteKeyHandler 使用】
-    // =========================================================================
-
-    public GroupListManager getGroupListManager() {
-        return groupListManager;
-    }
-
-    public ChannelListManager getChannelListManager() {
-        return channelListManager;
-    }
-
-    public ChannelListManager getChannelListManagerEpg() {
-        return channelListManagerEpg;
-    }
-
-    public DateListManager getDateListManager() {
-        return dateListManager;
-    }
-
-    public EpgManagerWrapper getEpgManagerWrapper() {
-        return epgManagerWrapper;
-    }
-
-    public List<Channel> getChannelSourceList() {
-        return channelSourceList;
-    }
-
-    public void onPanelSwitched(String panel) {
-        // panel = "left" 或 "right"
-        // 可在此处添加面板切换时的额外逻辑
-    }
-
-    public boolean isInCatchUpMode() {
-        return isInCatchUpMode;
-    }
-
-    public void setCatchUpMode(boolean enabled) {
-        this.isInCatchUpMode = enabled;
-    }
-
-    // =========================================================================
+    // 已移除 syncCurrentGroup 等方法（因为老版本没有）
 
     private boolean handleChannelLongClick(String channelName, boolean isRightPanel) {
         return false;
@@ -529,8 +448,8 @@ public class ChannelPanelController {
         return false;
     }
 
-    // 🟢 修改：将 onChannelClicked 改为 public
-    public void onChannelClicked(int position) {
+    // 恢复为 private
+    private void onChannelClicked(int position) {
         if (!currentGroupChannelList.isEmpty() && position < currentGroupChannelList.size()
                 && !rightPanelOpen) {
             Channel selectedChannel = currentGroupChannelList.get(position);
@@ -585,20 +504,16 @@ public class ChannelPanelController {
 
             if (isPanelOpen()) {
                 clearAllFocusStyles();
-                // ✅ 重置样式同步，但不强制把焦点抢给谁
                 currentFocusPanel = "left";
                 leftFocusView = "channel";
                 syncFocusStyle();
                 
-                // 只保证左侧频道列表可以响应用户的触摸
                 lvChannelList.setFocusable(true);
                 lvChannelList.setFocusableInTouchMode(true);
 
-                // 确保右侧EPG列表也能响应
                 lvChannelListEpg.setFocusable(true);
                 lvChannelListEpg.setFocusableInTouchMode(true);
 
-                // 滚到当前正在播放的频道
                 lvChannelList.setSelection(getChannelListSelection());
 
             } else {
@@ -972,7 +887,6 @@ public class ChannelPanelController {
         this.panelStateListener = listener;
     }
 
-    // 🛠️【修复】彻底的级联释放，同时清除所有持有 Activity 的引用链
     public void release() {
         Log.d("ChannelPanelController", "release: 级联清理所有组件引用");
 
@@ -1000,11 +914,9 @@ public class ChannelPanelController {
             panelManager = null;
         }
 
-        // 清除外部监听器
         channelChangeListener = null;
         panelStateListener = null;
 
-        // 释放大容器数据
         if (channelSourceList != null) {
             channelSourceList.clear();
             channelSourceList = null;
@@ -1014,7 +926,6 @@ public class ChannelPanelController {
             currentGroupChannelList = null;
         }
 
-        // 清除所有 View 的监听器（避免适配器/内部类持有 Context 和 Activity）
         if (lvGroup != null) {
             lvGroup.setAdapter(null);
             lvGroup.setOnItemClickListener(null);
@@ -1057,4 +968,4 @@ public class ChannelPanelController {
         this.activity = null;
         this.context = null;
     }
-    }
+}
