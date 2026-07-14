@@ -401,6 +401,15 @@ public class ChannelPanelController {
         }
         channelListManagerEpg.setChannels(channelSourceList, index);
         epgManagerWrapper.refresh(ch, channelSourceList, currentSelectedDateIndex);
+
+        // ✅【核心修复】切换备用源导致左侧面板“死机”的问题，强制将焦点和激活状态交还给左侧分组列表
+        if (lvGroup != null) {
+            lvGroup.clearFocus(); // 先清空旧焦点，确保 requestFocus 100%生效
+            lvGroup.setFocusable(true);
+            lvGroup.setFocusableInTouchMode(true);
+            lvGroup.requestFocus(); // 主动抢夺焦点，唤醒左侧面板
+        }
+
         if (channelChangeListener != null) {
             channelChangeListener.onChannelChanged(ch, index);
         }
@@ -935,4 +944,4 @@ public class ChannelPanelController {
         this.activity = null;
         this.context = null;
     }
- }
+}
