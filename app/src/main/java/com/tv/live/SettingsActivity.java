@@ -86,6 +86,8 @@ public class SettingsActivity extends AppCompatActivity {
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable focusUpdateRunnable;
 
+    // 已移除 RemoteKeyHandler
+
     // ===================== 设置页焦点管理 =====================
     private int settingsFocusPosition = 0;
     private int settingsItemCount = 0;
@@ -198,13 +200,11 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
         initSettingsItemList();
-        // 设置选项总数，供焦点管理使用
         setSettingsItemCount(settingsItemList.size());
         initRemoteManager();
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
 
-        // 读取当前频道的独立线路索引
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         Channel currentChannel = playerManager.getCurrentChannel();
         int currentLineIndex = 0;
@@ -216,7 +216,6 @@ public class SettingsActivity extends AppCompatActivity {
             String prefKey = "channel_line_index_" + channelKey;
             currentLineIndex = sp.getInt(prefKey, 0);
         } else {
-            // 兜底：如果还没播放任何频道，回退到以前的全局配置
             currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
         }
         tv_channel_line.setText(getLineName(currentLineIndex));
@@ -389,9 +388,6 @@ public class SettingsActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    // =========================================================================
-    // 🟢 修改点：showChannelLineDialog 方法已改为调用 main.syncRemoteManagerMode()
-    // =========================================================================
     private void showChannelLineDialog() {
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         Channel currentChannel = playerManager.getCurrentChannel();
@@ -400,12 +396,10 @@ public class SettingsActivity extends AppCompatActivity {
             return;
         }
 
-        // 获取当前频道的唯一标识（优先使用 channelId，没有则用 name）
         String channelKey = currentChannel.getChannelId();
         if (TextUtils.isEmpty(channelKey)) {
             channelKey = currentChannel.getName();
         }
-        // 读取该频道独立保存的线路索引，若不存在则默认 0（主源）
         String prefKey = "channel_line_index_" + channelKey;
         int currentLineIndex = sp.getInt(prefKey, 0);
 
@@ -417,9 +411,7 @@ public class SettingsActivity extends AppCompatActivity {
         String[] lineArray = lineList.toArray(new String[0]);
 
         showDarkSingleChoiceDialog("频道线路选择", lineArray, currentLineIndex, (which) -> {
-            // 保存为该频道独立线路索引
             sp.edit().putInt(prefKey, which).apply();
-            // 同时兼容旧全局键（为了向后兼容）
             sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
 
             tv_channel_line.setText(lineArray[which]);
@@ -430,16 +422,14 @@ public class SettingsActivity extends AppCompatActivity {
             
             Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
 
-            // 🟢 【修复新增】切换线路后同步遥控器，通过公开方法访问 MainActivity
             MainActivity main = MainActivity.getRunningInstance();
             if (main != null) {
-                main.syncRemoteManagerMode(); // 内部会判空 remoteManager
+                main.syncRemoteManagerMode();
             } else {
                 Log.w("SettingsActivity", "切换线路后同步遥控器失败：MainActivity 为空");
             }
         });
     }
-    // =========================================================================
 
     private void initRedirectDefaultConfig() {
         if (!sp.contains(KEY_REDIRECT_MAX_COUNT)) {
@@ -826,6 +816,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // 已移除 RemoteKeyHandler，只保留 TvRemoteManager
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int keyCode = event.getKeyCode();
             if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
@@ -844,7 +835,8 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    public void updateSettingsFocus() {
+    // 恢复为 private
+    private void updateSettingsFocus() {
         if (settingsFocusPosition < 0 || settingsFocusPosition >= settingsItemList.size()) return;
 
         View target = settingsItemList.get(settingsFocusPosition);
@@ -926,7 +918,8 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    public void handleSettingsItemClick(int position) {
+    // 恢复为 private
+    private void handleSettingsItemClick(int position) {
         if (position < 0 || position >= settingsItemList.size()) return;
         View item = settingsItemList.get(position);
         if (item == null) return;
@@ -1125,8 +1118,6 @@ public class SettingsActivity extends AppCompatActivity {
         itemTextViews.clear();
         itemTextViews = null;
 
-        Intent unlockIntent = new Intent("com.tv.live.UNLOCK_SETTINGS");
-        unlockIntent.setPackage(getPackageName());
-        sendBroadcast(unlockIntent);
+        // 已移除 RemoteKeyHandler 释放
     }
- }
+}
