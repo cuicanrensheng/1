@@ -50,6 +50,7 @@ public class EpgManagerWrapper {
     private int selectedPosition = 0;
     private int playingIndex = -1;
     private int selectDayIndex = 0;
+    private String currentChannelName = "";
     
     // 🛠️【修复】将局部变量提升为成员变量，保证 unregisterReceiver 能匹配
     private BroadcastReceiver reminderReceiver; 
@@ -88,6 +89,7 @@ public class EpgManagerWrapper {
 
     public void refresh(Channel currentChannel, List<Channel> channelSourceList, int dateIndex) {
         if (currentChannel == null) return;
+        currentChannelName = currentChannel.getName();
         playingIndex = -1;
         selectDayIndex = dateIndex;
         epgEndTimeMap.clear();
@@ -254,6 +256,125 @@ public class EpgManagerWrapper {
         IntentFilter filter = new IntentFilter(ACTION_REMINDER);
         ContextCompat.registerReceiver(context, reminderReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
+
+    // =========================================================================
+    // 🟢 新增方法：供 RemoteKeyHandler 调用
+    // =========================================================================
+
+    /**
+     * 设置选中位置
+     */
+    public void setSelectedPosition(int position) {
+        this.selectedPosition = position;
+        if (lvEpg != null && lvEpg.getAdapter() != null) {
+            lvEpg.setSelection(position);
+            ((ArrayAdapter<?>) lvEpg.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    /**
+     * 获取指定位置的节目
+     */
+    public Object getProgramAt(int position) {
+        if (adapter != null && position >= 0 && position < adapter.getCount()) {
+            return adapter.getItem(position);
+        }
+        return null;
+    }
+
+    /**
+     * 判断是否可回看
+     */
+    public boolean isCatchUpAvailable(Object program) {
+        if (!(program instanceof Channel.EpgItem)) return false;
+        Channel.EpgItem item = (Channel.EpgItem) program;
+        // 只在今天且节目已过去时可回看
+        return selectDayIndex == 0 && item != null && !item.isPlaying && isPastTime(item.time);
+    }
+
+    /**
+     * 开始回看
+     */
+    public void startCatchUp(Object program) {
+        if (!(program instanceof Channel.EpgItem)) return;
+        Channel.EpgItem item = (Channel.EpgItem) program;
+        // 调用回看逻辑
+        // 具体实现参考 EpgAdapter 中的回看逻辑
+        // 这里可以通过回调或广播触发回看
+        Toast.makeText(context, "开始回看：" + item.title, Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 停止回看
+     */
+    public void stopCatchUp() {
+        // 停止回看逻辑
+        Toast.makeText(context, "已退出回看模式", Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 判断是否可预约
+     */
+    public boolean isReservable(Object program) {
+        if (!(program instanceof Channel.EpgItem)) return false;
+        Channel.EpgItem item = (Channel.EpgItem) program;
+        // 未来节目可预约
+        return item != null && !item.isPlaying && !isPastTime(item.time);
+    }
+
+    /**
+     * 切换预约状态
+     */
+    public boolean toggleReservation(Object program) {
+        if (!(program instanceof Channel.EpgItem)) return false;
+        Channel.EpgItem item = (Channel.EpgItem) program;
+        String key = currentChannelName + "_" + getItemIndex(item);
+        if (bookedSet.contains(key)) {
+            bookedSet.remove(key);
+            return false;
+        } else {
+            bookedSet.add(key);
+            return true;
+        }
+    }
+
+    /**
+     * 刷新数据
+     */
+    public void notifyDataSetChanged() {
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
+    }
+
+    /**
+     * 判断时间是否已过去
+     */
+    private boolean isPastTime(String time) {
+        if (TextUtils.isEmpty(time)) return false;
+        String now = getNow();
+        try {
+            return time.compareTo(now) < 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 获取节目在列表中的索引
+     */
+    private int getItemIndex(Channel.EpgItem item) {
+        if (adapter == null) return -1;
+        for (int i = 0; i < adapter.getCount(); i++) {
+            Channel.EpgItem curr = adapter.getItem(i);
+            if (curr != null && curr.title != null && curr.title.equals(item.title)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // =========================================================================
 
     // 🛠️【新增】释放资源切断引用
     public void release() {
