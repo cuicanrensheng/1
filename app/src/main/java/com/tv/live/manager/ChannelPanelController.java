@@ -71,8 +71,6 @@ public class ChannelPanelController {
     private boolean isSwitchingChannel = false;
     private int autoSkipCount = 0;
 
-    // 已移除 isInCatchUpMode
-
     private OnChannelChangeListener channelChangeListener;
     private OnPanelStateListener panelStateListener;
 
@@ -202,7 +200,6 @@ public class ChannelPanelController {
         btnBackGroup.setBackgroundColor(0x00000000);
     }
 
-    // 恢复为 private
     private void syncFocusStyle() {
         clearAllFocusStyles();
         if ("left".equals(currentFocusPanel)) {
@@ -236,8 +233,13 @@ public class ChannelPanelController {
         channelListManagerEpg.setChannels(channels, currentPlayIndex);
     }
 
-    // 恢复为 private
     private void onGroupClicked(int position) {
+        // 🛡️ 添加边界检查，防止越界
+        if (groupListManager == null || position < 0 || position >= groupListManager.getGroupCount()) {
+            Log.w("ChannelPanelController", "onGroupClicked: 无效位置 " + position);
+            return;
+        }
+
         groupListManager.setSelectedPosition(position);
         lvGroup.setItemChecked(position, true);
         lvGroup.setSelection(position);
@@ -438,8 +440,6 @@ public class ChannelPanelController {
         }
     }
 
-    // 已移除 syncCurrentGroup 等方法（因为老版本没有）
-
     private boolean handleChannelLongClick(String channelName, boolean isRightPanel) {
         return false;
     }
@@ -448,10 +448,18 @@ public class ChannelPanelController {
         return false;
     }
 
-    // 恢复为 private
     private void onChannelClicked(int position) {
-        if (!currentGroupChannelList.isEmpty() && position < currentGroupChannelList.size()
-                && !rightPanelOpen) {
+        // 🛡️ 添加边界检查，防止越界
+        if (currentGroupChannelList == null || currentGroupChannelList.isEmpty()) {
+            Log.w("ChannelPanelController", "onChannelClicked: 当前分组频道列表为空");
+            return;
+        }
+        if (position < 0 || position >= currentGroupChannelList.size()) {
+            Log.w("ChannelPanelController", "onChannelClicked: 无效位置 " + position);
+            return;
+        }
+
+        if (!rightPanelOpen) {
             Channel selectedChannel = currentGroupChannelList.get(position);
             int globalIndex = channelSourceList.indexOf(selectedChannel);
             if (globalIndex != -1) {
@@ -968,4 +976,4 @@ public class ChannelPanelController {
         this.activity = null;
         this.context = null;
     }
-}
+ }
