@@ -474,6 +474,43 @@ public class ChannelPanelController {
     }
 
     // =========================================================================
+    // 🟢【新增：获取各管理器实例的方法，供 RemoteKeyHandler 使用】
+    // =========================================================================
+
+    public GroupListManager getGroupListManager() {
+        return groupListManager;
+    }
+
+    public ChannelListManager getChannelListManager() {
+        return channelListManager;
+    }
+
+    public ChannelListManager getChannelListManagerEpg() {
+        return channelListManagerEpg;
+    }
+
+    public DateListManager getDateListManager() {
+        return dateListManager;
+    }
+
+    public EpgManagerWrapper getEpgManagerWrapper() {
+        return epgManagerWrapper;
+    }
+
+    public List<Channel> getChannelSourceList() {
+        return channelSourceList;
+    }
+
+    public void onPanelSwitched(String panel) {
+        // panel = "left" 或 "right"
+        // 可在此处添加面板切换时的额外逻辑
+    }
+
+    public void setCatchUpMode(boolean enabled) {
+        this.isInCatchUpMode = enabled;
+    }
+
+    // =========================================================================
 
     private boolean handleChannelLongClick(String channelName, boolean isRightPanel) {
         return false;
