@@ -50,20 +50,20 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView tv_channel_line;
     private TextView tv_resolution_status;
     private View itemResolution;
-    
+
     private View itemLog;
     private TextView tv_log_status;
 
     private View itemVersionInfo;
     private TextView tv_version_short;
-    
+
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
-    
+
     private SharedPreferences sp;
     private TvRemoteManager remoteManager;
     private List<View> settingsItemList = new ArrayList<>();
     private ScrollView scrollView;
-    
+
     private BootStartManager bootStartManager;
     private SourceDialogManager sourceDialogManager;
     private QRCodeManager qrCodeManager;
@@ -71,7 +71,7 @@ public class SettingsActivity extends AppCompatActivity {
     private static final int WEB_SERVER_PORT = 10481;
     private String currentWebUrl;
     private UpdateManager updateManager;
-    
+
     private static final String KEY_CUSTOM_LIVE = "custom_live_url";
     private static final String KEY_CUSTOM_EPG = "custom_epg_url";
     private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
@@ -85,8 +85,6 @@ public class SettingsActivity extends AppCompatActivity {
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable focusUpdateRunnable;
-
-    // 已移除 RemoteKeyHandler
 
     // ===================== 设置页焦点管理 =====================
     private int settingsFocusPosition = 0;
@@ -142,7 +140,7 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
+
         try { applyFullScreen(); } catch (Exception e) { }
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -160,7 +158,7 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) { }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        
+
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         setContentView(R.layout.activity_settings);
         View viewOutside = findViewById(R.id.view_outside);
@@ -180,7 +178,7 @@ public class SettingsActivity extends AppCompatActivity {
         tv_screen_ratio = findViewById(R.id.tv_screen_ratio);
         tv_boot_status = findViewById(R.id.tv_boot_status);
         scrollView = findViewById(R.id.settings_content);
-        
+
         itemResolution = findViewById(R.id.item_resolution);
         tv_resolution_status = findViewById(R.id.tv_resolution_status);
 
@@ -189,13 +187,13 @@ public class SettingsActivity extends AppCompatActivity {
 
         itemVersionInfo = findViewById(R.id.item_version_info);
         tv_version_short = findViewById(R.id.tv_version_short);
-        
+
         bootStartManager = new BootStartManager(this, sp);
         sourceDialogManager = new SourceDialogManager(this, sp);
         qrCodeManager = new QRCodeManager(this);
         webServerManager = new WebServerManager(this, WEB_SERVER_PORT);
         updateManager = new UpdateManager(this);
-        
+
         itemLiveSubscribe = findViewById(R.id.item_live_subscribe);
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
@@ -262,11 +260,11 @@ public class SettingsActivity extends AppCompatActivity {
         updateRedirectSettingText();
         findViewById(R.id.item_redirect).setOnClickListener(v -> showRedirectConfigDialog());
         findViewById(R.id.item_check_update).setOnClickListener(v -> updateManager.checkUpdate());
-        
+
         itemResolution.setOnClickListener(v -> showResolutionDialog());
 
         itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
-        
+
         initListeners();
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
@@ -298,10 +296,10 @@ public class SettingsActivity extends AppCompatActivity {
         String playerVersion = "androidx.media3 1.7.1";
 
         String message = "版本信息: v" + versionName + " (" + versionCode + ")\n\n" +
-                         "更新内容: \n" + updateNotes + "\n\n" +
-                         "UA: " + userAgent + "\n\n" +
-                         "SDK 版本: " + sdkVersion + "\n\n" +
-                         "播放器版本: " + playerVersion;
+                "更新内容: \n" + updateNotes + "\n\n" +
+                "UA: " + userAgent + "\n\n" +
+                "SDK 版本: " + sdkVersion + "\n\n" +
+                "播放器版本: " + playerVersion;
 
         SpannableString spannableString = new SpannableString(message);
         spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, 5, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -415,19 +413,14 @@ public class SettingsActivity extends AppCompatActivity {
             sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
 
             tv_channel_line.setText(lineArray[which]);
-            
+
             Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);
-            
+
             Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
 
-            MainActivity main = MainActivity.getRunningInstance();
-            if (main != null) {
-                main.syncRemoteManagerMode();
-            } else {
-                Log.w("SettingsActivity", "切换线路后同步遥控器失败：MainActivity 为空");
-            }
+            // 移除 syncRemoteManagerMode 调用
         });
     }
 
@@ -544,12 +537,16 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onPlayTogglePanel() {}
             @Override public void onPlayOpenSettings() {}
             @Override public boolean onPlayBack() { return false; }
-            @Override public void onPlayMediaPlayPause() {}
-            @Override public void onPlayMediaStop() {}
-            @Override public void onPlayInfo() {}
 
+            @Override public void onPanelMoveUp() {}
+            @Override public void onPanelMoveDown() {}
+            @Override public void onPanelMoveLeft() {}
+            @Override public void onPanelMoveRight() {}
             @Override public void onPanelConfirm() {}
             @Override public boolean onPanelBack() { return false; }
+            @Override public void onPanelMenu() {}
+            @Override public void onPanelNumber(int number) {}
+            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
 
             @Override public void onSettingsMoveUp() { handleSettingsMoveUp(); }
             @Override public void onSettingsMoveDown() { handleSettingsMoveDown(); }
@@ -560,12 +557,6 @@ public class SettingsActivity extends AppCompatActivity {
                 setSettingsFocusPosition(position);
                 updateSettingsFocus();
             }
-
-            @Override public boolean onPipBack() { return false; }
-            @Override public void onRequestPlayFocus() {}
-            @Override public void onChannelNumberSelected(int channelIndex) {}
-            @Override public void onShowChannelNumber(String number) {}
-            @Override public void onHideChannelNumber() {}
         });
 
         resetSettingsFocus();
@@ -576,7 +567,7 @@ public class SettingsActivity extends AppCompatActivity {
         tv_screen_ratio.setOnClickListener(v -> showRatioDialog());
         itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
-        
+
         itemLog.setOnClickListener(v -> {
             boolean logEnabled = sp.getBoolean("log_enable", false);
             boolean newState = !logEnabled;
@@ -687,7 +678,7 @@ public class SettingsActivity extends AppCompatActivity {
             if (tvDialogTitle != null) tvDialogTitle.setText(title);
             if (llScanHeader != null) llScanHeader.setVisibility(View.VISIBLE);
             if (ivQrCode != null) ivQrCode.setVisibility(View.VISIBLE);
-            
+
             new Thread(() -> {
                 Bitmap qrBitmap = null;
                 try {
@@ -726,11 +717,11 @@ public class SettingsActivity extends AppCompatActivity {
             @Override
             public void onSwitch(int position) {
                 sourceManager.setDefault(position);
-                
+
                 Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
                 intent.setPackage(getPackageName());
                 sendBroadcast(intent);
-                
+
                 Toast.makeText(SettingsActivity.this, "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
                 adapter.setSelectedPosition(position);
                 adapter.notifyDataSetChanged();
@@ -742,7 +733,7 @@ public class SettingsActivity extends AppCompatActivity {
                     return;
                 }
                 SourceManager.SourceItem item = sources.get(position);
-                
+
                 AlertDialog deleteDialog = new AlertDialog.Builder(SettingsActivity.this)
                         .setTitle("确认删除")
                         .setMessage("确定要删除「" + item.name + "」吗？")
@@ -760,12 +751,12 @@ public class SettingsActivity extends AppCompatActivity {
                             }
                         })
                         .create();
-                        
+
                 if (deleteDialog.getWindow() != null) {
                     deleteDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
                 }
                 deleteDialog.show();
-                
+
                 deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
                 deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
             }
@@ -788,7 +779,7 @@ public class SettingsActivity extends AppCompatActivity {
                 adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
                 adapter.notifyDataSetChanged();
                 Toast.makeText(this, "已添加，正在刷新...", Toast.LENGTH_SHORT).show();
-                
+
                 Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
                 intent.setPackage(getPackageName());
                 sendBroadcast(intent);
@@ -816,7 +807,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // 已移除 RemoteKeyHandler，只保留 TvRemoteManager
+        // 只使用 remoteManager
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int keyCode = event.getKeyCode();
             if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
@@ -835,7 +826,6 @@ public class SettingsActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    // 恢复为 private
     private void updateSettingsFocus() {
         if (settingsFocusPosition < 0 || settingsFocusPosition >= settingsItemList.size()) return;
 
@@ -918,7 +908,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 恢复为 private
     private void handleSettingsItemClick(int position) {
         if (position < 0 || position >= settingsItemList.size()) return;
         View item = settingsItemList.get(position);
@@ -957,11 +946,11 @@ public class SettingsActivity extends AppCompatActivity {
             String selectedMode = modeValues[which];
             sp.edit().putString("decoder_mode", selectedMode).apply();
             updateDecoderModeText(selectedMode);
-            
+
             Intent intent = new Intent("com.tv.live.DECODER_MODE_CHANGED");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);
-            
+
             Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…", Toast.LENGTH_SHORT).show();
         });
     }
@@ -990,11 +979,11 @@ public class SettingsActivity extends AppCompatActivity {
             String selectedMode = modeValues[which];
             sp.edit().putString("renderer_type", selectedMode).apply();
             updateRendererModeText(selectedMode);
-            
+
             Intent intent = new Intent("com.tv.live.RENDERER_TYPE_CHANGED");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);
-            
+
             Toast.makeText(this, "已切换到" + modes[which] + "，正在应用……", Toast.LENGTH_SHORT).show();
         });
     }
@@ -1015,7 +1004,7 @@ public class SettingsActivity extends AppCompatActivity {
         boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
         boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
         final String[] currentUaMode = { sp.getString(KEY_USER_AGENT_MODE, "exo") };
-        
+
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
         EditText etMax = dialogView.findViewById(R.id.et_redirect_max);
         SwitchCompat swCrossDomain = dialogView.findViewById(R.id.sw_cross_domain);
@@ -1117,7 +1106,5 @@ public class SettingsActivity extends AppCompatActivity {
         settingsItemList = null;
         itemTextViews.clear();
         itemTextViews = null;
-
-        // 已移除 RemoteKeyHandler 释放
     }
-}
+    }
