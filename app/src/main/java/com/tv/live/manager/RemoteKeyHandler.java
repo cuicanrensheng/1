@@ -9,7 +9,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.tv.live.Channel;
-import com.tv.live.ChannelPanelController;
 import com.tv.live.MainActivity;
 import com.tv.live.SettingsActivity;
 import com.tv.live.widget.ChannelListManager;
