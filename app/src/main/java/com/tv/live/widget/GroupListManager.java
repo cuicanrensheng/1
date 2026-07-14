@@ -136,6 +136,7 @@ public class GroupListManager {
             groupDisplayList.add(group);
         }
 
+        // 🟢 修改点1：重写 notifyDataSetChanged，实现刷新后自动滚动到选中项
         adapter = new ArrayAdapter<String>(lvGroup.getContext(), android.R.layout.simple_list_item_1, groupDisplayList) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
@@ -188,6 +189,15 @@ public class GroupListManager {
                 }
                 return convertView;
             }
+
+            // 🟢 修改点2：刷新后自动定位选中项，防止焦点丢失
+            @Override
+            public void notifyDataSetChanged() {
+                super.notifyDataSetChanged();
+                if (lvGroup != null && selectedPosition >= 0 && selectedPosition < getCount()) {
+                    lvGroup.setSelection(selectedPosition);
+                }
+            }
         };
         lvGroup.setAdapter(adapter);
         selectedPosition = 0;
@@ -209,6 +219,11 @@ public class GroupListManager {
         if (listener != null) {
             listener.onGroupSelected(position, groupNameList.get(position));
         }
+    }
+
+    // 🟢 修改点3：新增 getSelectedPosition 方法，解决编译找不到符号的问题
+    public int getSelectedPosition() {
+        return selectedPosition;
     }
 
     public String getCurrentGroup(int position) {
@@ -241,7 +256,7 @@ public class GroupListManager {
         TextView tv;
     }
 
-    // 🛠️【新增】释放资源切断引用
+    // 🛠️ 释放资源切断引用
     public void release() {
         if (adapter != null) {
             adapter.clear();
