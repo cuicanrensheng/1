@@ -404,10 +404,18 @@ public class ChannelPanelController {
 
         // ✅【核心修复】切换备用源导致左侧面板“死机”的问题，强制将焦点和激活状态交还给左侧分组列表
         if (lvGroup != null) {
-            lvGroup.clearFocus(); // 先清空旧焦点，确保 requestFocus 100%生效
+            // 先清空旧焦点，确保 requestFocus 100%生效
+            lvGroup.clearFocus(); 
             lvGroup.setFocusable(true);
             lvGroup.setFocusableInTouchMode(true);
             lvGroup.requestFocus(); // 主动抢夺焦点，唤醒左侧面板
+
+            // ✅ 再加一个延迟，确保在 togglePanel 的 100ms 延迟执行完后再抢一次，彻底覆盖任何冲突
+            lvGroup.postDelayed(() -> {
+                if (lvGroup != null && !lvGroup.hasFocus()) {
+                    lvGroup.requestFocus();
+                }
+            }, 200);
         }
 
         if (channelChangeListener != null) {
