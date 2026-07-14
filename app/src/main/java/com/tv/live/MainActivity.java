@@ -87,6 +87,9 @@ public class MainActivity extends AppCompatActivity {
 
     private BroadcastReceiver unlockReceiver;
 
+    // 🟢 新增：远程按键处理器
+    private RemoteKeyHandler remoteKeyHandler;
+
     public static MainActivity getRunningInstance() {
         return mInstanceRef != null ? mInstanceRef.get() : null;
     }
@@ -169,6 +172,44 @@ public class MainActivity extends AppCompatActivity {
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
         new Thread(() -> appCoreManager.loadLiveAndEpg()).start();
+
+        // 🟢 初始化远程按键处理器（频道面板模式）
+        // 从 ChannelPanelController 中获取各管理器
+        GroupListManager groupListManager = channelPanelController.getGroupListManager();
+        ChannelListManager channelListManager = channelPanelController.getChannelListManager();
+        ChannelListManager channelListManagerEpg = channelPanelController.getChannelListManagerEpg();
+        DateListManager dateListManager = channelPanelController.getDateListManager();
+        EpgManagerWrapper epgManagerWrapper = channelPanelController.getEpgManagerWrapper();
+
+        View llLeftPanel = findViewById(R.id.ll_left_panel);
+        View llRightPanel = findViewById(R.id.ll_right_panel);
+        ListView lvGroup = findViewById(R.id.lv_group);
+        ListView lvChannelList = findViewById(R.id.lv_channel_list);
+        ListView lvChannelListEpg = findViewById(R.id.lv_channel_list_epg);
+        ListView lvDate = findViewById(R.id.lv_date);
+        ListView lvEpg = findViewById(R.id.lv_epg);
+        TextView btnShowEpg = findViewById(R.id.btn_show_epg);
+        TextView btnBackGroup = findViewById(R.id.btn_back_group);
+
+        remoteKeyHandler = new RemoteKeyHandler(
+                this,
+                channelPanelController,
+                groupListManager,
+                channelListManager,
+                channelListManagerEpg,
+                dateListManager,
+                epgManagerWrapper,
+                llLeftPanel,
+                llRightPanel,
+                btnShowEpg,
+                btnBackGroup,
+                lvGroup,
+                lvChannelList,
+                lvChannelListEpg,
+                lvDate,
+                lvEpg,
+                this
+        );
 
         unlockReceiver = new BroadcastReceiver() {
             @Override
@@ -676,6 +717,15 @@ public class MainActivity extends AppCompatActivity {
             remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
         }
         
+        // 🟢 通知按键处理器面板状态
+        if (remoteKeyHandler != null) {
+            if (channelPanelController.isPanelOpen()) {
+                remoteKeyHandler.onChannelPanelOpened();
+            } else {
+                remoteKeyHandler.onChannelPanelClosed();
+            }
+        }
+        
         // ✅【修复核心二】：打开面板时强制同步当前分组，确保 UI 状态正确
         if (channelPanelController != null 
                 && currentPlayIndex >= 0 
@@ -804,6 +854,7 @@ public class MainActivity extends AppCompatActivity {
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
+    // 🟢 修改：先交给 remoteKeyHandler 处理
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
@@ -825,6 +876,11 @@ public class MainActivity extends AppCompatActivity {
                 default:
                     break;
             }
+        }
+
+        // 🟢 先交给远程按键处理器处理
+        if (remoteKeyHandler != null && remoteKeyHandler.dispatchKeyEvent(keyCode, event)) {
+            return true;
         }
 
         if (number_channel_enable && action == KeyEvent.ACTION_DOWN
@@ -976,6 +1032,11 @@ public class MainActivity extends AppCompatActivity {
         }
         remoteManager.syncMode();
 
+        // 🟢 恢复频道面板模式
+        if (remoteKeyHandler != null) {
+            remoteKeyHandler.setMode(RemoteKeyHandler.Mode.CHANNEL_PANEL);
+        }
+
         if (channelPanelController != null) {
             channelPanelController.clearPanelFocus();
             if (!channelPanelController.isPanelOpen()) {
@@ -1026,6 +1087,12 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
 
+        // 🟢 释放远程按键处理器
+        if (remoteKeyHandler != null) {
+            remoteKeyHandler.release();
+            remoteKeyHandler = null;
+        }
+
         if (exitMenuDialog != null) {
             if (exitMenuDialog.isShowing()) {
                 exitMenuDialog.dismiss();
@@ -1042,4 +1109,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
-}
+ }
