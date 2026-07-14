@@ -648,6 +648,11 @@ public class MainActivity extends AppCompatActivity {
                 log("【画中画】同步频道信息失败：" + e.getMessage());
             }
         }
+        
+        // ✅【修复核心一】：每次播放/切换频道后，强制同步左侧分组 UI
+        if (channelPanelController != null && channel != null) {
+            channelPanelController.syncCurrentGroup(channel.getGroup());
+        }
     }
 
     public void togglePanel() {
@@ -660,6 +665,16 @@ public class MainActivity extends AppCompatActivity {
         if (channelPanelController.isPanelOpen() && 
             remoteManager.getCurrentMode() != TvRemoteManager.Mode.CHANNEL_PANEL_MODE) {
             remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
+        }
+        
+        // ✅【修复核心二】：打开面板时强制同步当前分组，确保 UI 状态正确
+        if (channelPanelController != null 
+                && currentPlayIndex >= 0 
+                && currentPlayIndex < channelSourceList.size()) {
+            Channel ch = channelSourceList.get(currentPlayIndex);
+            if (ch != null) {
+                channelPanelController.syncCurrentGroup(ch.getGroup());
+            }
         }
     }
 
