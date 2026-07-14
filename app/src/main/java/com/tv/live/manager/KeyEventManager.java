@@ -1,12 +1,12 @@
 package com.tv.live.manager;
 
+import android.util.Log;
 import android.view.KeyEvent;
 
 import com.tv.live.MainActivity;
-import com.tv.live.SettingsActivity;
 
 /**
- * 按键事件管理器
+ * 按键事件管理器（老版本兼容）
  *
  * 【职责】
  * 处理遥控器的按键事件，包括：
@@ -21,22 +21,29 @@ import com.tv.live.SettingsActivity;
  *
  * 【解决方案】
  * 1. 加上反转判断：调用 activity.isChannelReverse() 获取反转状态
- * 2. 加上详细的操作日志，记录是从 KeyEventManager 入口触发的
+ * 2. 加上详细的操作日志（使用原生日志），记录是从 KeyEventManager 入口触发的
  *
- * 【日志效果】
- * 在设置页面的"操作日志"里可以看到：
- * - 按键是从哪个入口处理的（KeyEventManager / handleDirectionKey）
- * - 反转状态是什么
- * - 实际切台方向是什么
+ * 【日志说明】所有日志均使用 android.util.Log.d，Tag 为 "KeyEventManager"
  */
 public class KeyEventManager {
 
+    // ====================== 日志 TAG ======================
+    private static final String TAG = "KeyEventManager";
+
+    // ====================== 成员变量 ======================
+    /** 持有 MainActivity 引用，用于调用播放/切换方法 */
     private final MainActivity activity;
 
+    // ====================== 构造函数 ======================
+    /**
+     * 构造函数
+     * @param activity MainActivity 实例
+     */
     public KeyEventManager(MainActivity activity) {
         this.activity = activity;
     }
 
+    // ====================== 核心方法 ======================
     /**
      * 分发按键事件
      *
@@ -46,12 +53,11 @@ public class KeyEventManager {
     public boolean dispatchKey(int keyCode) {
         switch (keyCode) {
             // ====================================================================
-            // ✅ 上键：加上反转判断 + 操作日志
+            // ✅ 上键：加上反转判断 + 日志
             // ====================================================================
             case KeyEvent.KEYCODE_DPAD_UP:
-                // 记录入口日志：是 KeyEventManager 处理的上键
-                SettingsActivity.logOperation("【按键】KeyEventManager 上键 → 反转状态：" 
-                        + (activity.isChannelReverse() ? "开启" : "关闭"));
+                // 记录入口日志
+                Log.d(TAG, "上键 → 反转状态：" + (activity.isChannelReverse() ? "开启" : "关闭"));
                 
                 if (activity.isChannelReverse()) {
                     // 反转开启：上键 = 下一台
@@ -63,12 +69,11 @@ public class KeyEventManager {
                 return true;
 
             // ====================================================================
-            // ✅ 下键：加上反转判断 + 操作日志
+            // ✅ 下键：加上反转判断 + 日志
             // ====================================================================
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                // 记录入口日志：是 KeyEventManager 处理的下键
-                SettingsActivity.logOperation("【按键】KeyEventManager 下键 → 反转状态：" 
-                        + (activity.isChannelReverse() ? "开启" : "关闭"));
+                // 记录入口日志
+                Log.d(TAG, "下键 → 反转状态：" + (activity.isChannelReverse() ? "开启" : "关闭"));
                 
                 if (activity.isChannelReverse()) {
                     // 反转开启：下键 = 上一台
@@ -79,17 +84,25 @@ public class KeyEventManager {
                 }
                 return true;
 
+            // ====================================================================
+            // OK键/确认键：打开/关闭频道面板
+            // ====================================================================
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                SettingsActivity.logOperation("【按键】KeyEventManager OK键 → 切换面板");
+                Log.d(TAG, "OK键 → 切换面板");
                 activity.togglePanel();
                 return true;
 
+            // ====================================================================
+            // 菜单键：打开设置页面
+            // ====================================================================
             case KeyEvent.KEYCODE_MENU:
-                SettingsActivity.logOperation("【按键】KeyEventManager Menu键 → 打开设置");
+                Log.d(TAG, "Menu键 → 打开设置");
                 activity.openSettings();
                 return true;
+
+            default:
+                return false;
         }
-        return false;
     }
 }
