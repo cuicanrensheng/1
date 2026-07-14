@@ -72,7 +72,7 @@ public class NetUtil {
             } else {
                 String uaMode = sp.getString("user_agent_mode", "exo"); 
                 if ("vlc".equals(uaMode)) {
-                    userAgent = "VLC/3.0.21 LibVLC/3.0.21";
+                    userAgent = "VLC";
                 }
             }
         }
