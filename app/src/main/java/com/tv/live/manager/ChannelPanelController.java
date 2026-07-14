@@ -203,7 +203,8 @@ public class ChannelPanelController {
         btnBackGroup.setBackgroundColor(0x00000000);
     }
 
-    private void syncFocusStyle() {
+    // 🟢 修改：将 syncFocusStyle 改为 public
+    public void syncFocusStyle() {
         clearAllFocusStyles();
         if ("left".equals(currentFocusPanel)) {
             if ("group".equals(leftFocusView)) {
@@ -236,7 +237,8 @@ public class ChannelPanelController {
         channelListManagerEpg.setChannels(channels, currentPlayIndex);
     }
 
-    private void onGroupClicked(int position) {
+    // 🟢 修改：将 onGroupClicked 改为 public
+    public void onGroupClicked(int position) {
         groupListManager.setSelectedPosition(position);
         lvGroup.setItemChecked(position, true);
         lvGroup.setSelection(position);
@@ -527,7 +529,8 @@ public class ChannelPanelController {
         return false;
     }
 
-    private void onChannelClicked(int position) {
+    // 🟢 修改：将 onChannelClicked 改为 public
+    public void onChannelClicked(int position) {
         if (!currentGroupChannelList.isEmpty() && position < currentGroupChannelList.size()
                 && !rightPanelOpen) {
             Channel selectedChannel = currentGroupChannelList.get(position);
@@ -1054,4 +1057,4 @@ public class ChannelPanelController {
         this.activity = null;
         this.context = null;
     }
- }
+    }
