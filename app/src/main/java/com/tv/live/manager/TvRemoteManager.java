@@ -3,7 +3,7 @@ package com.tv.live.manager;
 import android.util.Log;
 import android.view.KeyEvent;
 
-import com.tv.live.ChannelPanelController;
+import com.tv.live.manager.ChannelPanelController;
 
 /**
  * 电视遥控器统一管理器
