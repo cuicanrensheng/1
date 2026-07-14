@@ -71,6 +71,9 @@ public class ChannelPanelController {
     private boolean isSwitchingChannel = false;
     private int autoSkipCount = 0;
 
+    // 🟢 新增：回看模式标记
+    private boolean isInCatchUpMode = false;
+
     private OnChannelChangeListener channelChangeListener;
     private OnPanelStateListener panelStateListener;
 
@@ -504,6 +507,10 @@ public class ChannelPanelController {
     public void onPanelSwitched(String panel) {
         // panel = "left" 或 "right"
         // 可在此处添加面板切换时的额外逻辑
+    }
+
+    public boolean isInCatchUpMode() {
+        return isInCatchUpMode;
     }
 
     public void setCatchUpMode(boolean enabled) {
@@ -1047,4 +1054,4 @@ public class ChannelPanelController {
         this.activity = null;
         this.context = null;
     }
-}
+ }
