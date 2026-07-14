@@ -202,8 +202,24 @@ public class SettingsActivity extends AppCompatActivity {
         initRemoteManager();
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
-        int currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
+
+        // ✅【修复UI同步】改为读取当前频道的独立线路索引，而不是全局的 KEY_CHANNEL_LINE_INDEX
+        TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
+        Channel currentChannel = playerManager.getCurrentChannel();
+        int currentLineIndex = 0;
+        if (currentChannel != null) {
+            String channelKey = currentChannel.getChannelId();
+            if (TextUtils.isEmpty(channelKey)) {
+                channelKey = currentChannel.getName();
+            }
+            String prefKey = "channel_line_index_" + channelKey;
+            currentLineIndex = sp.getInt(prefKey, 0);
+        } else {
+            // 兜底：如果还没播放任何频道，回退到以前的全局配置
+            currentLineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
+        }
         tv_channel_line.setText(getLineName(currentLineIndex));
+
         findViewById(R.id.item_channel_line).setOnClickListener(v -> showChannelLineDialog());
 
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
@@ -399,7 +415,7 @@ public class SettingsActivity extends AppCompatActivity {
         showDarkSingleChoiceDialog("频道线路选择", lineArray, currentLineIndex, (which) -> {
             // ✅ 保存为该频道独立线路索引
             sp.edit().putInt(prefKey, which).apply();
-            // 同时兼容旧全局键（为了向后兼容，可保留或删除）
+            // 同时兼容旧全局键（为了向后兼容）
             sp.edit().putInt(KEY_CHANNEL_LINE_INDEX, which).apply();
 
             tv_channel_line.setText(lineArray[which]);
