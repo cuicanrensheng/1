@@ -35,8 +35,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 
-import com.tv.live.manager.TvRemoteManager;
-
 import java.util.ArrayList;
 import java.util.List;
 
