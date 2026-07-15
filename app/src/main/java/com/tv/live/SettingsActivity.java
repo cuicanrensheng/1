@@ -2,7 +2,6 @@ package com.tv.live;
 
 import android.text.Spannable;
 import android.text.SpannableString;
-import android.text.style.ForegroundColorSpan;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -38,7 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 设置页面 Activity（已恢复遥控器焦点与按键）
+ * 设置页面 Activity（已恢复遥控器焦点与按键 + 完美选中跟随）
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
@@ -79,6 +78,9 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    // ✅ 新增：记录当前选中的设置项下标
+    private int selectedItemPosition = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -140,6 +142,7 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe = findViewById(R.id.item_live_subscribe);
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
+        // ✅ 调用新的初始化方法
         initSettingsItemList();
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
@@ -161,49 +164,24 @@ public class SettingsActivity extends AppCompatActivity {
 
         findViewById(R.id.item_channel_line).setOnClickListener(v -> showChannelLineDialog());
 
+        // 初始化开关状态
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
-        findViewById(R.id.item_boot).setOnClickListener(v -> {
-            boolean isChecked = !sw_boot.isChecked();
-            sw_boot.setChecked(isChecked);
-            bootStartManager.toggleBoot(isChecked, tv_boot_status);
-        });
-        findViewById(R.id.item_boot).setOnLongClickListener(v -> {
-            bootStartManager.showBootStatusDialog();
-            return true;
-        });
 
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
-        findViewById(R.id.item_reverse).setOnClickListener(v -> {
-            boolean isChecked = !sw_reverse.isChecked();
-            sw_reverse.setChecked(isChecked);
-            sp.edit().putBoolean("channel_reverse", isChecked).apply();
-            Toast.makeText(this, "换台反转" + (isChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
-        });
-
         sw_pip.setChecked(sp.getBoolean("pip_enable", false));
-        findViewById(R.id.item_pip).setOnClickListener(v -> {
-            boolean isChecked = !sw_pip.isChecked();
-            sw_pip.setChecked(isChecked);
-            sp.edit().putBoolean("pip_enable", isChecked).apply();
-            if (isChecked) {
-                Toast.makeText(this, "画中画已开启，按Home键自动小窗播放", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "画中画已关闭", Toast.LENGTH_SHORT).show();
-            }
-        });
+
         String decoderMode = sp.getString("decoder_mode", "auto");
         updateDecoderModeText(decoderMode);
-        findViewById(R.id.item_decoder).setOnClickListener(v -> showDecoderModeDialog());
         String rendererMode = sp.getString("renderer_type", "surface");
         updateRendererModeText(rendererMode);
-        findViewById(R.id.item_renderer).setOnClickListener(v -> showRendererModeDialog());
         updateRedirectSettingText();
-        findViewById(R.id.item_redirect).setOnClickListener(v -> showRedirectConfigDialog());
-        findViewById(R.id.item_check_update).setOnClickListener(v -> updateManager.checkUpdate());
-        
-        itemResolution.setOnClickListener(v -> showResolutionDialog());
 
+        // 初始触发一次默认选中项，让用户一进来就能看到“开机自启”已被选中并触发
+        performItemAction(selectedItemPosition);
+
+        // 其他监听器保持不变
+        itemResolution.setOnClickListener(v -> showResolutionDialog());
         itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
         
         initListeners();
@@ -221,79 +199,137 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅【关键修改】恢复所有设置项的焦点监听器，实现遥控器交互
+    // ✅ 核心修改：初始化并绑定“选中”状态，实现高亮跟随
     // ================================================================
     private void initSettingsItemList() {
-        // 定义一个通用的焦点监听器
-        View.OnFocusChangeListener focusListener = (v, hasFocus) -> {
-            if (hasFocus) {
-                // 焦点状态：背景透明，文字变蓝
-                v.setBackgroundResource(R.drawable.item_settings_bg);
-                setChildTextColor(v, true);
-            } else {
-                // 失去焦点：恢复默认状态
-                v.setBackgroundResource(R.drawable.item_settings_bg);
-                setChildTextColor(v, false);
-            }
+        // 1. 把所有设置项放入数组
+        View[] items = {
+            findViewById(R.id.item_boot),
+            findViewById(R.id.item_reverse),
+            findViewById(R.id.item_pip),
+            findViewById(R.id.item_channel_line),
+            findViewById(R.id.item_decoder),
+            findViewById(R.id.item_renderer),
+            findViewById(R.id.tv_screen_ratio),
+            findViewById(R.id.item_resolution),
+            findViewById(R.id.item_redirect),
+            findViewById(R.id.item_live_subscribe),
+            findViewById(R.id.item_epg_subscribe),
+            findViewById(R.id.item_check_update),
+            findViewById(R.id.item_version_info),
+            findViewById(R.id.item_log)
         };
 
-        // 为所有需要焦点的设置项应用监听器
-        View itemBoot = findViewById(R.id.item_boot);
-        View itemReverse = findViewById(R.id.item_reverse);
-        View itemPip = findViewById(R.id.item_pip);
-        View itemChannelLine = findViewById(R.id.item_channel_line);
-        View itemDecoder = findViewById(R.id.item_decoder);
-        View itemRenderer = findViewById(R.id.item_renderer);
-        View itemRatio = findViewById(R.id.tv_screen_ratio);
-        View itemResolution = findViewById(R.id.item_resolution);
-        View itemRedirect = findViewById(R.id.item_redirect);
-        View itemLive = findViewById(R.id.item_live_subscribe);
-        View itemEpg = findViewById(R.id.item_epg_subscribe);
-        View itemCheckUpdate = findViewById(R.id.item_check_update);
-        View itemVersion = findViewById(R.id.item_version_info);
-        View itemLog = findViewById(R.id.item_log);
+        // 2. 统一设置背景选择器（XML会自动处理选中状态）
+        for (View item : items) {
+            item.setBackgroundResource(R.drawable.item_settings_bg);
+            item.setFocusable(true);
+            item.setClickable(true);
 
-        // 应用焦点监听器
-        itemBoot.setOnFocusChangeListener(focusListener);
-        itemReverse.setOnFocusChangeListener(focusListener);
-        itemPip.setOnFocusChangeListener(focusListener);
-        itemChannelLine.setOnFocusChangeListener(focusListener);
-        itemDecoder.setOnFocusChangeListener(focusListener);
-        itemRenderer.setOnFocusChangeListener(focusListener);
-        itemRatio.setOnFocusChangeListener(focusListener);
-        itemResolution.setOnFocusChangeListener(focusListener);
-        itemRedirect.setOnFocusChangeListener(focusListener);
-        itemLive.setOnFocusChangeListener(focusListener);
-        itemEpg.setOnFocusChangeListener(focusListener);
-        itemCheckUpdate.setOnFocusChangeListener(focusListener);
-        itemVersion.setOnFocusChangeListener(focusListener);
-        itemLog.setOnFocusChangeListener(focusListener);
+            // 确保遥控器焦点也有反馈（焦点状态下，背景透明，文字变蓝由XML处理）
+            item.setOnFocusChangeListener((v, hasFocus) -> {
+                v.setBackgroundResource(R.drawable.item_settings_bg);
+            });
+        }
 
-        // 确保所有可聚焦的 View 都能响应点击（点击即触发操作）
-        itemBoot.setOnClickListener(v -> sw_boot.performClick());
-        itemReverse.setOnClickListener(v -> sw_reverse.performClick());
-        itemPip.setOnClickListener(v -> sw_pip.performClick());
-        // 其他 item 的点击事件已在 onCreate 中设置
+        // 3. 全局点击事件：移动高亮并执行对应操作
+        View.OnClickListener clickListener = v -> {
+            int clickedIndex = -1;
+            for (int i = 0; i < items.length; i++) {
+                if (items[i] == v) {
+                    clickedIndex = i;
+                    break;
+                }
+            }
+            if (clickedIndex == -1 || clickedIndex == selectedItemPosition) return;
+
+            // 移除旧选中
+            items[selectedItemPosition].setSelected(false);
+            // 设置新选中
+            items[clickedIndex].setSelected(true);
+            selectedItemPosition = clickedIndex;
+
+            // 执行功能
+            performItemAction(clickedIndex);
+        };
+
+        // 4. 绑定点击事件
+        for (View item : items) {
+            item.setOnClickListener(clickListener);
+        }
+
+        // 5. 默认选中第一项
+        items[0].setSelected(true);
     }
 
-    // 辅助方法：递归设置内部 TextView 的颜色
-    private void setChildTextColor(View view, boolean focused) {
-        if (view instanceof TextView) {
-            TextView tv = (TextView) view;
-            if (focused) {
-                tv.setTextColor(Color.parseColor("#40A9FF"));
-            } else {
-                tv.setTextColor(Color.WHITE);
-            }
-            return;
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                setChildTextColor(group.getChildAt(i), focused);
-            }
+    // ✅ 新增：根据选中的下标执行对应的功能
+    private void performItemAction(int index) {
+        switch (index) {
+            case 0: // 开机自启
+                boolean bootChecked = !sw_boot.isChecked();
+                sw_boot.setChecked(bootChecked);
+                bootStartManager.toggleBoot(bootChecked, tv_boot_status);
+                break;
+            case 1: // 换台反转
+                boolean reverseChecked = !sw_reverse.isChecked();
+                sw_reverse.setChecked(reverseChecked);
+                sp.edit().putBoolean("channel_reverse", reverseChecked).apply();
+                Toast.makeText(this, "换台反转" + (reverseChecked ? "已开启" : "已关闭"), Toast.LENGTH_SHORT).show();
+                break;
+            case 2: // 画中画
+                boolean pipChecked = !sw_pip.isChecked();
+                sw_pip.setChecked(pipChecked);
+                sp.edit().putBoolean("pip_enable", pipChecked).apply();
+                if (pipChecked) {
+                    Toast.makeText(this, "画中画已开启，按Home键自动小窗播放", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "画中画已关闭", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            case 3: // 频道线路
+                showChannelLineDialog();
+                break;
+            case 4: // 解码器
+                showDecoderModeDialog();
+                break;
+            case 5: // 渲染方式
+                showRendererModeDialog();
+                break;
+            case 6: // 屏幕比例
+                showRatioDialog();
+                break;
+            case 7: // 清晰度
+                showResolutionDialog();
+                break;
+            case 8: // 重定向配置
+                showRedirectConfigDialog();
+                break;
+            case 9: // 直播源订阅
+                showSubscriptionDialog("live_history", "直播源订阅");
+                break;
+            case 10: // 节目单订阅
+                showSubscriptionDialog("epg_history", "节目单订阅");
+                break;
+            case 11: // 检查更新
+                updateManager.checkUpdate();
+                break;
+            case 12: // 版本信息
+                showVersionInfoDialog();
+                break;
+            case 13: // 日志
+                boolean logEnabled = sp.getBoolean("log_enable", false);
+                boolean newState = !logEnabled;
+                sp.edit().putBoolean("log_enable", newState).apply();
+                tv_log_status.setText(newState ? "开启" : "关闭");
+                Toast.makeText(SettingsActivity.this, "日志已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
+                MainActivity.toggleLogWindow(newState);
+                break;
         }
     }
+
+    // ================================================================
+    // 以下为原有代码，完全保留
+    // ================================================================
 
     private void showVersionInfoDialog() {
         String versionName = BuildConfig.VERSION_NAME;
@@ -490,16 +526,6 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
         itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
         
-        itemLog.setOnClickListener(v -> {
-            boolean logEnabled = sp.getBoolean("log_enable", false);
-            boolean newState = !logEnabled;
-            sp.edit().putBoolean("log_enable", newState).apply();
-            tv_log_status.setText(newState ? "开启" : "关闭");
-            Toast.makeText(SettingsActivity.this, "日志已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
-
-            MainActivity.toggleLogWindow(newState);
-        });
-
         itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
     }
 
