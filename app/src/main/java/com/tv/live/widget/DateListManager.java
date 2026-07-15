@@ -17,7 +17,7 @@ import java.util.Calendar;
 import java.util.List;
 
 /**
- * 日期列表管理器（已移除遥控器焦点）
+ * 日期列表管理器（已恢复遥控器焦点）
  */
 public class DateListManager {
     private final ListView lvDate;
@@ -31,8 +31,6 @@ public class DateListManager {
     private static final int COLOR_BG_BLUE = 0x3340A9FF;
     private static final int COLOR_WHITE = 0xFFFFFFFF;
 
-    // hasFocus 已删除
-
     public interface OnDateSelectedListener {
         void onDateSelected(int position);
     }
@@ -44,13 +42,26 @@ public class DateListManager {
     public DateListManager(Context context, ListView lvDate) {
         this.context = context;
         this.lvDate = lvDate;
-        lvDate.setItemsCanFocus(false);
+
+        // ✅ 恢复焦点，支持遥控器方向键
+        lvDate.setItemsCanFocus(true);
+        lvDate.setFocusable(true);
+        lvDate.setFocusableInTouchMode(true);
         lvDate.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
-        // 已删除 setOnItemSelectedListener
+        // ✅ 恢复 OnItemSelectedListener
+        lvDate.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedPosition = position;
+                if (adapter != null) adapter.notifyDataSetChanged();
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // 保持当前选中
+            }
+        });
     }
-
-    // setFocused / isFocused 已删除
 
     public void initDate() {
         dateDisplayList = new ArrayList<>();
@@ -88,11 +99,22 @@ public class DateListManager {
                 tv.setTextSize(14);
                 tv.setGravity(android.view.Gravity.CENTER);
 
-                if (position == selectedPosition) {
+                // ✅ 区分“焦点”与“选中”
+                boolean isFocused = (position == selectedPosition) && lvDate.hasFocus();
+                boolean isSelected = (position == selectedPosition);
+
+                if (isFocused) {
+                    // 焦点状态：蓝字 + 常规 + 透明背景
+                    tv.setTextColor(COLOR_BLUE);
+                    tv.setTypeface(null, Typeface.NORMAL);
+                    tv.setBackgroundColor(Color.TRANSPARENT);
+                } else if (isSelected) {
+                    // 选中状态：蓝字 + 加粗 + 浅蓝背景
                     tv.setTextColor(COLOR_BLUE);
                     tv.setTypeface(null, Typeface.BOLD);
                     tv.setBackgroundColor(COLOR_BG_BLUE);
                 } else {
+                    // 未选中状态：白字 + 常规 + 透明背景
                     tv.setTextColor(COLOR_WHITE);
                     tv.setTypeface(null, Typeface.NORMAL);
                     tv.setBackgroundColor(Color.TRANSPARENT);
@@ -131,6 +153,7 @@ public class DateListManager {
         if (lvDate != null) {
             lvDate.setAdapter(null);
             lvDate.setOnItemClickListener(null);
+            lvDate.setOnItemSelectedListener(null);
         }
         if (dateDisplayList != null) {
             dateDisplayList.clear();
