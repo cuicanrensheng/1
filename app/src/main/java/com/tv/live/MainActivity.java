@@ -1,4 +1,4 @@
-package com.tv.live;
+package com.tv.l;
 
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
@@ -30,6 +30,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.media3.ui.PlayerView;
 
+import com.tv.live.Channel;
+import com.tv.live.UrlConfig;
 import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
 import com.tv.live.manager.*;
@@ -46,10 +48,8 @@ import java.util.List;
 @SuppressLint("UnsafeOptInUsageError")
 public class MainActivity extends AppCompatActivity {
     private static WeakReference<MainActivity> mInstanceRef;
-    
     public List<Channel> channelSourceList = new ArrayList<>(512);
     public int currentPlayIndex = 0;
-
     private PlayerView playerView;
     public TVPlayerManager mPlayerManager;
     private AppConfig appConfig;
@@ -63,16 +63,12 @@ public class MainActivity extends AppCompatActivity {
     private TvRemoteManager remoteManager;
     private PictureInPictureManager pipManager;
     private View panelLayout;
-
     private PlayerControlManager playerControlManager;
-
     private boolean pipEnable = false;
     private boolean channel_reverse;
     private boolean number_channel_enable;
-
-    private boolean isOpeningSettings = false;
+    public boolean isOpeningSettings = false;
     private long lastSettingsOpenTime = 0;
-
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences sp;
     private View logWindowContainer;
@@ -80,11 +76,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvLogContent;
     private boolean logWindowVisible = false;
     private Runnable logUpdateRunnable;
-
     private boolean isInCatchUpMode = false;
-
     private AlertDialog exitMenuDialog = null;
-
     private BroadcastReceiver unlockReceiver;
 
     public static MainActivity getRunningInstance() {
@@ -99,15 +92,8 @@ public class MainActivity extends AppCompatActivity {
         return pipManager;
     }
 
-    public void syncRemoteManagerMode() {
-        if (remoteManager != null) {
-            remoteManager.syncMode();
-        } else {
-            Log.w("MainActivity", "syncRemoteManagerMode: remoteManager 为空，无法同步");
-        }
-    }
-
     private PlayerTouchListener touchListener;
+
     public PlayerTouchListener getTouchListener() {
         return touchListener;
     }
@@ -120,56 +106,42 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mInstanceRef = new WeakReference<>(this);
-        sp = getSharedPreferences("app_settings", MODE_PRIVATE);
+        sp = getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         displayManager = new DisplayManager(this);
         setContentView(R.layout.activity_main);
         displayManager.applyFullScreen();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
         logWindowContainer = findViewById(R.id.log_window_container);
         logScrollView = findViewById(R.id.log_scroll_view);
         tvLogContent = findViewById(R.id.tv_log_content);
-
         initInfoDisplayManager();
-        appConfig = AppConfig.getInstance(this);
-
+        appConfig = App.getInstance(this);
         String customLive = appConfig.getCustomLiveUrl();
         String customEpg = appConfig.getCustomEpgUrl();
         if (customLive != null) UrlConfig.LIVE_URL = customLive;
         if (customEpg != null) UrlConfig.EPG_URL = customEpg;
         log("【配置】直播源地址：" + UrlConfig.LIVE_URL);
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
-
         playerView = findViewById(R.id.player_view);
-        // 🟢【修复启动白屏】：将 PlayerView 背景设为黑色
         playerView.setBackgroundColor(Color.BLACK);
-        playerView.setUseController(true);
         try {
             playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
-        } catch (Exception e) {}
-
+        } catch (Exception e) {
+        }
         initChannelPanelController();
         initRemoteManager();
         initPictureInPicture();
         channelPanelController.handleFirstLaunch();
-
         initPlayer();
-        mPlayerManager.registerDecoderModeReceiver();
-        mPlayerManager.registerRendererModeReceiver();
-
         loadSettings();
-
         screenRatioManager = new ScreenRatioManager(mPlayerManager, appConfig);
         screenRatioManager.apply();
-
         currentPlayIndex = appConfig.getLastPlayIndex();
         channelPanelController.setCurrentPlayIndex(currentPlayIndex);
-
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
         new Thread(() -> appCoreManager.loadLiveAndEpg()).start();
-
         unlockReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -180,10 +152,10 @@ public class MainActivity extends AppCompatActivity {
             }
         };
         ContextCompat.registerReceiver(
-            this,
-            unlockReceiver,
-            new IntentFilter("com.tv.live.UNLOCK_SETTINGS"),
-            ContextCompat.RECEIVER_NOT_EXPORTED
+                this,
+                unlockReceiver,
+                new IntentFilter("com.tv.live.UNLOCK_SETTINGS"),
+                ContextCompat.RECEIVER_NOT_EXPORTED
         );
     }
 
@@ -298,104 +270,103 @@ public class MainActivity extends AppCompatActivity {
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
         remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
-
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
-            @Override public void onPlayChannelUp() {
+            @Override
+            public void onPlayChannelUp() {
                 exitPlaybackMode();
                 channelPanelController.switchUp();
             }
-            @Override public void onPlayChannelDown() {
+
+            @Override
+            public void onPlayChannelDown() {
                 exitPlaybackMode();
                 channelPanelController.switchDown();
             }
-            @Override public void onPlayTogglePanel() {
+
+            @Override
+            public void onPlayTogglePanel() {
                 togglePanel();
             }
-            @Override public void onPlayOpenSettings() {
-                // 🟢 菜单键打开设置
-                openSettings();
-            }
-            @Override public boolean onPlayBack() { return false; }
 
-            @Override public void onPlayMediaPlayPause() {
-                if (mPlayerManager != null) {
-                    mPlayerManager.togglePlayWhenReady();
-                }
-            }
-            @Override public void onPlayMediaStop() {
-                if (mPlayerManager != null) {
-                    mPlayerManager.pause();
-                }
-            }
-            @Override public void onPlayInfo() {
-                if (infoDisplayManager != null && currentPlayIndex >= 0
-                        && currentPlayIndex < channelSourceList.size()) {
-                    Channel ch = channelSourceList.get(currentPlayIndex);
-                    TVPlayerManager.LiveInfo live =
-                            (mPlayerManager != null) ? mPlayerManager.getLiveInfo() : null;
-                    infoDisplayManager.showInfoBar(ch, live);
-                }
+            @Override
+            public void onPlayOpenSettings() {
             }
 
-            // ================== 面板模式 ==================
-            @Override public void onPanelMoveUp() {
+            @Override
+            public boolean onPlayBack() {
+                return false;
+            }
+
+            @Override
+            public void onPanelMoveUp() {
                 channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_UP);
             }
-            @Override public void onPanelMoveDown() {
+
+            @Override
+            public void onPanelMoveDown() {
                 channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_DOWN);
             }
-            @Override public void onPanelMoveLeft() {
+
+            @Override
+            public void onPanelMoveLeft() {
                 channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_LEFT);
             }
-            @Override public void onPanelMoveRight() {
+
+            @Override
+            public void onPanelMoveRight() {
                 channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_RIGHT);
             }
-            @Override public void onPanelConfirm() {
+
+            @Override
+            public void onPanelConfirm() {
                 channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_CENTER);
             }
-            @Override public boolean onPanelBack() {
+
+            @Override
+            public boolean onPanelBack() {
                 boolean handled = channelPanelController.handleBackPressed();
                 return handled;
             }
-            @Override public void onPanelMenu() {
-                boolean isFavorite = channelPanelController.toggleCurrentFavorite();
-            }
-            @Override public void onPanelNumber(int number) {
-                int keyCode = KeyEvent.KEYCODE_0 + number;
-            }
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {
-                // 焦点变化，暂不处理
+
+            @Override
+            public void onPanelMenu() {
+                channelPanelController.toggleCurrentFavorite();
             }
 
-            @Override public boolean onPipBack() { moveTaskToBack(false); return true; }
-            @Override public void onRequestPlayFocus() {
-                if (playerView != null) {
-                    playerView.setFocusable(true);
-                    playerView.setFocusableInTouchMode(true);
-                    playerView.requestFocus();
-                }
+            @Override
+            public void onPanelNumber(int number) {
             }
 
-            @Override public void onChannelNumberSelected(int channelIndex) {
-                channelPanelController.playChannel(channelIndex);
-            }
-            @Override public void onShowChannelNumber(String number) {
-                try {
-                    infoDisplayManager.showChannelNum(Integer.parseInt(number));
-                } catch (Exception ignored) {}
-            }
-            @Override public void onHideChannelNumber() {
-                infoDisplayManager.hideChannelNum();
+            @Override
+            public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {
             }
 
-            // ================== 设置模式（MainActivity 用不到） ==================
-            @Override public void onSettingsMoveUp() {}
-            @Override public void onSettingsMoveDown() {}
-            @Override public void onSettingsConfirm() {}
-            @Override public boolean onSettingsBack() { return false; }
-            @Override public void onSettingsMenu() {}
-            @Override public void onSettingsFocusChanged(int position) {}
+            @Override
+            public void onSettingsMoveUp() {
+            }
+
+            @Override
+            public void onSettingsMoveDown() {
+            }
+
+            @Override
+            public void onSettingsConfirm() {
+            }
+
+            @Override
+            public boolean onSettingsBack() {
+                return false;
+            }
+
+            @Override
+            public void onSettingsMenu() {
+            }
+
+            @Override
+            public void onSettingsFocusChanged(int position) {
+            }
         });
+        remoteManager.setSettingsItemCount(0);
     }
 
     private void initInfoDisplayManager() {
@@ -434,7 +405,6 @@ public class MainActivity extends AppCompatActivity {
         ListView lvEpg = findViewById(R.id.lv_epg);
         TextView btnShowEpg = findViewById(R.id.btn_show_epg);
         TextView btnBackGroup = findViewById(R.id.btn_back_group);
-
         EpgManager.getInstance(this);
         ChannelListManager channelListManager = new ChannelListManager(this, lvChannelList);
         ChannelListManager channelListManagerEpg = new ChannelListManager(this, lvChannelListEpg);
@@ -442,17 +412,13 @@ public class MainActivity extends AppCompatActivity {
         DateListManager dateListManager = new DateListManager(this, lvDate);
         EpgManagerWrapper epgManagerWrapper = new EpgManagerWrapper(this, lvEpg);
         PanelManager panelManager = new PanelManager(panelLayout, channelListManager, epgManagerWrapper);
-
         dateListManager.initDate();
         dateListManager.setOnDateSelectedListener(pos -> channelPanelController.setCurrentDateIndex(pos));
-
         channelPanelController = new ChannelPanelController(
                 this, panelLayout, ll_left_panel, ll_right_panel, lvGroup, lvChannelList,
                 lvChannelListEpg, lvDate, lvEpg, btnShowEpg, btnBackGroup,
-                groupListManager, channelListManager, channelListManagerEpg,
-                dateListManager, epgManagerWrapper, panelManager
+                groupListManager, channelListManager, channelListManagerEpg, dateListManager, epgManagerWrapper, panelManager
         );
-
         channelPanelController.setOnChannelChangeListener((channel, index) -> playChannel(channel, index));
     }
 
@@ -479,39 +445,30 @@ public class MainActivity extends AppCompatActivity {
 
     private void initPlayer() {
         mPlayerManager = TVPlayerManager.getInstance(this);
-
         gestureManager = new GestureManager(this);
         playerControlManager = new PlayerControlManager(this, gestureManager, infoDisplayManager);
-
         mPlayerManager.setOnPlayerViewRecreatedListener(newPlayerView -> {
             MainActivity.this.playerView = newPlayerView;
-
-            gestureManager = new GestureManager(MainActivity.this);
+            gestureManager = new GestureManager(this);
             final PlayerGestureHelper newGestureHelper = gestureManager.create();
-
             if (playerControlManager != null) {
                 playerControlManager.updateGestureManager(gestureManager);
             }
-
             if (touchListener == null) {
                 touchListener = new PlayerTouchListener(MainActivity.this);
             }
             touchListener.updateGestureHelper(newGestureHelper);
             newPlayerView.setOnTouchListener(touchListener);
             newPlayerView.requestFocus();
-
             if (playerControlManager != null) {
                 newPlayerView.setUseController(false);
                 playerControlManager.hideExoController();
             }
-
             newPlayerView.setFocusable(true);
             newPlayerView.setFocusableInTouchMode(true);
             newPlayerView.requestFocus();
             Log.d("MainActivity", "PlayerView 重建完成，焦点已强制恢复");
         });
-
-        mPlayerManager.attachPlayerView(playerView);
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
         mPlayerManager.setOnLiveInfoUpdateListener(info -> {
@@ -534,11 +491,11 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onLiveSourceLoaded(List<Channel> channels, boolean fromCache) {
                 runOnUiThread(() -> {
-                    List<Channel> finalList = appCoreManager.getChannelList();
-                    channelSourceList.clear();
-                    channelSourceList.addAll(finalList);
+                    synchronized (channelSourceList) {
+                        channelSourceList.clear();
+                        channelSourceList.addAll(channels);
+                    }
                     channelPanelController.setChannels(channelSourceList);
-
                     if (channelPanelController != null) {
                         String currentGroup = "";
                         if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
@@ -549,20 +506,11 @@ public class MainActivity extends AppCompatActivity {
                             channelPanelController.playChannel(currentPlayIndex);
                         }
                     }
-
-                    if (remoteManager != null) {
-                        remoteManager.setTotalChannelCount(channelSourceList.size());
-                    }
-                    if (infoDisplayManager != null) {
-                        infoDisplayManager.setTotalChannelCount(channelSourceList.size());
-                    }
                     if (currentPlayIndex >= channelSourceList.size()) {
                         currentPlayIndex = 0;
                         Log.d("MainActivity", "currentPlayIndex 越界，已自动重置为 0");
                     }
-
                     appCoreManager.setHasPlayedWithCache(true);
-
                     if (!appCoreManager.hasPlayedWithCache()) {
                         if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                             Channel ch = channelSourceList.get(currentPlayIndex);
@@ -608,16 +556,20 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
-
         appCoreManager.setOnSourceSkipListener(new AppCoreManager.OnSourceSkipListener() {
             @Override
-            public void onNeedSkipChannel() { channelPanelController.switchDown(); }
+            public void onNeedSkipChannel() {
+                channelPanelController.switchDown();
+            }
+
             @Override
             public void onSkipLimitReached(int maxSkip) {
                 Toast.makeText(MainActivity.this, "已跳过 " + maxSkip + " 个失效频道，请检查直播源", Toast.LENGTH_SHORT).show();
             }
+
             @Override
-            public void onSourceFailed(String channelName, int failedCount) {}
+            public void onSourceFailed(String channelName, int failedCount) {
+            }
         });
         appCoreManager.registerReceivers();
     }
@@ -628,17 +580,6 @@ public class MainActivity extends AppCompatActivity {
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
-        
-        String decoderMode = sp.getString("decoder_mode", "auto");
-        int mode = TVPlayerManager.DECODER_MODE_AUTO;
-        if ("hard".equals(decoderMode)) {
-            mode = TVPlayerManager.DECODER_MODE_HARD;
-        } else if ("soft".equals(decoderMode)) {
-            mode = TVPlayerManager.DECODER_MODE_SOFT;
-        }
-        
-        if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
-        if (remoteManager != null) remoteManager.setNumberChannelEnable(number_channel_enable);
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epg_enable);
             channelPanelController.setReverse(channel_reverse);
@@ -646,11 +587,13 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.setPipEnabled(pipEnable);
     }
 
-    public boolean isChannelReverse() { return channel_reverse; }
+    public boolean isChannelReverse() {
+        return channel_reverse;
+    }
 
     public void playChannel(int index) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
-        if (index < 0 || index >= channelSourceList.size()) return;
+        index = Math.max(0, Math.min(index, channelSourceList.size() - 1));
         Channel channel = channelSourceList.get(index);
         playChannel(channel, index);
     }
@@ -659,11 +602,9 @@ public class MainActivity extends AppCompatActivity {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
         log("【播放】频道名称：" + channel.getName());
-
         if (isInCatchUpMode) {
             exitPlaybackMode();
         }
-
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
         mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName(), channel);
@@ -676,19 +617,15 @@ public class MainActivity extends AppCompatActivity {
         }
         try {
             appConfig.addRecentChannel(channel.getName());
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         appCoreManager.resetSourceFailedCount();
-
         if (pipManager != null && pipManager.isInPipMode() && channel != null) {
             try {
                 pipManager.updateChannelInfo(index + 1, channel.getName() != null ? channel.getName() : "", live != null ? live.bitrate : "");
             } catch (Exception e) {
                 log("【画中画】同步频道信息失败：" + e.getMessage());
             }
-        }
-        
-        if (channelPanelController != null && channel != null) {
-            channelPanelController.syncCurrentGroup(channel.getGroup());
         }
     }
 
@@ -697,8 +634,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         channelPanelController.togglePanel();
-
-        // 老版本通知远程管理器面板状态
         if (channelPanelController != null) {
             if (channelPanelController.isPanelOpen()) {
                 remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
@@ -709,268 +644,66 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void playPrev() { channelPanelController.playPrev(); }
-    public void playNext() { channelPanelController.playNext(); }
+    public void playPrev() {
+        channelPanelController.playPrev();
+    }
+
+    public void playNext() {
+        channelPanelController.playNext();
+    }
 
     public void showExitMenu() {
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             return;
         }
-
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_exit_menu, null);
         builder.setView(view);
-
         Button btnRest = view.findViewById(R.id.btn_rest);
         Button btnSettings = view.findViewById(R.id.btn_settings);
-
         exitMenuDialog = builder.create();
-
         if (exitMenuDialog != null) {
             exitMenuDialog.setOnShowListener(dialog -> {
                 btnRest.requestFocus();
             });
-
             if (exitMenuDialog.getWindow() != null) {
                 exitMenuDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-                WindowManager.LayoutParams lp = exitMenuDialog.getWindow().getAttributes();
+                WindowManager.LayoutParams lp = exitMenuDialog.getAttributes();
                 lp.dimAmount = 0.5f;
                 exitMenuDialog.getWindow().setAttributes(lp);
                 exitMenuDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
-            
             exitMenuDialog.setOnDismissListener(dialog -> exitMenuDialog = null);
             exitMenuDialog.show();
         }
-
         btnRest.setOnClickListener(v -> {
             if (exitMenuDialog != null) {
                 exitMenuDialog.dismiss();
             }
             finishAffinity();
         });
-
         btnSettings.setOnClickListener(v -> {
             if (exitMenuDialog != null) {
                 exitMenuDialog.dismiss();
             }
-            
-            if (playerView != null) {
-                playerView.setFocusable(true);
-                playerView.setFocusableInTouchMode(true);
-                playerView.requestFocus();
-            }
-
-            mMainHandler.postDelayed(() -> {
-                openSettings();
-            }, 100);
+            isOpeningSettings = true;
+            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+            startActivity(intent);
         });
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (isInCatchUpMode && playerControlManager != null && playerControlManager.isControllerShowing()) {
-            exitPlaybackMode();
-            return;
-        }
-
-        if (remoteManager != null && remoteManager.dispatchKeyEvent(KeyEvent.KEYCODE_BACK)) {
-            return;
-        }
-
-        if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
-            exitMenuDialog.dismiss();
-            exitMenuDialog = null; 
-            if (playerView != null) {
-                playerView.setFocusable(true);
-                playerView.setFocusableInTouchMode(true);
-                playerView.requestFocus();
-            }
-            return;
-        }
-
-        showExitMenu();
-    }
-
-    public void openSettings() {
-        long now = System.currentTimeMillis();
-
-        if (isOpeningSettings) {
-            if (now - lastSettingsOpenTime > 5000) {
-                Log.d("Settings", "🔄 强制解锁 isOpeningSettings（超过 5 秒）");
-                isOpeningSettings = false;
-            } else {
-                Log.d("Settings", "⛔ isOpeningSettings 为 true，被拦截（距离上次尝试不到 5 秒）");
-                return;
-            }
-        }
-
-        if (isInCatchUpMode) return;
-
-        lastSettingsOpenTime = now;
-        isOpeningSettings = true;
-
-        appCoreManager.beforeOpenSettings();
-
-        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-            channelPanelController.hidePanel();
-        }
-
-        if (playerControlManager != null) {
-            playerControlManager.onOpenSettings();
-        }
-
-        startActivity(new Intent(this, SettingsActivity.class));
-    }
-
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        int keyCode = event.getKeyCode();
-        int action = event.getAction();
-
-        if (action == KeyEvent.ACTION_DOWN) {
-            switch (keyCode) {
-                case KeyEvent.KEYCODE_BACK:
-                case KeyEvent.KEYCODE_DPAD_CENTER:
-                case KeyEvent.KEYCODE_ENTER:
-                case KeyEvent.KEYCODE_MEDIA_PLAY:
-                case KeyEvent.KEYCODE_MEDIA_PAUSE:
-                case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-                case KeyEvent.KEYCODE_INFO:
-                case KeyEvent.KEYCODE_CHANNEL_UP:
-                case KeyEvent.KEYCODE_CHANNEL_DOWN:
-                    event.startTracking();
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        if (number_channel_enable && action == KeyEvent.ACTION_DOWN
-                && infoDisplayManager != null
-                && !isInCatchUpMode
-                && !isPanelOpen()) {
-            if (infoDisplayManager.handleNumberKey(keyCode)) {
-                return true;
-            }
-        }
-
-        // 🟢【修复菜单键】：直接打开设置
-        if (keyCode == KeyEvent.KEYCODE_MENU
-                || keyCode == KeyEvent.KEYCODE_HELP
-                || keyCode == KeyEvent.KEYCODE_SETTINGS) {
-            if (!isPanelOpen() && !isInCatchUpMode) {
-                openSettings();
-                return true;
-            }
-        }
-
-        if (action == KeyEvent.ACTION_DOWN) {
-            if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
-                return true;
-            }
-        }
-
-        return super.dispatchKeyEvent(event);
-    }
-
-    private boolean isPanelOpen() {
-        return channelPanelController != null && channelPanelController.isPanelOpen();
-    }
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_BACK:
-            case KeyEvent.KEYCODE_INFO:
-            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-                event.startTracking();
-                return true;
-            default:
-                break;
-        }
-        return super.onKeyDown(keyCode, event);
-    }
-
-    @Override
-    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        if (isInCatchUpMode && keyCode == KeyEvent.KEYCODE_BACK) {
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (channelPanelController != null && channelPanelController.handleBackPressed()) {
-                return true;
-            }
-            return true;
-        }
-        if (remoteManager != null && remoteManager.dispatchKeyLongPress(keyCode)) {
-            return true;
-        }
-        return super.onKeyLongPress(keyCode, event);
-    }
-
-    public void onReceiveConfig(final String liveUrl, final String epgUrl) {
-        appCoreManager.onReceiveConfig(liveUrl, epgUrl);
-    }
-
-    @Override
-    protected void onUserLeaveHint() {
-        super.onUserLeaveHint();
-        if (pipManager != null) pipManager.enterPip(this, mPlayerManager, pipEnable);
-    }
-
-    @Override
-    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode);
-        if (remoteManager != null) remoteManager.setInPipMode(isInPictureInPictureMode);
-        if (pipManager != null) {
-            try {
-                pipManager.onPipModeChanged(this, isInPictureInPictureMode);
-            } catch (Exception ignored) {}
-        }
-        if (pipManager != null) {
-            if (isInPictureInPictureMode) {
-                pipManager.handleEnterPip(this, channelPanelController, infoDisplayManager, mPlayerManager, playerView);
-            } else {
-                pipManager.handleExitPip(() -> {});
-                pipManager.handleExitPipRestore(this, displayManager, playerView, mPlayerManager, channelSourceList, currentPlayIndex, infoDisplayManager);
-            }
-        }
-    }
-
-    private void log(String msg) {
-        if (sp.getBoolean("log_enable", false)) {
-            Log.d("MainActivity", msg);
-            LogCollector.getInstance().addLog("MainActivity", msg);
-        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        mMainHandler.removeCallbacksAndMessages(null);
+        //跳转设置页面，视频音频保持播放，完全不暂停
         if (isOpeningSettings) {
             return;
         }
-        mMainHandler.removeCallbacksAndMessages(null);
-        if (appCoreManager != null) {
-            appCoreManager.onPause();
+        //仅退至后台桌面才暂停，画中画模式继续播放
+        if ((pipManager == null || !pipManager.isInPipMode()) && mPlayerManager != null) {
+            mPlayerManager.pause();
         }
-
-        if (pipManager == null || !pipManager.isInPipMode()) {
-            if (mPlayerManager != null) {
-                mPlayerManager.pause();
-            }
-        } else {
-            if (mPlayerManager != null) {
-                mPlayerManager.resume();
-            }
-        }
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        if (pipManager != null) pipManager.setStopCalled(true);
     }
 
     @Override
@@ -981,93 +714,55 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.setStopCalled(false);
         loadSettings();
         screenRatioManager.apply();
-        displayManager.reapplyFullScreen();
+        displayManager.reapplyFull();
 
-        if (pipManager == null || !pipManager.isInPipMode()) {
-            if (mPlayerManager != null) {
-                mPlayerManager.resume();
-                // 🟢【修复设置黑屏】：立即重新绑定
-                mPlayerManager.attachPlayerView(playerView);
-                // 🟢【兜底修复】：延迟 100ms 再次重新绑定（部分电视盒子 Surface 重建慢）
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    if (mPlayerManager != null && playerView != null && !isFinishing()) {
-                        mPlayerManager.attachPlayerView(playerView);
-                    }
-                }, 100);
-            }
-            if (playerControlManager != null) {
-                playerControlManager.onResume();
-            }
-        } else {
-            if (mPlayerManager != null) {
-                mPlayerManager.resume();
-            }
+        if (mPlayerManager != null && playerView != null) {
+            mPlayerManager.attachPlayerView(playerView);
+            String decoderModeStr = sp.getString("decoder_mode", "auto");
+            int mode = TVPlayerManager.DECODER_MODE_AUTO;
+            if ("hard".equals(decoderModeStr)) mode = TVPlayerManager.DECODER_MODE_HARD;
+            else if ("soft".equals(decoderModeStr)) mode = TVPlayerManager.DECODER_MODE_SOFT;
+            mPlayerManager.setDecoderMode(mode);
+
+            String renderType = sp.getString("renderer_type", "surface");
+            mPlayerManager.switchRenderer("texture".equals(renderType));
+            mPlayerManager.resume();
         }
 
+        if (playerControlManager != null) {
+            playerControlManager.onResume();
+        }
         if (channelPanelController != null) {
             channelPanelController.clearPanelFocus();
-            if (!channelPanelController.isPanelOpen()) {
-                if (playerView != null) {
-                    playerView.setFocusable(true);
-                    playerView.setFocusableInTouchMode(true);
-                    playerView.requestFocus();
-                    Log.d("MainActivity", "onResume: 焦点已归还给 PlayerView");
-                }
-            }
-        } else {
-            if (playerView != null) {
+            if (!channelPanelController.isPanelOpen() && playerView != null) {
                 playerView.setFocusable(true);
                 playerView.setFocusableInTouchMode(true);
                 playerView.requestFocus();
             }
         }
-
         if (playerControlManager != null) {
             playerControlManager.onSettingsClosed();
         }
     }
 
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) displayManager.reapplyFullScreen();
-        appCoreManager.onWindowFocusChanged(hasFocus);
+    private void log(String msg) {
+        if (sp.getBoolean("log_enable", false)) {
+            Log.d("MainActivity", msg);
+            com.tv.live.util.LogCollector.getInstance().addLog("MainActivity", msg);
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (mInstanceRef != null) {
-            mInstanceRef.clear();
-            mInstanceRef = null;
-        }
-        
         mMainHandler.removeCallbacksAndMessages(null);
-        if (infoDisplayManager != null) infoDisplayManager.release();
-        if (remoteManager != null) remoteManager.release();
-        if (displayManager != null) displayManager.release();
-        if (channelPanelController != null) channelPanelController.release();
-        if (appCoreManager != null) appCoreManager.release();
-        if (pipManager != null) pipManager.release();
-        if (mPlayerManager != null) mPlayerManager.release();
-        if (playerControlManager != null) {
-            playerControlManager.release();
+        unregisterReceiver(unlockReceiver);
+        if (channelPanelController != null) {
+            channelPanelController.release();
         }
-
-        if (exitMenuDialog != null) {
-            if (exitMenuDialog.isShowing()) {
-                exitMenuDialog.dismiss();
-            }
-            exitMenuDialog = null;
+        if (mPlayerManager != null) {
+            mPlayerManager.release();
         }
-
-        if (unlockReceiver != null) {
-            try {
-                unregisterReceiver(unlockReceiver);
-            } catch (Exception e) {
-                // 忽略
-            }
-            unlockReceiver = null;
-        }
+        mInstanceRef.clear();
     }
 }
