@@ -1,9 +1,7 @@
 package com.tv.live.manager;
 
 import android.content.Context;
-import android.graphics.Typeface;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -20,7 +18,7 @@ import java.util.List;
 
 /**
  * 频道面板控制器
- * 已移除所有自动隐藏逻辑，面板生命周期完全由用户交互控制
+ * 已移除所有按键/焦点相关代码，仅保留触摸交互
  */
 public class ChannelPanelController {
 
@@ -62,10 +60,6 @@ public class ChannelPanelController {
 
     private boolean isReverse = false;
     private long lastChannelChangeTime = 0;
-
-    private String currentFocusPanel = "left";
-    private String leftFocusView = "channel";
-    private String rightFocusView = "channel";
 
     private String lastSwitchDirection = "";
     private boolean isSwitchingChannel = false;
@@ -120,7 +114,6 @@ public class ChannelPanelController {
         this.epgManagerWrapper = epgManagerWrapper;
         this.panelManager = panelManager;
         initClickListeners();
-        initFocusListeners();
     }
 
     private void initClickListeners() {
@@ -133,96 +126,6 @@ public class ChannelPanelController {
 
         btnShowEpg.setOnClickListener(v -> onEpgButtonClicked());
         btnBackGroup.setOnClickListener(v -> onBackGroupClicked());
-    }
-
-    private void initFocusListeners() {
-        lvGroup.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                currentFocusPanel = "left";
-                leftFocusView = "group";
-                syncFocusStyle();
-            }
-        });
-        lvChannelList.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                currentFocusPanel = "left";
-                leftFocusView = "channel";
-                syncFocusStyle();
-            }
-        });
-        btnShowEpg.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                currentFocusPanel = "left";
-                leftFocusView = "epgBtn";
-                syncFocusStyle();
-            }
-        });
-        lvChannelListEpg.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                currentFocusPanel = "right";
-                rightFocusView = "channel";
-                syncFocusStyle();
-            }
-        });
-        lvDate.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                currentFocusPanel = "right";
-                rightFocusView = "date";
-                syncFocusStyle();
-            }
-        });
-        lvEpg.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                currentFocusPanel = "right";
-                rightFocusView = "epg";
-                syncFocusStyle();
-            }
-        });
-        btnBackGroup.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                currentFocusPanel = "right";
-                rightFocusView = "backBtn";
-                syncFocusStyle();
-            }
-        });
-    }
-
-    private void clearAllFocusStyles() {
-        groupListManager.setFocused(false);
-        channelListManager.setFocused(false);
-        channelListManagerEpg.setFocused(false);
-        dateListManager.setFocused(false);
-        btnShowEpg.setTextColor(0xFFFFFFFF);
-        btnShowEpg.setTypeface(null, Typeface.NORMAL);
-        btnShowEpg.setBackgroundColor(0x00000000);
-        btnBackGroup.setTextColor(0xFFFFFFFF);
-        btnBackGroup.setTypeface(null, Typeface.NORMAL);
-        btnBackGroup.setBackgroundColor(0x00000000);
-    }
-
-    private void syncFocusStyle() {
-        clearAllFocusStyles();
-        if ("left".equals(currentFocusPanel)) {
-            if ("group".equals(leftFocusView)) {
-                groupListManager.setFocused(true);
-            } else if ("channel".equals(leftFocusView)) {
-                channelListManager.setFocused(true);
-            } else if ("epgBtn".equals(leftFocusView)) {
-                btnShowEpg.setTextColor(0xFFFFFFFF);
-                btnShowEpg.setTypeface(null, Typeface.BOLD);
-                btnShowEpg.setBackgroundColor(0x3340A9FF);
-            }
-        } else if ("right".equals(currentFocusPanel)) {
-            if ("channel".equals(rightFocusView)) {
-                channelListManagerEpg.setFocused(true);
-            } else if ("date".equals(rightFocusView)) {
-                dateListManager.setFocused(true);
-            } else if ("backBtn".equals(rightFocusView)) {
-                btnBackGroup.setTextColor(0xFFFFFFFF);
-                btnBackGroup.setTypeface(null, Typeface.BOLD);
-                btnBackGroup.setBackgroundColor(0x3340A9FF);
-            }
-        }
     }
 
     public void setChannels(List<Channel> channels) {
@@ -256,24 +159,6 @@ public class ChannelPanelController {
                 }
             }
             channelListManager.setChannelsByGroup(channelSourceList, groupName, currentPlayIndex);
-        }
-
-        if (channelListManager != null && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-            Channel currentChannel = channelSourceList.get(currentPlayIndex);
-            int targetPos = -1;
-            for (int i = 0; i < currentGroupChannelList.size(); i++) {
-                if (currentGroupChannelList.get(i).getName().equals(currentChannel.getName())) {
-                    targetPos = i;
-                    break;
-                }
-            }
-            if (targetPos >= 0) {
-                lvChannelList.setSelection(targetPos);
-            } else {
-                lvChannelList.setSelection(0);
-            }
-            lvChannelList.setFocusable(true);
-            lvChannelList.setFocusableInTouchMode(true);
         }
     }
 
@@ -425,15 +310,6 @@ public class ChannelPanelController {
         channelListManagerEpg.setChannels(channelSourceList, index);
         epgManagerWrapper.refresh(ch, channelSourceList, currentSelectedDateIndex);
 
-        if (lvGroup != null) {
-            lvGroup.setFocusable(true);
-            lvGroup.setFocusableInTouchMode(true);
-        }
-        if (lvChannelList != null) {
-            lvChannelList.setFocusable(true);
-            lvChannelList.setFocusableInTouchMode(true);
-        }
-
         if (channelChangeListener != null) {
             channelChangeListener.onChannelChanged(ch, index);
         }
@@ -504,38 +380,15 @@ public class ChannelPanelController {
 
         panelLayout.postDelayed(() -> {
             if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
-                Log.d("ChannelPanelController", "togglePanel postDelayed: Activity已销毁，取消焦点操作");
+                Log.d("ChannelPanelController", "togglePanel postDelayed: Activity已销毁，取消操作");
                 return;
             }
 
-            if (isPanelOpen()) {
-                clearAllFocusStyles();
-                currentFocusPanel = "left";
-                leftFocusView = "channel";
-                syncFocusStyle();
-                
-                lvChannelList.setFocusable(true);
-                lvChannelList.setFocusableInTouchMode(true);
-
-                lvChannelListEpg.setFocusable(true);
-                lvChannelListEpg.setFocusableInTouchMode(true);
-
-                lvChannelList.setSelection(getChannelListSelection());
-
-            } else {
-                if (panelLayout != null) {
-                    panelLayout.clearFocus();
-                }
-                if (activity != null) {
-                    androidx.media3.ui.PlayerView playerView = activity.getPlayerView();
-                    if (playerView != null) {
-                        playerView.setFocusable(true);
-                        playerView.setFocusableInTouchMode(true);
-                        playerView.requestFocus();
-                        Log.d("ChannelPanelController", "焦点已归还给 PlayerView");
-                    } else {
-                        Log.w("ChannelPanelController", "togglePanel: getPlayerView() 返回 null，无法归还焦点");
-                    }
+            if (!isPanelOpen() && activity != null) {
+                androidx.media3.ui.PlayerView playerView = activity.getPlayerView();
+                if (playerView != null) {
+                    playerView.requestFocus();
+                    Log.d("ChannelPanelController", "焦点已归还给 PlayerView");
                 }
             }
         }, 100);
@@ -587,20 +440,6 @@ public class ChannelPanelController {
             rightPanelOpen = true;
             epgPanelOpen = true;
             channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
-            if (llRightPanel != null) {
-                llRightPanel.postDelayed(() -> {
-                    if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
-                        return;
-                    }
-                    clearAllFocusStyles();
-                    currentFocusPanel = "right";
-                    rightFocusView = "channel";
-                    syncFocusStyle();
-                    lvChannelListEpg.setFocusable(true);
-                    lvChannelListEpg.setFocusableInTouchMode(true);
-                    lvChannelListEpg.setSelection(currentPlayIndex);
-                }, 100);
-            }
             if (!channelSourceList.isEmpty()
                     && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                 Channel curr = channelSourceList.get(currentPlayIndex);
@@ -615,20 +454,6 @@ public class ChannelPanelController {
             }
             rightPanelOpen = false;
             epgPanelOpen = false;
-            if (llLeftPanel != null) {
-                llLeftPanel.postDelayed(() -> {
-                    if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
-                        return;
-                    }
-                    clearAllFocusStyles();
-                    currentFocusPanel = "left";
-                    leftFocusView = "channel";
-                    syncFocusStyle();
-                    lvChannelList.setFocusable(true);
-                    lvChannelList.setFocusableInTouchMode(true);
-                    lvChannelList.setSelection(getChannelListSelection());
-                }, 100);
-            }
         }
     }
 
@@ -638,20 +463,6 @@ public class ChannelPanelController {
             if (llLeftPanel != null) llLeftPanel.setVisibility(View.VISIBLE);
             rightPanelOpen = false;
             epgPanelOpen = false;
-            if (llLeftPanel != null) {
-                llLeftPanel.postDelayed(() -> {
-                    if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
-                        return;
-                    }
-                    clearAllFocusStyles();
-                    currentFocusPanel = "left";
-                    leftFocusView = "channel";
-                    syncFocusStyle();
-                    lvChannelList.setFocusable(true);
-                    lvChannelList.setFocusableInTouchMode(true);
-                    lvChannelList.setSelection(getChannelListSelection());
-                }, 100);
-            }
         }
     }
 
@@ -671,25 +482,6 @@ public class ChannelPanelController {
 
     public int getCurrentSelectedDateIndex() {
         return currentSelectedDateIndex;
-    }
-
-    private int getChannelListSelection() {
-        if (GroupListManager.GROUP_ALL.equals(currentGroupName)
-                || currentGroupName.isEmpty()
-                || currentGroupChannelList.isEmpty()) {
-            return currentPlayIndex;
-        } else {
-            if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
-                return 0;
-            }
-            Channel currentChannel = channelSourceList.get(currentPlayIndex);
-            for (int i = 0; i < currentGroupChannelList.size(); i++) {
-                if (currentGroupChannelList.get(i).getName().equals(currentChannel.getName())) {
-                    return i;
-                }
-            }
-            return 0;
-        }
     }
 
     public boolean handleBackPressed() {
@@ -742,184 +534,6 @@ public class ChannelPanelController {
 
     public boolean isReverse() {
         return isReverse;
-    }
-
-    /**
-     * 🟢【核心修复】当焦点为 null 时，主动尝试恢复焦点，防止面板按键失效
-     */
-    public boolean dispatchKeyEvent(int keyCode) {
-        if (panelLayout.getVisibility() != View.VISIBLE) {
-            return false;
-        }
-
-        // 🟢【修复】获取当前焦点视图，当焦点为 null 时主动恢复
-        View currentFocus = panelLayout.findFocus();
-        if (currentFocus == null) {
-            Log.w("ChannelPanelController", "dispatchKeyEvent: 焦点为 null，正在尝试恢复焦点...");
-            
-            // 1. 如果是左右键，不在这里处理，直接返回 true 表示已拦截
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                return true;
-            }
-            
-            // 2. 如果是上下键或 OK 键，尝试把焦点给频道列表
-            if (lvChannelList != null) {
-                lvChannelList.setFocusable(true);
-                lvChannelList.setFocusableInTouchMode(true);
-                lvChannelList.requestFocus();
-                // 抢到焦点后，把按键传给系统去处理
-                return false;
-            }
-            
-            // 3. 如果实在抢不到焦点，返回 true 拦截按键防止闪退
-            return true;
-        }
-
-        if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-            if (currentFocus instanceof ListView) {
-                ListView lv = (ListView) currentFocus;
-                int pos = lv.getSelectedItemPosition();
-                if (pos == -1) {
-                    pos = lv.getFirstVisiblePosition();
-                    if (pos == -1) pos = 0;
-                }
-                int count = lv.getCount();
-                if (count == 0) return true;
-
-                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                    if (pos > 0) {
-                        lv.setSelection(pos - 1);
-                        return true;
-                    }
-                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                    if (pos < count - 1) {
-                        lv.setSelection(pos + 1);
-                        return true;
-                    }
-                }
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (currentFocus == lvChannelList) {
-                int pos = lvChannelList.getSelectedItemPosition();
-                if (pos >= 0 && pos < lvChannelList.getCount()) {
-                    onChannelClicked(pos);
-                    return true;
-                }
-            } else if (currentFocus == lvGroup) {
-                int pos = lvGroup.getSelectedItemPosition();
-                if (pos >= 0 && pos < lvGroup.getCount()) {
-                    onGroupClicked(pos);
-                    return true;
-                }
-            } else if (currentFocus == lvChannelListEpg) {
-                int pos = lvChannelListEpg.getSelectedItemPosition();
-                if (pos >= 0 && pos < lvChannelListEpg.getCount()) {
-                    onChannelClicked(pos);
-                    return true;
-                }
-            } else if (currentFocus == btnShowEpg) {
-                onEpgButtonClicked();
-                return true;
-            } else if (currentFocus == btnBackGroup) {
-                onBackGroupClicked();
-                return true;
-            }
-            return false;
-        }
-
-        if (!rightPanelOpen) {
-            switch (keyCode) {
-                case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    if (currentFocus == lvGroup) {
-                        if (lvChannelList != null) {
-                            lvChannelList.requestFocus();
-                            return true;
-                        }
-                    }
-                    if (currentFocus == lvChannelList) {
-                        if (btnShowEpg != null) {
-                            btnShowEpg.requestFocus();
-                            return true;
-                        }
-                    }
-                    if (currentFocus == btnShowEpg) {
-                        onEpgButtonClicked();
-                        return true;
-                    }
-                    break;
-                case KeyEvent.KEYCODE_DPAD_LEFT:
-                    if (currentFocus == btnShowEpg) {
-                        if (lvChannelList != null) {
-                            lvChannelList.requestFocus();
-                            return true;
-                        }
-                    }
-                    if (currentFocus == lvChannelList) {
-                        if (lvGroup != null) {
-                            lvGroup.requestFocus();
-                            return true;
-                        }
-                    }
-                    break;
-                default:
-                    break;
-            }
-        } else {
-            switch (keyCode) {
-                case KeyEvent.KEYCODE_DPAD_LEFT:
-                    if (currentFocus == lvEpg) {
-                        if (lvDate != null) {
-                            lvDate.requestFocus();
-                            return true;
-                        }
-                    }
-                    if (currentFocus == lvDate) {
-                        if (lvChannelListEpg != null) {
-                            lvChannelListEpg.requestFocus();
-                            return true;
-                        }
-                    }
-                    if (currentFocus == lvChannelListEpg) {
-                        if (btnBackGroup != null) {
-                            btnBackGroup.requestFocus();
-                            return true;
-                        }
-                    }
-                    if (currentFocus == btnBackGroup) {
-                        onBackGroupClicked();
-                        return true;
-                    }
-                    break;
-                case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    if (currentFocus == btnBackGroup) {
-                        if (lvChannelListEpg != null) {
-                            lvChannelListEpg.requestFocus();
-                            return true;
-                        }
-                    }
-                    if (currentFocus == lvChannelListEpg) {
-                        if (lvDate != null) {
-                            lvDate.requestFocus();
-                            return true;
-                        }
-                    }
-                    if (currentFocus == lvDate) {
-                        if (lvEpg != null) {
-                            lvEpg.requestFocus();
-                            return true;
-                        }
-                    }
-                    break;
-                default:
-                    break;
-            }
-        }
-        return false;
     }
 
     public void clearPanelFocus() {
@@ -979,39 +593,32 @@ public class ChannelPanelController {
             lvGroup.setAdapter(null);
             lvGroup.setOnItemClickListener(null);
             lvGroup.setOnItemSelectedListener(null);
-            lvGroup.setOnFocusChangeListener(null);
         }
         if (lvChannelList != null) {
             lvChannelList.setAdapter(null);
             lvChannelList.setOnItemClickListener(null);
             lvChannelList.setOnItemSelectedListener(null);
-            lvChannelList.setOnFocusChangeListener(null);
         }
         if (lvChannelListEpg != null) {
             lvChannelListEpg.setAdapter(null);
             lvChannelListEpg.setOnItemClickListener(null);
             lvChannelListEpg.setOnItemSelectedListener(null);
-            lvChannelListEpg.setOnFocusChangeListener(null);
         }
         if (lvDate != null) {
             lvDate.setAdapter(null);
             lvDate.setOnItemClickListener(null);
             lvDate.setOnItemSelectedListener(null);
-            lvDate.setOnFocusChangeListener(null);
         }
         if (lvEpg != null) {
             lvEpg.setAdapter(null);
             lvEpg.setOnItemClickListener(null);
             lvEpg.setOnItemSelectedListener(null);
-            lvEpg.setOnFocusChangeListener(null);
         }
         if (btnShowEpg != null) {
             btnShowEpg.setOnClickListener(null);
-            btnShowEpg.setOnFocusChangeListener(null);
         }
         if (btnBackGroup != null) {
             btnBackGroup.setOnClickListener(null);
-            btnBackGroup.setOnFocusChangeListener(null);
         }
 
         this.activity = null;
