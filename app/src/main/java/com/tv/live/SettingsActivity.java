@@ -15,7 +15,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputFilter;
 import android.text.TextUtils;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -37,7 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 设置页面 Activity（已恢复遥控器焦点与按键 + 完美选中跟随）
+ * 设置页面 Activity（已修复：第一下聚焦，第二下确认，统一单次触发）
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
@@ -142,11 +141,19 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe = findViewById(R.id.item_live_subscribe);
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
-        // 调用新的初始化方法
-        initSettingsItemList();
+        // ✅ 读取状态（只赋值，不触发点击）
+        sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
+        bootStartManager.updateBootStatusText(tv_boot_status);
+        sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
+        sw_pip.setChecked(sp.getBoolean("pip_enable", false));
+
+        String decoderMode = sp.getString("decoder_mode", "auto");
+        updateDecoderModeText(decoderMode);
+        String rendererMode = sp.getString("renderer_type", "surface");
+        updateRendererModeText(rendererMode);
+        updateRedirectSettingText();
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
-
         TVPlayerManager playerManager = TVPlayerManager.getInstance(this);
         Channel currentChannel = playerManager.getCurrentChannel();
         int currentLineIndex = 0;
@@ -162,28 +169,10 @@ public class SettingsActivity extends AppCompatActivity {
         }
         tv_channel_line.setText(getLineName(currentLineIndex));
 
-        findViewById(R.id.item_channel_line).setOnClickListener(v -> showChannelLineDialog());
+        // ✅ 初始化列表，统一接管所有点击和焦点事件
+        initSettingsItemList();
 
-        // 初始化开关状态
-        sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
-        bootStartManager.updateBootStatusText(tv_boot_status);
-
-        sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
-        sw_pip.setChecked(sp.getBoolean("pip_enable", false));
-
-        String decoderMode = sp.getString("decoder_mode", "auto");
-        updateDecoderModeText(decoderMode);
-        String rendererMode = sp.getString("renderer_type", "surface");
-        updateRendererModeText(rendererMode);
-        updateRedirectSettingText();
-
-        // ✅ 注意：这里不再自动执行 performItemAction()，避免应用启动就触发开关。
-
-        // 其他监听器保持不变
-        itemResolution.setOnClickListener(v -> showResolutionDialog());
-        itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
-        
-        initListeners();
+        // ✅ 启动 Web 服务等
         webServerManager.start();
         currentWebUrl = webServerManager.getAccessUrl();
 
@@ -198,10 +187,10 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅ 核心修改：区分“聚焦”（移动高亮）和“确认”（执行功能）
+    // ✅ 核心修改：统一管理所有设置项的点击与焦点
     // ================================================================
     private void initSettingsItemList() {
-        // 1. 把所有设置项放入数组
+        // 1. 把所有设置项放入数组（包括16个元素，涵盖所有）
         View[] items = {
             findViewById(R.id.item_boot),
             findViewById(R.id.item_reverse),
@@ -226,13 +215,12 @@ public class SettingsActivity extends AppCompatActivity {
             item.setClickable(true);
         }
 
-        // 3. 遥控器焦点监听器：方向键移动时，只移动高亮（聚焦），不执行功能
+        // 3. 遥控器焦点监听器：仅移动高亮（聚焦），不触发执行
         for (int i = 0; i < items.length; i++) {
             View item = items[i];
             int finalI = i;
             item.setOnFocusChangeListener((v, hasFocus) -> {
                 if (hasFocus) {
-                    // 聚焦时，更新高亮到当前项
                     if (selectedItemPosition != finalI) {
                         items[selectedItemPosition].setSelected(false);
                         items[finalI].setSelected(true);
@@ -243,9 +231,7 @@ public class SettingsActivity extends AppCompatActivity {
             });
         }
 
-        // 4. 触摸点击/遥控器确定键监听器：
-        //    - 点击的是当前高亮项 ➔ 执行功能（确认）
-        //    - 点击的是另一项 ➔ 只移动高亮（聚焦）
+        // 4. 统一点击/确认监听器：第一下聚焦，第二下确认
         View.OnClickListener clickListener = v -> {
             int clickedIndex = -1;
             for (int i = 0; i < items.length; i++) {
@@ -257,17 +243,17 @@ public class SettingsActivity extends AppCompatActivity {
             if (clickedIndex == -1) return;
 
             if (clickedIndex == selectedItemPosition) {
-                // 二次点击确认
+                // ✅ 第二次点击（确认）：执行功能
                 performItemAction(clickedIndex);
             } else {
-                // 第一次点击：只聚焦
+                // ✅ 第一次点击（聚焦）：只移动高亮，不执行
                 items[selectedItemPosition].setSelected(false);
                 items[clickedIndex].setSelected(true);
                 selectedItemPosition = clickedIndex;
             }
         };
 
-        // 5. 绑定点击事件
+        // 5. 绑定点击事件（保证每个控件只绑定这一次）
         for (View item : items) {
             item.setOnClickListener(clickListener);
         }
@@ -330,7 +316,7 @@ public class SettingsActivity extends AppCompatActivity {
             case 12: // 版本信息
                 showVersionInfoDialog();
                 break;
-            case 13: // 日志
+            case 13: // 日志输出
                 boolean logEnabled = sp.getBoolean("log_enable", false);
                 boolean newState = !logEnabled;
                 sp.edit().putBoolean("log_enable", newState).apply();
@@ -342,7 +328,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // 以下为原有代码，完全保留
+    // 以下为原有功能代码，全部保留
     // ================================================================
 
     private void showVersionInfoDialog() {
@@ -533,14 +519,6 @@ public class SettingsActivity extends AppCompatActivity {
             getWindow().getDecorView().setSystemUiVisibility(uiOptions);
         } catch (Exception e) {
         }
-    }
-
-    private void initListeners() {
-        tv_screen_ratio.setOnClickListener(v -> showRatioDialog());
-        itemLiveSubscribe.setOnClickListener(v -> showSubscriptionDialog("live_history", "直播源订阅"));
-        itemEpgSubscribe.setOnClickListener(v -> showSubscriptionDialog("epg_history", "节目单订阅"));
-        
-        itemVersionInfo.setOnClickListener(v -> showVersionInfoDialog());
     }
 
     private void showResolutionDialog() {
