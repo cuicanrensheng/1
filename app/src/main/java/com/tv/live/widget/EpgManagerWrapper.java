@@ -51,7 +51,6 @@ public class EpgManagerWrapper {
     private int playingIndex = -1;
     private int selectDayIndex = 0;
     
-    // 🛠️【修复】将局部变量提升为成员变量，保证 unregisterReceiver 能匹配
     private BroadcastReceiver reminderReceiver; 
 
     public EpgManagerWrapper(Context context, ListView lvEpg) {
@@ -240,7 +239,6 @@ public class EpgManagerWrapper {
                 Calendar.getInstance().get(Calendar.MINUTE));
     }
 
-    // 🛠️【修复】使用成员变量 reminderReceiver
     private void registerReminderReceiver() {
         reminderReceiver = new BroadcastReceiver() {
             @Override
@@ -255,7 +253,6 @@ public class EpgManagerWrapper {
         ContextCompat.registerReceiver(context, reminderReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
-    // 🛠️【新增】释放资源切断引用
     public void release() {
         if (context != null && reminderReceiver != null) {
             try {
@@ -391,33 +388,44 @@ public class EpgManagerWrapper {
             holder.tv_time.setText(item.time + "-" + endTime);
             holder.tv_title.setText(item.title);
 
-            holder.tv_dayName.setTextColor(Color.WHITE);
-            holder.tv_time.setTextColor(Color.LTGRAY);
-            holder.tv_title.setTextColor(Color.WHITE);
-            holder.tv_title.setTypeface(null, Typeface.NORMAL);
-            convertView.setBackgroundColor(Color.TRANSPARENT);
-            convertView.setSelected(false);
-
-            boolean isFocused = (position == selectedPosition) && lvEpg.hasFocus();
+            // ✅ 新增：分离选中与焦点状态
+            boolean isSelected = (position == selectedPosition);
+            boolean isFocused = isSelected && lvEpg.hasFocus();
             boolean isPlaying = item.isPlaying && dayIndex == 0;
 
             if (isFocused) {
+                // ✅ 焦点状态：蓝色文字 + 常规字体 + 透明背景
+                holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
+                holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
+                holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
+                holder.tv_title.setTypeface(null, Typeface.NORMAL);
+                convertView.setBackgroundColor(Color.TRANSPARENT);
+            } else if (isSelected) {
+                // ✅ 选中状态（无焦点）：蓝色文字 + 加粗 + 浅蓝色背景
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(0x3340A9FF);
             } else if (isPlaying) {
+                // 播放中状态（保留原逻辑，也可酌情调整）
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.NORMAL);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
+            } else {
+                // ✅ 未选中状态：白色文字 + 常规字体 + 透明背景
+                holder.tv_dayName.setTextColor(Color.WHITE);
+                holder.tv_time.setTextColor(Color.LTGRAY);
+                holder.tv_title.setTextColor(Color.WHITE);
+                holder.tv_title.setTypeface(null, Typeface.NORMAL);
+                convertView.setBackgroundColor(Color.TRANSPARENT);
             }
 
+            // 设置 action 按钮状态（保持不变）
             String key = currentChannel.getName() + "_" + position;
             boolean isPast = false;
-            
             if (dayIndex == 0) {
                 if (currentNowStr == null) currentNowStr = getNow();
                 try {
