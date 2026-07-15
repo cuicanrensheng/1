@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 频道列表管理器（已移除遥控器焦点）
+ * 频道列表管理器（已恢复遥控器焦点）
  */
 public class ChannelListManager {
     private final ListView lvChannelList;
@@ -29,8 +29,6 @@ public class ChannelListManager {
     private static final int COLOR_BG_BLUE = 0x3340A9FF;
     private static final int COLOR_WHITE = 0xFFFFFFFF;
     private static final int COLOR_GRAY = 0xFF888888;
-
-    // hasFocus 已删除
 
     public interface OnChannelClickListener {
         void onChannelClick(int position);
@@ -52,7 +50,24 @@ public class ChannelListManager {
 
     public ChannelListManager(Context context, ListView lvChannelList) {
         this.lvChannelList = lvChannelList;
-        lvChannelList.setItemsCanFocus(false);
+
+        // ✅ 恢复焦点，支持遥控器方向键移动
+        lvChannelList.setItemsCanFocus(true);
+        lvChannelList.setFocusable(true);
+        lvChannelList.setFocusableInTouchMode(true);
+
+        // ✅ 恢复 OnItemSelectedListener，同步焦点位置
+        lvChannelList.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedPosition = position;
+                ((ArrayAdapter<?>) parent.getAdapter()).notifyDataSetChanged();
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // 无焦点时保持当前选中
+            }
+        });
 
         lvChannelList.setOnItemClickListener((parent, view, position, id) -> {
             selectedPosition = position;
@@ -75,11 +90,7 @@ public class ChannelListManager {
             }
             return false;
         });
-
-        // 已删除 setOnItemSelectedListener
     }
-
-    // setFocused / isFocused 已删除
 
     public void setChannels(List<Channel> channelSourceList, int currentPlayIndex) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
@@ -115,13 +126,24 @@ public class ChannelListManager {
                 holder.tvChannel.setText(getItem(position));
                 holder.tvChannel.setTextSize(16);
 
-                // 已删除 hasFocus 判断，只保留 selectedPosition 高亮
-                if (position == selectedPosition) {
+                // ✅ 区分“焦点”与“选中”
+                boolean isFocused = (position == selectedPosition) && lvChannelList.hasFocus();
+                boolean isSelected = (position == selectedPosition);
+
+                if (isFocused) {
+                    // 焦点状态：蓝字 + 常规 + 透明背景
+                    holder.tvChannel.setTextColor(COLOR_BLUE);
+                    holder.tvChannel.setTypeface(null, Typeface.NORMAL);
+                    convertView.setBackgroundColor(Color.TRANSPARENT);
+                    holder.tvIndex.setTextColor(COLOR_BLUE);
+                } else if (isSelected) {
+                    // 选中状态：蓝字 + 加粗 + 浅蓝背景
                     holder.tvChannel.setTextColor(COLOR_BLUE);
                     holder.tvChannel.setTypeface(null, Typeface.BOLD);
                     convertView.setBackgroundColor(COLOR_BG_BLUE);
                     holder.tvIndex.setTextColor(COLOR_BLUE);
                 } else {
+                    // 未选中状态：白字 + 常规 + 透明背景
                     holder.tvChannel.setTextColor(COLOR_WHITE);
                     holder.tvChannel.setTypeface(null, Typeface.NORMAL);
                     convertView.setBackgroundColor(Color.TRANSPARENT);
@@ -179,7 +201,15 @@ public class ChannelListManager {
                 holder.tvChannel.setText(getItem(position));
                 holder.tvChannel.setTextSize(16);
 
-                if (position == selectedPosition) {
+                boolean isFocused = (position == selectedPosition) && lvChannelList.hasFocus();
+                boolean isSelected = (position == selectedPosition);
+
+                if (isFocused) {
+                    holder.tvChannel.setTextColor(COLOR_BLUE);
+                    holder.tvChannel.setTypeface(null, Typeface.NORMAL);
+                    convertView.setBackgroundColor(Color.TRANSPARENT);
+                    holder.tvIndex.setTextColor(COLOR_BLUE);
+                } else if (isSelected) {
                     holder.tvChannel.setTextColor(COLOR_BLUE);
                     holder.tvChannel.setTypeface(null, Typeface.BOLD);
                     convertView.setBackgroundColor(COLOR_BG_BLUE);
@@ -242,7 +272,15 @@ public class ChannelListManager {
                 holder.tvChannel.setText(getItem(position));
                 holder.tvChannel.setTextSize(16);
 
-                if (position == selectedPosition) {
+                boolean isFocused = (position == selectedPosition) && lvChannelList.hasFocus();
+                boolean isSelected = (position == selectedPosition);
+
+                if (isFocused) {
+                    holder.tvChannel.setTextColor(COLOR_BLUE);
+                    holder.tvChannel.setTypeface(null, Typeface.NORMAL);
+                    convertView.setBackgroundColor(Color.TRANSPARENT);
+                    holder.tvIndex.setTextColor(COLOR_BLUE);
+                } else if (isSelected) {
                     holder.tvChannel.setTextColor(COLOR_BLUE);
                     holder.tvChannel.setTypeface(null, Typeface.BOLD);
                     convertView.setBackgroundColor(COLOR_BG_BLUE);
@@ -271,7 +309,7 @@ public class ChannelListManager {
         if (lvChannelList != null) {
             lvChannelList.setAdapter(null);
             lvChannelList.setOnItemClickListener(null);
-            lvChannelList.setOnItemLongClickListener(null);
+            lvChannelList.setOnItemSelectedListener(null);
         }
         onChannelClickListener = null;
         onChannelLongClickListener = null;
