@@ -60,7 +60,6 @@ public class SettingsActivity extends AppCompatActivity {
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
 
     private SharedPreferences sp;
-    private TvRemoteManager remoteManager;
     private List<View> settingsItemList = new ArrayList<>();
     private ScrollView scrollView;
 
@@ -84,58 +83,6 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
-    private Runnable focusUpdateRunnable;
-
-    // ===================== 设置页焦点管理 =====================
-    private int settingsFocusPosition = 0;
-    private int settingsItemCount = 0;
-
-    public void setSettingsItemCount(int count) {
-        this.settingsItemCount = count;
-        if (settingsFocusPosition >= count) {
-            settingsFocusPosition = count - 1;
-        }
-        if (settingsFocusPosition < 0) {
-            settingsFocusPosition = 0;
-        }
-    }
-
-    public int getSettingsItemCount() {
-        return settingsItemCount;
-    }
-
-    public int getSettingsFocusPosition() {
-        return settingsFocusPosition;
-    }
-
-    public void setSettingsFocusPosition(int position) {
-        if (position >= 0 && position < settingsItemCount) {
-            this.settingsFocusPosition = position;
-        }
-    }
-
-    public void resetSettingsFocus() {
-        settingsFocusPosition = 0;
-    }
-
-    public boolean handleSettingsMoveUp() {
-        if (settingsFocusPosition > 0) {
-            settingsFocusPosition--;
-            updateSettingsFocus();
-            return true;
-        }
-        return false;
-    }
-
-    public boolean handleSettingsMoveDown() {
-        if (settingsFocusPosition < settingsItemCount - 1) {
-            settingsFocusPosition++;
-            updateSettingsFocus();
-            return true;
-        }
-        return false;
-    }
-    // ============================================================
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -149,15 +96,16 @@ public class SettingsActivity extends AppCompatActivity {
                 getWindow().setAttributes(lp);
             }
         } catch (Exception e) { }
-        
-        // 🟢【修复2】设置半透明背景，让播放器画面可见
-        WindowManager.LayoutParams lp = getWindow().getAttributes();
-        lp.dimAmount = 0.3f;
-        getWindow().setAttributes(lp);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        
+        try {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+            layoutParams.dimAmount = 0f;
+            getWindow().setAttributes(layoutParams);
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        } catch (Exception e) { }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        
+        getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         setContentView(R.layout.activity_settings);
         View viewOutside = findViewById(R.id.view_outside);
@@ -197,8 +145,6 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
         initSettingsItemList();
-        setSettingsItemCount(settingsItemList.size());
-        initRemoteManager();
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
 
@@ -418,8 +364,6 @@ public class SettingsActivity extends AppCompatActivity {
             sendBroadcast(intent);
 
             Toast.makeText(this, "已切换到：" + lineArray[which], Toast.LENGTH_SHORT).show();
-
-            // 移除 syncRemoteManagerMode 调用
         });
     }
 
@@ -508,58 +452,6 @@ public class SettingsActivity extends AppCompatActivity {
                 }
             }
         }
-
-        for (int i = 0; i < settingsItemList.size(); i++) {
-            final int position = i;
-            View item = settingsItemList.get(i);
-            if (item != null) {
-                item.setFocusableInTouchMode(true);
-                item.setOnFocusChangeListener((v, hasFocus) -> {
-                    if (hasFocus) {
-                        settingsFocusPosition = position;
-                        setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
-                    } else {
-                        setItemStyle(item, "#FFFFFF", Typeface.NORMAL, Color.TRANSPARENT);
-                    }
-                });
-            }
-        }
-    }
-
-    private void initRemoteManager() {
-        remoteManager = new TvRemoteManager();
-        remoteManager.setMode(TvRemoteManager.Mode.SETTINGS_MODE);
-
-        remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
-            @Override public void onPlayChannelUp() {}
-            @Override public void onPlayChannelDown() {}
-            @Override public void onPlayTogglePanel() {}
-            @Override public void onPlayOpenSettings() {}
-            @Override public boolean onPlayBack() { return false; }
-
-            @Override public void onPanelMoveUp() {}
-            @Override public void onPanelMoveDown() {}
-            @Override public void onPanelMoveLeft() {}
-            @Override public void onPanelMoveRight() {}
-            @Override public void onPanelConfirm() {}
-            @Override public boolean onPanelBack() { return false; }
-            @Override public void onPanelMenu() {}
-            @Override public void onPanelNumber(int number) {}
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {}
-
-            @Override public void onSettingsMoveUp() { handleSettingsMoveUp(); }
-            @Override public void onSettingsMoveDown() { handleSettingsMoveDown(); }
-            @Override public void onSettingsConfirm() { handleSettingsItemClick(settingsFocusPosition); }
-            @Override public boolean onSettingsBack() { finish(); return true; }
-            @Override public void onSettingsMenu() { finish(); }
-            @Override public void onSettingsFocusChanged(int position) {
-                setSettingsFocusPosition(position);
-                updateSettingsFocus();
-            }
-        });
-
-        resetSettingsFocus();
-        updateSettingsFocus();
     }
 
     private void initListeners() {
@@ -806,14 +698,11 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // 只使用 remoteManager
+        // 已移除所有按键处理，只保留返回键退出设置
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int keyCode = event.getKeyCode();
-            if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_HELP || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
                 finish();
-                return true;
-            }
-            if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
                 return true;
             }
         }
@@ -823,58 +712,6 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         return super.onKeyDown(keyCode, event);
-    }
-
-    private void updateSettingsFocus() {
-        if (settingsFocusPosition < 0 || settingsFocusPosition >= settingsItemList.size()) return;
-
-        View target = settingsItemList.get(settingsFocusPosition);
-        if (target == null) return;
-
-        for (int i = 0; i < settingsItemList.size(); i++) {
-            View item = settingsItemList.get(i);
-            if (item == null) continue;
-            if (i == settingsFocusPosition) {
-                setItemStyle(item, "#40A9FF", Typeface.BOLD, 0x3340A9FF);
-            } else {
-                setItemStyle(item, "#FFFFFF", Typeface.NORMAL, Color.TRANSPARENT);
-            }
-        }
-
-        if (focusUpdateRunnable != null) {
-            mainHandler.removeCallbacks(focusUpdateRunnable);
-        }
-        focusUpdateRunnable = () -> {
-            scrollToView(target);
-            if (!target.hasFocus()) {
-                target.requestFocus();
-            }
-        };
-        mainHandler.post(focusUpdateRunnable);
-    }
-
-    private void setItemStyle(View item, String textColor, int typefaceStyle, int bgColor) {
-        item.setBackgroundColor(bgColor);
-        if (item instanceof TextView) {
-            TextView tv = (TextView) item;
-            tv.setTextColor(Color.parseColor(textColor));
-            tv.setTypeface(null, typefaceStyle);
-        } else {
-            int index = settingsItemList.indexOf(item);
-            TextView tv = null;
-            if (index >= 0 && itemTextViews != null) {
-                tv = itemTextViews.get(index);
-            }
-            if (tv == null) {
-                if (item instanceof ViewGroup) {
-                    tv = findFirstTextView((ViewGroup) item);
-                }
-            }
-            if (tv != null) {
-                tv.setTextColor(Color.parseColor(textColor));
-                tv.setTypeface(null, typefaceStyle);
-            }
-        }
     }
 
     private TextView findFirstTextView(ViewGroup viewGroup) {
@@ -891,27 +728,6 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
         return null;
-    }
-
-    private void scrollToView(View view) {
-        if (scrollView == null || view == null) return;
-        int viewTop = view.getTop();
-        int viewBottom = view.getBottom();
-        int scrollViewHeight = scrollView.getHeight();
-        int currScroll = scrollView.getScrollY();
-
-        if (viewTop < currScroll) {
-            scrollView.scrollTo(0, Math.max(0, viewTop - 50));
-        } else if (viewBottom > currScroll + scrollViewHeight) {
-            scrollView.scrollTo(0, viewBottom - scrollViewHeight + 50);
-        }
-    }
-
-    private void handleSettingsItemClick(int position) {
-        if (position < 0 || position >= settingsItemList.size()) return;
-        View item = settingsItemList.get(position);
-        if (item == null) return;
-        item.performClick();
     }
 
     private void showRatioDialog() {
@@ -1100,10 +916,9 @@ public class SettingsActivity extends AppCompatActivity {
             updateManager.release();
         }
         mainHandler.removeCallbacksAndMessages(null);
-        remoteManager = null;
         settingsItemList.clear();
         settingsItemList = null;
         itemTextViews.clear();
         itemTextViews = null;
     }
-    }
+}
