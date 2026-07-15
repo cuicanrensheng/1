@@ -13,7 +13,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.view.LayoutInflater;   // ✅ 关键导入已补全
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -172,6 +173,17 @@ public class MainActivity extends AppCompatActivity {
             new IntentFilter("com.tv.live.UNLOCK_SETTINGS"),
             ContextCompat.RECEIVER_NOT_EXPORTED
         );
+    }
+
+    // ✅ 新增：在面板打开时优先让面板处理按键（防止播放器拦截方向键）
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+            if (panelLayout != null && panelLayout.dispatchKeyEvent(event)) {
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     public void showLogWindow() {
@@ -569,7 +581,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        // ✅ 这里就是行号 572，现在 LayoutInflater 已正确导入
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_exit_menu, null);
         builder.setView(view);
 
