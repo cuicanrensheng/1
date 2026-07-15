@@ -18,6 +18,7 @@
 
     <!-- 设置面板 -->
     <!-- ✅【关键修改】新增 android:scrollbars="none"，彻底解决设置页 ScrollView 的 mutate() 空指针崩溃 -->
+    <!-- ✅【关键修改】背景改为 @drawable/panel_bg，与频道面板背景一致 -->
     <ScrollView
         android:id="@+id/settings_content"
         android:layout_width="240dp"
@@ -451,4 +452,3 @@
         </LinearLayout>
     </ScrollView>
 </FrameLayout>
-
