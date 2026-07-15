@@ -13,7 +13,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -60,7 +59,6 @@ public class MainActivity extends AppCompatActivity {
     private InfoDisplayManager infoDisplayManager;
     private ChannelPanelController channelPanelController;
     private AppCoreManager appCoreManager;
-    private TvRemoteManager remoteManager;
     private PictureInPictureManager pipManager;
     private View panelLayout;
 
@@ -141,7 +139,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {}
 
         initChannelPanelController();
-        initRemoteManager();
         initPictureInPicture();
         channelPanelController.handleFirstLaunch();
 
@@ -286,68 +283,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void initRemoteManager() {
-        remoteManager = new TvRemoteManager();
-        remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
-        remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
-            @Override public void onPlayChannelUp() {
-                exitPlaybackMode();
-                channelPanelController.switchUp();
-            }
-            @Override public void onPlayChannelDown() {
-                exitPlaybackMode();
-                channelPanelController.switchDown();
-            }
-            @Override public void onPlayTogglePanel() {
-                togglePanel();
-            }
-            @Override public void onPlayOpenSettings() {
-                // 菜单键不再打开设置
-            }
-            @Override public boolean onPlayBack() { return false; }
-
-            // 面板模式回调
-            @Override public void onPanelMoveUp() {
-                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_UP);
-            }
-            @Override public void onPanelMoveDown() {
-                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_DOWN);
-            }
-            @Override public void onPanelMoveLeft() {
-                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_LEFT);
-            }
-            @Override public void onPanelMoveRight() {
-                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_RIGHT);
-            }
-            @Override public void onPanelConfirm() {
-                channelPanelController.dispatchKeyEvent(KeyEvent.KEYCODE_DPAD_CENTER);
-            }
-            @Override public boolean onPanelBack() {
-                boolean handled = channelPanelController.handleBackPressed();
-                return handled;
-            }
-            @Override public void onPanelMenu() {
-                boolean isFavorite = channelPanelController.toggleCurrentFavorite();
-            }
-            @Override public void onPanelNumber(int number) {
-                // 数字选台交给其他处理
-                int keyCode = KeyEvent.KEYCODE_0 + number;
-            }
-            @Override public void onPanelFocusChanged(TvRemoteManager.PanelFocus newFocus) {
-                // 焦点变化
-            }
-
-            @Override public void onSettingsMoveUp() {}
-            @Override public void onSettingsMoveDown() {}
-            @Override public void onSettingsConfirm() {}
-            @Override public boolean onSettingsBack() { return false; }
-            @Override public void onSettingsMenu() {}
-            @Override public void onSettingsFocusChanged(int position) {}
-        });
-
-        remoteManager.setSettingsItemCount(0);
-    }
-
     private void initInfoDisplayManager() {
         TextView tv_channel_num = findViewById(R.id.tv_channel_num);
         View info_bar = findViewById(R.id.info_bar);
@@ -448,17 +383,13 @@ public class MainActivity extends AppCompatActivity {
             }
             touchListener.updateGestureHelper(newGestureHelper);
             newPlayerView.setOnTouchListener(touchListener);
-            newPlayerView.requestFocus();
 
             if (playerControlManager != null) {
                 newPlayerView.setUseController(false);
                 playerControlManager.hideExoController();
             }
 
-            newPlayerView.setFocusable(true);
-            newPlayerView.setFocusableInTouchMode(true);
-            newPlayerView.requestFocus();
-            Log.d("MainActivity", "PlayerView 重建完成，焦点已强制恢复");
+            Log.d("MainActivity", "PlayerView 重建完成");
         });
 
         mPlayerManager.attachPlayerView(playerView);
@@ -636,16 +567,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         channelPanelController.togglePanel();
-
-        // 老版本通知远程管理器面板状态
-        if (channelPanelController != null) {
-            if (channelPanelController.isPanelOpen()) {
-                remoteManager.setMode(TvRemoteManager.Mode.CHANNEL_PANEL_MODE);
-                remoteManager.setRightPanelOpen(channelPanelController.isRightPanelOpen());
-            } else {
-                remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
-            }
-        }
     }
 
     public void playPrev() { channelPanelController.playPrev(); }
@@ -694,12 +615,6 @@ public class MainActivity extends AppCompatActivity {
                 exitMenuDialog.dismiss();
             }
 
-            if (playerView != null) {
-                playerView.setFocusable(true);
-                playerView.setFocusableInTouchMode(true);
-                playerView.requestFocus();
-            }
-
             mMainHandler.postDelayed(() -> {
                 openSettings();
             }, 100);
@@ -713,18 +628,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (remoteManager != null && remoteManager.dispatchKeyEvent(KeyEvent.KEYCODE_BACK)) {
-            return;
-        }
-
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             exitMenuDialog.dismiss();
             exitMenuDialog = null;
-            if (playerView != null) {
-                playerView.setFocusable(true);
-                playerView.setFocusableInTouchMode(true);
-                playerView.requestFocus();
-            }
             return;
         }
 
@@ -763,78 +669,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        int keyCode = event.getKeyCode();
-        int action = event.getAction();
-
-        if (action == KeyEvent.ACTION_DOWN) {
-            switch (keyCode) {
-                case KeyEvent.KEYCODE_BACK:
-                case KeyEvent.KEYCODE_DPAD_CENTER:
-                case KeyEvent.KEYCODE_ENTER:
-                    event.startTracking();
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        // ✅ 直接使用 remoteManager，不要用 keyEventManager
-        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
-            return true;
-        }
-
-        // 面板打开时拦截所有未被处理的按键
-        if (isPanelOpen()) {
-            return true;
-        }
-
-        if (number_channel_enable && action == KeyEvent.ACTION_DOWN
-                && infoDisplayManager != null
-                && !isInCatchUpMode) {
-            if (infoDisplayManager.handleNumberKey(keyCode)) {
-                return true;
-            }
-        }
-
-        if (keyCode == KeyEvent.KEYCODE_MENU
-                || keyCode == KeyEvent.KEYCODE_HELP
-                || keyCode == KeyEvent.KEYCODE_SETTINGS) {
-            return super.dispatchKeyEvent(event);
-        }
-
-        return super.dispatchKeyEvent(event);
-    }
-
-    private boolean isPanelOpen() {
-        return channelPanelController != null && channelPanelController.isPanelOpen();
-    }
-
-    @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_BACK:
-            case KeyEvent.KEYCODE_INFO:
-            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-                event.startTracking();
-                return true;
-            default:
-                break;
-        }
         return super.onKeyDown(keyCode, event);
     }
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        if (isInCatchUpMode && keyCode == KeyEvent.KEYCODE_BACK) {
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (channelPanelController != null && channelPanelController.handleBackPressed()) {
-                return true;
-            }
-            return true;
-        }
         return super.onKeyLongPress(keyCode, event);
     }
 
@@ -927,20 +767,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (channelPanelController != null) {
             channelPanelController.clearPanelFocus();
-            if (!channelPanelController.isPanelOpen()) {
-                if (playerView != null) {
-                    playerView.setFocusable(true);
-                    playerView.setFocusableInTouchMode(true);
-                    playerView.requestFocus();
-                    Log.d("MainActivity", "onResume: 焦点已归还给 PlayerView");
-                }
-            }
-        } else {
-            if (playerView != null) {
-                playerView.setFocusable(true);
-                playerView.setFocusableInTouchMode(true);
-                playerView.requestFocus();
-            }
         }
 
         if (playerControlManager != null) {
