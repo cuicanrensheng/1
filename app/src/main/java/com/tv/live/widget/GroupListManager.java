@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 分组列表管理器（已移除遥控器焦点）
+ * 分组列表管理器（已恢复遥控器焦点）
  */
 public class GroupListManager {
 
@@ -30,8 +30,6 @@ public class GroupListManager {
     private int selectedPosition = 0;
     private ArrayAdapter<String> adapter;
     private OnGroupSelectedListener listener;
-
-    // hasFocus 已删除
 
     public static final String GROUP_ALL = "全部";
 
@@ -50,17 +48,30 @@ public class GroupListManager {
     public GroupListManager(Context context, ListView lvGroup) {
         this.context = context;
         this.lvGroup = lvGroup;
-        lvGroup.setItemsCanFocus(false);
+
+        // ✅ 恢复焦点
+        lvGroup.setItemsCanFocus(true);
+        lvGroup.setFocusable(true);
+        lvGroup.setFocusableInTouchMode(true);
         lvGroup.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
-        // 已删除 setOnItemSelectedListener
+        // ✅ 恢复 OnItemSelectedListener
+        lvGroup.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedPosition = position;
+                if (adapter != null) adapter.notifyDataSetChanged();
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // 保持当前选中
+            }
+        });
 
         lvGroup.setOnItemClickListener((parent, view, position, id) -> {
             setSelectedPosition(position);
         });
     }
-
-    // setFocused / isFocused 已删除
 
     public void setGroups(List<Channel> channelSourceList) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
@@ -122,11 +133,22 @@ public class GroupListManager {
                 tv.setTextSize(16);
                 tv.setPadding(20, 15, 20, 15);
 
-                if (position == selectedPosition) {
+                // ✅ 区分“焦点”与“选中”
+                boolean isFocused = (position == selectedPosition) && lvGroup.hasFocus();
+                boolean isSelected = (position == selectedPosition);
+
+                if (isFocused) {
+                    // 焦点状态：蓝字 + 常规 + 透明背景
+                    tv.setTextColor(COLOR_BLUE_TEXT);
+                    tv.setTypeface(null, Typeface.NORMAL);
+                    tv.setBackgroundColor(Color.TRANSPARENT);
+                } else if (isSelected) {
+                    // 选中状态：蓝字 + 加粗 + 浅蓝背景
                     tv.setTextColor(COLOR_BLUE_TEXT);
                     tv.setTypeface(null, Typeface.BOLD);
                     tv.setBackgroundColor(COLOR_BLUE_BG);
                 } else {
+                    // 未选中状态：白字 + 常规 + 透明背景
                     tv.setTextColor(COLOR_WHITE_TEXT);
                     tv.setTypeface(null, Typeface.NORMAL);
                     tv.setBackgroundColor(Color.TRANSPARENT);
@@ -191,6 +213,7 @@ public class GroupListManager {
         if (lvGroup != null) {
             lvGroup.setAdapter(null);
             lvGroup.setOnItemClickListener(null);
+            lvGroup.setOnItemSelectedListener(null);
         }
         if (groupDisplayList != null) {
             groupDisplayList.clear();
