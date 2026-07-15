@@ -1,4 +1,4 @@
-package com.tv.l;
+package com.tv.live;
 
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
