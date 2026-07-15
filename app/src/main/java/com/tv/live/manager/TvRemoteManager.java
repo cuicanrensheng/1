@@ -1,0 +1,286 @@
+package com.tv.live.manager;
+
+import android.view.KeyEvent;
+
+public class TvRemoteManager {
+
+    public enum Mode {
+        PLAY_MODE,
+        CHANNEL_PANEL_MODE,
+        SETTINGS_MODE
+    }
+
+    public interface OnRemoteActionListener {
+        void onPlayChannelUp();
+        void onPlayChannelDown();
+        void onPlayTogglePanel();
+        void onPlayOpenSettings();
+        boolean onPlayBack();
+        // 媒体键回调
+        void onPlayMediaPlayPause();
+        void onPlayMediaStop();
+        void onPlayInfo();
+
+        void onPanelConfirm();
+        boolean onPanelBack();
+
+        void onSettingsMoveUp();
+        void onSettingsMoveDown();
+        void onSettingsConfirm();
+        boolean onSettingsBack();
+        void onSettingsMenu();
+        void onSettingsFocusChanged(int position);
+
+        boolean onPipBack();
+        void onRequestPlayFocus();
+
+        void onChannelNumberSelected(int channelIndex);
+        void onShowChannelNumber(String number);
+        void onHideChannelNumber();
+    }
+
+    private Mode currentMode = Mode.PLAY_MODE;
+    private OnRemoteActionListener listener;
+    private boolean isInPipMode = false;
+    private ChannelPanelController channelPanelController;
+
+    // ✅ 恢复数字输入相关的成员变量（虽然不再使用，但保留以兼容旧调用）
+    private boolean numberChannelEnable = true;
+    private int totalChannelCount = 0;
+
+    public TvRemoteManager() {
+    }
+
+    public void setMode(Mode mode) {
+        this.currentMode = mode;
+    }
+
+    public Mode getCurrentMode() {
+        return currentMode;
+    }
+
+    public void setOnRemoteActionListener(OnRemoteActionListener listener) {
+        this.listener = listener;
+    }
+
+    public void setInPipMode(boolean inPipMode) {
+        this.isInPipMode = inPipMode;
+    }
+
+    public void setChannelPanelController(ChannelPanelController controller) {
+        this.channelPanelController = controller;
+    }
+
+    // ✅ 恢复 setNumberChannelEnable
+    public void setNumberChannelEnable(boolean enable) {
+        this.numberChannelEnable = enable;
+    }
+
+    // ✅ 恢复 setTotalChannelCount
+    public void setTotalChannelCount(int count) {
+        this.totalChannelCount = count;
+    }
+
+    public boolean dispatchKeyEvent(int keyCode) {
+        if (isInPipMode) {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                if (listener != null) {
+                    return listener.onPipBack();
+                }
+                return false;
+            }
+            return false;
+        }
+
+        // ✅【按键修复】按键前同步模式，防止「面板已打开但模式还在 PLAY_MODE」的不一致
+        syncMode();
+
+        // ✅【新增兜底】如果当前是 SETTINGS_MODE，但 SettingsActivity 已经关闭（listener 无法处理），直接返回 false
+        if (currentMode == Mode.SETTINGS_MODE && listener == null) {
+            return false;
+        }
+
+        boolean handled = false;
+        switch (currentMode) {
+            case CHANNEL_PANEL_MODE:
+                if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+                    handled = dispatchChannelPanelKey(keyCode);
+                } else {
+                    handled = false;
+                }
+                break;
+            case SETTINGS_MODE:
+                handled = dispatchSettingsKey(keyCode);
+                break;
+            case PLAY_MODE:
+            default:
+                handled = dispatchPlayKey(keyCode);
+                break;
+        }
+        if (handled) {
+            return true;
+        }
+
+        // 兜底：CHANNEL_PANEL_MODE 打开但模式未同步等边缘场景
+        if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public boolean dispatchKeyLongPress(int keyCode) {
+        if (isInPipMode) {
+            return false;
+        }
+        return false;
+    }
+
+    public boolean handleBackPressed() {
+        if (isInPipMode) {
+            if (listener != null) {
+                return listener.onPipBack();
+            }
+            return false;
+        }
+
+        boolean handled = false;
+        switch (currentMode) {
+            case CHANNEL_PANEL_MODE:
+                if (listener != null) {
+                    handled = listener.onPanelBack();
+                }
+                break;
+            case SETTINGS_MODE:
+                if (listener != null) {
+                    handled = listener.onSettingsBack();
+                }
+                break;
+            case PLAY_MODE:
+            default:
+                if (listener != null) {
+                    handled = listener.onPlayBack();
+                }
+                break;
+        }
+        if (handled) {
+            syncMode();
+            return true;
+        }
+
+        if (channelPanelController != null && channelPanelController.handleBackPressed()) {
+            syncMode();
+            if (listener != null) {
+                listener.onRequestPlayFocus();
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    public void syncMode() {
+        if (channelPanelController == null) return;
+        if (channelPanelController.isPanelOpen()) {
+            if (currentMode != Mode.CHANNEL_PANEL_MODE) {
+                setMode(Mode.CHANNEL_PANEL_MODE);
+            }
+        } else {
+            if (currentMode != Mode.PLAY_MODE) {
+                setMode(Mode.PLAY_MODE);
+            }
+        }
+    }
+
+    private boolean dispatchPlayKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_CHANNEL_UP:       // 媒体键：上一频道
+                if (listener != null) listener.onPlayChannelUp();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_CHANNEL_DOWN:     // 媒体键：下一频道
+                if (listener != null) listener.onPlayChannelDown();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                if (listener != null) listener.onPlayTogglePanel();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                if (listener != null) listener.onPlayTogglePanel();
+                return true;
+            // ===== 已删除 MENU / HELP 键，它们不再触发打开设置 =====
+            case KeyEvent.KEYCODE_BACK:
+                if (listener != null) return listener.onPlayBack();
+                return false;
+            // ===== 媒体键扩展支持 =====
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                if (listener != null) listener.onPlayMediaPlayPause();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_STOP:
+                if (listener != null) listener.onPlayMediaStop();
+                return true;
+            case KeyEvent.KEYCODE_INFO:
+            case KeyEvent.KEYCODE_TV:               // 部分遥控器「电视」键 = 显示信息条
+                if (listener != null) listener.onPlayInfo();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean dispatchChannelPanelKey(int keyCode) {
+        // ✅【核心修复】CHANNEL_PANEL_MODE 自行处理上下左右键，不再依赖兜底 fallback
+        // 直接委托给 ChannelPanelController.dispatchKeyEvent（里面已经完整处理滚动/左右切换）
+        if (channelPanelController != null && channelPanelController.dispatchKeyEvent(keyCode)) {
+            return true;
+        }
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                if (listener != null) listener.onPanelConfirm();
+                return true;
+            case KeyEvent.KEYCODE_BACK:
+                if (listener != null) return listener.onPanelBack();
+                return false;
+            // ===== 已删除 MENU 键，不再触发打开设置 =====
+            default:
+                return false;
+        }
+    }
+
+    private boolean dispatchSettingsKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                if (listener != null) listener.onSettingsMoveUp();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                if (listener != null) listener.onSettingsMoveDown();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                if (listener != null) listener.onSettingsConfirm();
+                return true;
+            case KeyEvent.KEYCODE_BACK:
+                if (listener != null) return listener.onSettingsBack();
+                return false;
+            case KeyEvent.KEYCODE_MENU:
+                if (listener != null) listener.onSettingsMenu();
+                return true;
+            // ✅【按键修复】DPAD_LEFT / DPAD_RIGHT 在设置页统一消费，避免焦点飞出 ScrollView
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public void release() {
+        listener = null;
+        channelPanelController = null;
+    }
+}
