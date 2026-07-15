@@ -745,19 +745,33 @@ public class ChannelPanelController {
     }
 
     /**
-     * 🟢【修复3】频道面板闪退问题
-     * 当 panelLayout.findFocus() 返回 null 时返回 true，防止上层继续传递按键
+     * 🟢【核心修复】当焦点为 null 时，主动尝试恢复焦点，防止面板按键失效
      */
     public boolean dispatchKeyEvent(int keyCode) {
         if (panelLayout.getVisibility() != View.VISIBLE) {
             return false;
         }
 
-        // 🟢【修复】获取当前焦点视图，当返回 null 时返回 true 防止上层继续处理
+        // 🟢【修复】获取当前焦点视图，当焦点为 null 时主动恢复
         View currentFocus = panelLayout.findFocus();
         if (currentFocus == null) {
-            // 如果找不到焦点，返回 true 表示已处理，防止上层继续传递按键导致闪退
-            Log.w("ChannelPanelController", "dispatchKeyEvent: 焦点为 null，已拦截按键防止异常");
+            Log.w("ChannelPanelController", "dispatchKeyEvent: 焦点为 null，正在尝试恢复焦点...");
+            
+            // 1. 如果是左右键，不在这里处理，直接返回 true 表示已拦截
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                return true;
+            }
+            
+            // 2. 如果是上下键或 OK 键，尝试把焦点给频道列表
+            if (lvChannelList != null) {
+                lvChannelList.setFocusable(true);
+                lvChannelList.setFocusableInTouchMode(true);
+                lvChannelList.requestFocus();
+                // 抢到焦点后，把按键传给系统去处理
+                return false;
+            }
+            
+            // 3. 如果实在抢不到焦点，返回 true 拦截按键防止闪退
             return true;
         }
 
