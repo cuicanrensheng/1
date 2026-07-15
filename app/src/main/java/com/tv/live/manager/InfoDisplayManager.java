@@ -5,7 +5,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
-import android.view.KeyEvent;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -22,18 +21,12 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 信息展示管理器【优化版：彻底隔离主线程与EPG计算】
- * 整合数字输入管理（原 TvRemoteManager 中的相关逻辑）
+ * 信息展示管理器（已移除数字输入、遥控器按键相关逻辑）
  */
 public class InfoDisplayManager {
-    // ===================== 定时延时常量 =====================
     private static final long INFO_BAR_HIDE_DELAY = 3000;
-    private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
     private static final long PROGRAM_PROGRESS_INTERVAL = 30000;
-    // 新增：数字输入超时
-    private static final long CHANNEL_NUM_INPUT_TIMEOUT = 2000;
 
-    // ===================== UI控件引用 =====================
     private Context context;
     private TextView tvChannelNum;
     private View infoBar;
@@ -51,10 +44,8 @@ public class InfoDisplayManager {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Channel currentPlayChannel;
 
-    // 🟢【新增】释放状态标记，防止销毁后继续更新 UI
     private boolean isReleased = false;
 
-    // ========== 原有任务 ==========
     private final Runnable hideInfoBarTask = new Runnable() {
         @Override
         public void run() {
@@ -62,42 +53,20 @@ public class InfoDisplayManager {
         }
     };
 
-    private final Runnable hideChannelNumTask = new Runnable() {
-        @Override
-        public void run() {
-            if(tvChannelNum != null) tvChannelNum.setVisibility(View.GONE);
-        }
-    };
+    // 已删除 hideChannelNumTask 和数字输入相关
 
-    // 🟢【优化1】定时刷新器：只负责触发任务，不在此处进行任何 UI 阻塞操作
     private final Runnable refreshProgressTask = new Runnable() {
         @Override
         public void run() {
             if (currentPlayChannel != null) {
-                // 触发后台线程执行 EPG 刷新
                 performEpgUpdateInBackground(currentPlayChannel);
             }
             mainHandler.postDelayed(this, PROGRAM_PROGRESS_INTERVAL);
         }
     };
 
-    // ========== 新增：数字输入相关 ==========
-    private final StringBuilder channelNumInput = new StringBuilder();
-    private int totalChannelCount = 0;
-    private OnChannelNumberSelectedListener numberSelectedListener;
+    // 已删除所有数字输入相关成员（channelNumInput, totalChannelCount, numberSelectedListener等）
 
-    private final Runnable channelNumConfirmRunnable = new Runnable() {
-        @Override
-        public void run() {
-            confirmChannelNum();
-        }
-    };
-
-    public interface OnChannelNumberSelectedListener {
-        void onChannelNumberSelected(int channelIndex);
-    }
-
-    // ===================== 构造方法 =====================
     public InfoDisplayManager(Context context,
                               TextView tvChannelNum,
                               View infoBar,
@@ -127,91 +96,21 @@ public class InfoDisplayManager {
         if(tvTagAudio != null){
             tvTagAudio.setText("立体声");
         }
+        // 已删除数字输入相关监听器设置
     }
 
-    // ===================== 新增：数字输入管理 =====================
-    public void setTotalChannelCount(int count) {
-        this.totalChannelCount = count;
-    }
+    // 已删除 setTotalChannelCount、setOnChannelNumberSelectedListener、isNumberInputting、handleNumberKey、confirmChannelNum、cancelNumberInput、keyCodeToNumber
 
-    public void setOnChannelNumberSelectedListener(OnChannelNumberSelectedListener listener) {
-        this.numberSelectedListener = listener;
-    }
-
-    public boolean isNumberInputting() {
-        return channelNumInput.length() > 0;
-    }
-
-    public boolean handleNumberKey(int keyCode) {
-        if (tvChannelNum == null) return false;
-        int num = keyCodeToNumber(keyCode);
-        if (num == -1) return false;
-        channelNumInput.append(num);
-        // 复用原有显示方法
-        showChannelNum(Integer.parseInt(channelNumInput.toString()));
-        mainHandler.removeCallbacks(channelNumConfirmRunnable);
-        mainHandler.postDelayed(channelNumConfirmRunnable, CHANNEL_NUM_INPUT_TIMEOUT);
-        return true;
-    }
-
-    public void confirmChannelNum() {
-        if (channelNumInput.length() == 0) return;
-        try {
-            int channelNum = Integer.parseInt(channelNumInput.toString());
-            if (channelNum >= 1 && channelNum <= totalChannelCount) {
-                int index = channelNum - 1;
-                if (numberSelectedListener != null) {
-                    numberSelectedListener.onChannelNumberSelected(index);
-                }
-            }
-        } catch (NumberFormatException ignored) {
-        }
-        channelNumInput.setLength(0);
-        // 延迟隐藏数字提示（复用原有 hideChannelNumTask）
-        mainHandler.removeCallbacks(hideChannelNumTask);
-        mainHandler.postDelayed(hideChannelNumTask, 1000);
-    }
-
-    public void cancelNumberInput() {
-        if (channelNumInput.length() > 0) {
-            channelNumInput.setLength(0);
-            mainHandler.removeCallbacks(channelNumConfirmRunnable);
-            hideChannelNum();
-        }
-    }
-
-    private int keyCodeToNumber(int keyCode) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_0: return 0;
-            case KeyEvent.KEYCODE_1: return 1;
-            case KeyEvent.KEYCODE_2: return 2;
-            case KeyEvent.KEYCODE_3: return 3;
-            case KeyEvent.KEYCODE_4: return 4;
-            case KeyEvent.KEYCODE_5: return 5;
-            case KeyEvent.KEYCODE_6: return 6;
-            case KeyEvent.KEYCODE_7: return 7;
-            case KeyEvent.KEYCODE_8: return 8;
-            case KeyEvent.KEYCODE_9: return 9;
-            default: return -1;
-        }
-    }
-
-    // ===================== 频道数字弹窗 =====================
+    // 保留 showChannelNum 只是为了显示频道号，但不依赖数字键输入
     public void showChannelNum(int num){
         if(tvChannelNum == null) return;
         tvChannelNum.setText(String.valueOf(num));
         tvChannelNum.setVisibility(View.VISIBLE);
-        mainHandler.removeCallbacks(hideChannelNumTask);
-        mainHandler.postDelayed(hideChannelNumTask, CHANNEL_NUM_HIDE_DELAY);
+        // 已删除自动隐藏 task，因为不需要
     }
 
-    public void hideChannelNum(){
-        if(tvChannelNum == null) return;
-        mainHandler.removeCallbacks(hideChannelNumTask);
-        tvChannelNum.setVisibility(View.GONE);
-    }
+    // hideChannelNum 已删除（不再需要）
 
-    // ===================== 底部信息栏 =====================
     public void showInfoBar(Channel channel, TVPlayerManager.LiveInfo liveInfo){
         if(infoBar == null || channel == null) return;
         currentPlayChannel = channel;
@@ -219,9 +118,7 @@ public class InfoDisplayManager {
         mainHandler.removeCallbacks(hideInfoBarTask);
         mainHandler.postDelayed(hideInfoBarTask, INFO_BAR_HIDE_DELAY);
         if(tvChannelName != null) tvChannelName.setText(channel.getName());
-        // 优先更新码率、画质（主线程快速执行）
         updateLiveInfo(liveInfo);
-        // 后处理EPG节目信息（触发后台计算）
         performEpgUpdateInBackground(channel);
         startProgressLoop();
     }
@@ -264,20 +161,15 @@ public class InfoDisplayManager {
         performEpgUpdateInBackground(channel);
     }
 
-    // 🟢【优化2】核心改动：将所有耗时的 EPG 匹配逻辑彻底丢到子线程
     private void performEpgUpdateInBackground(Channel channel) {
         if (channel == null) return;
         new Thread(() -> {
             try {
-                // 1. 后台获取数据
                 List<Channel.EpgItem> epgList = EpgManager.getInstance().getEpg(channel.getName());
                 
-                // 2. 后台进行过滤、排序、时间匹配计算
                 EpgCalculationResult result = calculateEpgData(epgList, channel);
 
-                // 3. 切回主线程进行简单的 UI 渲染
                 mainHandler.post(() -> {
-                    // ✅ 如果已被释放，不再更新 UI
                     if (isReleased) {
                         return;
                     }
@@ -298,9 +190,7 @@ public class InfoDisplayManager {
         }).start();
     }
 
-    // 🟢【优化3】在后台线程中执行纯数据运算，严禁触碰 View
     private EpgCalculationResult calculateEpgData(List<Channel.EpgItem> epgList, Channel channel) {
-        // 如果 EPG 未加载完
         if (EpgManager.getInstance().getChannelEpgMapSize() == 0) {
             EpgCalculationResult loadingResult = new EpgCalculationResult();
             loadingResult.isLoading = true;
@@ -308,7 +198,7 @@ public class InfoDisplayManager {
         }
 
         if (epgList == null || epgList.isEmpty()) {
-            return null; // 表示无数据，会触发主线程刷新 Empty UI
+            return null;
         }
 
         List<Channel.EpgItem> todayEpg = filterTodayEpg(epgList);
@@ -334,7 +224,6 @@ public class InfoDisplayManager {
             }
         }
 
-        // 组装计算返回结果
         EpgCalculationResult result = new EpgCalculationResult();
         result.currItem = currItem;
         result.nextItem = nextItem;
@@ -345,13 +234,10 @@ public class InfoDisplayManager {
         return result;
     }
 
-    // 🟢【优化4】主线程只执行这种纯 UI 绑定的低耗时方法
     private void applyEpgUiResult(EpgCalculationResult result, Channel channel) {
-        // ✅ 如果已被释放或关键控件已销毁，直接返回
         if (isReleased) {
             return;
         }
-        // 主判空，但可能其他控件会在后续被置 null，所以下面再逐个判空
         if (tvCurrentProgramName == null && tvCurrentTimeRange == null && progressProgram == null) {
             return;
         }
@@ -367,7 +253,6 @@ public class InfoDisplayManager {
         List<Channel.EpgItem> todayList = result.todayList;
         String nowTime = result.nowTime;
 
-        // ===== 当前节目信息 =====
         if (currItem != null) {
             if (tvCurrentProgramName != null) {
                 tvCurrentProgramName.setText(currItem.title);
@@ -378,7 +263,6 @@ public class InfoDisplayManager {
                 tvCurrentTimeRange.setText(start + " - " + end);
             }
 
-            // 计算进度
             long nowMs = timeToMs(nowTime, false, 0);
             long sMs = timeToMs(start, false, 0);
             long eMs = timeToMs(end, true, sMs);
@@ -426,7 +310,6 @@ public class InfoDisplayManager {
             }
         }
 
-        // ===== 下一档节目 UI =====
         if (nextItem != null) {
             String s = extractTimeSegment(nextItem.time, false);
             String e = (currIndex + 2 < todayList.size()) ? extractTimeSegment(todayList.get(currIndex + 2).time, false) : "23:59";
@@ -446,7 +329,6 @@ public class InfoDisplayManager {
         }
     }
 
-    // ===================== 时间格式提取工具 =====================
     private String extractTimeSegment(String fullTime, boolean isEnd) {
         if (fullTime == null || fullTime.trim().isEmpty()) return "";
         String trimmed = fullTime.trim();
@@ -459,7 +341,6 @@ public class InfoDisplayManager {
         return trimmed;
     }
 
-    // ===================== 日期过滤与排序 =====================
     private List<Channel.EpgItem> filterTodayEpg(List<Channel.EpgItem> source){
         List<Channel.EpgItem> res = new ArrayList<>();
         Calendar cal = Calendar.getInstance();
@@ -508,7 +389,6 @@ public class InfoDisplayManager {
         if(tvRemainingTime != null) tvRemainingTime.setText("");
     }
 
-    // ===================== 定时控制 =====================
     public void startProgressLoop(){
         mainHandler.removeCallbacks(refreshProgressTask);
         mainHandler.postDelayed(refreshProgressTask, PROGRAM_PROGRESS_INTERVAL);
@@ -518,7 +398,6 @@ public class InfoDisplayManager {
         mainHandler.removeCallbacks(refreshProgressTask);
     }
 
-    // ===================== 时间工具 =====================
     private String getCurrentTimeStr(){
         Calendar cal = Calendar.getInstance();
         int h = cal.get(Calendar.HOUR_OF_DAY);
@@ -538,7 +417,6 @@ public class InfoDisplayManager {
         }
     }
 
-    // 🟢【优化5】减少 Calendar.getInstance() 的频繁调用
     private long timeToMs(String timeStr, boolean isEndTime, long startMs){
         try {
             String targetTime = extractTimeSegment(timeStr, isEndTime);
@@ -546,7 +424,6 @@ public class InfoDisplayManager {
             String[] split = targetTime.split(":");
             int h = Integer.parseInt(split[0].trim());
             int m = Integer.parseInt(split[1].trim());
-            // 使用当前日期，但固定为今天的这个时间
             Calendar cal = Calendar.getInstance();
             cal.set(Calendar.HOUR_OF_DAY, h);
             cal.set(Calendar.MINUTE, m);
@@ -563,11 +440,8 @@ public class InfoDisplayManager {
         }
     }
 
-    // ===================== 资源释放 =====================
     public void release(){
-        // 🟢【优化6】彻底清空 Handler 中的所有排期任务，防止内存泄漏
         mainHandler.removeCallbacksAndMessages(null);
-        // 🟢【新增】标记为已释放
         isReleased = true;
         currentPlayChannel = null;
         context = null;
@@ -583,14 +457,8 @@ public class InfoDisplayManager {
         tvRemainingTime = null;
         tvNextProgramName = null;
         tvNextTimeRange = null;
-        // 新增：清空数字输入相关
-        channelNumInput.setLength(0);
-        numberSelectedListener = null;
     }
 
-    // ============================================================
-    // 🟢【优化7】引入内部数据类，用于在子线程和主线程间传递计算出的结果
-    // ============================================================
     private static class EpgCalculationResult {
         boolean isLoading = false;
         Channel.EpgItem currItem;
