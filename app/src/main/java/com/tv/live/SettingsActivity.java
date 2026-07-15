@@ -38,7 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 设置页面 Activity（已移除所有焦点和遥控器按键逻辑）
+ * 设置页面 Activity（已恢复遥控器焦点与按键）
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
@@ -79,8 +79,6 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
-
-    // 已删除所有焦点相关变量（settingsFocusPosition 等）
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -143,7 +141,6 @@ public class SettingsActivity extends AppCompatActivity {
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
         initSettingsItemList();
-        // 已删除 setSettingsItemCount
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
 
@@ -220,6 +217,81 @@ public class SettingsActivity extends AppCompatActivity {
         SourceManager epgManager = new SourceManager(this, "epg_history");
         if (epgManager.size() == 0) {
             epgManager.addSource("默认节目单", UrlConfig.EPG_URL);
+        }
+    }
+
+    // ================================================================
+    // ✅【关键修改】恢复所有设置项的焦点监听器，实现遥控器交互
+    // ================================================================
+    private void initSettingsItemList() {
+        // 定义一个通用的焦点监听器
+        View.OnFocusChangeListener focusListener = (v, hasFocus) -> {
+            if (hasFocus) {
+                // 焦点状态：背景透明，文字变蓝
+                v.setBackgroundResource(R.drawable.item_settings_bg);
+                setChildTextColor(v, true);
+            } else {
+                // 失去焦点：恢复默认状态
+                v.setBackgroundResource(R.drawable.item_settings_bg);
+                setChildTextColor(v, false);
+            }
+        };
+
+        // 为所有需要焦点的设置项应用监听器
+        View itemBoot = findViewById(R.id.item_boot);
+        View itemReverse = findViewById(R.id.item_reverse);
+        View itemPip = findViewById(R.id.item_pip);
+        View itemChannelLine = findViewById(R.id.item_channel_line);
+        View itemDecoder = findViewById(R.id.item_decoder);
+        View itemRenderer = findViewById(R.id.item_renderer);
+        View itemRatio = findViewById(R.id.tv_screen_ratio);
+        View itemResolution = findViewById(R.id.item_resolution);
+        View itemRedirect = findViewById(R.id.item_redirect);
+        View itemLive = findViewById(R.id.item_live_subscribe);
+        View itemEpg = findViewById(R.id.item_epg_subscribe);
+        View itemCheckUpdate = findViewById(R.id.item_check_update);
+        View itemVersion = findViewById(R.id.item_version_info);
+        View itemLog = findViewById(R.id.item_log);
+
+        // 应用焦点监听器
+        itemBoot.setOnFocusChangeListener(focusListener);
+        itemReverse.setOnFocusChangeListener(focusListener);
+        itemPip.setOnFocusChangeListener(focusListener);
+        itemChannelLine.setOnFocusChangeListener(focusListener);
+        itemDecoder.setOnFocusChangeListener(focusListener);
+        itemRenderer.setOnFocusChangeListener(focusListener);
+        itemRatio.setOnFocusChangeListener(focusListener);
+        itemResolution.setOnFocusChangeListener(focusListener);
+        itemRedirect.setOnFocusChangeListener(focusListener);
+        itemLive.setOnFocusChangeListener(focusListener);
+        itemEpg.setOnFocusChangeListener(focusListener);
+        itemCheckUpdate.setOnFocusChangeListener(focusListener);
+        itemVersion.setOnFocusChangeListener(focusListener);
+        itemLog.setOnFocusChangeListener(focusListener);
+
+        // 确保所有可聚焦的 View 都能响应点击（点击即触发操作）
+        itemBoot.setOnClickListener(v -> sw_boot.performClick());
+        itemReverse.setOnClickListener(v -> sw_reverse.performClick());
+        itemPip.setOnClickListener(v -> sw_pip.performClick());
+        // 其他 item 的点击事件已在 onCreate 中设置
+    }
+
+    // 辅助方法：递归设置内部 TextView 的颜色
+    private void setChildTextColor(View view, boolean focused) {
+        if (view instanceof TextView) {
+            TextView tv = (TextView) view;
+            if (focused) {
+                tv.setTextColor(Color.parseColor("#40A9FF"));
+            } else {
+                tv.setTextColor(Color.WHITE);
+            }
+            return;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                setChildTextColor(group.getChildAt(i), focused);
+            }
         }
     }
 
@@ -411,15 +483,6 @@ public class SettingsActivity extends AppCompatActivity {
             getWindow().getDecorView().setSystemUiVisibility(uiOptions);
         } catch (Exception e) {
         }
-    }
-
-    private void initSettingsItemList() {
-        // 已删除所有 OnFocusChangeListener 和焦点位置管理
-        // 只保留点击事件
-        findViewById(R.id.item_boot).setOnClickListener(v -> sw_boot.performClick());
-        findViewById(R.id.item_reverse).setOnClickListener(v -> sw_reverse.performClick());
-        findViewById(R.id.item_pip).setOnClickListener(v -> sw_pip.performClick());
-        // 其他 item 的 OnClickListener 已在 onCreate 中设置
     }
 
     private void initListeners() {
@@ -663,12 +726,6 @@ public class SettingsActivity extends AppCompatActivity {
             btnClose.setOnClickListener(v -> dialog.dismiss());
         }
     }
-
-    // dispatchKeyEvent 已删除，menu/help 键不再拦截
-
-    // onKeyDown 已删除
-
-    // 已删除 updateSettingsFocus、scrollToView、handleSettingsItemClick 等焦点方法
 
     private void showRatioDialog() {
         final String[] ratios = {"全屏", "填充", "原始"};
