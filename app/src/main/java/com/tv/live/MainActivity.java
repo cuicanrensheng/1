@@ -593,6 +593,8 @@ public class MainActivity extends AppCompatActivity {
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         if (infoDisplayManager != null) {
             infoDisplayManager.showInfoBar(channel, live);
+            // ✅【关键】加上这一行，传递 index + 1 作为频道号（因为从 0 开始）
+            infoDisplayManager.showChannelNum(index + 1);
         }
         try {
             appConfig.addRecentChannel(channel.getName());
