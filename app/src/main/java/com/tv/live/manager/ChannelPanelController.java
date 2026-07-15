@@ -18,7 +18,7 @@ import java.util.List;
 
 /**
  * 频道面板控制器
- * 已移除所有遥控器按键与焦点代码，只保留触摸交互
+ * 已恢复遥控器按键与焦点管理
  */
 public class ChannelPanelController {
 
@@ -114,7 +114,7 @@ public class ChannelPanelController {
         this.epgManagerWrapper = epgManagerWrapper;
         this.panelManager = panelManager;
         initClickListeners();
-        // 已删除 initFocusListeners()
+        // 已删除 initFocusListeners()，焦点由 ListView 自身管理
     }
 
     private void initClickListeners() {
@@ -322,7 +322,7 @@ public class ChannelPanelController {
         channelListManagerEpg.setChannels(channelSourceList, index);
         epgManagerWrapper.refresh(ch, channelSourceList, currentSelectedDateIndex);
 
-        // 已移除所有 setFocusable / requestFocus
+        // 已移除所有 setFocusable / requestFocus，让 ListView 自身管理焦点
 
         if (channelChangeListener != null) {
             channelChangeListener.onChannelChanged(ch, index);
@@ -391,13 +391,13 @@ public class ChannelPanelController {
             }
 
             if (isPanelOpen()) {
-                // 已删除所有焦点同步与申请
-                // 只保留滚动到当前播放频道
+                // ✅ 打开面板时，主动把焦点交给频道列表
+                lvChannelList.requestFocus();
+                // 滚动到当前播放频道
                 lvChannelList.setSelection(getChannelListSelection());
             } else {
-                if (panelLayout != null) {
-                    panelLayout.clearFocus();
-                }
+                // ❌ 移除 clearFocus，让焦点自然回到播放器
+                // panelLayout.clearFocus();
             }
         }, 100);
 
@@ -448,12 +448,13 @@ public class ChannelPanelController {
             rightPanelOpen = true;
             epgPanelOpen = true;
             channelListManagerEpg.setChannels(channelSourceList, currentPlayIndex);
-            // 已删除焦点同步
             if (!channelSourceList.isEmpty()
                     && currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                 Channel curr = channelSourceList.get(currentPlayIndex);
                 epgManagerWrapper.refresh(curr, channelSourceList, currentSelectedDateIndex);
             }
+            // ✅ 切换到 EPG 面板时，把焦点交给 EPG 列表
+            panelLayout.post(() -> lvEpg.requestFocus());
         } else {
             if (llRightPanel != null) {
                 llRightPanel.setVisibility(View.GONE);
@@ -463,7 +464,8 @@ public class ChannelPanelController {
             }
             rightPanelOpen = false;
             epgPanelOpen = false;
-            // 已删除焦点同步
+            // ✅ 切回左侧时，把焦点交给频道列表
+            panelLayout.post(() -> lvChannelList.requestFocus());
         }
     }
 
@@ -473,7 +475,8 @@ public class ChannelPanelController {
             if (llLeftPanel != null) llLeftPanel.setVisibility(View.VISIBLE);
             rightPanelOpen = false;
             epgPanelOpen = false;
-            // 已删除焦点同步
+            // ✅ 切回左侧时，把焦点交给频道列表
+            panelLayout.post(() -> lvChannelList.requestFocus());
         }
     }
 
@@ -513,8 +516,6 @@ public class ChannelPanelController {
             return 0;
         }
     }
-
-    // handleBackPressed 已删除，因为不再处理按键
 
     public void onPlaySuccess() {
         isSwitchingChannel = false;
@@ -556,12 +557,13 @@ public class ChannelPanelController {
         return isReverse;
     }
 
-    // dispatchKeyEvent 已删除
+    // dispatchKeyEvent 已删除，现在由 MainActivity 转发
 
     public void clearPanelFocus() {
-        if (panelLayout != null) {
-            panelLayout.clearFocus();
-        }
+        // ❌ 不再清除焦点，避免遥控器断连
+        // if (panelLayout != null) {
+        //     panelLayout.clearFocus();
+        // }
     }
 
     public void setOnChannelChangeListener(OnChannelChangeListener listener) {
