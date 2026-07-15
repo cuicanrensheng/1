@@ -175,7 +175,46 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    // ✅ 新增：在面板打开时优先让面板处理按键（防止播放器拦截方向键）
+    // ================================================================
+    // ✅ 新增：遥控器按键直接打开面板/设置
+    // ================================================================
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // 如果面板打开，让面板优先处理按键（方向键等）
+        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+            // 方向键和确定键由 ListView 自己处理，不需要拦截
+            // 但菜单键、设置键等仍可触发面板/设置
+        }
+
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_MENU:
+                // 菜单键：切换频道面板
+                if (channelPanelController != null) {
+                    channelPanelController.togglePanel();
+                    return true;
+                }
+                break;
+
+            case KeyEvent.KEYCODE_SETTINGS:
+                // 设置键：打开设置页面
+                openSettings();
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+                // 确定键：如果面板未打开，则打开面板（可选）
+                if (channelPanelController != null && !channelPanelController.isPanelOpen()) {
+                    channelPanelController.togglePanel();
+                    return true;
+                }
+                break;
+
+            default:
+                break;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    // ✅ 之前已有的 dispatchKeyEvent（面板打开时优先让面板处理按键）
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
@@ -185,6 +224,10 @@ public class MainActivity extends AppCompatActivity {
         }
         return super.dispatchKeyEvent(event);
     }
+
+    // ================================================================
+    // 以下方法保持原有逻辑，无改动
+    // ================================================================
 
     public void showLogWindow() {
         if (logWindowVisible) return;
