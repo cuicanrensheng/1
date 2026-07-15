@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
 设置页面布局（右侧滑出式菜单风格）
-【2026-07-15 修改：解决设置页面黑屏有声音问题】
-- 根布局背景从透明改为半透明黑色
-- 让播放器画面能够透出，同时保持设置界面清晰可见
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#80000000">  <!-- 🟢 50% 透明度黑色背景 -->
+    android:background="@android:color/transparent">
 
     <!-- 左侧空白区域（点击关闭） -->
     <View
@@ -20,6 +17,7 @@
         android:focusable="false" />
 
     <!-- 设置面板 -->
+    <!-- ✅【关键修改】新增 android:scrollbars="none"，彻底解决设置页 ScrollView 的 mutate() 空指针崩溃 -->
     <ScrollView
         android:id="@+id/settings_content"
         android:layout_width="240dp"
@@ -453,3 +451,4 @@
         </LinearLayout>
     </ScrollView>
 </FrameLayout>
+
