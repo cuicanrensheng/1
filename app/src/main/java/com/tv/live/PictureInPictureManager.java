@@ -35,7 +35,6 @@ public class PictureInPictureManager {
     private boolean onStopCalled = false;
     private boolean isReturnFromBackgroundPip = false;
     
-    // 🟢 主线程 Handler，用于延迟检测
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private OnPipListener listener;
@@ -239,7 +238,6 @@ public class PictureInPictureManager {
                 try { releaseAction.run(); } catch (Exception ignored) {}
             }
         } else {
-            // 🟢 优化：确保 activity 非空且前台恢复
             if (isReturnFromBackgroundPip && activity != null && !activity.isFinishing()) {
                 restoreGestureAndChannelSwitch(activity);
             }
@@ -259,7 +257,6 @@ public class PictureInPictureManager {
         try {
             hideAllUi(channelPanelController, infoDisplayManager);
             
-            // 🟢【核心修复】强制禁用 ExoPlayer 控制栏功能，防止点击小窗时弹出
             if (playerView != null) {
                 playerView.setUseController(false);
             }
@@ -272,7 +269,7 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 🟢【核心优化】处理退出画中画的 UI 恢复（精简重绘，防止任务堆积）
+    // 处理退出画中画的 UI 恢复
     // ====================================================================
     public void handleExitPipRestore(Activity activity,
                                      DisplayManager displayManager,
@@ -287,28 +284,25 @@ public class PictureInPictureManager {
             }
 
             if (playerView != null) {
-                // 🟢【优化1】用单次 requestLayout 替代多重重绘
                 playerView.post(() -> {
                     try {
                         playerView.requestLayout();
                     } catch (Exception ignored) {}
                 });
 
-                // 🟢【优化2】合并为单次延迟，避免连续两个 Handler 堆积
                 playerView.postDelayed(() -> {
                     try {
                         playerView.requestLayout();
                         keepPlaying(playerManager, playerView, channelSourceList, currentPlayIndex);
                         
-                        // 🟢【优化3】将 200ms 和 300ms 合并为 300ms 一次性恢复
                         mainHandler.postDelayed(() -> {
                             if (activity != null && !activity.isFinishing()) {
                                 restoreGestureAndChannelSwitch(activity);
                             }
-                        }, 100); // 最终 100ms 后恢复交互，总延迟约 400ms，平衡且不再堆积
+                        }, 100);
                         
                     } catch (Exception ignored) {}
-                }, 300); // 原 200 改为 300，留足渲染时间
+                }, 300);
             }
 
             if (infoDisplayManager != null && channelSourceList != null 
@@ -316,7 +310,6 @@ public class PictureInPictureManager {
                 Channel currChannel = channelSourceList.get(currentPlayIndex);
                 TVPlayerManager.LiveInfo liveInfo = (playerManager != null) ? playerManager.getLiveInfo() : null;
                 infoDisplayManager.showInfoBar(currChannel, liveInfo);
-                infoDisplayManager.showChannelNum(currentPlayIndex + 1);
             }
 
             if (activity != null) {
@@ -365,7 +358,7 @@ public class PictureInPictureManager {
             }
             if (infoDisplayManager != null) {
                 infoDisplayManager.hideInfoBar();
-                infoDisplayManager.hideChannelNum();
+                // ✅ 已删除 infoDisplayManager.hideChannelNum(); 
             }
         } catch (Exception ignored) {}
     }
@@ -408,10 +401,10 @@ public class PictureInPictureManager {
     }
 
     // ====================================================================
-    // 🟢【修复5】彻底解决内存泄漏：释放资源时清空所有 Handler 任务
+    // 彻底解决内存泄漏
     // ====================================================================
     public void release() {
-        mainHandler.removeCallbacksAndMessages(null); // 关键修复：清除所有延迟任务！
+        mainHandler.removeCallbacksAndMessages(null);
         listener = null;
         interactionRestoreListener = null;
         isInPipMode = false;
