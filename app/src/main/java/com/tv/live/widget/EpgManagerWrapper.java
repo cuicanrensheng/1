@@ -38,7 +38,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * EPG 节目单包装管理器（已修复播放中与选中背景冲突）
+ * EPG 节目单包装管理器（修复：统一焦点与选中样式，去除播放中背景冲突）
  */
 public class EpgManagerWrapper {
     private final ListView lvEpg;
@@ -62,7 +62,7 @@ public class EpgManagerWrapper {
         lvEpg.setItemsCanFocus(true);
         lvEpg.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         
-        // 方向键移动：仅聚焦（移动高亮）
+        // 方向键移动：同步选中状态，自动触发浅蓝背景
         lvEpg.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
@@ -89,16 +89,16 @@ public class EpgManagerWrapper {
             }
         });
 
-        // 触摸点击/遥控器确认键逻辑：第一次聚焦，第二次确认
+        // 触摸/确认键：第一下移动（显示浅蓝背景+蓝字加粗），第二下确认执行
         lvEpg.setOnItemClickListener((parent, view, position, id) -> {
             if (position == selectedPosition) {
-                // 第二次点击确认：模拟点击该行右侧的“操作按钮”（回看/预约）
+                // ✅ 第二次点击确认：执行回看/预约
                 TextView actionBtn = view.findViewById(R.id.tv_action);
                 if (actionBtn != null && actionBtn.isEnabled()) {
                     actionBtn.performClick();
                 }
             } else {
-                // 第一次点击聚焦：只移动高亮
+                // ✅ 第一次点击聚焦：只移动高亮，立刻显示浅蓝色背景
                 selectedPosition = position;
                 if (adapter != null) {
                     adapter.notifyDataSetChanged();
@@ -427,29 +427,23 @@ public class EpgManagerWrapper {
             boolean isFocused = isSelected && lvEpg.hasFocus();
             boolean isPlaying = item.isPlaying && dayIndex == 0;
 
-            if (isFocused) {
-                // 焦点状态：蓝字 + 常规 + 透明背景
-                holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_title.setTypeface(null, Typeface.NORMAL);
-                convertView.setBackgroundColor(Color.TRANSPARENT);
-            } else if (isSelected) {
-                // 选中状态：蓝字 + 加粗 + 浅蓝色背景
+            // ✅【核心修复】合并焦点与选中状态，光标移动到此即显示浅蓝色背景
+            if (isFocused || isSelected) {
+                // ✅ 状态：蓝字 + 加粗 + 浅蓝色背景（符合您要求的第一下移动即选中）
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(0x6640A9FF);
             } else if (isPlaying) {
-                // ✅【修改】播放中状态：蓝字 + 加粗 + 透明背景（彻底移除背景，只靠右侧按钮标识）
+                // ✅ 播放中状态：蓝字 + 加粗 + 透明背景（仅保留文字，避免和选中状态背景重叠）
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             } else {
-                // 未选中状态：白字 + 常规 + 透明背景
+                // ✅ 未选中状态：白字 + 常规 + 透明背景
                 holder.tv_dayName.setTextColor(Color.WHITE);
                 holder.tv_time.setTextColor(Color.LTGRAY);
                 holder.tv_title.setTextColor(Color.WHITE);
