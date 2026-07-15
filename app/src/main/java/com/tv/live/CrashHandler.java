@@ -1,6 +1,6 @@
 package com.tv.live;
 
-import android.annotation.SuppressLint; // 🟢 新增导入
+import android.annotation.SuppressLint;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 全局崩溃捕获器
+ * 全局崩溃捕获器（已修复主线程阻塞导致的ANR问题）
  *
  * 【功能清单】
  * 1. ✅ 捕获应用未处理的异常
@@ -46,7 +46,7 @@ import java.util.Locale;
  * 如果需要自动重启，可以调用：
  * CrashHandler.getInstance().setAutoRestartEnabled(true);
  */
-@SuppressLint("StaticFieldLeak") // 🟢【关键修复】忽略 Lint 的静态 Context 持有警告（此处为 ApplicationContext，无内存泄漏风险）
+@SuppressLint("StaticFieldLeak")
 public class CrashHandler implements Thread.UncaughtExceptionHandler {
 
     private static final String TAG = "CrashHandler";
@@ -172,7 +172,7 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
     }
 
     // ====================================================================
-    // 核心：崩溃处理
+    // 核心：崩溃处理（已修复主线程阻塞）
     // ====================================================================
 
     /**
@@ -183,9 +183,8 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
      * 2. 保存到静态变量（供 CrashActivity 显示）
      * 3. 保存到本地文件（持久化）
      * 4. 启动崩溃页面（显示崩溃原因）
-     * 5. 等待 1 分钟（让用户查看）
-     * 6. 自动重启应用（如果开启了）
-     * 7. 杀死当前进程
+     * 5. 子线程延迟 1 分钟，然后自动重启或退出
+     * 6. 主线程直接返回，避免阻塞
      */
     @Override
     public void uncaughtException(Thread thread, Throwable ex) {
@@ -207,7 +206,7 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
             saveCrashLogToFile(crashLog);
 
             // ================================================================
-            // 第四步：同步到播放日志（设置页面能看到）【已修改，替换为原生 Logcat】
+            // 第四步：同步到播放日志（设置页面能看到）
             // ================================================================
             try {
                 Log.e(TAG, "【崩溃】" + ex.getClass().getName() + ": " + ex.getMessage());
@@ -221,25 +220,27 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
             startCrashActivity();
 
             // ================================================================
-            // 第六步：等待 1 分钟（让用户有时间查看崩溃原因）
+            // 第六步：在子线程中处理延迟和重启/退出（避免阻塞主线程）
             // ================================================================
-            try {
-                Thread.sleep(CRASH_PAGE_DISPLAY_DURATION);
-            } catch (InterruptedException ignored) {}
+            new Thread(() -> {
+                try {
+                    // 等待 1 分钟，让用户查看崩溃信息
+                    Thread.sleep(CRASH_PAGE_DISPLAY_DURATION);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
 
-            // ================================================================
-            // 第七步：自动重启应用（如果开启了）
-            // ================================================================
-            if (autoRestartEnabled) {
-                restartApp();
-            }
+                // 如果开启了自动重启，则重启应用
+                if (autoRestartEnabled) {
+                    restartApp();
+                }
 
-            // ================================================================
-            // 第八步：杀死当前进程
-            // ================================================================
-            Process.killProcess(Process.myPid());
-            System.exit(1);
+                // 杀死当前进程
+                Process.killProcess(Process.myPid());
+                System.exit(1);
+            }).start();
 
+            // 主线程直接返回，不再执行任何阻塞操作
         } catch (Exception e) {
             Log.e(TAG, "崩溃处理失败", e);
             // 如果自定义处理失败，交给系统默认处理
