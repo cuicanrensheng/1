@@ -61,7 +61,6 @@ public class MainActivity extends AppCompatActivity {
     private ChannelPanelController channelPanelController;
     private AppCoreManager appCoreManager;
     private TvRemoteManager remoteManager;
-    private KeyEventManager keyEventManager;  // 🟢 新增：老版本兼容层
     private PictureInPictureManager pipManager;
     private View panelLayout;
 
@@ -289,9 +288,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void initRemoteManager() {
         remoteManager = new TvRemoteManager();
-        // 🟢【新增】将 remoteManager 传递给 KeyEventManager，实现桥接
-        keyEventManager = new KeyEventManager(this, remoteManager);
-        
         remoteManager.setMode(TvRemoteManager.Mode.PLAY_MODE);
         remoteManager.setOnRemoteActionListener(new TvRemoteManager.OnRemoteActionListener() {
             @Override public void onPlayChannelUp() {
@@ -783,14 +779,14 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 🟢【核心修复】统一按键入口：优先交给 KeyEventManager（它会自动桥接到 TvRemoteManager）
-        if (keyEventManager != null && keyEventManager.dispatchKey(keyCode)) {
+        // ✅ 直接使用 remoteManager，不要用 keyEventManager
+        if (remoteManager != null && remoteManager.dispatchKeyEvent(keyCode)) {
             return true;
         }
 
-        // 🟢【修复】如果面板处于打开状态，不再继续处理数字键等其他逻辑
+        // 面板打开时拦截所有未被处理的按键
         if (isPanelOpen()) {
-            return true; // 面板打开时，拦截所有未被处理的按键
+            return true;
         }
 
         if (number_channel_enable && action == KeyEvent.ACTION_DOWN
@@ -978,11 +974,6 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.release();
         }
 
-        // 🟢【修复】释放 KeyEventManager
-        if (keyEventManager != null) {
-            keyEventManager = null;
-        }
-
         if (exitMenuDialog != null) {
             if (exitMenuDialog.isShowing()) {
                 exitMenuDialog.dismiss();
@@ -999,4 +990,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
- }
+}
