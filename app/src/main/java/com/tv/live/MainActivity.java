@@ -13,6 +13,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.LayoutInflater;   // ✅ 关键导入已补全
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -299,7 +300,6 @@ public class MainActivity extends AppCompatActivity {
                 tv_bitrate, tv_current_program_name, tv_current_time_range, progress_program,
                 tv_remaining_time, tv_next_program_name, tv_next_time_range
         );
-        // 数字切台功能已移除，不设置监听器
     }
 
     private void initChannelPanelController() {
@@ -569,6 +569,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        // ✅ 这里就是行号 572，现在 LayoutInflater 已正确导入
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_exit_menu, null);
         builder.setView(view);
 
@@ -653,9 +654,6 @@ public class MainActivity extends AppCompatActivity {
 
         startActivity(new Intent(this, SettingsActivity.class));
     }
-
-    // 所有按键相关方法（dispatchKeyEvent、onKeyDown、onKeyLongPress）已删除
-    // 仅保留触摸交互
 
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
