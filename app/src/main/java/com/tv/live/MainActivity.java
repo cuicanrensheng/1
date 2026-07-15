@@ -668,16 +668,6 @@ public class MainActivity extends AppCompatActivity {
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        return super.onKeyDown(keyCode, event);
-    }
-
-    @Override
-    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        return super.onKeyLongPress(keyCode, event);
-    }
-
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
     }
@@ -816,4 +806,4 @@ public class MainActivity extends AppCompatActivity {
             unlockReceiver = null;
         }
     }
-}
+                    }
