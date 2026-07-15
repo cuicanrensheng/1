@@ -149,16 +149,15 @@ public class SettingsActivity extends AppCompatActivity {
                 getWindow().setAttributes(lp);
             }
         } catch (Exception e) { }
-        try {
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-            layoutParams.dimAmount = 0f;
-            getWindow().setAttributes(layoutParams);
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        } catch (Exception e) { }
+        
+        // 🟢【修复2】设置半透明背景，让播放器画面可见
+        WindowManager.LayoutParams lp = getWindow().getAttributes();
+        lp.dimAmount = 0.3f;
+        getWindow().setAttributes(lp);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-
+        
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         setContentView(R.layout.activity_settings);
         View viewOutside = findViewById(R.id.view_outside);
@@ -1108,4 +1107,3 @@ public class SettingsActivity extends AppCompatActivity {
         itemTextViews = null;
     }
     }
-
