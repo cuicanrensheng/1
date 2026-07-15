@@ -38,7 +38,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * EPG 节目单包装管理器（已修复：播放中浅蓝背景、列表项首次聚焦/二次确认交互）
+ * EPG 节目单包装管理器（已修复播放中与选中背景冲突）
  */
 public class EpgManagerWrapper {
     private final ListView lvEpg;
@@ -89,16 +89,16 @@ public class EpgManagerWrapper {
             }
         });
 
-        // ✅【新增】触摸点击/遥控器确认键逻辑：第一次聚焦，第二次确认
+        // 触摸点击/遥控器确认键逻辑：第一次聚焦，第二次确认
         lvEpg.setOnItemClickListener((parent, view, position, id) -> {
             if (position == selectedPosition) {
-                // ✅ 第二次点击确认：模拟点击该行右侧的“操作按钮”（回看/预约）
+                // 第二次点击确认：模拟点击该行右侧的“操作按钮”（回看/预约）
                 TextView actionBtn = view.findViewById(R.id.tv_action);
                 if (actionBtn != null && actionBtn.isEnabled()) {
                     actionBtn.performClick();
                 }
             } else {
-                // ✅ 第一次点击聚焦：只移动高亮
+                // 第一次点击聚焦：只移动高亮
                 selectedPosition = position;
                 if (adapter != null) {
                     adapter.notifyDataSetChanged();
@@ -442,12 +442,12 @@ public class EpgManagerWrapper {
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(0x6640A9FF);
             } else if (isPlaying) {
-                // ✅【修改】播放中状态：蓝字 + 加粗 + 浅蓝色背景（增加背景显示）
+                // ✅【修改】播放中状态：蓝字 + 加粗 + 透明背景（彻底移除背景，只靠右侧按钮标识）
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
-                convertView.setBackgroundColor(0x6640A9FF);
+                convertView.setBackgroundColor(Color.TRANSPARENT);
             } else {
                 // 未选中状态：白字 + 常规 + 透明背景
                 holder.tv_dayName.setTextColor(Color.WHITE);
