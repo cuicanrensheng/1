@@ -17,34 +17,22 @@ import java.util.Calendar;
 import java.util.List;
 
 /**
- * 日期列表管理器
+ * 日期列表管理器（已移除遥控器焦点）
  */
 public class DateListManager {
-    /** 日期列表 ListView */
     private final ListView lvDate;
-    /** 上下文 */
     private Context context;
-    /** 当前选中位置 */
     private int selectedPosition = 0;
-    /** 日期选中监听器 */
     private OnDateSelectedListener listener;
-    /** 列表适配器 */
     private ArrayAdapter<String> adapter;
-    /** 显示的日期文本列表 */
     private List<String> dateDisplayList;
 
     private static final int COLOR_BLUE = 0xFF40A9FF;
     private static final int COLOR_BG_BLUE = 0x3340A9FF;
     private static final int COLOR_WHITE = 0xFFFFFFFF;
 
-    /**
-     * 当前列表是否有焦点
-     */
-    private boolean hasFocus = false;
+    // hasFocus 已删除
 
-    /**
-     * 日期选中监听器接口
-     */
     public interface OnDateSelectedListener {
         void onDateSelected(int position);
     }
@@ -53,46 +41,17 @@ public class DateListManager {
         this.listener = listener;
     }
 
-    /**
-     * 构造函数
-     */
     public DateListManager(Context context, ListView lvDate) {
         this.context = context;
         this.lvDate = lvDate;
         lvDate.setItemsCanFocus(false);
         lvDate.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
-        lvDate.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
-                selectedPosition = pos;
-                if (adapter != null) {
-                    adapter.notifyDataSetChanged();
-                }
-            }
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
+        // 已删除 setOnItemSelectedListener
     }
 
-    /**
-     * 设置当前列表是否有焦点
-     */
-    public void setFocused(boolean focused) {
-        if (this.hasFocus == focused) return;
-        this.hasFocus = focused;
-        if (adapter != null) {
-            adapter.notifyDataSetChanged();
-        }
-    }
+    // setFocused / isFocused 已删除
 
-    public boolean isFocused() {
-        return hasFocus;
-    }
-
-    /**
-     * 初始化日期列表（8天）
-     */
     public void initDate() {
         dateDisplayList = new ArrayList<>();
         Calendar cal = Calendar.getInstance();
@@ -130,15 +89,9 @@ public class DateListManager {
                 tv.setGravity(android.view.Gravity.CENTER);
 
                 if (position == selectedPosition) {
-                    if (hasFocus) {
-                        tv.setTextColor(COLOR_BLUE);
-                        tv.setTypeface(null, Typeface.BOLD);
-                        tv.setBackgroundColor(COLOR_BG_BLUE);
-                    } else {
-                        tv.setTextColor(COLOR_BLUE);
-                        tv.setTypeface(null, Typeface.BOLD);
-                        tv.setBackgroundColor(Color.TRANSPARENT);
-                    }
+                    tv.setTextColor(COLOR_BLUE);
+                    tv.setTypeface(null, Typeface.BOLD);
+                    tv.setBackgroundColor(COLOR_BG_BLUE);
                 } else {
                     tv.setTextColor(COLOR_WHITE);
                     tv.setTypeface(null, Typeface.NORMAL);
@@ -159,9 +112,6 @@ public class DateListManager {
         });
     }
 
-    /**
-     * 设置选中位置
-     */
     public void setSelectedPosition(int position) {
         if (dateDisplayList == null || adapter == null) return;
         if (position < 0 || position >= dateDisplayList.size()) return;
@@ -173,7 +123,6 @@ public class DateListManager {
         }
     }
 
-    // 🛠️【新增】释放资源切断引用
     public void release() {
         if (adapter != null) {
             adapter.clear();
@@ -181,7 +130,6 @@ public class DateListManager {
         }
         if (lvDate != null) {
             lvDate.setAdapter(null);
-            lvDate.setOnItemSelectedListener(null);
             lvDate.setOnItemClickListener(null);
         }
         if (dateDisplayList != null) {
