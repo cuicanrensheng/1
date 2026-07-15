@@ -21,10 +21,11 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 信息展示管理器（已移除数字输入、遥控器按键相关逻辑）
+ * 信息展示管理器（已恢复频道号显示与自动隐藏）
  */
 public class InfoDisplayManager {
     private static final long INFO_BAR_HIDE_DELAY = 3000;
+    private static final long CHANNEL_NUM_HIDE_DELAY = 3000; // ✅ 新增：频道号隐藏延迟
     private static final long PROGRAM_PROGRESS_INTERVAL = 30000;
 
     private Context context;
@@ -53,7 +54,13 @@ public class InfoDisplayManager {
         }
     };
 
-    // 已删除 hideChannelNumTask 和数字输入相关
+    // ✅【恢复】频道号自动隐藏任务
+    private final Runnable hideChannelNumTask = new Runnable() {
+        @Override
+        public void run() {
+            if(tvChannelNum != null) tvChannelNum.setVisibility(View.GONE);
+        }
+    };
 
     private final Runnable refreshProgressTask = new Runnable() {
         @Override
@@ -64,8 +71,6 @@ public class InfoDisplayManager {
             mainHandler.postDelayed(this, PROGRAM_PROGRESS_INTERVAL);
         }
     };
-
-    // 已删除所有数字输入相关成员（channelNumInput, totalChannelCount, numberSelectedListener等）
 
     public InfoDisplayManager(Context context,
                               TextView tvChannelNum,
@@ -96,20 +101,24 @@ public class InfoDisplayManager {
         if(tvTagAudio != null){
             tvTagAudio.setText("立体声");
         }
-        // 已删除数字输入相关监听器设置
     }
 
-    // 已删除 setTotalChannelCount、setOnChannelNumberSelectedListener、isNumberInputting、handleNumberKey、confirmChannelNum、cancelNumberInput、keyCodeToNumber
-
-    // 保留 showChannelNum 只是为了显示频道号，但不依赖数字键输入
+    // ✅【恢复】显示频道号并开始倒计时隐藏
     public void showChannelNum(int num){
         if(tvChannelNum == null) return;
         tvChannelNum.setText(String.valueOf(num));
         tvChannelNum.setVisibility(View.VISIBLE);
-        // 已删除自动隐藏 task，因为不需要
+        // 取消之前的隐藏任务，重新开始计时
+        mainHandler.removeCallbacks(hideChannelNumTask);
+        mainHandler.postDelayed(hideChannelNumTask, CHANNEL_NUM_HIDE_DELAY);
     }
 
-    // hideChannelNum 已删除（不再需要）
+    // ✅【恢复】手动隐藏频道号
+    public void hideChannelNum(){
+        if(tvChannelNum == null) return;
+        mainHandler.removeCallbacks(hideChannelNumTask);
+        tvChannelNum.setVisibility(View.GONE);
+    }
 
     public void showInfoBar(Channel channel, TVPlayerManager.LiveInfo liveInfo){
         if(infoBar == null || channel == null) return;
