@@ -79,7 +79,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    // ✅ 新增：记录当前选中的设置项下标
+    // 记录当前选中的设置项下标
     private int selectedItemPosition = 0;
 
     @Override
@@ -142,7 +142,7 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe = findViewById(R.id.item_live_subscribe);
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
-        // ✅ 调用新的初始化方法
+        // 调用新的初始化方法
         initSettingsItemList();
 
         tv_channel_line = findViewById(R.id.tv_channel_line);
@@ -177,8 +177,7 @@ public class SettingsActivity extends AppCompatActivity {
         updateRendererModeText(rendererMode);
         updateRedirectSettingText();
 
-        // 初始触发一次默认选中项，让用户一进来就能看到“开机自启”已被选中并触发
-        performItemAction(selectedItemPosition);
+        // ✅ 注意：这里不再自动执行 performItemAction()，避免应用启动就触发开关。
 
         // 其他监听器保持不变
         itemResolution.setOnClickListener(v -> showResolutionDialog());
@@ -199,7 +198,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅ 核心修改：初始化并绑定“选中”状态，实现高亮跟随
+    // ✅ 核心修改：区分“聚焦”（移动高亮）和“确认”（执行功能）
     // ================================================================
     private void initSettingsItemList() {
         // 1. 把所有设置项放入数组
@@ -220,19 +219,33 @@ public class SettingsActivity extends AppCompatActivity {
             findViewById(R.id.item_log)
         };
 
-        // 2. 统一设置背景选择器（XML会自动处理选中状态）
+        // 2. 统一设置背景选择器
         for (View item : items) {
             item.setBackgroundResource(R.drawable.item_settings_bg);
             item.setFocusable(true);
             item.setClickable(true);
+        }
 
-            // 确保遥控器焦点也有反馈（焦点状态下，背景透明，文字变蓝由XML处理）
+        // 3. 遥控器焦点监听器：方向键移动时，只移动高亮（聚焦），不执行功能
+        for (int i = 0; i < items.length; i++) {
+            View item = items[i];
+            int finalI = i;
             item.setOnFocusChangeListener((v, hasFocus) -> {
+                if (hasFocus) {
+                    // 聚焦时，更新高亮到当前项
+                    if (selectedItemPosition != finalI) {
+                        items[selectedItemPosition].setSelected(false);
+                        items[finalI].setSelected(true);
+                        selectedItemPosition = finalI;
+                    }
+                }
                 v.setBackgroundResource(R.drawable.item_settings_bg);
             });
         }
 
-        // 3. 全局点击事件：移动高亮并执行对应操作
+        // 4. 触摸点击/遥控器确定键监听器：
+        //    - 点击的是当前高亮项 ➔ 执行功能（确认）
+        //    - 点击的是另一项 ➔ 只移动高亮（聚焦）
         View.OnClickListener clickListener = v -> {
             int clickedIndex = -1;
             for (int i = 0; i < items.length; i++) {
@@ -241,28 +254,29 @@ public class SettingsActivity extends AppCompatActivity {
                     break;
                 }
             }
-            if (clickedIndex == -1 || clickedIndex == selectedItemPosition) return;
+            if (clickedIndex == -1) return;
 
-            // 移除旧选中
-            items[selectedItemPosition].setSelected(false);
-            // 设置新选中
-            items[clickedIndex].setSelected(true);
-            selectedItemPosition = clickedIndex;
-
-            // 执行功能
-            performItemAction(clickedIndex);
+            if (clickedIndex == selectedItemPosition) {
+                // 二次点击确认
+                performItemAction(clickedIndex);
+            } else {
+                // 第一次点击：只聚焦
+                items[selectedItemPosition].setSelected(false);
+                items[clickedIndex].setSelected(true);
+                selectedItemPosition = clickedIndex;
+            }
         };
 
-        // 4. 绑定点击事件
+        // 5. 绑定点击事件
         for (View item : items) {
             item.setOnClickListener(clickListener);
         }
 
-        // 5. 默认选中第一项
+        // 6. 默认选中第一项
         items[0].setSelected(true);
     }
 
-    // ✅ 新增：根据选中的下标执行对应的功能
+    // ✅ 根据选中的下标执行对应的功能
     private void performItemAction(int index) {
         switch (index) {
             case 0: // 开机自启
