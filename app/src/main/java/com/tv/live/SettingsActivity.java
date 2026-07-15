@@ -17,6 +17,7 @@ import android.os.Looper;
 import android.text.InputFilter;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -693,9 +694,200 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // ===== 完全删除所有按键相关代码 =====
-    // 删除 dispatchKeyEvent、onKeyDown、onKeyUp 等方法
-    // 删除任何 KeyEvent 相关的导入
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // 已移除所有按键处理，只保留返回键退出设置
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            int keyCode = event.getKeyCode();
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                finish();
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        return super.onKeyDown(keyCode, event);
+    }
+
+    private TextView findFirstTextView(ViewGroup viewGroup) {
+        if (viewGroup == null) return null;
+        for (int i = 0; i < viewGroup.getChildCount(); i++) {
+            View child = viewGroup.getChildAt(i);
+            if (child instanceof TextView) {
+                return (TextView) child;
+            } else if (child instanceof ViewGroup) {
+                TextView result = findFirstTextView((ViewGroup) child);
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void showRatioDialog() {
+        final String[] ratios = {"全屏", "填充", "原始"};
+        String currentMode = sp.getString("screen_ratio", "全屏");
+        int checkedItem = 0;
+        for (int i = 0; i < ratios.length; i++) {
+            if (ratios[i].equals(currentMode)) {
+                checkedItem = i;
+                break;
+            }
+        }
+        showDarkSingleChoiceDialog("屏幕比例", ratios, checkedItem, (which) -> {
+            sp.edit().putString("screen_ratio", ratios[which]).apply();
+            Toast.makeText(this, "已设置", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void showDecoderModeDialog() {
+        final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
+        final String[] modeValues = {"auto", "hard", "soft"};
+        String currentMode = sp.getString("decoder_mode", "auto");
+        int checkedItem = 0;
+        for (int i = 0; i < modes.length; i++) {
+            if (modeValues[i].equals(currentMode)) {
+                checkedItem = i;
+                break;
+            }
+        }
+        showDarkSingleChoiceDialog("解码器选择", modes, checkedItem, (which) -> {
+            String selectedMode = modeValues[which];
+            sp.edit().putString("decoder_mode", selectedMode).apply();
+            updateDecoderModeText(selectedMode);
+
+            Intent intent = new Intent("com.tv.live.DECODER_MODE_CHANGED");
+            intent.setPackage(getPackageName());
+            sendBroadcast(intent);
+
+            Toast.makeText(this, "已切换到" + modes[which] + "，正在重新加载…", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void updateDecoderModeText(String mode) {
+        if (tv_decoder_mode == null) return;
+        switch (mode) {
+            case "hard": tv_decoder_mode.setText("硬解"); break;
+            case "soft": tv_decoder_mode.setText("软解"); break;
+            case "auto": default: tv_decoder_mode.setText("自动"); break;
+        }
+    }
+
+    private void showRendererModeDialog() {
+        final String[] modes = {"SurfaceView（默认）", "TextureView（兼容）"};
+        final String[] modeValues = {"surface", "texture"};
+        String currentMode = sp.getString("renderer_type", "surface");
+        int checkedItem = 0;
+        for (int i = 0; i < modes.length; i++) {
+            if (modeValues[i].equals(currentMode)) {
+                checkedItem = i;
+                break;
+            }
+        }
+        showDarkSingleChoiceDialog("渲染方式选择", modes, checkedItem, (which) -> {
+            String selectedMode = modeValues[which];
+            sp.edit().putString("renderer_type", selectedMode).apply();
+            updateRendererModeText(selectedMode);
+
+            Intent intent = new Intent("com.tv.live.RENDERER_TYPE_CHANGED");
+            intent.setPackage(getPackageName());
+            sendBroadcast(intent);
+
+            Toast.makeText(this, "已切换到" + modes[which] + "，正在应用……", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void updateRendererModeText(String mode) {
+        if (tv_renderer_type == null) return;
+        switch (mode) {
+            case "texture": tv_renderer_type.setText("TextureView"); break;
+            case "surface": default: tv_renderer_type.setText("SurfaceView"); break;
+        }
+    }
+
+    private void showRedirectConfigDialog() {
+        int currentMax = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
+        boolean crossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN,true);
+        boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
+        boolean followHeader = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS,true);
+        boolean ignoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL,false);
+        boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+        final String[] currentUaMode = { sp.getString(KEY_USER_AGENT_MODE, "exo") };
+
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_redirect_config, null);
+        EditText etMax = dialogView.findViewById(R.id.et_redirect_max);
+        SwitchCompat swCrossDomain = dialogView.findViewById(R.id.sw_cross_domain);
+        SwitchCompat swCrossProto = dialogView.findViewById(R.id.sw_cross_proto);
+        SwitchCompat swFollowHeader = dialogView.findViewById(R.id.sw_follow_header);
+        SwitchCompat swIgnoreSsl = dialogView.findViewById(R.id.sw_ignore_ssl);
+        SwitchCompat swSendCookie = dialogView.findViewById(R.id.sw_send_cookie);
+        LinearLayout llUserAgent = dialogView.findViewById(R.id.ll_user_agent);
+        TextView tvUserAgentStatus = dialogView.findViewById(R.id.tv_user_agent_status);
+        Button btnCancel = dialogView.findViewById(R.id.btn_redirect_cancel);
+        Button btnSave = dialogView.findViewById(R.id.btn_redirect_save);
+
+        tvUserAgentStatus.setText("exo".equals(currentUaMode[0]) ? "ExoPlayer默认" : "VLC播放器");
+        etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
+        etMax.setText(String.valueOf(currentMax));
+        swCrossDomain.setChecked(crossDomain);
+        swCrossProto.setChecked(crossProto);
+        swFollowHeader.setChecked(followHeader);
+        swIgnoreSsl.setChecked(ignoreSsl);
+        swSendCookie.setChecked(sendCookie);
+
+        llUserAgent.setOnClickListener(v -> {
+            final String[] uaOptions = {"ExoPlayer默认", "VLC播放器"};
+            final String[] uaValues = {"exo", "vlc"};
+            int checkedItem = 0;
+            for (int i = 0; i < uaValues.length; i++) {
+                if (uaValues[i].equals(currentUaMode[0])) {
+                    checkedItem = i;
+                    break;
+                }
+            }
+            showDarkSingleChoiceDialog("UA切换", uaOptions, checkedItem, (which) -> {
+                currentUaMode[0] = uaValues[which];
+                tvUserAgentStatus.setText(uaOptions[which]);
+            });
+        });
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        btnSave.setOnClickListener(v -> {
+            String maxStr = etMax.getText().toString().trim();
+            int newMax = 5;
+            if (!TextUtils.isEmpty(maxStr)) {
+                try {
+                    newMax = Integer.parseInt(maxStr);
+                    if(newMax < 1) newMax = 1;
+                    if(newMax > 20) newMax = 20;
+                }catch (Exception ignored){ newMax =5; }
+            }
+            SharedPreferences.Editor editor = sp.edit();
+            editor.putInt(KEY_REDIRECT_MAX_COUNT, newMax);
+            editor.putBoolean(KEY_REDIRECT_CROSS_DOMAIN, swCrossDomain.isChecked());
+            editor.putBoolean(KEY_REDIRECT_CROSS_PROTOCOL, swCrossProto.isChecked());
+            editor.putBoolean(KEY_REDIRECT_FOLLOW_HEADERS, swFollowHeader.isChecked());
+            editor.putBoolean(KEY_REDIRECT_IGNORE_SSL, swIgnoreSsl.isChecked());
+            editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked());
+            editor.putString(KEY_USER_AGENT_MODE, currentUaMode[0]);
+            editor.apply();
+            updateRedirectSettingText();
+            Toast.makeText(this, "重定向配置保存成功", Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
+    }
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
@@ -727,4 +919,4 @@ public class SettingsActivity extends AppCompatActivity {
         itemTextViews.clear();
         itemTextViews = null;
     }
- }
+  }
