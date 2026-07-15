@@ -3,8 +3,10 @@ package com.tv.live.manager;
 import android.util.Log;
 import android.view.KeyEvent;
 
+import com.tv.live.MainActivity;
+
 /**
- * 电视遥控器统一管理器
+ * 电视遥控器统一管理器（完整版）
  *
  * 【职责】
  * 统一管理所有遥控器按键操作，支持三种模式：
@@ -19,13 +21,12 @@ import android.view.KeyEvent;
  * 4. 边界友好：到达边界时有日志，不崩溃
  * 5. 日志完整：每个按键都记录，方便排查
  *
- * 【使用方式】
- * 1. 创建实例：TvRemoteManager remoteManager = new TvRemoteManager()
- * 2. 设置模式：remoteManager.setMode(Mode.CHANNEL_PANEL_MODE)
- * 3. 设置回调：remoteManager.setOnRemoteActionListener(listener)
- * 4. 分发按键：remoteManager.dispatchKeyEvent(keyCode)
- *
- * 【日志说明】所有日志均使用 android.util.Log.d，Tag 为 "TvRemoteManager"
+ * 【兼容性】
+ * 本类已整合老版本 KeyEventManager 的所有逻辑，包括：
+ * - 换台反转（isChannelReverse()）
+ * - 上下键切换频道（带反转判断）
+ * - OK键切换面板
+ * - Menu键打开设置
  */
 public class TvRemoteManager {
 
@@ -138,6 +139,9 @@ public class TvRemoteManager {
     /** 回调监听器 */
     private OnRemoteActionListener listener;
 
+    /** 持有 MainActivity 引用，用于老版本兼容的回退逻辑 */
+    private MainActivity activity;
+
     // ---------- 频道面板模式相关 ----------
     /** 频道面板当前焦点位置 */
     private PanelFocus currentPanelFocus = PanelFocus.LEFT_CHANNEL;
@@ -154,6 +158,14 @@ public class TvRemoteManager {
 
     public TvRemoteManager() {
         // 默认播放模式
+    }
+
+    /**
+     * 带 Activity 引用的构造函数（用于老版本兼容）
+     * @param activity MainActivity 实例
+     */
+    public TvRemoteManager(MainActivity activity) {
+        this.activity = activity;
     }
 
     // ====================== 模式切换 ======================
@@ -220,7 +232,7 @@ public class TvRemoteManager {
     }
 
     // ====================================================================
-    // 一、播放模式按键处理
+    // 一、播放模式按键处理（含老版本兼容逻辑）
     // ====================================================================
 
     /**
@@ -230,19 +242,33 @@ public class TvRemoteManager {
      */
     private boolean dispatchPlayKey(int keyCode) {
         switch (keyCode) {
-            // 上键：上一台
+            // 上键：加上反转判断 + 日志
             case KeyEvent.KEYCODE_DPAD_UP:
-                Log.d(TAG, "播放模式 上键 → 上一台");
+                Log.d(TAG, "播放模式 上键 → 反转状态：" + (activity != null && activity.isChannelReverse() ? "开启" : "关闭"));
                 if (listener != null) {
                     listener.onPlayChannelUp();
+                } else if (activity != null) {
+                    // 老版本兼容：直接调用 activity 方法
+                    if (activity.isChannelReverse()) {
+                        activity.playNext();  // 反转开启：上键 = 下一台
+                    } else {
+                        activity.playPrev();  // 反转关闭：上键 = 上一台
+                    }
                 }
                 return true;
 
-            // 下键：下一台
+            // 下键：加上反转判断 + 日志
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                Log.d(TAG, "播放模式 下键 → 下一台");
+                Log.d(TAG, "播放模式 下键 → 反转状态：" + (activity != null && activity.isChannelReverse() ? "开启" : "关闭"));
                 if (listener != null) {
                     listener.onPlayChannelDown();
+                } else if (activity != null) {
+                    // 老版本兼容：直接调用 activity 方法
+                    if (activity.isChannelReverse()) {
+                        activity.playPrev();  // 反转开启：下键 = 上一台
+                    } else {
+                        activity.playNext();  // 反转关闭：下键 = 下一台
+                    }
                 }
                 return true;
 
@@ -252,6 +278,8 @@ public class TvRemoteManager {
                 Log.d(TAG, "播放模式 OK键 → 切换面板");
                 if (listener != null) {
                     listener.onPlayTogglePanel();
+                } else if (activity != null) {
+                    activity.togglePanel();
                 }
                 return true;
 
@@ -261,6 +289,8 @@ public class TvRemoteManager {
                 Log.d(TAG, "播放模式 左右键 → 切换面板");
                 if (listener != null) {
                     listener.onPlayTogglePanel();
+                } else if (activity != null) {
+                    activity.togglePanel();
                 }
                 return true;
 
@@ -269,6 +299,8 @@ public class TvRemoteManager {
                 Log.d(TAG, "播放模式 菜单键 → 打开设置");
                 if (listener != null) {
                     listener.onPlayOpenSettings();
+                } else if (activity != null) {
+                    activity.openSettings();
                 }
                 return true;
 
@@ -658,5 +690,4 @@ public class TvRemoteManager {
         settingsFocusPosition = 0;
         Log.d(TAG, "重置设置焦点到第一项");
     }
-}
-
+}  
