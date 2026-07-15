@@ -847,7 +847,7 @@ public class SettingsActivity extends AppCompatActivity {
         Button btnCancel = dialogView.findViewById(R.id.btn_redirect_cancel);
         Button btnSave = dialogView.findViewById(R.id.btn_redirect_save);
 
-        tvUserAgentStatus.setText("exo".equals(currentUaMode[0]) ? "ExoPlayer默认" : "VLC播放器");
+        tvUserAgentStatus.setText("exo".equals(currentUaMode[0]) ? "ExoPlayer默认" : "VLC");
         etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
         etMax.setText(String.valueOf(currentMax));
         swCrossDomain.setChecked(crossDomain);
@@ -857,7 +857,7 @@ public class SettingsActivity extends AppCompatActivity {
         swSendCookie.setChecked(sendCookie);
 
         llUserAgent.setOnClickListener(v -> {
-            final String[] uaOptions = {"ExoPlayer默认", "VLC播放器"};
+            final String[] uaOptions = {"ExoPlayer默认", "VLC"};
             final String[] uaValues = {"exo", "vlc"};
             int checkedItem = 0;
             for (int i = 0; i < uaValues.length; i++) {
