@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Iterator; // ✅ 新增导入
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +56,11 @@ public class JsonPlaylistParser {
         // 格式1：咪咕/移动格式 {"live": { "CCTV1": {...} }}
         if (root.has("live")) {
             JSONObject liveObj = root.getJSONObject("live");
-            for (String key : liveObj.keySet()) {
+
+            // ✅【修复点】用 Iterator 替代 keySet() 增强 for 循环，解决旧版 Android 编译报错
+            Iterator<String> keys = liveObj.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
                 JSONObject item = liveObj.getJSONObject(key);
                 String name = item.optString("name", key);
                 String url = item.optString("url", "");
