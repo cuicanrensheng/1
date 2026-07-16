@@ -10,6 +10,9 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 专门针对 { "live": { "分组": [ ... ] } } 格式的 JSON 直播源解析器
+ */
 public class JsonLiveParser {
 
     public static List<Channel> parse(String url) throws Exception {
