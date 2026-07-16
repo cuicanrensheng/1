@@ -8,16 +8,9 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Iterator; // ✅ 新增导入
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
-/**
- * 万能 JSON 直播源解析器
- * 兼容：咪咕移动({"live":{}})、TVBox标准({"channels":[]})、纯数组等格式
- */
-public class JsonPlaylistParser {
+public class JsonLiveParser {
 
     public static List<Channel> parse(String url) throws Exception {
         StringBuilder content = new StringBuilder();
@@ -30,7 +23,7 @@ public class JsonPlaylistParser {
             conn.setReadTimeout(10000);
             conn.setRequestMethod("GET");
             conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-            
+
             int responseCode = conn.getResponseCode();
             if (responseCode != 200) {
                 throw new Exception("HTTP 错误: " + responseCode);
@@ -50,65 +43,60 @@ public class JsonPlaylistParser {
     }
 
     public static List<Channel> parseContent(String content) throws Exception {
-        Map<String, Channel> channelMap = new LinkedHashMap<>();
+        List<Channel> channelList = new ArrayList<>();
         JSONObject root = new JSONObject(content);
 
-        // 格式1：咪咕/移动格式 {"live": { "CCTV1": {...} }}
+        // 1. 找到最外层的 "live"
         if (root.has("live")) {
             JSONObject liveObj = root.getJSONObject("live");
 
-            // ✅【修复点】用 Iterator 替代 keySet() 增强 for 循环，解决旧版 Android 编译报错
-            Iterator<String> keys = liveObj.keys();
-            while (keys.hasNext()) {
-                String key = keys.next();
-                JSONObject item = liveObj.getJSONObject(key);
-                String name = item.optString("name", key);
-                String url = item.optString("url", "");
-                String tvgId = item.optString("contentId", key);
-                addToMap(channelMap, name, url, "未分类", tvgId);
+            // 2. 遍历 live 下的每一个分组 Key（比如 "央视"）
+            for (String groupName : liveObj.keySet()) {
+                // 获取该分组下的频道数组
+                JSONArray channelArray = liveObj.getJSONArray(groupName);
+
+                // 3. 遍历数组中的每一个频道对象
+                for (int i = 0; i < channelArray.length(); i++) {
+                    JSONObject item = channelArray.getJSONObject(i);
+
+                    String name = item.optString("name", "未知频道");
+                    String contentId = item.optString("contentId", "");
+
+                    // 4. 关键点：取出 urls 数组
+                    JSONArray urlsArray = item.optJSONArray("urls");
+                    if (urlsArray == null || urlsArray.length() == 0) {
+                        continue;
+                    }
+
+                    // 5. 把数组里第一个有效的地址作为主播放地址
+                    String firstUrl = "";
+                    List<String> backupUrls = new ArrayList<>();
+
+                    for (int j = 0; j < urlsArray.length(); j++) {
+                        String url = urlsArray.getString(j).trim();
+                        if (!url.isEmpty()) {
+                            if (firstUrl.isEmpty()) {
+                                firstUrl = url; // 第一个作为主源
+                            } else {
+                                backupUrls.add(url); // 后续加入备用源
+                            }
+                        }
+                    }
+
+                    if (firstUrl.isEmpty()) continue;
+
+                    // 6. 创建频道对象
+                    Channel channel = new Channel(name, firstUrl, groupName, contentId);
+                    // 把备用源全部加进去
+                    for (String backupUrl : backupUrls) {
+                        channel.addBackupUrl(backupUrl);
+                    }
+
+                    channelList.add(channel);
+                }
             }
-            return new ArrayList<>(channelMap.values());
         }
 
-        // 格式2：TVBox 格式 {"channels": [ {...} ]}
-        if (root.has("channels")) {
-            JSONArray channels = root.getJSONArray("channels");
-            for (int i = 0; i < channels.length(); i++) {
-                JSONObject item = channels.getJSONObject(i);
-                parseItemAndAdd(item, channelMap);
-            }
-            return new ArrayList<>(channelMap.values());
-        }
-
-        // 格式3：纯数组 [ {...}, {...} ]
-        try {
-            JSONArray rootArray = new JSONArray(content);
-            for (int i = 0; i < rootArray.length(); i++) {
-                JSONObject item = rootArray.getJSONObject(i);
-                parseItemAndAdd(item, channelMap);
-            }
-        } catch (Exception ignored) {}
-
-        return new ArrayList<>(channelMap.values());
-    }
-
-    private static void parseItemAndAdd(JSONObject item, Map<String, Channel> map) {
-        String name = item.optString("name", item.optString("title", "未知频道"));
-        String url = item.optString("url", item.optString("link", ""));
-        String group = item.optString("group", item.optString("groupTitle", "未分类"));
-        String tvgId = item.optString("tvgId", item.optString("id", ""));
-        addToMap(map, name, url, group, tvgId);
-    }
-
-    private static void addToMap(Map<String, Channel> map, String name, String url, String group, String tvgId) {
-        if (url.isEmpty()) return;
-        String key = !tvgId.isEmpty() ? tvgId : name;
-        Channel existing = map.get(key);
-        if (existing != null) {
-            existing.addBackupUrl(url);
-            if (!group.isEmpty()) existing.setGroup(group);
-        } else {
-            map.put(key, new Channel(name, url, group, tvgId));
-        }
+        return channelList;
     }
 }
