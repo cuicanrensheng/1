@@ -12,6 +12,7 @@ import java.util.List;
 
 /**
  * 专门针对 { "live": { "分组": [ ... ] } } 格式的 JSON 直播源解析器
+ * 兼容所有 Android 版本
  */
 public class JsonLiveParser {
 
@@ -53,8 +54,11 @@ public class JsonLiveParser {
         if (root.has("live")) {
             JSONObject liveObj = root.getJSONObject("live");
 
-            // 2. 遍历 live 下的每一个分组 Key（比如 "央视"）
-            for (String groupName : liveObj.keySet()) {
+            // 🟢【关键修复】用 keys() 代替 keySet()，兼容所有 Android 版本
+            java.util.Iterator<String> keys = liveObj.keys();
+            while (keys.hasNext()) {
+                String groupName = keys.next();
+
                 // 获取该分组下的频道数组
                 JSONArray channelArray = liveObj.getJSONArray(groupName);
 
