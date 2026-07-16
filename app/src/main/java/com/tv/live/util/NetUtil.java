@@ -11,7 +11,6 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import java.io.IOException;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -62,10 +61,11 @@ public class NetUtil {
     public Headers createCommonHeaders(String url) {
         Map<String, String> headerMap = new HashMap<>();
 
-        // ================== 1. User-Agent 处理 ==================
         String userAgent = "ExoPlayer";
         if (sAppContext != null) {
             SharedPreferences sp = sAppContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+            
+            // 🟢 优先读取网页后台推送的自定义 UA
             String customUA = sp.getString("custom_user_agent", "");
             if (!TextUtils.isEmpty(customUA)) {
                 userAgent = customUA;
@@ -77,50 +77,25 @@ public class NetUtil {
             }
         }
         
-        Log.d("NetUtil", "【UA检测】当前使用的 User-Agent: " + userAgent);
+        Log.d("NetUtil", "【UA检测】当前正在使用的请求头 User-Agent: " + userAgent);
+
         headerMap.put("User-Agent", userAgent);
         headerMap.put("Accept", "*");
         headerMap.put("Connection", "keep-alive");
         headerMap.put("Icy-MetaData", "1"); 
         headerMap.put("Accept-Language", "zh-CN,zh;q=0.9");
 
-        // ================== 2. Referer / Origin 处理 ==================
         String referer, origin;
-        if (url != null) {
-            if (url.contains("huya.com") || url.contains("huya.cn")) {
-                referer = "https://www.huya.com/";
-                origin = "https://www.huya.com";
-            } else if (url.contains("douyu.com") || url.contains("douyucdn.cn")) {
-                referer = "https://www.douyu.com";
-                origin = "https://www.douyu.com";
-            } 
-            // ✅【兼容性增加】针对 ichuanghi.com 单独增加动态防盗链支持
-            else if (url.contains("ichuanghi.com")) {
-                try {
-                    URL parsedUrl = new URL(url);
-                    String protocol = parsedUrl.getProtocol();
-                    String host = parsedUrl.getHost();
-                    referer = protocol + "://" + host;
-                    origin = protocol + "://" + host;
-                    // 这个源必须强制使用浏览器 UA，否则防盗链还是会拦截
-                    userAgent = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
-                    // 更新 Map 中的 User-Agent
-                    headerMap.put("User-Agent", userAgent);
-                } catch (Exception e) {
-                    referer = "https://www.huya.com/";
-                    origin = "https://www.huya.com";
-                }
-            } 
-            // ✅ 其他所有正常直播源，恢复到您原先的默认值（不动虎牙）
-            else {
-                referer = "https://www.huya.com/";
-                origin = "https://www.huya.com";
-            }
+        if (url.contains("huya.com") || url.contains("huya.cn")) {
+            referer = "https://www.huya.com/";
+            origin = "https://www.huya.com";
+        } else if (url.contains("douyu.com") || url.contains("douyucdn.cn")) {
+            referer = "https://www.douyu.com";
+            origin = "https://www.douyu.com";
         } else {
             referer = "https://www.huya.com/";
             origin = "https://www.huya.com";
         }
-
         headerMap.put("Referer", referer);
         headerMap.put("Origin", origin);
         return Headers.of(headerMap);
