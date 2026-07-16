@@ -10,7 +10,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
-import androidx.core.content.ContextCompat; // 🔧 新增导入
+import androidx.core.content.ContextCompat;
+
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.UrlConfig;
@@ -18,6 +19,8 @@ import com.tv.live.config.AppConfig;
 import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
 import com.tv.live.SourceManager;
+import com.tv.live.JsonPlaylistParser; // ✅ 新增导入
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -183,11 +186,30 @@ public class AppCoreManager {
         });
     }
 
+    // ================================================================
+    // ✅【核心修改】`parseLiveSource` 现已支持 JSON 和 M3U 两种格式
+    // ================================================================
     private List<Channel> parseLiveSource(String content) {
-        Map<String, Channel> channelMap = new LinkedHashMap<>();
         if (TextUtils.isEmpty(content)) {
             return new ArrayList<>();
         }
+
+        String trimmed = content.trim();
+
+        // 1. 优先尝试 JSON 解析
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+            try {
+                List<Channel> jsonChannels = JsonPlaylistParser.parseContent(content);
+                if (jsonChannels != null && !jsonChannels.isEmpty()) {
+                    return jsonChannels;
+                }
+            } catch (Exception e) {
+                Log.w("AppCoreManager", "JSON 解析失败，准备回退到 M3U 解析", e);
+            }
+        }
+
+        // 2. 回退到原有的 M3U 解析
+        Map<String, Channel> channelMap = new LinkedHashMap<>();
         String[] lines = content.split("\n");
         String currentName = "";
         String currentGroup = "";
@@ -316,11 +338,9 @@ public class AppCoreManager {
         };
         try {
             IntentFilter filterToggle = new IntentFilter("com.tv.live.TOGGLE_CONTROL");
-            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, toggleControllerReceiver, filterToggle, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             IntentFilter filterRefresh = new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG");
-            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, refreshReceiver, filterRefresh, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             receiversRegistered = true;
@@ -376,8 +396,6 @@ public class AppCoreManager {
             playerManager.release();
         }
         synchronized (channelListLock) {
-            // 🛡️ 修复：不再赋值为 null，改为 clear() —— 避免 LiveSourceLoader 异步回调回来时
-            //         读到 null channelSourceList 导致 isEmpty() NPE（真机 PID 30860 崩溃根因）
             if (channelSourceList != null) {
                 channelSourceList.clear();
             } else {
@@ -395,7 +413,6 @@ public class AppCoreManager {
     public boolean hasPlayedWithCache() { return hasPlayedWithCache; }
     public void setHasPlayedWithCache(boolean played) { this.hasPlayedWithCache = played; }
 
-    // 🛠️ 判空保护
     public List<Channel> getChannelList() {
         synchronized (channelListLock) {
             if (channelSourceList == null) {
