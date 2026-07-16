@@ -10,8 +10,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
-import androidx.core.content.ContextCompat;
-
+import androidx.core.content.ContextCompat; // 🔧 新增导入
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.UrlConfig;
@@ -19,8 +18,6 @@ import com.tv.live.config.AppConfig;
 import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
 import com.tv.live.SourceManager;
-import com.tv.live.JsonLiveParser; // ✅ 已修正为正确的类名！
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,7 +34,7 @@ public class AppCoreManager {
     private CacheManager cacheManager;
 
     private List<Channel> channelSourceList = new ArrayList<>();
-    private final Object channelListLock = new Object();
+    private final Object channelListLock = new Object(); // 读写锁
 
     private boolean hasPlayedWithCache = false;
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
@@ -70,16 +67,24 @@ public class AppCoreManager {
     }
 
     public AppCoreManager(Context context, TVPlayerManager playerManager, AppConfig appConfig) {
-        this.context = context.getApplicationContext();
+        this.context = context.getApplicationContext(); // 防止内存泄漏
         this.playerManager = playerManager;
         this.appConfig = appConfig;
         this.cacheManager = CacheManager.getInstance(context);
     }
 
+    // ====================================================================
+    // ✅ NPE 防御：真机首次启动时 LiveSourceLoader 异步回调与 onDestroy() 存在竞态，
+    //             会导致 channelSourceList == null 或 channels == null → 崩。
+    //             以下两个包私有方法供 TDD 单元测试直接调用。
+    // ====================================================================
+
+    /** @return channels 非 null（若原始为 null，则返回空 ArrayList；否则原对象） */
     static <T> List<T> sanitizeChannels(List<T> channels) {
         return (channels != null) ? channels : new ArrayList<>();
     }
 
+    /** @return existing 非 null（若原始为 null，则新建空 ArrayList；否则原对象） */
     static <T> List<T> ensureChannelListNotNull(List<T> existing) {
         return (existing != null) ? existing : new ArrayList<>();
     }
@@ -124,9 +129,11 @@ public class AppCoreManager {
         LiveSourceLoader.getInstance(context).load(new LiveSourceLoader.LoadCallback() {
             @Override
             public void onSuccess(List<Channel> channels) {
+                // 🛡️ NPE 防御 1：PlaylistParser.parse 可能返回 null（网络失败 / 解析异常）
                 List<Channel> safeChannels = sanitizeChannels(channels);
                 log("【网络】直播源加载成功，频道总数：" + safeChannels.size());
                 synchronized (channelListLock) {
+                    // 🛡️ NPE 防御 2：onDestroy() 可能已把 channelSourceList 置 null（异步回调竞态）
                     channelSourceList = ensureChannelListNotNull(channelSourceList);
                     if (channelSourceList.isEmpty()) {
                         channelSourceList.clear();
@@ -176,31 +183,11 @@ public class AppCoreManager {
         });
     }
 
-    // ================================================================
-    // ✅ 核心修改：JSON 与 M3U 自动识别
-    // ================================================================
     private List<Channel> parseLiveSource(String content) {
+        Map<String, Channel> channelMap = new LinkedHashMap<>();
         if (TextUtils.isEmpty(content)) {
             return new ArrayList<>();
         }
-
-        String trimmed = content.trim();
-
-        // 1. 优先尝试 JSON 解析
-        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-            try {
-                // ✅ 这里使用了正确的 JsonLiveParser
-                List<Channel> jsonChannels = JsonLiveParser.parseContent(content);
-                if (jsonChannels != null && !jsonChannels.isEmpty()) {
-                    return jsonChannels;
-                }
-            } catch (Exception e) {
-                Log.w("AppCoreManager", "JSON 解析失败，准备回退到 M3U 解析", e);
-            }
-        }
-
-        // 2. 回退到原有的 M3U 解析
-        Map<String, Channel> channelMap = new LinkedHashMap<>();
         String[] lines = content.split("\n");
         String currentName = "";
         String currentGroup = "";
@@ -252,6 +239,7 @@ public class AppCoreManager {
         return new ArrayList<>(channelMap.values());
     }
 
+    // 🛠️ 加锁保护
     public void mergeChannels(List<Channel> newChannels) {
         synchronized (channelListLock) {
             Map<String, Channel> mergedMap = new LinkedHashMap<>();
@@ -328,9 +316,11 @@ public class AppCoreManager {
         };
         try {
             IntentFilter filterToggle = new IntentFilter("com.tv.live.TOGGLE_CONTROL");
+            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, toggleControllerReceiver, filterToggle, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             IntentFilter filterRefresh = new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG");
+            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, refreshReceiver, filterRefresh, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             receiversRegistered = true;
@@ -386,6 +376,8 @@ public class AppCoreManager {
             playerManager.release();
         }
         synchronized (channelListLock) {
+            // 🛡️ 修复：不再赋值为 null，改为 clear() —— 避免 LiveSourceLoader 异步回调回来时
+            //         读到 null channelSourceList 导致 isEmpty() NPE（真机 PID 30860 崩溃根因）
             if (channelSourceList != null) {
                 channelSourceList.clear();
             } else {
@@ -403,6 +395,7 @@ public class AppCoreManager {
     public boolean hasPlayedWithCache() { return hasPlayedWithCache; }
     public void setHasPlayedWithCache(boolean played) { this.hasPlayedWithCache = played; }
 
+    // 🛠️ 判空保护
     public List<Channel> getChannelList() {
         synchronized (channelListLock) {
             if (channelSourceList == null) {
@@ -478,4 +471,4 @@ public class AppCoreManager {
         refreshListener = null;
         sourceSkipListener = null;
     }
- }
+}
