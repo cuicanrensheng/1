@@ -1,6 +1,6 @@
 package com.tv.live;
 
-import android.annotation.SuppressLint; // 🟢 已导入
+import android.annotation.SuppressLint;
 import android.widget.Toast;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -40,10 +40,11 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
-import androidx.core.content.ContextCompat; // 🔧 新增导入
+import androidx.core.content.ContextCompat;
 
 import com.tv.live.util.NetUtil;
 import com.tv.live.exception.RedirectFailedException;
+import com.tv.live.util.HuyaParser;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -65,16 +66,13 @@ import javax.net.ssl.HttpsURLConnection;
 
 import okhttp3.Headers;
 
-// 🟢【两个关键修复】
-// 1. @SuppressLint("UnsafeOptInUsageError") - 解决 Media3 不稳定 API 的 Lint 错误
-// 2. @SuppressLint("StaticFieldLeak") - 消除静态 Context 持有警告（ApplicationContext 安全）
 @SuppressLint({"UnsafeOptInUsageError", "StaticFieldLeak"})
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
     public static final int DECODER_MODE_AUTO = 0;
     public static final int DECODER_MODE_HARD = 1;
     public static final int DECODER_MODE_SOFT = 2;
-    
+
     private static final int MAX_RETRY_COUNT = 2;
     private static final long STUCK_TIMEOUT = 20000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
@@ -86,7 +84,6 @@ public class TVPlayerManager {
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
 
-    // ✅【修复编译错误】补全缺失的全局线路索引 Key 常量
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     private static volatile TVPlayerManager instance;
@@ -140,24 +137,20 @@ public class TVPlayerManager {
 
     private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
-    // 记录当前已应用的渲染器类型
     private Boolean mCurrentUseTexture = null;
 
-    // 清晰度相关
     private final Object variantListLock = new Object();
     private volatile List<Variant> variantList = new ArrayList<>();
     private volatile boolean isParsingMasterPlaylist = false;
 
     private SharedPreferences sp;
 
-    // 解析主播放列表使用的单线程池
     private static final ExecutorService sPlaylistExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "TVPlayer-PlaylistParser");
         t.setDaemon(true);
         return t;
     });
 
-    // 清晰度实体类
     public static class Variant {
         public String url;
         public int bandwidth;
@@ -234,14 +227,14 @@ public class TVPlayerManager {
         };
         initPlayer();
     }
-    
+
     private void dLog(String msg) {
         if (sp.getBoolean("log_enable", false)) {
             Log.d(TAG, msg);
             com.tv.live.util.LogCollector.getInstance().addLog(TAG, msg);
         }
     }
-    
+
     private void initPlayer() {
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
         SoftwareFirstMediaCodecSelector codecSelector = new SoftwareFirstMediaCodecSelector(mDecoderMode);
@@ -547,7 +540,6 @@ public class TVPlayerManager {
         return mDecoderMode;
     }
 
-    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
         try {
@@ -659,7 +651,6 @@ public class TVPlayerManager {
         isRenderingSwitching = false;
     }
 
-    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -778,16 +769,54 @@ public class TVPlayerManager {
             if (player == null || url == null || url.trim().isEmpty()) return;
 
             String playUrl = url.trim();
+
+            // 🟢【新增】虎牙直播源解析支持
+            if (playUrl.startsWith("huya://")) {
+                String roomIdStr = playUrl.substring("huya://".length());
+                try {
+                    int roomId = Integer.parseInt(roomIdStr);
+                    Log.d(TAG, "检测到虎牙房间 ID: " + roomId);
+                    HuyaParser.parse(roomId, new HuyaParser.OnParseResultListener() {
+                        @Override
+                        public void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch) {
+                            String realUrl = (hlsUrl != null && !hlsUrl.isEmpty()) ? hlsUrl : flvUrl;
+                            if (realUrl != null && !realUrl.isEmpty()) {
+                                Log.d(TAG, "虎牙解析成功，真实地址: " + realUrl);
+                                playUrlInternal(realUrl, initialSeekPosition);
+                            } else {
+                                Log.e(TAG, "虎牙解析成功但返回空地址");
+                                if (sourceFailedListener != null) {
+                                    mHandler.post(() -> sourceFailedListener.onSourceFailed());
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void onFailed(String errorMsg) {
+                            Log.e(TAG, "虎牙解析失败: " + errorMsg);
+                            if (sourceFailedListener != null) {
+                                mHandler.post(() -> sourceFailedListener.onSourceFailed());
+                            }
+                        }
+                    });
+                    return;
+                } catch (NumberFormatException e) {
+                    Log.e(TAG, "虎牙房间 ID 格式错误: " + roomIdStr);
+                    if (sourceFailedListener != null) {
+                        mHandler.post(() -> sourceFailedListener.onSourceFailed());
+                    }
+                    return;
+                }
+            }
+
             if (currentChannel != null) {
                 SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-                // ✅ 读取该频道的独立线路索引
                 String channelKey = currentChannel.getChannelId();
                 if (TextUtils.isEmpty(channelKey)) {
                     channelKey = currentChannel.getName();
                 }
                 String prefKey = "channel_line_index_" + channelKey;
                 int lineIndex = sp.getInt(prefKey, 0);
-                // 如果没有独立设置，则回退到全局索引（兼容旧版，常量已补全）
                 if (lineIndex == 0 && sp.contains(KEY_CHANNEL_LINE_INDEX)) {
                     lineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
                 }
@@ -817,8 +846,7 @@ public class TVPlayerManager {
             }
 
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
-            
-            // ✅【核心修改】所有网络请求头（包括 UA）完全依照 NetUtil 定义，移除任何本地覆盖逻辑
+
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             reusableHeaderMap.clear();
             for (String name : globalHeaders.names()) {
@@ -1138,8 +1166,8 @@ public class TVPlayerManager {
     public void togglePlayWhenReady() {
         try {
             if (player == null) return;
-            if (player.getPlaybackState() == androidx.media3.common.Player.STATE_IDLE
-                    || player.getPlaybackState() == androidx.media3.common.Player.STATE_ENDED) {
+            if (player.getPlaybackState() == Player.STATE_IDLE
+                    || player.getPlaybackState() == Player.STATE_ENDED) {
                 return;
             }
             player.setPlayWhenReady(!player.getPlayWhenReady());
@@ -1149,8 +1177,8 @@ public class TVPlayerManager {
     public boolean isPlaying() {
         try {
             return player != null && player.getPlayWhenReady()
-                    && player.getPlaybackState() != androidx.media3.common.Player.STATE_IDLE
-                    && player.getPlaybackState() != androidx.media3.common.Player.STATE_ENDED;
+                    && player.getPlaybackState() != Player.STATE_IDLE
+                    && player.getPlaybackState() != Player.STATE_ENDED;
         } catch (Exception e) {
             return false;
         }
