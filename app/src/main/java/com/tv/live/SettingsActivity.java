@@ -842,12 +842,49 @@ public class SettingsActivity extends AppCompatActivity {
         SwitchCompat swFollowHeader = dialogView.findViewById(R.id.sw_follow_header);
         SwitchCompat swIgnoreSsl = dialogView.findViewById(R.id.sw_ignore_ssl);
         SwitchCompat swSendCookie = dialogView.findViewById(R.id.sw_send_cookie);
+        
+        // ✅【修改】UA部分改为输入框，支持自定义字符串
         LinearLayout llUserAgent = dialogView.findViewById(R.id.ll_user_agent);
         TextView tvUserAgentStatus = dialogView.findViewById(R.id.tv_user_agent_status);
+        final EditText etCustomUa = new EditText(this);
+        etCustomUa.setHint("输入自定义 UA (留空则使用 ExoPlayer默认)");
+        etCustomUa.setText(sp.getString("custom_user_agent", ""));
+        etCustomUa.setSingleLine(true);
+        etCustomUa.setTextColor(Color.WHITE);
+        etCustomUa.setHintTextColor(Color.GRAY);
+        // 将原来的点击监听改为弹出输入框
+        llUserAgent.setOnClickListener(v -> {
+            new AlertDialog.Builder(SettingsActivity.this)
+                .setTitle("输入自定义 User-Agent")
+                .setView(etCustomUa)
+                .setPositiveButton("确定", (dialog, which) -> {
+                    String customUa = etCustomUa.getText().toString().trim();
+                    if (!customUa.isEmpty()) {
+                        sp.edit().putString("custom_user_agent", customUa).apply();
+                        // 更新状态显示
+                        String displayUa = customUa.length() > 20 ? customUa.substring(0, 20) + "..." : customUa;
+                        tvUserAgentStatus.setText("自定义: " + displayUa);
+                    } else {
+                        sp.edit().remove("custom_user_agent").apply();
+                        tvUserAgentStatus.setText("ExoPlayer默认");
+                    }
+                    updateRedirectSettingText();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+        });
+        // 回显当前的自定义UA状态
+        String savedUa = sp.getString("custom_user_agent", "");
+        if (!savedUa.isEmpty()) {
+            String displayUa = savedUa.length() > 20 ? savedUa.substring(0, 20) + "..." : savedUa;
+            tvUserAgentStatus.setText("自定义: " + displayUa);
+        } else {
+            tvUserAgentStatus.setText("ExoPlayer默认");
+        }
+
         Button btnCancel = dialogView.findViewById(R.id.btn_redirect_cancel);
         Button btnSave = dialogView.findViewById(R.id.btn_redirect_save);
 
-        tvUserAgentStatus.setText("exo".equals(currentUaMode[0]) ? "ExoPlayer默认" : "VLC");
         etMax.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
         etMax.setText(String.valueOf(currentMax));
         swCrossDomain.setChecked(crossDomain);
@@ -855,22 +892,6 @@ public class SettingsActivity extends AppCompatActivity {
         swFollowHeader.setChecked(followHeader);
         swIgnoreSsl.setChecked(ignoreSsl);
         swSendCookie.setChecked(sendCookie);
-
-        llUserAgent.setOnClickListener(v -> {
-            final String[] uaOptions = {"ExoPlayer默认", "VLC"};
-            final String[] uaValues = {"exo", "vlc"};
-            int checkedItem = 0;
-            for (int i = 0; i < uaValues.length; i++) {
-                if (uaValues[i].equals(currentUaMode[0])) {
-                    checkedItem = i;
-                    break;
-                }
-            }
-            showDarkSingleChoiceDialog("UA切换", uaOptions, checkedItem, (which) -> {
-                currentUaMode[0] = uaValues[which];
-                tvUserAgentStatus.setText(uaOptions[which]);
-            });
-        });
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)
@@ -898,7 +919,6 @@ public class SettingsActivity extends AppCompatActivity {
             editor.putBoolean(KEY_REDIRECT_FOLLOW_HEADERS, swFollowHeader.isChecked());
             editor.putBoolean(KEY_REDIRECT_IGNORE_SSL, swIgnoreSsl.isChecked());
             editor.putBoolean(KEY_REDIRECT_SEND_COOKIE, swSendCookie.isChecked());
-            editor.putString(KEY_USER_AGENT_MODE, currentUaMode[0]);
             editor.apply();
             updateRedirectSettingText();
             Toast.makeText(this, "重定向配置保存成功", Toast.LENGTH_SHORT).show();
