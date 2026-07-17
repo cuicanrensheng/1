@@ -11,30 +11,55 @@ import java.util.List;
 
 import okhttp3.Response;
 
-/**
- * 虎牙“一起看”房间列表抓取器
- * 自动拉取电影、电视剧、动漫、综艺类直播间
- */
 public class HuyaTogetherWatchFetcher {
 
-    // 虎牙分类 API (返回 JSON)
-    // page=1&gameId=3 是“一起看”分类的 ID (3 对应“一起看”)
-    private static final String API_URL_TEMPLATE = "https://www.huya.com/cache.php?m=LiveList&do=getLiveListByPage&page=%d&gameId=3";
+    // 虎牙一起看列表 API
+    private static final String API_BASE_URL = "https://www.huya.com/cache.php?m=LiveList&do=getLiveListByPage";
+
+    // 🟢【终极全量配置】电影细分 + 电视剧细分 + 动画 + 综艺
+    // 电影子分类: 2067(综合), 2069(喜剧), 2071(动作), 2073(惊悚), 2075(科幻), 2077(古装)
+    // 电视剧子分类: 2079(综合), 2081(古装), 2083(军旅), 2085(搞笑), 2087(悬疑), 2089(都市)
+    // 其他大分类: 6861(动画), 1011(综艺)
+    private static final int[] TAG_IDS = {
+        2067, 2069, 2071, 2073, 2075, 2077, // 电影
+        2079, 2081, 2083, 2085, 2087, 2089, // 电视剧
+        6861,                                 // 动画
+        1011                                  // 综艺
+    };
 
     /**
-     * 从虎牙拉取“一起看”房间列表
-     * @param maxPages 最多拉取几页 (每页约 120 个房间)
-     * @return 转换后的 Channel 列表
+     * 拉取所有已配置分类的虎牙“一起看”房间列表
+     * @param maxPagesPerTag 每个分类拉取几页（每页约120个房间）
+     * @return 合并后的频道列表
      */
-    public static List<Channel> fetch(int maxPages) {
+    public static List<Channel> fetchAll(int maxPagesPerTag) {
         List<Channel> result = new ArrayList<>();
+        for (int tagId : TAG_IDS) {
+            result.addAll(fetchByTagId(maxPagesPerTag, tagId));
+        }
+        android.util.Log.d("HuyaFetcher", "【虎牙】拉取完成，共获得 " + result.size() + " 个频道（覆盖全部分类）");
+        return result;
+    }
+
+    /**
+     * 根据 tagId 拉取指定分类的房间
+     */
+    private static List<Channel> fetchByTagId(int maxPages, int tagId) {
+        List<Channel> result = new ArrayList<>();
+        String tagName = getTagName(tagId);
+        android.util.Log.d("HuyaFetcher", "开始拉取分类：" + tagName + " (tagId=" + tagId + ")");
         
         for (int page = 1; page <= maxPages; page++) {
             try {
-                String url = String.format(API_URL_TEMPLATE, page);
-                // 使用你项目中现成的 NetUtil 进行请求（复用请求头，避免防盗链）
+                StringBuilder urlBuilder = new StringBuilder(API_BASE_URL);
+                urlBuilder.append("&page=").append(page);
+                urlBuilder.append("&gameId=3"); // 3 代表“一起看”分类
+                urlBuilder.append("&tagId=").append(tagId);
+                
+                String url = urlBuilder.toString();
                 Response response = NetUtil.getInstance().syncGet(url);
                 if (!response.isSuccessful() || response.body() == null) {
+                    android.util.Log.e("HuyaFetcher", tagName + " 第 " + page + " 页请求失败，code=" + response.code());
                     break;
                 }
 
@@ -49,29 +74,41 @@ public class HuyaTogetherWatchFetcher {
                 for (int i = 0; i < datas.length(); i++) {
                     JSONObject item = datas.getJSONObject(i);
                     
-                    // 提取必要字段
                     String roomId = String.valueOf(item.optInt("roomId"));
                     String roomName = item.optString("roomName");
-                    String gameName = item.optString("gameName"); // 如 "一起看"
-
-                    // 过滤掉不是“一起看”的（防止 API 混入其他分类）
-                    if (!"一起看".equals(gameName)) continue;
-
-                    // 跳过没有房间号或名称的脏数据
+                    
                     if (roomId.isEmpty() || roomName.isEmpty()) continue;
 
-                    // 构建 Channel 对象
-                    // 关键：将 roomId 存入 channelId 字段，供 HuyaParser 使用
-                    Channel channel = new Channel(roomName, "", "虎牙一起看", roomId);
-                    
-                    // 为防止重复，可选去重逻辑 (按 roomId 去重)
+                    // 统一使用“虎牙影视”这个分组名，保持UI一致性
+                    Channel channel = new Channel(roomName, "", "虎牙影视", roomId);
                     result.add(channel);
                 }
             } catch (Exception e) {
-                e.printStackTrace();
-                break; // 某一页报错，提前结束
+                android.util.Log.e("HuyaFetcher", tagName + " 拉取异常：", e);
+                break;
             }
         }
+        android.util.Log.d("HuyaFetcher", tagName + " 拉取到 " + result.size() + " 个房间");
         return result;
+    }
+
+    private static String getTagName(int tagId) {
+        switch (tagId) {
+            case 2067: return "电影(综合)";
+            case 2069: return "电影(喜剧)";
+            case 2071: return "电影(动作)";
+            case 2073: return "电影(惊悚)";
+            case 2075: return "电影(科幻)";
+            case 2077: return "电影(古装)";
+            case 2079: return "电视剧(综合)";
+            case 2081: return "电视剧(古装)";
+            case 2083: return "电视剧(军旅)";
+            case 2085: return "电视剧(搞笑)";
+            case 2087: return "电视剧(悬疑)";
+            case 2089: return "电视剧(都市)";
+            case 6861: return "动画";
+            case 1011: return "综艺";
+            default: return "未知分类";
+        }
     }
 }
