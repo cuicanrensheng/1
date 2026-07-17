@@ -147,9 +147,10 @@ public class AppCoreManager {
                 // ================================================================
                 // 🟢【关键修复】后台拉取虎牙，成功后再刷新一次 UI
                 // ================================================================
+                // 🟢【关键修复】后台拉取虎牙，成功后再刷新一次 UI
                 new Thread(() -> {
-                    log("【虎牙】开始拉取一起看频道...");
-                    List<Channel> huyaChannels = HuyaTogetherWatchFetcher.fetch(2);
+                log("【虎牙】开始拉取一起看频道...");
+                List<Channel> huyaChannels = HuyaTogetherWatchFetcher.fetchAll(2);  // ✅ 用 fetchAll
                     if (huyaChannels != null && !huyaChannels.isEmpty()) {
                         synchronized (channelListLock) {
                             int oldSize = channelSourceList.size();
