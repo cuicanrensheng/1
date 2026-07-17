@@ -10,7 +10,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
-import androidx.core.content.ContextCompat; // 🔧 新增导入
+import androidx.core.content.ContextCompat; 
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.UrlConfig;
@@ -18,6 +18,9 @@ import com.tv.live.config.AppConfig;
 import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
 import com.tv.live.SourceManager;
+// 🟢【新增导入】
+import com.tv.live.loader.HuyaTogetherWatchFetcher;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,7 +37,7 @@ public class AppCoreManager {
     private CacheManager cacheManager;
 
     private List<Channel> channelSourceList = new ArrayList<>();
-    private final Object channelListLock = new Object(); // 读写锁
+    private final Object channelListLock = new Object();
 
     private boolean hasPlayedWithCache = false;
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
@@ -67,24 +70,16 @@ public class AppCoreManager {
     }
 
     public AppCoreManager(Context context, TVPlayerManager playerManager, AppConfig appConfig) {
-        this.context = context.getApplicationContext(); // 防止内存泄漏
+        this.context = context.getApplicationContext();
         this.playerManager = playerManager;
         this.appConfig = appConfig;
         this.cacheManager = CacheManager.getInstance(context);
     }
 
-    // ====================================================================
-    // ✅ NPE 防御：真机首次启动时 LiveSourceLoader 异步回调与 onDestroy() 存在竞态，
-    //             会导致 channelSourceList == null 或 channels == null → 崩。
-    //             以下两个包私有方法供 TDD 单元测试直接调用。
-    // ====================================================================
-
-    /** @return channels 非 null（若原始为 null，则返回空 ArrayList；否则原对象） */
     static <T> List<T> sanitizeChannels(List<T> channels) {
         return (channels != null) ? channels : new ArrayList<>();
     }
 
-    /** @return existing 非 null（若原始为 null，则新建空 ArrayList；否则原对象） */
     static <T> List<T> ensureChannelListNotNull(List<T> existing) {
         return (existing != null) ? existing : new ArrayList<>();
     }
@@ -129,11 +124,9 @@ public class AppCoreManager {
         LiveSourceLoader.getInstance(context).load(new LiveSourceLoader.LoadCallback() {
             @Override
             public void onSuccess(List<Channel> channels) {
-                // 🛡️ NPE 防御 1：PlaylistParser.parse 可能返回 null（网络失败 / 解析异常）
                 List<Channel> safeChannels = sanitizeChannels(channels);
                 log("【网络】直播源加载成功，频道总数：" + safeChannels.size());
                 synchronized (channelListLock) {
-                    // 🛡️ NPE 防御 2：onDestroy() 可能已把 channelSourceList 置 null（异步回调竞态）
                     channelSourceList = ensureChannelListNotNull(channelSourceList);
                     if (channelSourceList.isEmpty()) {
                         channelSourceList.clear();
@@ -148,6 +141,33 @@ public class AppCoreManager {
                     dataLoadListener.onLiveSourceLoaded(safeChannels, false);
                 }
                 log("【网络】直播源列表已更新");
+
+                // ================================================================
+                // 🟢【新增】后台拉取虎牙“一起看”频道
+                // ================================================================
+                new Thread(() -> {
+                    // TODO: 建议你可以从 SharedPreferences 读取开关，例如 sp.getBoolean("huya_enable", true)
+                    boolean huyaEnabled = true; 
+                    if (huyaEnabled) {
+                        List<Channel> huyaChannels = HuyaTogetherWatchFetcher.fetch(2);
+                        if (huyaChannels != null && !huyaChannels.isEmpty()) {
+                            boolean hasNewChannels = false;
+                            synchronized (channelListLock) {
+                                int oldSize = channelSourceList.size();
+                                mergeChannels(huyaChannels);
+                                hasNewChannels = channelSourceList.size() > oldSize;
+                            }
+                            log("【虎牙】成功加载 " + huyaChannels.size() + " 个一起看频道");
+                            
+                            // 只有当确实有新频道加入时，才触发一次刷新通知，避免 UI 频繁重绘
+                            if (hasNewChannels && dataLoadListener != null) {
+                                dataLoadListener.onLiveSourceLoaded(getChannelList(), false);
+                            }
+                        }
+                    }
+                }).start();
+                // ================================================================
+                
                 loadEpg();
             }
             @Override
@@ -239,7 +259,6 @@ public class AppCoreManager {
         return new ArrayList<>(channelMap.values());
     }
 
-    // 🛠️ 加锁保护
     public void mergeChannels(List<Channel> newChannels) {
         synchronized (channelListLock) {
             Map<String, Channel> mergedMap = new LinkedHashMap<>();
@@ -316,11 +335,9 @@ public class AppCoreManager {
         };
         try {
             IntentFilter filterToggle = new IntentFilter("com.tv.live.TOGGLE_CONTROL");
-            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, toggleControllerReceiver, filterToggle, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             IntentFilter filterRefresh = new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG");
-            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, refreshReceiver, filterRefresh, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             receiversRegistered = true;
@@ -376,8 +393,6 @@ public class AppCoreManager {
             playerManager.release();
         }
         synchronized (channelListLock) {
-            // 🛡️ 修复：不再赋值为 null，改为 clear() —— 避免 LiveSourceLoader 异步回调回来时
-            //         读到 null channelSourceList 导致 isEmpty() NPE（真机 PID 30860 崩溃根因）
             if (channelSourceList != null) {
                 channelSourceList.clear();
             } else {
@@ -395,7 +410,6 @@ public class AppCoreManager {
     public boolean hasPlayedWithCache() { return hasPlayedWithCache; }
     public void setHasPlayedWithCache(boolean played) { this.hasPlayedWithCache = played; }
 
-    // 🛠️ 判空保护
     public List<Channel> getChannelList() {
         synchronized (channelListLock) {
             if (channelSourceList == null) {
