@@ -10,7 +10,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
-import androidx.core.content.ContextCompat; // 🔧 新增导入
+import androidx.core.content.ContextCompat;
+
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.UrlConfig;
@@ -18,6 +19,9 @@ import com.tv.live.config.AppConfig;
 import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
 import com.tv.live.SourceManager;
+import com.tv.live.JsonLiveParser;
+import com.tv.live.HuyaTogetherWatchProvider;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,7 +38,7 @@ public class AppCoreManager {
     private CacheManager cacheManager;
 
     private List<Channel> channelSourceList = new ArrayList<>();
-    private final Object channelListLock = new Object(); // 读写锁
+    private final Object channelListLock = new Object();
 
     private boolean hasPlayedWithCache = false;
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
@@ -67,24 +71,16 @@ public class AppCoreManager {
     }
 
     public AppCoreManager(Context context, TVPlayerManager playerManager, AppConfig appConfig) {
-        this.context = context.getApplicationContext(); // 防止内存泄漏
+        this.context = context.getApplicationContext();
         this.playerManager = playerManager;
         this.appConfig = appConfig;
         this.cacheManager = CacheManager.getInstance(context);
     }
 
-    // ====================================================================
-    // ✅ NPE 防御：真机首次启动时 LiveSourceLoader 异步回调与 onDestroy() 存在竞态，
-    //             会导致 channelSourceList == null 或 channels == null → 崩。
-    //             以下两个包私有方法供 TDD 单元测试直接调用。
-    // ====================================================================
-
-    /** @return channels 非 null（若原始为 null，则返回空 ArrayList；否则原对象） */
     static <T> List<T> sanitizeChannels(List<T> channels) {
         return (channels != null) ? channels : new ArrayList<>();
     }
 
-    /** @return existing 非 null（若原始为 null，则新建空 ArrayList；否则原对象） */
     static <T> List<T> ensureChannelListNotNull(List<T> existing) {
         return (existing != null) ? existing : new ArrayList<>();
     }
@@ -129,11 +125,9 @@ public class AppCoreManager {
         LiveSourceLoader.getInstance(context).load(new LiveSourceLoader.LoadCallback() {
             @Override
             public void onSuccess(List<Channel> channels) {
-                // 🛡️ NPE 防御 1：PlaylistParser.parse 可能返回 null（网络失败 / 解析异常）
                 List<Channel> safeChannels = sanitizeChannels(channels);
                 log("【网络】直播源加载成功，频道总数：" + safeChannels.size());
                 synchronized (channelListLock) {
-                    // 🛡️ NPE 防御 2：onDestroy() 可能已把 channelSourceList 置 null（异步回调竞态）
                     channelSourceList = ensureChannelListNotNull(channelSourceList);
                     if (channelSourceList.isEmpty()) {
                         channelSourceList.clear();
@@ -149,6 +143,41 @@ public class AppCoreManager {
                 }
                 log("【网络】直播源列表已更新");
                 loadEpg();
+
+                // ✅【新增】异步自动抓取虎牙一起看 (App启动后后台静默拉取)
+                new Thread(() -> {
+                    try {
+                        java.util.Map<Integer, String> tagMap = new java.util.LinkedHashMap<>();
+                        tagMap.put(HuyaTogetherWatchProvider.TAG_ID_ALL, "虎牙-一起看");
+                        tagMap.put(HuyaTogetherWatchProvider.TAG_ID_MOVIE, "虎牙-电影");
+                        tagMap.put(HuyaTogetherWatchProvider.TAG_ID_TV, "虎牙-电视剧");
+                        tagMap.put(HuyaTogetherWatchProvider.TAG_ID_CARTOON, "虎牙-动画");
+                        tagMap.put(HuyaTogetherWatchProvider.TAG_ID_VARIETY, "虎牙-综艺");
+
+                        boolean needRefresh = false;
+                        for (java.util.Map.Entry<Integer, String> entry : tagMap.entrySet()) {
+                            List<Channel> fetchedList = HuyaTogetherWatchProvider.fetchChannelsByTagId(entry.getKey(), entry.getValue());
+                            if (fetchedList != null && !fetchedList.isEmpty()) {
+                                synchronized (channelListLock) {
+                                    int oldSize = channelSourceList.size();
+                                    mergeChannels(fetchedList);
+                                    if (channelSourceList.size() > oldSize) {
+                                        needRefresh = true;
+                                        log("【虎牙】获取分类: " + entry.getValue() + " 成功");
+                                    }
+                                }
+                            }
+                            // 防封IP：每次分类请求后休眠 1.5秒
+                            try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
+                        }
+                        if (needRefresh && dataLoadListener != null) {
+                            dataLoadListener.onLiveSourceLoaded(getChannelList(), false);
+                        }
+                    } catch (Exception e) {
+                        Log.e("AppCoreManager", "虎牙抓取失败", e);
+                    }
+                }).start();
+
             }
             @Override
             public void onError(String errorMsg) {
@@ -184,10 +213,24 @@ public class AppCoreManager {
     }
 
     private List<Channel> parseLiveSource(String content) {
-        Map<String, Channel> channelMap = new LinkedHashMap<>();
         if (TextUtils.isEmpty(content)) {
             return new ArrayList<>();
         }
+
+        String trimmed = content.trim();
+
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+            try {
+                List<Channel> jsonChannels = JsonLiveParser.parseContent(content);
+                if (jsonChannels != null && !jsonChannels.isEmpty()) {
+                    return jsonChannels;
+                }
+            } catch (Exception e) {
+                Log.w("AppCoreManager", "JSON 解析失败，准备回退到 M3U 解析", e);
+            }
+        }
+
+        Map<String, Channel> channelMap = new LinkedHashMap<>();
         String[] lines = content.split("\n");
         String currentName = "";
         String currentGroup = "";
@@ -239,7 +282,6 @@ public class AppCoreManager {
         return new ArrayList<>(channelMap.values());
     }
 
-    // 🛠️ 加锁保护
     public void mergeChannels(List<Channel> newChannels) {
         synchronized (channelListLock) {
             Map<String, Channel> mergedMap = new LinkedHashMap<>();
@@ -316,11 +358,9 @@ public class AppCoreManager {
         };
         try {
             IntentFilter filterToggle = new IntentFilter("com.tv.live.TOGGLE_CONTROL");
-            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, toggleControllerReceiver, filterToggle, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             IntentFilter filterRefresh = new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG");
-            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, refreshReceiver, filterRefresh, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             receiversRegistered = true;
@@ -376,8 +416,6 @@ public class AppCoreManager {
             playerManager.release();
         }
         synchronized (channelListLock) {
-            // 🛡️ 修复：不再赋值为 null，改为 clear() —— 避免 LiveSourceLoader 异步回调回来时
-            //         读到 null channelSourceList 导致 isEmpty() NPE（真机 PID 30860 崩溃根因）
             if (channelSourceList != null) {
                 channelSourceList.clear();
             } else {
@@ -395,7 +433,6 @@ public class AppCoreManager {
     public boolean hasPlayedWithCache() { return hasPlayedWithCache; }
     public void setHasPlayedWithCache(boolean played) { this.hasPlayedWithCache = played; }
 
-    // 🛠️ 判空保护
     public List<Channel> getChannelList() {
         synchronized (channelListLock) {
             if (channelSourceList == null) {
