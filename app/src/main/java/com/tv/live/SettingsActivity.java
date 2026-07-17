@@ -40,7 +40,7 @@ import java.util.List;
  */
 public class SettingsActivity extends AppCompatActivity {
     // ====================== 控件声明 ======================
-    private SwitchCompat sw_boot, sw_reverse, sw_pip;
+    private SwitchCompat sw_boot, sw_reverse, sw_pip, sw_huya_fetch; // ✅ 新增虎牙开关
     private TextView tv_screen_ratio, tv_decoder_mode, tv_renderer_type, tv_redirect_setting, tv_boot_status;
     private TextView tv_channel_line;
     private TextView tv_resolution_status;
@@ -116,6 +116,7 @@ public class SettingsActivity extends AppCompatActivity {
         sw_boot = findViewById(R.id.sw_boot);
         sw_reverse = findViewById(R.id.sw_reverse);
         sw_pip = findViewById(R.id.sw_pip);
+        sw_huya_fetch = findViewById(R.id.sw_huya_fetch); // ✅ 绑定虎牙开关
         tv_decoder_mode = findViewById(R.id.tv_decoder_mode);
         tv_renderer_type = findViewById(R.id.tv_renderer_type);
         tv_redirect_setting = findViewById(R.id.tv_redirect_setting);
@@ -141,11 +142,12 @@ public class SettingsActivity extends AppCompatActivity {
         itemLiveSubscribe = findViewById(R.id.item_live_subscribe);
         itemEpgSubscribe = findViewById(R.id.item_epg_subscribe);
 
-        // ✅ 读取状态（只赋值，不触发点击）
+        // ✅ 读取状态
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
         sw_pip.setChecked(sp.getBoolean("pip_enable", false));
+        sw_huya_fetch.setChecked(sp.getBoolean("huya_auto_fetch", true)); // ✅ 读取虎牙开关状态
 
         String decoderMode = sp.getString("decoder_mode", "auto");
         updateDecoderModeText(decoderMode);
@@ -190,7 +192,7 @@ public class SettingsActivity extends AppCompatActivity {
     // ✅ 核心修改：统一管理所有设置项的点击与焦点
     // ================================================================
     private void initSettingsItemList() {
-        // 1. 把所有设置项放入数组（包括16个元素，涵盖所有）
+        // 1. 把所有设置项放入数组（包含虎牙开关）
         View[] items = {
             findViewById(R.id.item_boot),
             findViewById(R.id.item_reverse),
@@ -205,7 +207,8 @@ public class SettingsActivity extends AppCompatActivity {
             findViewById(R.id.item_epg_subscribe),
             findViewById(R.id.item_check_update),
             findViewById(R.id.item_version_info),
-            findViewById(R.id.item_log)
+            findViewById(R.id.item_log),
+            findViewById(R.id.item_huya_fetch) // ✅ 新增虎牙开关到焦点循环
         };
 
         // 2. 统一设置背景选择器
@@ -253,7 +256,7 @@ public class SettingsActivity extends AppCompatActivity {
             }
         };
 
-        // 5. 绑定点击事件（保证每个控件只绑定这一次）
+        // 5. 绑定点击事件
         for (View item : items) {
             item.setOnClickListener(clickListener);
         }
@@ -324,11 +327,17 @@ public class SettingsActivity extends AppCompatActivity {
                 Toast.makeText(SettingsActivity.this, "日志已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
                 MainActivity.toggleLogWindow(newState);
                 break;
+            case 14: // ✅ 虎牙一起看开关
+                boolean huyaChecked = !sw_huya_fetch.isChecked();
+                sw_huya_fetch.setChecked(huyaChecked);
+                sp.edit().putBoolean("huya_auto_fetch", huyaChecked).apply();
+                Toast.makeText(this, "虎牙一起看" + (huyaChecked ? "已开启，下次启动自动加载" : "已关闭"), Toast.LENGTH_SHORT).show();
+                break;
         }
     }
 
     // ================================================================
-    // 以下为原有功能代码，全部保留
+    // 以下为原有功能代码，保留不变
     // ================================================================
 
     private void showVersionInfoDialog() {
@@ -861,7 +870,6 @@ public class SettingsActivity extends AppCompatActivity {
                     String customUa = etCustomUa.getText().toString().trim();
                     if (!customUa.isEmpty()) {
                         sp.edit().putString("custom_user_agent", customUa).apply();
-                        // 更新状态显示
                         String displayUa = customUa.length() > 20 ? customUa.substring(0, 20) + "..." : customUa;
                         tvUserAgentStatus.setText("自定义: " + displayUa);
                     } else {
