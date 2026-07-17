@@ -419,6 +419,34 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
+            <!-- ============================================================ -->
+            <!-- ✅【新增】虎牙一起看加载开关（放在日志和网页提示之间） -->
+            <!-- ============================================================ -->
+            <LinearLayout
+                android:id="@+id/item_huya_fetch"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:focusable="true"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="加载虎牙一起看"
+                    android:textColor="@color/setting_item_text_color"
+                    android:textSize="16sp" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/sw_huya_fetch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:clickable="false" />
+            </LinearLayout>
+            <!-- ============================================================ -->
+
             <!-- 网页设置提示 -->
             <TextView
                 android:layout_width="match_parent"
