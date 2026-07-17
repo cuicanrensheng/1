@@ -13,22 +13,15 @@ import okhttp3.Response;
 
 public class HuyaTogetherWatchFetcher {
 
-    // 虎牙一起看列表 API
     private static final String API_BASE_URL = "https://www.huya.com/cache.php?m=LiveList&do=getLiveListByPage";
 
-    // 您指定的分类 ID（电影6个 + 电视剧6个 + 动画 + 综艺）
     private static final int[] TAG_IDS = {
-        2067, 2069, 2071, 2073, 2075, 2077, // 电影
-        2079, 2081, 2083, 2085, 2087, 2089, // 电视剧
-        6861,                               // 动画
-        1011                                // 综艺
+        2067, 2069, 2071, 2073, 2075, 2077,
+        2079, 2081, 2083, 2085, 2087, 2089,
+        6861,
+        1011
     };
 
-    /**
-     * 拉取所有已配置分类的虎牙“一起看”房间列表
-     * @param maxPagesPerTag 每个分类拉取几页（每页约120个房间）
-     * @return 合并后的频道列表
-     */
     public static List<Channel> fetchAll(int maxPagesPerTag) {
         List<Channel> result = new ArrayList<>();
         for (int tagId : TAG_IDS) {
@@ -47,7 +40,7 @@ public class HuyaTogetherWatchFetcher {
             try {
                 StringBuilder urlBuilder = new StringBuilder(API_BASE_URL);
                 urlBuilder.append("&page=").append(page);
-                urlBuilder.append("&gameId=3"); // 3 代表“一起看”分类
+                urlBuilder.append("&gameId=3");
                 urlBuilder.append("&tagId=").append(tagId);
 
                 String url = urlBuilder.toString();
@@ -67,13 +60,10 @@ public class HuyaTogetherWatchFetcher {
 
                 for (int i = 0; i < datas.length(); i++) {
                     JSONObject item = datas.getJSONObject(i);
-
                     String roomId = String.valueOf(item.optInt("roomId"));
                     String roomName = item.optString("roomName");
-
                     if (roomId.isEmpty() || roomName.isEmpty()) continue;
 
-                    // 🟢 使用 huya:// 协议，分组为当前分类名称（如“电影(综合)”）
                     Channel channel = new Channel(roomName, "huya://" + roomId, tagName, roomId);
                     result.add(channel);
                 }
