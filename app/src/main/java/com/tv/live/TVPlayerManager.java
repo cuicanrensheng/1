@@ -44,6 +44,7 @@ import androidx.core.content.ContextCompat; // 🔧 新增导入
 
 import com.tv.live.util.NetUtil;
 import com.tv.live.exception.RedirectFailedException;
+import com.tv.live.util.HuyaParser; // ✅ 确保导入了 HuyaParser
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -735,7 +736,23 @@ public class TVPlayerManager {
         playUrl(url, channelName, null);
     }
 
+    // ✅【核心修改】playUrl 增加了虎牙协议拦截
     public void playUrl(String url, String channelName, Channel channel) {
+        // ================================================================
+        // 拦截虎牙协议 (huya://房间号)
+        // ================================================================
+        if (url != null && url.startsWith("huya://")) {
+            String roomIdStr = url.substring("huya://".length()).trim();
+            try {
+                int roomId = Integer.parseInt(roomIdStr);
+                playHuyaRoom(roomId, channelName, channel);
+                return; // 拦截后直接返回，不走普通播放逻辑
+            } catch (NumberFormatException e) {
+                Log.e("TVPlayerManager", "虎牙房间号格式错误: " + url);
+            }
+        }
+
+        // 下面保持您原有播放 M3U8 的代码
         if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
         this.currentChannel = channel;
         this.backupRetryIndex = -1;
@@ -748,6 +765,40 @@ public class TVPlayerManager {
         initialPlayStartTime = 0;
         resetPerformanceStats();
         playUrlInternal(url, 0);
+    }
+
+    // ✅【新增】虎牙解析并播放的专用方法
+    private void playHuyaRoom(int roomId, String channelName, Channel channel) {
+        Log.d(TAG, "开始解析虎牙房间号：" + roomId);
+        if (listener != null) listener.onBuffering();
+
+        HuyaParser.parse(roomId, new HuyaParser.OnParseResultListener() {
+            @Override
+            public void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch) {
+                // 优先使用 HLS 地址，如果 HLS 为空则使用 FLV
+                String realUrl = hlsUrl != null ? hlsUrl : flvUrl;
+                if (TextUtils.isEmpty(realUrl)) {
+                    Log.e(TAG, "虎牙解析成功但流地址为空");
+                    if (listener != null) listener.onPlayError("获取流地址失败");
+                    return;
+                }
+
+                Log.d(TAG, "虎牙解析成功，实际播放地址：" + realUrl);
+
+                // ✅ 调用 playUrlInternal 继续原有流程（包含重定向、UA、Cookie、备用源等）
+                playUrlInternal(realUrl);
+            }
+
+            @Override
+            public void onFailed(String errorMsg) {
+                Log.e(TAG, "虎牙解析失败：" + errorMsg);
+                // ✅ 走您的失效源自动切台逻辑
+                if (channel != null && sourceFailedListener != null) {
+                    sourceFailedListener.onSourceFailed();
+                }
+                if (listener != null) listener.onPlayError(errorMsg);
+            }
+        });
     }
 
     public Channel getCurrentChannel() {
