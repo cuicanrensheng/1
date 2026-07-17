@@ -126,6 +126,8 @@ public class AppCoreManager {
             public void onSuccess(List<Channel> channels) {
                 List<Channel> safeChannels = sanitizeChannels(channels);
                 log("【网络】直播源加载成功，频道总数：" + safeChannels.size());
+                
+                // 1. 先合并常规 M3U 频道，并立即刷新 UI
                 synchronized (channelListLock) {
                     channelSourceList = ensureChannelListNotNull(channelSourceList);
                     if (channelSourceList.isEmpty()) {
@@ -140,34 +142,32 @@ public class AppCoreManager {
                 if (dataLoadListener != null) {
                     dataLoadListener.onLiveSourceLoaded(safeChannels, false);
                 }
-                log("【网络】直播源列表已更新");
+                log("【网络】直播源列表已更新（常规源）");
 
                 // ================================================================
-                // 🟢【新增】后台拉取虎牙“一起看”频道
+                // 🟢【关键修复】后台拉取虎牙，成功后再刷新一次 UI
                 // ================================================================
                 new Thread(() -> {
-                    // TODO: 建议你可以从 SharedPreferences 读取开关，例如 sp.getBoolean("huya_enable", true)
-                    boolean huyaEnabled = true; 
-                    if (huyaEnabled) {
-                        List<Channel> huyaChannels = HuyaTogetherWatchFetcher.fetch(2);
-                        if (huyaChannels != null && !huyaChannels.isEmpty()) {
-                            boolean hasNewChannels = false;
-                            synchronized (channelListLock) {
-                                int oldSize = channelSourceList.size();
-                                mergeChannels(huyaChannels);
-                                hasNewChannels = channelSourceList.size() > oldSize;
-                            }
-                            log("【虎牙】成功加载 " + huyaChannels.size() + " 个一起看频道");
-                            
-                            // 只有当确实有新频道加入时，才触发一次刷新通知，避免 UI 频繁重绘
-                            if (hasNewChannels && dataLoadListener != null) {
+                    log("【虎牙】开始拉取一起看频道...");
+                    List<Channel> huyaChannels = HuyaTogetherWatchFetcher.fetch(2);
+                    if (huyaChannels != null && !huyaChannels.isEmpty()) {
+                        synchronized (channelListLock) {
+                            int oldSize = channelSourceList.size();
+                            mergeChannels(huyaChannels);
+                            log("【虎牙】拉取到 " + huyaChannels.size() + " 个频道，合并后总数：" + channelSourceList.size());
+                        }
+                        // 2. 在 UI 线程再次触发刷新，让“虎牙一起看”分组和频道显示出来
+                        new Handler(Looper.getMainLooper()).post(() -> {
+                            if (dataLoadListener != null) {
                                 dataLoadListener.onLiveSourceLoaded(getChannelList(), false);
                             }
-                        }
+                        });
+                    } else {
+                        log("【虎牙】未拉取到任何频道，或 API 返回为空");
                     }
                 }).start();
                 // ================================================================
-                
+
                 loadEpg();
             }
             @Override
