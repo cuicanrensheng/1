@@ -12,6 +12,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -34,6 +35,7 @@ import com.tv.live.config.AppConfig;
 import com.tv.live.listener.PlayerStateListenerImpl;
 import com.tv.live.manager.*;
 import com.tv.live.util.LogCollector;
+import com.tv.live.util.HuyaParser; // 🟢【新增导入】
 import com.tv.live.widget.ChannelListManager;
 import com.tv.live.widget.DateListManager;
 import com.tv.live.widget.EpgManagerWrapper;
@@ -578,8 +580,12 @@ public class MainActivity extends AppCompatActivity {
         playChannel(channel, index);
     }
 
+    // ================================================================
+    // 🟢【核心修改】playChannel 方法，增加虎牙“一起看”拦截逻辑
+    // ================================================================
     private void playChannel(Channel channel, int index) {
-        if (channel == null || channel.getPlayUrl() == null) return;
+        if (channel == null) return;
+        
         currentPlayIndex = index;
         log("【播放】频道名称：" + channel.getName());
 
@@ -589,11 +595,59 @@ public class MainActivity extends AppCompatActivity {
 
         playerStateListener.setCurrentChannelName(channel.getName());
         appConfig.setLastPlayIndex(index);
+
+        // 🟢 判断是否为虎牙“一起看”频道
+        if ("虎牙一起看".equals(channel.getGroup())) {
+            String roomIdStr = channel.getChannelId();
+            if (TextUtils.isEmpty(roomIdStr)) {
+                Toast.makeText(this, "虎牙房间号为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            try {
+                int roomId = Integer.parseInt(roomIdStr);
+                HuyaParser.parse(roomId, new HuyaParser.OnParseResultListener() {
+                    @Override
+                    public void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch) {
+                        String playUrl = !TextUtils.isEmpty(hlsUrl) ? hlsUrl : flvUrl;
+                        if (playUrl != null) {
+                            // 使用解析出的真实流地址播放
+                            mPlayerManager.playUrl(playUrl, channel.getName(), channel);
+                            
+                            // 立即尝试更新信息栏（播放器内部也会异步更新）
+                            runOnUiThread(() -> {
+                                TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
+                                if (infoDisplayManager != null) {
+                                    infoDisplayManager.showInfoBar(channel, live);
+                                    infoDisplayManager.showChannelNum(index + 1);
+                                }
+                                appCoreManager.resetSourceFailedCount();
+                            });
+                        }
+                    }
+
+                    @Override
+                    public void onFailed(String errorMsg) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(MainActivity.this, "虎牙拉流失败: " + errorMsg, Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                });
+            } catch (NumberFormatException e) {
+                Toast.makeText(this, "虎牙房间号格式错误: " + roomIdStr, Toast.LENGTH_SHORT).show();
+            }
+            return; // 虎牙逻辑结束，直接返回，不执行后续的常规播放
+        }
+
+        // ============================================================
+        // 以下为常规直播源播放逻辑（保持不变）
+        // ============================================================
+        if (channel.getPlayUrl() == null) return;
+
         mPlayerManager.playUrl(channel.getPlayUrl(), channel.getName(), channel);
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         if (infoDisplayManager != null) {
             infoDisplayManager.showInfoBar(channel, live);
-            // ✅【关键】加上这一行，传递 index + 1 作为频道号（因为从 0 开始）
             infoDisplayManager.showChannelNum(index + 1);
         }
         try {
