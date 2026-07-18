@@ -59,11 +59,11 @@ public class HuyaTogetherWatchFetcher {
 
                 String groupName = getMediaGroup(roomTitle);
 
-                // 【关键修改】不再传空字符串，而是先获取真实的流地址
+                // 【核心修复】不再强制过滤掉解析失败的房间
                 String realPlayUrl = resolveHuyaStreamUrl(roomUid);
-                if (realPlayUrl == null || realPlayUrl.isEmpty()) {
-                    Log.d("HuyaFetcher", "跳过无法获取流地址的房间: " + roomTitle);
-                    continue; // 获取不到播放地址就不添加这个频道
+                if (realPlayUrl == null) {
+                    realPlayUrl = ""; // 保证列表能显示，不报错
+                    Log.d("HuyaFetcher", "流地址获取失败: " + roomTitle);
                 }
 
                 Channel channel = new Channel(roomTitle, realPlayUrl, groupName, roomUid);
@@ -75,15 +75,10 @@ public class HuyaTogetherWatchFetcher {
         return pageChannels;
     }
 
-    // ============================================================
-    // 【新增方法】根据虎牙房间 uid 获取真实的 m3u8/flv 播放地址
-    // 必须带 User-Agent 和 Referer，否则虎牙防盗链直接返回 404
-    // ============================================================
     private String resolveHuyaStreamUrl(String uid) {
         try {
             String apiUrl = "https://www.huya.com/live/getLiveInfo?uid=" + uid;
             
-            // 手动构造带请求头的 OkHttp 请求（解决虎牙防盗链 404 问题）
             okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
                     .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                     .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
@@ -101,7 +96,6 @@ public class HuyaTogetherWatchFetcher {
             String jsonStr = response.body().string();
             JSONObject root = new JSONObject(jsonStr);
 
-            // 虎牙接口通常返回 status:200 表示成功
             if (root.optInt("status") != 200) return null;
 
             JSONObject data = root.optJSONObject("data");
@@ -110,20 +104,18 @@ public class HuyaTogetherWatchFetcher {
             JSONObject stream = data.optJSONObject("stream");
             if (stream == null) return null;
 
-            // 兼容两种字段名（虎牙偶尔会变）
             String flvUrl = stream.optString("flvUrl");
             if (flvUrl.isEmpty()) flvUrl = stream.optString("flv");
 
             String m3u8Url = stream.optString("m3u8Url");
             if (m3u8Url.isEmpty()) m3u8Url = stream.optString("m3u8");
 
-            // 优先返回 flv，没有则返回 m3u8
             if (!flvUrl.isEmpty()) return flvUrl;
             if (!m3u8Url.isEmpty()) return m3u8Url;
 
             return null;
         } catch (Exception e) {
-            Log.e("HuyaFetcher", "解析流地址失败 uid=" + uid, e);
+            Log.e("HuyaFetcher", "解析流地址异常 uid=" + uid, e);
             return null;
         }
     }
