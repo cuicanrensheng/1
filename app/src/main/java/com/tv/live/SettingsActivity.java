@@ -49,6 +49,10 @@ public class SettingsActivity extends AppCompatActivity {
     private View itemLog;
     private TextView tv_log_status;
 
+    // 🟢【新增】解析播放日志相关控件
+    private View itemParseLog;
+    private TextView tv_parse_log_status;
+
     private View itemVersionInfo;
     private TextView tv_version_short;
     
@@ -129,6 +133,11 @@ public class SettingsActivity extends AppCompatActivity {
         itemLog = findViewById(R.id.item_log);
         tv_log_status = findViewById(R.id.tv_log_status);
 
+        // 🟢【新增】初始化解析播放日志控件
+        itemParseLog = findViewById(R.id.item_parse_log);
+        tv_parse_log_status = findViewById(R.id.tv_parse_log_status);
+        tv_parse_log_status.setText(sp.getBoolean("parse_log_enable", false) ? "开启" : "关闭");
+
         itemVersionInfo = findViewById(R.id.item_version_info);
         tv_version_short = findViewById(R.id.tv_version_short);
         
@@ -190,7 +199,7 @@ public class SettingsActivity extends AppCompatActivity {
     // ✅ 核心修改：统一管理所有设置项的点击与焦点
     // ================================================================
     private void initSettingsItemList() {
-        // 1. 把所有设置项放入数组（包括16个元素，涵盖所有）
+        // 1. 把所有设置项放入数组（包含新增的解析播放日志，共15个）
         View[] items = {
             findViewById(R.id.item_boot),
             findViewById(R.id.item_reverse),
@@ -205,7 +214,9 @@ public class SettingsActivity extends AppCompatActivity {
             findViewById(R.id.item_epg_subscribe),
             findViewById(R.id.item_check_update),
             findViewById(R.id.item_version_info),
-            findViewById(R.id.item_log)
+            findViewById(R.id.item_log),
+            // 🟢【新增】解析播放日志
+            findViewById(R.id.item_parse_log)
         };
 
         // 2. 统一设置背景选择器
@@ -323,6 +334,14 @@ public class SettingsActivity extends AppCompatActivity {
                 tv_log_status.setText(newState ? "开启" : "关闭");
                 Toast.makeText(SettingsActivity.this, "日志已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
                 MainActivity.toggleLogWindow(newState);
+                break;
+            // 🟢【新增】解析播放日志
+            case 14: 
+                boolean parseLogEnabled = sp.getBoolean("parse_log_enable", false);
+                boolean newParseState = !parseLogEnabled;
+                sp.edit().putBoolean("parse_log_enable", newParseState).apply();
+                tv_parse_log_status.setText(newParseState ? "开启" : "关闭");
+                Toast.makeText(SettingsActivity.this, "解析播放日志已" + (newParseState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
                 break;
         }
     }
