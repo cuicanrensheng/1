@@ -1,9 +1,11 @@
 package com.tv.live.loader;
-import android.util.Log; 
+
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+// 🟢【关键】把 import android.util.Log; 去掉，改用 SettingsActivity
+import com.tv.live.SettingsActivity; 
 
 import com.tv.live.Channel;
 import com.tv.live.PlaylistParser;
@@ -25,9 +27,7 @@ public class LiveSourceLoader {
     private final Context context;
     private final Handler mainHandler;
     private final CacheManager cacheManager;
-    private static final String TAG = "LiveSourceLoader";
 
-    // 加速相关配置
     public enum AccelerateType {
         JSDELIVR, GHPROXY, GITMIRROR, NONE
     }
@@ -52,7 +52,6 @@ public class LiveSourceLoader {
         return instance;
     }
 
-    // ✅ 检查是否开启了“解析播放日志”
     private boolean isParseLogEnabled() {
         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         return sp.getBoolean("parse_log_enable", false);
@@ -61,14 +60,15 @@ public class LiveSourceLoader {
     public void setAccelerateEnabled(boolean enabled) {
         this.accelerateEnabled = enabled;
         if (isParseLogEnabled()) {
-            Log.d(TAG, "【直播源加速】" + (enabled ? "已启用" : "已禁用"));
+            // 🟢【关键】改用 SettingsActivity.log()
+            SettingsActivity.log("【直播源加速】" + (enabled ? "已启用" : "已禁用"));
         }
     }
 
     public void setAccelerateType(AccelerateType type) {
         this.accelerateType = type;
         if (isParseLogEnabled()) {
-            Log.d(TAG, "【直播源加速】加速源切换为：" + getAccelerateTypeName(type));
+            SettingsActivity.log("【直播源加速】加速源切换为：" + getAccelerateTypeName(type));
         }
     }
 
@@ -89,16 +89,16 @@ public class LiveSourceLoader {
                 String acceleratedUrl = getAcceleratedUrl(originalUrl);
                 
                 if (!originalUrl.equals(acceleratedUrl) && isParseLogEnabled()) {
-                    Log.d(TAG, "【直播源加速】检测到 GitHub 链接，已自动加速");
-                    Log.d(TAG, "【直播源加速】原地址：" + originalUrl);
-                    Log.d(TAG, "【直播源加速】加速地址：" + acceleratedUrl);
+                    SettingsActivity.log("【直播源加速】检测到 GitHub 链接，已自动加速");
+                    SettingsActivity.log("【直播源加速】原地址：" + originalUrl);
+                    SettingsActivity.log("【直播源加速】加速地址：" + acceleratedUrl);
                 }
 
                 String rawContent = downloadRawContent(acceleratedUrl);
                 if (rawContent != null && !rawContent.isEmpty()) {
                     cacheManager.saveFileCache("live_source", rawContent);
                     if (isParseLogEnabled()) {
-                        Log.d(TAG, "【直播源】缓存已保存，大小：" + rawContent.length() + " 字节");
+                        SettingsActivity.log("【直播源】缓存已保存，大小：" + rawContent.length() + " 字节");
                     }
                 }
 
@@ -253,11 +253,11 @@ public class LiveSourceLoader {
                     redirectCount++;
                     String location = conn.getHeaderField("Location");
                     if (isParseLogEnabled()) {
-                        Log.d(TAG, "【直播源下载重定向】第" + redirectCount + "次跳转，原地址：" + currentUrl + " -> Location：" + location);
+                        SettingsActivity.log("【直播源下载重定向】第" + redirectCount + "次跳转，原地址：" + currentUrl + " -> Location：" + location);
                     }
                     if (location == null || location.isEmpty()) {
                         if (isParseLogEnabled()) {
-                            Log.d(TAG, "【直播源下载】重定向Location为空，终止下载");
+                            SettingsActivity.log("【直播源下载】重定向Location为空，终止下载");
                         }
                         return null;
                     }
@@ -271,7 +271,7 @@ public class LiveSourceLoader {
                     conn = null;
                     if (redirectCount >= MAX_REDIRECT) {
                         if (isParseLogEnabled()) {
-                            Log.d(TAG, "【直播源下载】重定向已达最大次数" + MAX_REDIRECT + "，下载失败");
+                            SettingsActivity.log("【直播源下载】重定向已达最大次数" + MAX_REDIRECT + "，下载失败");
                         }
                         return null;
                     }
@@ -279,7 +279,7 @@ public class LiveSourceLoader {
                 }
                 if (responseCode != 200) {
                     if (isParseLogEnabled()) {
-                        Log.e(TAG, "【直播源下载】响应码非200：" + responseCode + " url=" + currentUrl);
+                        SettingsActivity.log("【直播源下载】响应码非200：" + responseCode + " url=" + currentUrl);
                     }
                     return null;
                 }
@@ -300,7 +300,7 @@ public class LiveSourceLoader {
         } catch (Exception e) {
             e.printStackTrace();
             if (isParseLogEnabled()) {
-                Log.e(TAG, "【直播源下载】下载异常：" + e.getMessage());
+                SettingsActivity.log("【直播源下载】下载异常：" + e.getMessage());
             }
             return null;
         } finally {
