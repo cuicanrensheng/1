@@ -4,13 +4,13 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
-import com.tv.live.LogManager; // 🟢【修改】改用 LogManager
+
 
 import com.tv.live.Channel;
 import com.tv.live.PlaylistParser;
 import com.tv.live.UrlConfig;
 import com.tv.live.util.CacheManager;
-
+import com.tv.live.util.LogManager;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
