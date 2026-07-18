@@ -68,7 +68,7 @@ public class HuyaParser {
     // 请求房间基础信息
     private static void getRoomInfo(String roomUid, OnParseResultListener listener) {
         String url = String.format(API_ROOM_INFO, roomUid);
-        Headers headers = Net.getInstance().createHuyaFixedHeaders();
+        Headers headers = NetUtil.getInstance().createHuyaFixedHeaders();
         try (Response response = NetUtil.getInstance().syncGet(url)) {
             if (response.code() == 403) {
                 postFailed(listener, "解析失败：虎牙房间接口403防盗链拦截");
