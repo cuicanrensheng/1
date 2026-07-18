@@ -12,93 +12,142 @@ import okhttp3.Response;
 import android.util.Log;
 
 public class HuyaTogetherWatchFetcher {
-    // 虎牙直播基础接口，不需要tag，拉全量直播后过滤「一起看seeTogether」
+    // 虎牙直播列表基础接口
     private static final String API_BASE_URL = "https://www.huya.com/cache.php?m=LiveList&do=getLiveListByPage";
-    // seeTogether 标识：虎牙一起看专区gameHost固定值
+    // 一起看专区固定标识
     private static final String TOGETHER_GAME_HOST = "seeTogether";
-    // 去重，避免重复房间
+    // 房间去重
     private final Set<String> roomIdSet = new HashSet<>();
 
     /**
-     * 对外入口：拉取所有虎牙一起看影视直播间（电影/剧集/动漫/综艺）
-     * @param maxPages 最大拉取页数
-     * @return 频道列表，直接给TV列表渲染
+     * 对外入口：拉取全部虎牙一起看，自动按影视类型分组
+     * @param maxPages 最大分页
+     * @return 全部分类频道列表
      */
     public List<Channel> fetchAllTogetherWatch(int maxPages) {
         List<Channel> result = new ArrayList<>();
         roomIdSet.clear();
-        Log.d("HuyaFetcher", "开始拉取虎牙【一起看】全影视直播间");
+        Log.d("HuyaFetcher", "开始拉取虎牙一起看影视，自动细分类型");
 
-        // 分页循环拉取
         for (int page = 1; page <= maxPages; page++) {
             List<Channel> pageChannels = fetchSinglePage(page);
             if (pageChannels.isEmpty()) {
-                Log.d("HuyaFetcher", "第" + page + "页无数据，终止分页");
+                Log.d("HuyaFetcher", "第" + page + "页无数据，停止分页");
                 break;
             }
             result.addAll(pageChannels);
         }
 
-        Log.d("HuyaFetcher", "虎牙一起看拉取完成，有效影视房间总数：" + result.size());
+        Log.d("HuyaFetcher", "虎牙一起看拉取完成，总频道数：" + result.size());
         return result;
     }
 
     /**
-     * 单页请求 + 过滤seeTogether直播间 + 封装Channel
+     * 单页请求、过滤一起看、自动识别影视类型分组
      */
     private List<Channel> fetchSinglePage(int page) {
         List<Channel> pageResult = new ArrayList<>();
         try {
-            // 构造请求参数：gameId传0拉全部直播，后续过滤host=seeTogether
             StringBuilder urlBuilder = new StringBuilder(API_BASE_URL);
             urlBuilder.append("&page=").append(page);
-            urlBuilder.append("&gameId=0"); // 0=全部游戏/分区，才能抓到一起看
+            urlBuilder.append("&gameId=0"); // gameId=0 拉全分区才能抓到一起看
             String url = urlBuilder.toString();
 
             Response response = NetUtil.getInstance().syncGet(url);
             if (!response.isSuccessful() || response.body() == null) {
-                Log.e("HuyaFetcher", "第" + page + "页接口请求失败");
+                Log.e("HuyaFetcher", "第" + page + "页请求失败");
                 return pageResult;
             }
 
             String jsonStr = response.body().string();
-            JSONObject json = new JSONObject(json);
-            JSONObject data = json.optJSONObject("data");
+            JSONObject rootJson = new JSONObject(jsonStr);
+            JSONObject data = rootJson.optJSONObject("data");
             if (data == null) return pageResult;
 
             JSONArray datas = data.optJSONArray("datas");
             if (datas == null || datas.length() == 0) return pageResult;
 
-            // 遍历当前页所有直播间，只保留「一起看」
             for (int i = 0; i < datas.length; i++) {
                 JSONObject item = datas.getJSONObject(i);
-                String gameHost = item.optString("gameHostName", "");
-                // 核心过滤：只保留 seeTogether 一起看分区
+                String gameHost = item.optString("gameHost", "");
+                // 只保留一起看分区
                 if (!TOGETHER_GAME_HOST.equals(gameHost)) {
                     continue;
                 }
 
-                // 提取房间关键字段
-                String roomId = String.valueOf(item.optString("uid", "")); // 直播间唯一ID
-                String roomName = item.optString("roomName", ""); // 房间标题（影视名字）
-                String nick = item.optString("nick", "虎牙影视主播"); // 主播名
-                String coverImg = item.optString("screenshot", ""); // 封面图（TV列表展示）
-
-                // 空值过滤、去重
-                if (roomId.isEmpty() || roomName.isEmpty() || roomIdSet.contains(roomId)) {
+                String roomUid = item.optString("uid", "");
+                String roomTitle = item.optString("roomName", "").trim();
+                if (roomUid.isEmpty() || roomTitle.isEmpty() || roomIdSet.contains(roomUid)) {
                     continue;
                 }
-                roomIdSet.add(roomId);
+                roomIdSet.add(roomUid);
 
-                // 构建你的TV Channel实体，参数根据你Channel构造器调整
-                // 示例构造：Channel(房间标题,封面,来源平台,房间ID,主播)
-                Channel channel = new Channel(roomName, coverImg, "虎牙-一起看", roomId, nick);
+                // ========== 自动判断影视类型，生成分组group ==========
+                String group = getMediaGroup(roomTitle);
+
+                // 适配你现有Channel构造：name, mainPlayUrl, group, channelId
+                Channel channel = new Channel(
+                        roomTitle,
+                        "", // 播放地址播放时再解析填充
+                        group,
+                        roomUid
+                );
                 pageResult.add(channel);
             }
-
         } catch (Exception e) {
-            Log.e("HuyaFetcher", "分页拉取异常 page=" + page, e);
+            Log.e("HuyaFetcher", "分页异常 page=" + page, e);
         }
         return pageResult;
+    }
+
+    /**
+     * 根据直播间标题自动区分影视分类
+     */
+    private String getMediaGroup(String title) {
+        // 统一小写匹配，避免大小写干扰
+        String lowTitle = title.toLowerCase();
+
+        // 1. 电影类关键词
+        if (lowTitle.contains("电影")
+                || lowTitle.contains("院线")
+                || lowTitle.contains("大片")
+                || lowTitle.contains("影片")
+                || lowTitle.contains("热映")) {
+            return "虎牙一起看-电影";
+        }
+
+        // 2. 电视剧类关键词
+        if (lowTitle.contains("电视剧")
+                || lowTitle.contains("剧集")
+                || lowTitle.contains("全集")
+                || lowTitle.contains("连续剧")
+                || lowTitle.contains("国产剧")
+                || lowTitle.contains("韩剧")
+                || lowTitle.contains("美剧")) {
+            return "虎牙一起看-电视剧";
+        }
+
+        // 3. 动画/动漫类关键词
+        if (lowTitle.contains("动漫")
+                || lowTitle.contains("动画")
+                || lowTitle.contains("二次元")
+                || lowTitle.contains("番")
+                || lowTitle.contains("国漫")
+                || lowTitle.contains("日漫")) {
+            return "虎牙一起看-动画";
+        }
+
+        // 4. 综艺类关键词
+        if (lowTitle.contains("综艺")
+                || lowTitle.contains("真人秀")
+                || lowTitle.contains("晚会")
+                || lowTitle.contains("脱口秀")
+                || lowTitle.contains("选秀")
+                || lowTitle.contains("娱乐节目")) {
+            return "虎牙一起看-综艺";
+        }
+
+        // 不匹配以上的一起看房间
+        return "虎牙一起看-其他";
     }
 }
