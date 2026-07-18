@@ -1,10 +1,9 @@
-package com.tv.live;
+package com.tv.live.util;
 
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-import android.widget.Toast;
-import org.json.JSONArray;
+import android.util.Log;
 import org.json.JSONObject;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -17,11 +16,8 @@ import java.util.concurrent.Executors;
 import okhttp3.Headers;
 import okhttp3.Response;
 
-/**
- * 虎牙解析工具，适配HuyaTogetherWatchFetcher字符串房间UID，分层错误提示
- * 存放路径：com/tv/live/util/HuyaParser.java
- */
 public class HuyaParser {
+    private static final String TAG = "HuyaParser";
     private static final ExecutorService mExecutor = Executors.newCachedThreadPool();
     private static final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private static final String API_ROOM_INFO = "https://www.huya.com/cache.mini-global-%s.json";
@@ -29,13 +25,13 @@ public class HuyaParser {
     private static final Map<String, CacheItem> SOURCE_CACHE = new ConcurrentHashMap<>();
     private static final long CACHE_VALID_MS = 110 * 1000;
 
-    // 解析回调接口
+    // 回调接口
     public interface OnParseResultListener {
         void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch);
         void onFailed(String errorMsg);
     }
 
-    // 缓存数据实体
+    // 缓存实体
     private static class CacheItem {
         String hls;
         String flv;
@@ -45,15 +41,10 @@ public class HuyaParser {
             hls = h;
             flv = f;
             isTogether = t;
-            expireTime = exp;
         }
     }
 
-    /**
-     * 对外统一解析入口，传入字符串房间UID（Channel.getChannelId()）
-     * @param roomUid 虎牙房间字符串ID
-     * @param listener 成功/失败回调
-     */
+    /** 对外统一入口，传入字符串roomUid（Channel.getChannelId()） */
     public static void parse(String roomUid, OnParseResultListener listener) {
         if (TextUtils.isEmpty(roomUid)) {
             mMainHandler.post(() -> listener.onFailed("解析失败：房间ID为空"));
@@ -68,16 +59,16 @@ public class HuyaParser {
         mExecutor.execute(() -> getRoomInfo(roomUid, listener));
     }
 
-    // 兼容旧数字ID（废弃重载）
+    // 兼容数字ID（废弃重载）
     @Deprecated
     public static void parse(int roomId, OnParseResultListener listener) {
         parse(String.valueOf(roomId), listener);
     }
 
-    /** 请求房间基础信息接口 */
+    // 请求房间基础信息
     private static void getRoomInfo(String roomUid, OnParseResultListener listener) {
         String url = String.format(API_ROOM_INFO, roomUid);
-        Headers headers = NetUtil.getInstance().createHuyaFixedHeaders();
+        Headers headers = Net.getInstance().createHuyaFixedHeaders();
         try (Response response = NetUtil.getInstance().syncGet(url)) {
             if (response.code() == 403) {
                 postFailed(listener, "解析失败：虎牙房间接口403防盗链拦截");
@@ -107,7 +98,7 @@ public class HuyaParser {
         }
     }
 
-    /** 请求播放地址接口 */
+    // 请求播放地址接口
     private static void getPlaySource(String roomUid, String streamName, long wsTime, String wsSecret,
                                       boolean isTogetherWatch, OnParseResultListener listener) {
         StringBuilder apiUrl = new StringBuilder(String.format(API_PLAY_URL, roomUid));
@@ -130,14 +121,14 @@ public class HuyaParser {
             }
             String resStr = response.body().string();
             JSONObject json = new JSONObject(resStr);
-            JSONArray streamArray = json.optJSONArray("data");
+            org.json.JSONArray streamArray = json.optJSONArray("data");
             if (streamArray == null || streamArray.length() == 0) {
                 postFailed(listener, "解析失败：未获取到任何直播线路");
                 return;
             }
             String hlsUrl = "";
             String flvUrl = "";
-            for (int i = 0; i < streamArray.length; i++) {
+            for (int i = 0; i < streamArray.length(); i++) {
                 JSONObject item = streamArray.getJSONObject(i);
                 String url = item.optString("url");
                 if (TextUtils.isEmpty(url)) continue;
@@ -152,7 +143,7 @@ public class HuyaParser {
                 return;
             }
             long expire = System.currentTimeMillis() + CACHE_VALID_MS;
-            SOURCE_CACHE.put(roomUid, new CacheItem(hlsUrl, flvUrl, isTogether, expire));
+            SOURCE_CACHE.put(roomUid, new CacheItem(hlsUrl, flvUrl, isTogetherWatch, expire));
             postSuccess(listener, hlsUrl, flvUrl, isTogetherWatch);
         } catch (IOException e) {
             postFailed(listener, "解析失败：网络请求超时 " + e.getMessage());
@@ -162,13 +153,13 @@ public class HuyaParser {
         }
     }
 
-    /** MD5签名计算 */
+    // MD5签名计算
     private static String calcSecret(String uid, String stream, long time) {
         String raw = uid + stream + time + "97b64242aa187a74";
         return md5(raw).toLowerCase();
     }
 
-    /** MD5加密工具 */
+    // MD5加密工具
     private static String md5(String str) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
@@ -195,7 +186,7 @@ public class HuyaParser {
         mMainHandler.post(() -> listener.onFailed(msg));
     }
 
-    // 清空缓存（刷新分类时调用）
+    // 清空缓存（下拉刷新、切换分类时调用）
     public static void clearCache() {
         SOURCE_CACHE.clear();
     }
