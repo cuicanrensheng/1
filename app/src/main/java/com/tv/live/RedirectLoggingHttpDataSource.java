@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.text.TextUtils;
-import android.util.Log;
 import android.webkit.CookieManager;
 
 import androidx.media3.common.C;
@@ -29,9 +28,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.zip.GZIPInputStream;
 
+// 🟢【关键修改】去掉 android.util.Log，改用 SettingsActivity 统一收集日志
 @SuppressLint("UnsafeOptInUsageError")
 public class RedirectLoggingHttpDataSource extends BaseDataSource implements HttpDataSource {
-    private static final String TAG = "RedirectHttp";
     // 默认常量
     private int maxRedirects = 5;
     private int connectTimeout = 10000;
@@ -104,7 +103,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             if (responseCode < 200 || responseCode > 299) {
                 String responseMessage = connection.getResponseMessage();
                 if (shouldLog) {
-                    Log.e(TAG, "[" + getTimeStr() + "] ❌ 失败: HTTP " + responseMessage);
+                    // 🟢【修改】Log.e 改成 SettingsActivity.log，这样对话框里也能看到
+                    SettingsActivity.log("[" + getTimeStr() + "] ❌ 失败: HTTP " + responseMessage);
                 }
                 throw new HttpDataSource.HttpDataSourceException(
                         "HTTP " + responseCode + " " + responseMessage,
@@ -164,7 +164,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             if (System.currentTimeMillis() - startTime > MAX_TOTAL_DELAY) {
                 String logMsg = "[" + getTimeStr() + "] ❌ 失败: 重定向总耗时超时 (超过 " + MAX_TOTAL_DELAY + "ms)";
                 if (shouldLog) {
-                    Log.e(TAG, logMsg);
+                    // 🟢【修改】Log.e 改成 SettingsActivity.log
+                    SettingsActivity.log(logMsg);
                 }
                 throw new RedirectFailedException("重定向总耗时超时", -1, originalUrl, currentUrl);
             }
@@ -172,7 +173,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             if (redirectCount > maxRedirects) {
                 String logMsg = "[" + getTimeStr() + "] ❌ 失败: 重定向次数超过限制(" + maxRedirects + "次)";
                 if (shouldLog) {
-                    Log.e(TAG, logMsg);
+                    // 🟢【修改】Log.e 改成 SettingsActivity.log
+                    SettingsActivity.log(logMsg);
                 }
                 throw new RedirectFailedException("重定向次数超限", -1, originalUrl, currentUrl);
             }
@@ -206,7 +208,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             if (TextUtils.isEmpty(location)) {
                 String errLog = "[" + getTimeStr() + "] ❌ 失败: 第" + redirectCount + "次重定向无Location头";
                 if (shouldLog) {
-                    Log.e(TAG, errLog);
+                    // 🟢【修改】Log.e 改成 SettingsActivity.log
+                    SettingsActivity.log(errLog);
                 }
                 conn.disconnect();
                 throw new RedirectFailedException("重定向Location为空", respCode, originalUrl, currentUrl);
@@ -217,7 +220,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             boolean crossProtocol = !Objects.equals(baseUri.getScheme(), targetUri.getScheme());
             if (crossProtocol && !allowCrossProtocolRedirects) {
                 if (shouldLog) {
-                    Log.e(TAG, "[" + getTimeStr() + "] ❌ 失败: 禁止跨协议跳转");
+                    // 🟢【修改】Log.e 改成 SettingsActivity.log
+                    SettingsActivity.log("[" + getTimeStr() + "] ❌ 失败: 禁止跨协议跳转");
                 }
                 conn.disconnect();
                 throw new RedirectFailedException("跨协议重定向被禁用", respCode, originalUrl, redirectUrl);
@@ -226,7 +230,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             boolean isInner = isInnerIp(targetUri.getHost());
             if (crossDomain && !allowCrossDomainRedirects && !isInner) {
                 if (shouldLog) {
-                    Log.e(TAG, "[" + getTimeStr() + "] ❌ 失败: 禁止跨域名跳转");
+                    // 🟢【修改】Log.e 改成 SettingsActivity.log
+                    SettingsActivity.log("[" + getTimeStr() + "] ❌ 失败: 禁止跨域名跳转");
                 }
                 conn.disconnect();
                 throw new RedirectFailedException("跨域名重定向被禁用", respCode, originalUrl, redirectUrl);
@@ -440,7 +445,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                     readTimeoutMs
             );
             source.setChannelName(channelName);
-            // ✅ 关键：把 Context 传进去，读取开关状态并应用到日志
             source.setContext(context);
             return source;
         }
