@@ -40,17 +40,17 @@ public class HuyaTogetherWatchFetcher {
             if (!response.isSuccessful() || response.body() == null) return pageChannels;
             String jsonStr = response.body().string();
             
-            // 【修正1】这里必须用 jsonStr，而不是 json
             JSONObject root = new JSONObject(jsonStr); 
             JSONObject data = root.optJSONObject("data");
             if (data == null) return pageChannels;
             JSONArray datas = data.optJSONArray("datas");
             if (datas == null || datas.length() == 0) return pageChannels;
 
-            // 【修正2】这里必须加括号：length()
             for (int i = 0; i < datas.length(); i++) {
                 JSONObject item = datas.getJSONObject(i);
-                String gameHost = item.optString("gameHost", "");
+                
+                // 【已修改】字段名从 gameHost 改为 gameHostName，匹配虎牙API返回的JSON
+                String gameHost = item.optString("gameHostName", ""); 
                 if (!TOGETHER_GAME_HOST.equals(gameHost)) continue;
 
                 String roomUid = item.optString("uid", "");
