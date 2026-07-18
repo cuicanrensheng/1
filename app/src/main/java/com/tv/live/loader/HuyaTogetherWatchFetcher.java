@@ -18,7 +18,7 @@ public class HuyaTogetherWatchFetcher {
 
     public List<Channel> fetchAllTogetherWatch(int maxPages) {
         List<Channel> result = new ArrayList<>();
-        roomId.clear();
+        roomIdSet.clear(); // 修复变量名错误
         Log.d("HuyaFetcher", "开始拉取虎牙一起看细分影视房间");
         for (int page = 1; page <= maxPages; page++) {
             List<Channel> pageData = fetchSinglePage(page);
