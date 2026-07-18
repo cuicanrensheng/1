@@ -1,5 +1,7 @@
 package com.tv.live;
-
+import com.tv.live.loader.HuyaTogetherWatchFetcher;
+import com.tv.live.util.HuyaParser;
+import java.util.List;
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
