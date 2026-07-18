@@ -1,7 +1,6 @@
 package com.tv.live;
 import com.tv.live.loader.HuyaTogetherWatchFetcher;
-import com.tv.live.util.HuyaParser;
-import java.util.List;
+import com.tv.live.HuyaParser;
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -14,6 +13,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -48,8 +48,9 @@ import java.util.List;
 @SuppressLint("UnsafeOptInUsageError")
 public class MainActivity extends AppCompatActivity {
     private static WeakReference<MainActivity> mInstanceRef;
-    
+
     public List<Channel> channelSourceList = new ArrayList<>(512);
+    private List<Channel> huyaChannelList = new ArrayList<>();
     public int currentPlayIndex = 0;
 
     private PlayerView playerView;
@@ -159,6 +160,7 @@ public class MainActivity extends AppCompatActivity {
         initAppCoreManager();
         displayManager.showLoading("正在加载直播源...");
         new Thread(() -> appCoreManager.loadLiveAndEpg()).start();
+        loadHuyaTogetherChannel();
 
         unlockReceiver = new BroadcastReceiver() {
             @Override
@@ -170,27 +172,36 @@ public class MainActivity extends AppCompatActivity {
             }
         };
         ContextCompat.registerReceiver(
-            this,
-            unlockReceiver,
-            new IntentFilter("com.tv.live.UNLOCK_SETTINGS"),
-            ContextCompat.RECEIVER_NOT_EXPORTED
+                this,
+                unlockReceiver,
+                new IntentFilter("com.tv.live.UNLOCK_SETTINGS"),
+                ContextCompat.RECEIVER_NOT_EXPORTED
         );
     }
 
-    // ================================================================
-    // ✅ 新增：遥控器按键直接打开面板/设置
-    // ================================================================
+    private void loadHuyaTogetherChannel() {
+        new Thread(() -> {
+            try {
+                HuyaTogetherWatchFetcher fetcher = new HuyaTogetherWatchFetcher();
+                huyaChannelList = fetcher.fetchAllTogetherWatch(15);
+                Log.d("HuyaLoad", "虎牙频道拉取完成，总数：" + huyaChannelList.size());
+                runOnUiThread(() -> {
+                    channelSourceList.addAll(huyaChannelList);
+                    channelPanelController.setChannels(channelSourceList);
+                });
+            } catch (Exception e) {
+                Log.e("HuyaLoad", "虎牙频道拉取失败", e);
+            }
+        }).start();
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 如果面板打开，让面板优先处理按键（方向键等）
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-            // 方向键和确定键由 ListView 自己处理，不需要拦截
-            // 但菜单键、设置键等仍可触发面板/设置
         }
 
         switch (keyCode) {
             case KeyEvent.KEYCODE_MENU:
-                // 菜单键：切换频道面板
                 if (channelPanelController != null) {
                     channelPanelController.togglePanel();
                     return true;
@@ -198,12 +209,10 @@ public class MainActivity extends AppCompatActivity {
                 break;
 
             case KeyEvent.KEYCODE_SETTINGS:
-                // 设置键：打开设置页面
                 openSettings();
                 return true;
 
             case KeyEvent.KEYCODE_DPAD_CENTER:
-                // 确定键：如果面板未打开，则打开面板（可选）
                 if (channelPanelController != null && !channelPanelController.isPanelOpen()) {
                     channelPanelController.togglePanel();
                     return true;
@@ -216,7 +225,6 @@ public class MainActivity extends AppCompatActivity {
         return super.onKeyDown(keyCode, event);
     }
 
-    // ✅ 之前已有的 dispatchKeyEvent（面板打开时优先让面板处理按键）
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
@@ -226,10 +234,6 @@ public class MainActivity extends AppCompatActivity {
         }
         return super.dispatchKeyEvent(event);
     }
-
-    // ================================================================
-    // 以下方法保持原有逻辑，无改动
-    // ================================================================
 
     public void showLogWindow() {
         if (logWindowVisible) return;
@@ -554,7 +558,7 @@ public class MainActivity extends AppCompatActivity {
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
-        
+
         String decoderMode = sp.getString("decoder_mode", "auto");
         int mode = TVPlayerManager.DECODER_MODE_AUTO;
         if ("hard".equals(decoderMode)) {
@@ -562,7 +566,7 @@ public class MainActivity extends AppCompatActivity {
         } else if ("soft".equals(decoderMode)) {
             mode = TVPlayerManager.DECODER_MODE_SOFT;
         }
-        
+
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epg_enable);
@@ -581,10 +585,33 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void playChannel(Channel channel, int index) {
-        if (channel == null || channel.getPlayUrl() == null) return;
+        if (channel == null) return;
+        String playUrl = channel.getPlayUrl();
         currentPlayIndex = index;
-        log("【播放】频道名称：" + channel.getName());
 
+        if (TextUtils.isEmpty(playUrl)) {
+            String roomUid = channel.getChannelId();
+            Toast.makeText(MainActivity.this, "正在解析影视播放地址...", Toast.LENGTH_SHORT).show();
+            HuyaParser.parse(roomUid, new HuyaParser.OnParseResultListener() {
+                @Override
+                public void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch) {
+                    String realPlay = TextUtils.isEmpty(hlsUrl) ? flvUrl : hlsUrl;
+                    Channel playCh = new Channel(channel.getName(), realPlay, channel.getGroup(), roomUid);
+                    realPlayChannel(playCh, index);
+                }
+
+                @Override
+                public void onFailed(String errorMsg) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "解析失败：" + errorMsg, Toast.LENGTH_LONG).show());
+                }
+            });
+            return;
+        }
+        realPlayChannel(channel, index);
+    }
+
+    private void realPlayChannel(Channel channel, int index) {
+        log("【播放】频道名称：" + channel.getName());
         if (isInCatchUpMode) {
             exitPlaybackMode();
         }
@@ -595,7 +622,6 @@ public class MainActivity extends AppCompatActivity {
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         if (infoDisplayManager != null) {
             infoDisplayManager.showInfoBar(channel, live);
-            // ✅【关键】加上这一行，传递 index + 1 作为频道号（因为从 0 开始）
             infoDisplayManager.showChannelNum(index + 1);
         }
         try {
@@ -644,7 +670,7 @@ public class MainActivity extends AppCompatActivity {
                 exitMenuDialog.getWindow().setAttributes(lp);
                 exitMenuDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
-            
+
             exitMenuDialog.setOnDismissListener(dialog -> exitMenuDialog = null);
             exitMenuDialog.show();
         }
@@ -675,7 +701,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             exitMenuDialog.dismiss();
-            exitMenuDialog = null; 
+            exitMenuDialog = null;
             return;
         }
 
@@ -822,7 +848,7 @@ public class MainActivity extends AppCompatActivity {
             mInstanceRef.clear();
             mInstanceRef = null;
         }
-        
+
         mMainHandler.removeCallbacksAndMessages(null);
         if (infoDisplayManager != null) infoDisplayManager.release();
         if (displayManager != null) displayManager.release();
@@ -845,9 +871,9 @@ public class MainActivity extends AppCompatActivity {
             try {
                 unregisterReceiver(unlockReceiver);
             } catch (Exception e) {
-                // 忽略
             }
             unlockReceiver = null;
         }
+        HuyaParser.release();
     }
 }
