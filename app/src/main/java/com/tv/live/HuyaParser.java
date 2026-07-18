@@ -1,4 +1,4 @@
-package com.tv.live.util;
+package com.tv.live;
 
 import android.os.Handler;
 import android.os.Looper;
