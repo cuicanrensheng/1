@@ -1,58 +1,59 @@
 package com.tv.live.util;
 
-import java.util.ArrayList;
-import java.util.List;
+import android.util.Log;
 
 /**
- * 用于收集和查看日志的简易收集器
+ * 日志管理工具类（基于 LogCollector 实现）
+ * 用于统一输出日志到 Logcat 和 设置页面的日志收集器
  */
-public class LogCollector {
-    private static final int MAX_LOG_COUNT = 300; // 最多保存300条最新日志
-    private final List<String> logList = new ArrayList<>();
-    private static volatile LogCollector instance;
+public class LogManager {
+    private static final String TAG = "LiveTV";
+    
+    // 直接复用你的 LogCollector
+    private static final LogCollector collector = LogCollector.getInstance();
 
-    private LogCollector() {}
-
-    public static LogCollector getInstance() {
-        if (instance == null) {
-            synchronized (LogCollector.class) {
-                if (instance == null) {
-                    instance = new LogCollector();
-                }
-            }
-        }
-        return instance;
+    /**
+     * 记录解析/播放日志
+     * 该方法会被 LiveSourceLoader 和 RedirectLoggingHttpDataSource 调用
+     */
+    public static void log(String msg) {
+        // 1. 输出到 Android Logcat（调试时能看到）
+        Log.d(TAG, msg);
+        // 2. 保存到 LogCollector（设置页面“查看解析日志”能读取到）
+        collector.addLog("播放", msg);
     }
 
-    // 添加一条日志
-    public void addLog(String tag, String msg) {
-        String time = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-                .format(new java.util.Date());
-        String logEntry = "[" + time + "] " + tag + " -> " + msg;
-        synchronized (logList) {
-            logList.add(logEntry);
-            // 控制内存溢出，超过300条时移除最早的一条
-            if (logList.size() > MAX_LOG_COUNT) {
-                logList.remove(0);
-            }
-        }
+    /**
+     * 记录操作日志（如设置开关、切台等）
+     */
+    public static void logOperation(String msg) {
+        Log.d(TAG, "[操作] " + msg);
+        collector.addLog("操作", msg);
     }
 
-    // 获取所有日志（用于弹窗显示）
-    public String getAllLogs() {
-        StringBuilder sb = new StringBuilder();
-        synchronized (logList) {
-            for (String log : logList) {
-                sb.append(log).append("\n");
-            }
-        }
-        return sb.toString();
+    /**
+     * 获取所有日志（供设置页面的日志对话框显示）
+     * 目前 LogCollector 会混合保存播放和操作日志，因此统一返回全部内容
+     */
+    public static String getPlayLog() {
+        return collector.getAllLogs();
     }
 
-    // 清空日志
-    public void clearLogs() {
-        synchronized (logList) {
-            logList.clear();
-        }
+    /**
+     * 获取操作日志（同样返回全部日志，方便统一查看）
+     */
+    public static String getOperationLog() {
+        return collector.getAllLogs();
+    }
+
+    /**
+     * 清空日志（配合设置页面的“清空日志”按钮）
+     */
+    public static void clearPlayLog() {
+        collector.clearLogs();
+    }
+
+    public static void clearOperationLog() {
+        collector.clearLogs();
     }
 }
