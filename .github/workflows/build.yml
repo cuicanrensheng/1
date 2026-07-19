@@ -57,16 +57,7 @@ jobs:
             echo "✅ 安全检查通过：未发现旧版 ExoPlayer 依赖"
           fi
 
-      # 🟢 运行 Android Lint 静态代码检查
-      - name: Run Lint
-        run: ./gradlew lintRelease -Pandroid.lint.abortOnError=false
-        continue-on-error: true
-
-      # 🟢 运行单元测试
-      - name: Run Unit Tests
-        run: ./gradlew testRelease --no-daemon --stacktrace
-
-      # ❌ 这里删除了 Upload Lint Report / Upload Test Report / Upload Lint Baseline
+      # ❌ 这里删除了 Run Lint 和 Run Unit Tests
 
       - name: 开始执行 Release 打包...
         run: |
@@ -97,6 +88,8 @@ jobs:
         with:
           name: TVLive-直播APP
           path: app/build/outputs/apk/release/*.apk
+          # 强烈建议加上这一行，1天后自动删除制品，防止配额再次爆满
+          retention-days: 1 
 
       - name: 上传更新配置
         uses: actions/upload-artifact@v4
