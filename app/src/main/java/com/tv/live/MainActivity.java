@@ -664,7 +664,9 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // ✅【修复点】这里加了 @SuppressLint("MissingSuperCall")，因为这里的业务逻辑需要拦截返回键弹窗，不能调用 super.onBackPressed()
     @Override
+    @SuppressLint("MissingSuperCall")
     public void onBackPressed() {
         if (isInCatchUpMode && playerControlManager != null && playerControlManager.isControllerShowing()) {
             exitPlaybackMode();
