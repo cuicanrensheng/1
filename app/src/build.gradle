@@ -5,7 +5,7 @@ plugins {
 android {
     namespace "com.tv.live"
 
-    compileSdk 35
+    compileSdk 36 // 和targetSdk统一，消除AGP版本警告
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -38,26 +38,27 @@ android {
 
     signingConfigs {
         release {
-            // 🔥 直接硬编码路径，因为 CI 会将密钥库解码到 app/release.keystore
             storeFile file("release.keystore")
-            
-            // 从 -P 参数读取密码和别名
-            storePassword project.findProperty("storePassword")
-            keyAlias project.findProperty("keyAlias")
-            keyPassword project.findProperty("keyPassword")
-            
+            // 增加空判断，本地调试不崩溃
+            def storeP = project.hasProperty("storePassword") ? project.findProperty("storePassword") : ""
+            def keyA = project.hasProperty("keyAlias") ? project.findProperty("keyAlias") : ""
+            def keyP = project.hasProperty("keyPassword") ? project.findProperty("keyPassword") : ""
+            storePassword storeP
+            keyAlias keyA
+            keyPassword keyP
+
             v1SigningEnabled true
             v2SigningEnabled true
         }
-        debug {
-        }
+        debug {}
     }
 
     buildTypes {
         release {
-            minifyEnabled false
-            shrinkResources false
-            crunchPngs false
+            // 建议线上开启混淆与资源压缩
+            minifyEnabled true
+            shrinkResources true
+            crunchPngs true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
@@ -66,68 +67,55 @@ android {
         }
     }
 
-    packagingOptions {
+    // 统一资源冲突处理，废弃零散pickFirst
+    packaging {
         resources {
             pickFirsts += ['META-INF/com.android.tools/proguard/coroutines.pro']
+            pickFirsts += ['lib/armeabi-v7a/libhyaudioengine.so']
+            pickFirsts += ['lib/arm64-v8a/libhyaudioengine.so']
+            pickFirsts += ['lib/x86/libhyaudioengine.so']
         }
-        pickFirst 'lib/armeabi-v7a/libhyaudioengine.so'
-        pickFirst 'lib/arm64-v8a/libhyaudioengine.so'
-        pickFirst 'lib/x86/libhyaudioengine.so'
     }
 
-    sourceSets {
-        main.java.srcDirs += ['../berry_lib/src/main/java']
-        main.res.srcDirs += ['../berry_lib/src/main/res']
-        main.jniLibs.srcDirs = ['../berry_lib/libs']
-    }
-
-    // ================================================================
-    // 🟢【新增】Lint 基线配置（打包不阻断，将问题保存到文件）
-    // ================================================================
     lint {
-        // 所有的 107 个错误和 232 个警告都会写入这个文件
         baseline = file("lint-baseline.xml")
-        // 明确告诉 Gradle 即使有错误也别中断打包流程
         abortOnError false
     }
-    // ================================================================
 }
 
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
+    // 1. 标准依赖berry_lib子模块，删除原来跨目录sourceSets
+    implementation project(':berry_lib')
+    // 仅保留app目录下独立本地包，无重复so/aar
     implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
 
+    // UI基础库
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "com.google.android.material:material:1.11.0"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
-    
-    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.recyclerview:recyclerview'
+
     implementation 'com.google.zxing:core:3.5.1'
-    
     implementation 'com.google.code.gson:gson:2.10.1'
 
-    // ❌【已移除】本地 libs 文件夹的 AAR 以及远程 FFmpeg 扩展均不再需要
-    
-    // ✅ 纯净版：仅保留远程 Media3 核心模块（版本锁定为 1.7.1）
+    // Media3 统一锁定1.7.1，彻底屏蔽旧ExoPlayer
     implementation "androidx.media3:media3-exoplayer:1.7.1"
     implementation "androidx.media3:media3-ui:1.7.1"
     implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
     implementation "androidx.media3:media3-exoplayer-dash:1.7.1"
     implementation "androidx.media3:media3-common:1.7.1"
     implementation "androidx.media3:media3-datasource:1.7.1"
-    implementation "androidx.media3:media3-decoder:1.7.1"
-    implementation "androidx.media3:media3-extractor:1.7.1"
-    
-    implementation "com.squareup.okhttp3:okhttp:4.12.0"
-    
+    implementation "androidx.media3-decoder:1.7.1"
+    implementation "androidx.media3-extractor:1.7.1"
 
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "com.github.bumptech.glide:glide:4.16.0"
     annotationProcessor "com.github.bumptech.glide:compiler:4.16.0"
-
     implementation "org.apache.commons:commons-lang3:3.14.0"
 
-    // 🔥 在可能引入旧版 ExoPlayer 的库上单独排除
+    // 第三方库排除旧ExoPlayer
     implementation("com.blankj:utilcodex:1.31.1") {
         exclude group: 'com.google.android.exoplayer2'
     }
@@ -136,18 +124,16 @@ dependencies {
     }
 }
 
-// ================================================================
-// 🔒 只保留 force，无全局 exclude（避免 AGP 死锁）
-// ================================================================
+// 全局强制Media3版本，杜绝版本漂移
 configurations.all {
     resolutionStrategy {
-        force "androidx.media3:media3-common:1.7.1"
         force "androidx.media3:media3-exoplayer:1.7.1"
         force "androidx.media3:media3-ui:1.7.1"
         force "androidx.media3:media3-exoplayer-hls:1.7.1"
         force "androidx.media3:media3-exoplayer-dash:1.7.1"
+        force "androidx.media3:media3-common:1.7.1"
         force "androidx.media3:media3-datasource:1.7.1"
-        force "androidx.media3:media3-decoder:1.7.1"
-        force "androidx.media3:media3-extractor:1.7.1"
+        force "androidx.media3-decoder:1.7.1"
+        force "androidx.media3-extractor:1.7.1"
     }
 }
