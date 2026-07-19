@@ -10,8 +10,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // 删除 flatDir berry_lib 配置，改用子模块依赖
     }
 }
 rootProject.name = "1"
 include ':app'
-include ':berry_lib' // 新增：把虎牙依赖模块加入构建工程
+include ':berry_lib'
