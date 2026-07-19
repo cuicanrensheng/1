@@ -25,80 +25,78 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: 赋予执行权限
+      - name: 赋予 Gradle 脚本执行权限
         run: chmod +x gradlew
 
-      - name: 清理缓存并强制刷新依赖
+      - name: 清理缓存与构建产物
         run: |
           echo "🧹 清理 Gradle 缓存..."
           rm -rf ~/.gradle/caches/
-          ./gradlew clean
+          # 指定app子模块clean，解决根任务不存在报错
+          ./gradlew :app:clean --refresh-dependencies
 
-      - name: 解码签名证书并注入密钥
+      - name: 解码签名证书并校验依赖
         run: |
-          echo "🔑 正在解码签名证书..."
+          echo "🔑 解码release签名证书..."
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
 
-          echo "🔍 正在静默验证依赖版本..."
-          DEPS_OUTPUT=$(./gradlew app:dependencies --configuration releaseCompileClasspath --refresh-dependencies --no-daemon 2>&1 || true)
+          echo "🔍 校验依赖：仅使用Media3，禁止旧ExoPlayer"
+          DEPS_OUTPUT=$(./gradlew :app:dependencies --configuration releaseCompileClasspath --refresh-dependencies --no-daemon 2>&1 || true)
           
           if echo "$DEPS_OUTPUT" | grep -q "androidx.media3:media3-common:1.7.1"; then
-            echo "✅ 版本检查通过：Media3 已锁定为 1.7.1"
+            echo "✅ Media3 1.7.1 版本校验通过"
           else
-            echo "❌ 版本检查失败：未检测到 Media3 1.7.1"
+            echo "❌ 未找到 Media3 1.7.1 依赖，构建终止"
             echo "$DEPS_OUTPUT" | head -n 20
             exit 1
           fi
           
           if echo "$DEPS_OUTPUT" | grep -q "com.google.android.exoplayer"; then
-            echo "❌ 安全警告：检测到旧版 ExoPlayer 依赖混入！"
+            echo "❌ 检测到废弃 ExoPlayer 依赖，构建终止"
             exit 1
           else
-            echo "✅ 安全检查通过：未发现旧版 ExoPlayer 依赖"
+            echo "✅ 无旧版ExoPlayer，依赖安全校验通过"
           fi
 
-      # 🟢【新增 1】运行 Android Lint 静态代码检查
-      - name: Run Lint
-        run: ./gradlew lintRelease -Pandroid.lint.abortOnError=false
-        # 🟢【关键修改】加上这一行，即使 Lint 报错，也会继续执行后续上传步骤
+      # 静态代码检查，失败不阻断后续流程
+      - name: Run Android Lint Release
+        run: ./gradlew :app:lintRelease -Pandroid.lint.abortOnError=false --no-daemon
         continue-on-error: true
 
-      # 🟢【新增 2】运行单元测试
-      - name: Run Unit Tests
-        run: ./gradlew testRelease --no-daemon --stacktrace
+      # 单元测试，测试失败会终止构建
+      - name: Run Release Unit Tests
+        run: ./gradlew :app:testRelease --no-daemon --stacktrace
 
-      # 🟢【新增 3】上传 Lint 报告
-      - name: Upload Lint Report
+      - name: 上传Lint报告
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
           path: app/build/reports/lint-results-release.html
 
-      # 🟢【新增 4】上传单元测试报告
-      - name: Upload Test Report
+      - name: 上传单元测试报告
         uses: actions/upload-artifact@v4
         with:
           name: test-report
           path: app/build/reports/tests/testReleaseUnitTest/index.html
 
-      # 🟢【新增 5】上传 Lint 基线文件
-      - name: Upload Lint Baseline
+      - name: 上传Lint基线文件
         uses: actions/upload-artifact@v4
         with:
           name: lint-baseline
           path: app/lint-baseline.xml
 
-      - name: 开始执行 Release 打包...
+      - name: 编译Release签名APK
         run: |
-          echo "🎯 开始执行 Release 打包..."
-          ./gradlew assembleRelease \
+          echo "🎯 开始打包正式Release安装包"
+          ./gradlew :app:assembleRelease \
             --no-daemon \
             --stacktrace \
+            --refresh-dependencies \
             -PstorePassword=${{ secrets.STORE_PASSWORD }} \
             -PkeyAlias=${{ secrets.KEY_ALIAS }} \
             -PkeyPassword=${{ secrets.KEY_PASSWORD }}
 
-      - name: 生成 update.json
+      - name: 生成自动更新配置update.json
         run: |
           VERSION_CODE=${{ github.run_number }}
           VERSION_NAME="1.0.$VERSION_CODE"
@@ -107,28 +105,28 @@ jobs:
           {
             "versionCode": $VERSION_CODE,
             "versionName": "$VERSION_NAME",
-            "message": "自动更新版本",
+            "message": "CI自动构建更新包",
             "downloadUrl": "$DOWNLOAD_URL"
           }
           EOF
 
-      - name: 上传成品 APK
+      - name: 上传APK产物到工作流制品
         uses: actions/upload-artifact@v4
         with:
           name: TVLive-直播APP
           path: app/build/outputs/apk/release/*.apk
 
-      - name: 上传更新配置
+      - name: 上传更新配置文件
         uses: actions/upload-artifact@v4
         with:
           name: update-config
           path: update.json
 
-      - name: 创建发布
+      - name: 创建GitHub Release发布
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: 自动发布 v${{ github.run_number }}
+          name: 自动构建版本 v${{ github.run_number }}
           files: |
             app/build/outputs/apk/release/app-release.apk
             update.json
