@@ -73,18 +73,21 @@ public class SettingsDialog extends Dialog {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ---- 设置透明背景与窗口属性（关键修改） ----
+        // ---- 设置透明背景与窗口属性（消除暗色遮罩） ----
         Window window = getWindow();
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-
+            
             // 设置窗口大小为全屏，保证点击外部 View 能覆盖整个屏幕
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
-
-            // ✅ 核心修复：强制指定窗口重力为 END（靠右）和 TOP（靠上）
+            
+            // 强制指定窗口重力为 END（靠右）和 TOP（靠上）
             window.setGravity(Gravity.END | Gravity.TOP);
-
+            
+            // ✅ 核心修复：将遮罩程度设为 0，彻底去掉背后的暗色蒙版
+            window.setDimAmount(0.0f);
+            
             // 保持屏幕常亮
             window.setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
                     WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -142,6 +145,10 @@ public class SettingsDialog extends Dialog {
             return false;
         });
     }
+
+    // ================================================================
+    // 以下方法全部从 SettingsActivity 迁移而来，仅将 this 改为 context
+    // ================================================================
 
     private void bindViews() {
         sw_boot = findViewById(R.id.sw_boot);
