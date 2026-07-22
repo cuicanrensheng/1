@@ -680,6 +680,9 @@ public class MainActivity extends AppCompatActivity {
         showExitMenu();
     }
 
+    // ================================================================
+    // ✅【核心修改】openSettings 方法改为使用 SettingsDialog
+    // ================================================================
     public void openSettings() {
         long now = System.currentTimeMillis();
 
@@ -708,7 +711,8 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.onOpenSettings();
         }
 
-        startActivity(new Intent(this, SettingsActivity.class));
+        // ---- 原 startActivity 改为显示 SettingsDialog ----
+        new SettingsDialog(this).show();
     }
 
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
