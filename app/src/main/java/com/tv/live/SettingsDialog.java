@@ -1657,5 +1657,11 @@ public class SettingsDialog extends android.app.Dialog {
         getContext().sendBroadcast(unlockIntent);
         
         super.dismiss();
+
+        // 🔧 【新增】设置弹窗关闭后，立即通知主界面刷新配置
+        MainActivity activity = MainActivity.getRunningInstance();
+        if (activity != null && !activity.isFinishing()) {
+            activity.refreshSettings();
+        }
     }
 }
