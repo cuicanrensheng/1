@@ -176,13 +176,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅【新增：创维/酷开电视专用键值与标准键值兼容适配】
+    // ✅【修复编译错误】：将导致找不到符号的 KeyEvent 常量换成具体的整数值
     // ================================================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         // 如果面板打开，让面板优先处理按键（方向键等）
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-            // 方向键和确定键由 ListView 自己处理，不需要拦截
         }
 
         switch (keyCode) {
@@ -206,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
             // 2. 菜单/面板键适配（通用 & 创维/酷开）
             // ============================================================
             case KeyEvent.KEYCODE_MENU:
-            case KeyEvent.KEYCODE_GUIDE: // 创维遥控器上的“节目单/列表”键
+            case KeyEvent.KEYCODE_GUIDE: // 创维遥控器上的“节目单/列表”键 (代码 98)
                 if (channelPanelController != null) {
                     channelPanelController.togglePanel();
                     return true;
@@ -217,8 +216,8 @@ public class MainActivity extends AppCompatActivity {
             // 3. 设置键适配（通用 & 创维/酷开）
             // ============================================================
             case KeyEvent.KEYCODE_SETTINGS:
-            case KeyEvent.KEYCODE_CONTEXT_MENU: // 某些电视上的“更多”或“选项”键
-            case KeyEvent.KEYCODE_TV_OPTIONS:   // 创维/酷开电视专属“设置/选项”键
+            case 169: // KEYCODE_CONTEXT_MENU 的整数值，替代原常量避免低版本SDK编译错误
+            case 292: // KEYCODE_TV_OPTIONS 的整数值，创维/酷开电视专属“设置/选项”键
                 openSettings();
                 return true;
 
