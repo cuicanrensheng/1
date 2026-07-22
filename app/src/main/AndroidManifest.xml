@@ -71,7 +71,8 @@
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:hardwareAccelerated="true"
-        android:largeHeap="true">
+        android:largeHeap="true"
+        android:extractNativeLibs="false"> <!-- ✅ 新增：禁止解压提取原生库，节约安装空间 -->
 
         <!-- ============================================================ -->
         <!-- 主页面：直播播放页（MainActivity）                            -->
@@ -108,12 +109,14 @@
             </intent-filter>
         </activity>
 
-        <!-- 设置页面 -->
+        <!-- 🔧【已删除】废弃的 SettingsActivity 已从项目中移除，此处声明已清理 -->
+        <!--
         <activity
             android:name=".SettingsActivity"
             android:theme="@style/SettingsTheme"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize" />
+        -->
 
         <!-- 频道列表页面 -->
         <activity
