@@ -60,6 +60,13 @@
 -keep class org.nanohttpd.** {*;}
 -dontwarn org.nanohttpd
 
-# ===================== Apache Commons =====================
+# ===================== Apache Commons (⭐修复核心报错) =====================
 -keep class org.apache.commons.** {*;}
 -dontwarn org.apache.commons
+
+# ⭐【新增】解决 R8 缺失 java.lang.invoke.MethodHandleProxies 的致命错误
+-dontwarn java.lang.invoke.MethodHandleProxies
+
+# ⭐【新增】解决 javax.ws.rs 服务类缺失的警告
+-dontwarn javax.ws.rs.ext.**
+-dontwarn org.glassfish.jersey.**
