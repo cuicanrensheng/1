@@ -840,9 +840,10 @@ public class TVPlayerManager {
                 String prefKey = "channel_line_index_" + channelKey;
                 int lineIndex = sp.getInt(prefKey, 0);
 
+                // 🔧 去掉 !mainUrl.equals(String.valueOf(currentChannel.getHuyaRoomId())) 的判断，因为 Channel 里已移除了 Huya 相关字段
                 if (lineIndex == 0) {
                     String mainUrl = currentChannel.getMainPlayUrl();
-                    if (!TextUtils.isEmpty(mainUrl) && !mainUrl.equals(String.valueOf(currentChannel.getHuyaRoomId()))) {
+                    if (!TextUtils.isEmpty(mainUrl)) {
                         playUrl = mainUrl;
                     }
                 } else {
@@ -852,7 +853,7 @@ public class TVPlayerManager {
                         playUrl = backups.get(backupIndex);
                     } else {
                         String mainUrl = currentChannel.getMainPlayUrl();
-                        if (!TextUtils.isEmpty(mainUrl) && !mainUrl.equals(String.valueOf(currentChannel.getHuyaRoomId()))) {
+                        if (!TextUtils.isEmpty(mainUrl)) {
                             playUrl = mainUrl;
                         }
                         Log.w(TAG, "线路索引越界，已自动切回主源");
