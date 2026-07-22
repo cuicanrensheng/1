@@ -41,7 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SettingsDialog extends android.app.Dialog {
-    private SwitchCompat sw_boot, sw_reverse, sw_pip, sw_together_watch;
+    private SwitchCompat sw_boot, sw_reverse, sw_pip;
     private TextView tv_screen_ratio, tv_decoder_mode, tv_renderer_type, tv_redirect_setting, tv_boot_status;
     private TextView tv_channel_line;
     private TextView tv_resolution_status;
@@ -119,7 +119,6 @@ public class SettingsDialog extends android.app.Dialog {
         sw_boot = findViewById(R.id.sw_boot);
         sw_reverse = findViewById(R.id.sw_reverse);
         sw_pip = findViewById(R.id.sw_pip);
-        sw_together_watch = findViewById(R.id.sw_together_watch);
         tv_decoder_mode = findViewById(R.id.tv_decoder_mode);
         tv_renderer_type = findViewById(R.id.tv_renderer_type);
         tv_redirect_setting = findViewById(R.id.tv_redirect_setting);
@@ -149,7 +148,8 @@ public class SettingsDialog extends android.app.Dialog {
         bootStartManager.updateBootStatusText(tv_boot_status);
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
         sw_pip.setChecked(sp.getBoolean("pip_enable", false));
-        sw_together_watch.setChecked(sp.getBoolean("together_watch_enable", false));
+
+        // 🔧【清理一起看】已移除 sw_together_watch 逻辑
 
         String decoderMode = sp.getString("decoder_mode", "auto");
         updateDecoderModeText(decoderMode);
@@ -206,11 +206,11 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void initSettingsItemList() {
+        // 🔧【清理一起看】已从菜单列表中移除 item_together_watch
         View[] items = {
             findViewById(R.id.item_boot),
             findViewById(R.id.item_reverse),
             findViewById(R.id.item_pip),
-            findViewById(R.id.item_together_watch),
             findViewById(R.id.item_channel_line),
             findViewById(R.id.item_resolution),
             findViewById(R.id.item_decoder),
@@ -287,11 +287,11 @@ public class SettingsDialog extends android.app.Dialog {
     public void show() {
         super.show();
         mainHandler.postDelayed(() -> {
+            // 🔧【清理一起看】已从菜单列表中移除 item_together_watch
             View[] items = {
                 findViewById(R.id.item_boot),
                 findViewById(R.id.item_reverse),
                 findViewById(R.id.item_pip),
-                findViewById(R.id.item_together_watch),
                 findViewById(R.id.item_channel_line),
                 findViewById(R.id.item_resolution),
                 findViewById(R.id.item_decoder),
@@ -312,6 +312,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void performItemAction(int index) {
+        // 🔧【清理一起看】移除了 case 3，后续 case 索引全部前移一位
         switch (index) {
             case 0:
                 boolean bootChecked = !sw_boot.isChecked();
@@ -335,50 +336,36 @@ public class SettingsDialog extends android.app.Dialog {
                 }
                 break;
             case 3:
-                boolean twChecked = !sw_together_watch.isChecked();
-                sw_together_watch.setChecked(twChecked);
-                sp.edit().putBoolean("together_watch_enable", twChecked).apply();
-                if (twChecked) {
-                    Toast.makeText(getContext(), "一起看已开启", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(getContext(), "一起看已关闭", Toast.LENGTH_SHORT).show();
-                }
-                MainActivity mainActivity = MainActivity.getRunningInstance();
-                if (mainActivity != null) {
-                    mainActivity.toggleTogetherWatch(twChecked);
-                }
-                break;
-            case 4:
                 showChannelLineDialog();
                 break;
-            case 5:
+            case 4:
                 showResolutionDialog();
                 break;
-            case 6:
+            case 5:
                 showDecoderModeDialog();
                 break;
-            case 7:
+            case 6:
                 showRendererModeDialog();
                 break;
-            case 8:
+            case 7:
                 showRatioDialog();
                 break;
-            case 9:
+            case 8:
                 showRedirectConfigDialog();
                 break;
-            case 10:
+            case 9:
                 showSubscriptionDialog("live_history", "直播源订阅");
                 break;
-            case 11:
+            case 10:
                 showSubscriptionDialog("epg_history", "节目单订阅");
                 break;
-            case 12:
+            case 11:
                 updateManager.checkUpdate();
                 break;
-            case 13:
+            case 12:
                 showVersionInfoDialog();
                 break;
-            case 14:
+            case 13:
                 boolean logEnabled = sp.getBoolean("log_enable", false);
                 boolean newState = !logEnabled;
                 sp.edit().putBoolean("log_enable", newState).apply();
@@ -1612,11 +1599,11 @@ public class SettingsDialog extends android.app.Dialog {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // 🔧【清理一起看】已从遥控器焦点列表移除 item_together_watch
         View[] items = {
             findViewById(R.id.item_boot),
             findViewById(R.id.item_reverse),
             findViewById(R.id.item_pip),
-            findViewById(R.id.item_together_watch),
             findViewById(R.id.item_channel_line),
             findViewById(R.id.item_resolution),
             findViewById(R.id.item_decoder),
