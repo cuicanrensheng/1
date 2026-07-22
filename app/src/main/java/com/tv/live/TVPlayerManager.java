@@ -44,9 +44,10 @@ import androidx.core.content.ContextCompat; // 🔧 新增导入
 
 import com.tv.live.util.NetUtil;
 import com.tv.live.exception.RedirectFailedException;
-import com.huya.berry.client.HuyaBerry;
-import com.huya.berry.client.customui.CustomUICallback;
-import com.huya.berry.client.customui.model.LiveInfo;
+// 🔧【清理虎牙SDK】移除虎牙 Berry SDK 的导入
+// import com.huya.berry.client.HuyaBerry;
+// import com.huya.berry.client.customui.CustomUICallback;
+// import com.huya.berry.client.customui.model.LiveInfo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -763,6 +764,8 @@ public class TVPlayerManager {
         initialPlayStartTime = 0;
         resetPerformanceStats();
         
+        // 🔧【清理虎牙SDK】移除虎牙“一起看”逻辑
+        /*
         if (channel != null && channel.isTogetherWatch()) {
             int roomId = channel.getHuyaRoomId();
             Log.d(TAG, "检测到一起看频道，roomId=" + roomId);
@@ -771,205 +774,33 @@ public class TVPlayerManager {
                 return;
             }
         }
+        */
         
         Log.d(TAG, "普通频道，直接播放");
         huyaVariantMode = false;
         playUrlInternal(url, 0);
     }
 
+    // ============================================================
+    // 🔧【清理虎牙SDK】以下 4 个方法专用于虎牙 Berry SDK，现已全部废弃并注释
+    // ============================================================
+    /*
     private void fetchHuyaPlayUrl(int roomId) {
-        Log.d(TAG, "fetchHuyaPlayUrl: roomId=" + roomId);
-        huyaVariantMode = false;
-        HuyaBerry.instance().getLiveData(roomId, new com.huya.berry.client.customui.CustomUICallback<com.huya.berry.client.customui.model.LiveInfo>() {
-            @Override
-            public void onResultListCallback(int status, java.util.List<com.huya.berry.client.customui.model.LiveInfo> liveInfos) {
-                Log.d(TAG, "getLiveData onResultListCallback: status=" + status + ", count=" + (liveInfos != null ? liveInfos.size() : 0));
-            }
-
-            @Override
-            public void onResultCallback(int status, com.huya.berry.client.customui.model.LiveInfo liveInfo) {
-                Log.d(TAG, "getLiveData onResultCallback: status=" + status + ", liveInfo=" + (liveInfo != null ? "not null" : "null"));
-                if (liveInfo != null) {
-                    Log.d(TAG, "liveInfo.roomId=" + liveInfo.roomId + ", uid=" + liveInfo.uid);
-                    Log.d(TAG, "liveInfo.getLines()=" + liveInfo.getLines());
-                }
-                
-                if (status == 0 && liveInfo != null) {
-                    java.util.Vector<Integer> lines = liveInfo.getLines();
-                    if (lines != null && lines.size() > 0) {
-                        Log.d(TAG, "发现线路: " + lines.size() + " 条");
-
-                        String mainUrl = null;
-                        java.util.List<String> backupUrls = new java.util.ArrayList<>();
-
-                        for (int line : lines) {
-                            java.util.Vector<com.huya.berry.client.customui.model.BitRateInfo> brList = liveInfo.getBitRateList(line);
-                            if (brList != null && brList.size() > 0) {
-                                Log.d(TAG, "线路" + line + "可用码率数: " + brList.size());
-                                for (com.huya.berry.client.customui.model.BitRateInfo br : brList) {
-                                    Log.d(TAG, "  码率: " + br.bitRate);
-                                }
-                                int bitrate = selectBestBitrate(brList);
-                                String flvUrl = liveInfo.getPlayUrlByLineAndBitrate(true, line, bitrate);
-                                String hlsUrl = liveInfo.getPlayUrlByLineAndBitrate(false, line, bitrate);
-                                String playUrl = !TextUtils.isEmpty(hlsUrl) ? hlsUrl : flvUrl;
-                                if (!TextUtils.isEmpty(playUrl)) {
-                                    if (mainUrl == null) {
-                                        mainUrl = playUrl;
-                                    } else if (!backupUrls.contains(playUrl)) {
-                                        backupUrls.add(playUrl);
-                                    }
-                                }
-
-                                for (com.huya.berry.client.customui.model.BitRateInfo br : brList) {
-                                    if (br.bitRate != bitrate) {
-                                        String altFlvUrl = liveInfo.getPlayUrlByLineAndBitrate(true, line, br.bitRate);
-                                        String altHlsUrl = liveInfo.getPlayUrlByLineAndBitrate(false, line, br.bitRate);
-                                        String altUrl = !TextUtils.isEmpty(altHlsUrl) ? altHlsUrl : altFlvUrl;
-                                        if (!TextUtils.isEmpty(altUrl) && !backupUrls.contains(altUrl) && !altUrl.equals(mainUrl)) {
-                                            backupUrls.add(altUrl);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if (mainUrl != null) {
-                            if (currentChannel != null) {
-                                currentChannel.setMainPlayUrl(mainUrl);
-                                currentChannel.getBackupUrls().clear();
-                                for (String url : backupUrls) {
-                                    currentChannel.addBackupUrl(url);
-                                }
-                            }
-                            Log.d(TAG, "获取到虎牙主播放地址: " + mainUrl);
-                            Log.d(TAG, "获取到备用源: " + backupUrls.size() + " 个");
-                            for (int i = 0; i < backupUrls.size(); i++) {
-                                Log.d(TAG, "备用源" + (i + 1) + ": " + backupUrls.get(i));
-                            }
-                            
-                            setupHuyaVariants(liveInfo, lines);
-                            
-                            playUrlInternal(mainUrl, 0);
-                            return;
-                        }
-                    }
-
-                    Log.d(TAG, "尝试使用默认参数获取播放地址");
-                    String flvUrl = liveInfo.getPlayUrlByLineAndBitrate(true, 1, 0);
-                    String hlsUrl = liveInfo.getPlayUrlByLineAndBitrate(false, 1, 0);
-                    Log.d(TAG, "flvUrl=" + flvUrl + ", hlsUrl=" + hlsUrl);
-                    String playUrl = !TextUtils.isEmpty(hlsUrl) ? hlsUrl : flvUrl;
-                    if (!TextUtils.isEmpty(playUrl)) {
-                        if (currentChannel != null) {
-                            currentChannel.setMainPlayUrl(playUrl);
-                        }
-                        Log.d(TAG, "获取到虎牙播放地址(默认): " + playUrl);
-                        playUrlInternal(playUrl, 0);
-                    } else {
-                        Log.e(TAG, "所有方式都无法获取播放地址");
-                        if (listener != null) listener.onPlayError("获取播放地址失败");
-                    }
-                } else {
-                    Log.e(TAG, "获取直播信息失败: status=" + status);
-                    if (listener != null) listener.onPlayError("直播间不在直播或获取失败");
-                }
-            }
-        });
+        // ...（原方法省略）...
     }
     
     private int selectBestLine(java.util.Vector<Integer> lines) {
-        if (lines == null || lines.isEmpty()) return 1;
-        if (lines.size() == 1) return lines.get(0);
-        
-        int lastLineIndex = sp.getInt("huya_last_line", -1);
-        if (lastLineIndex >= 0 && lastLineIndex < lines.size()) {
-            int prevLine = lines.get(lastLineIndex);
-            for (int i = 0; i < lines.size(); i++) {
-                if (lines.get(i) == prevLine) {
-                    int nextIndex = (i + 1) % lines.size();
-                    sp.edit().putInt("huya_last_line", nextIndex).apply();
-                    return lines.get(nextIndex);
-                }
-            }
-        }
-        
-        sp.edit().putInt("huya_last_line", 0).apply();
-        return lines.get(0);
+        // ...（原方法省略）...
     }
     
     private int selectBestBitrate(java.util.Vector<com.huya.berry.client.customui.model.BitRateInfo> bitRates) {
-        if (bitRates == null || bitRates.isEmpty()) return 0;
-        if (bitRates.size() == 1) return bitRates.get(0).bitRate;
-        
-        java.util.List<Integer> bitrateList = new java.util.ArrayList<>();
-        for (com.huya.berry.client.customui.model.BitRateInfo br : bitRates) {
-            bitrateList.add(br.bitRate);
-        }
-        java.util.Collections.sort(bitrateList);
-        
-        String netMode = sp.getString("network_mode", "auto");
-        if ("low".equals(netMode)) {
-            return bitrateList.get(0);
-        } else if ("medium".equals(netMode)) {
-            int midIndex = bitrateList.size() / 2;
-            return bitrateList.get(Math.min(midIndex, bitrateList.size() - 1));
-        } else {
-            return bitrateList.get(bitrateList.size() - 1);
-        }
+        // ...（原方法省略）...
     }
     
     private void setupHuyaVariants(com.huya.berry.client.customui.model.LiveInfo liveInfo, java.util.Vector<Integer> lines) {
-        List<Variant> variants = new ArrayList<>();
-        java.util.Set<String> seenUrls = new java.util.HashSet<>();
-        java.util.Map<Integer, Integer> heightCount = new java.util.HashMap<>();
-
-        for (int line : lines) {
-            java.util.Vector<com.huya.berry.client.customui.model.BitRateInfo> brList = liveInfo.getBitRateList(line);
-            if (brList != null) {
-                for (com.huya.berry.client.customui.model.BitRateInfo br : brList) {
-                    String flvUrl = liveInfo.getPlayUrlByLineAndBitrate(true, line, br.bitRate);
-                    String hlsUrl = liveInfo.getPlayUrlByLineAndBitrate(false, line, br.bitRate);
-                    String url = !TextUtils.isEmpty(hlsUrl) ? hlsUrl : flvUrl;
-
-                    if (!TextUtils.isEmpty(url) && !seenUrls.contains(url)) {
-                        seenUrls.add(url);
-
-                        int height = 0;
-                        String resolutionLabel = "";
-                        int bitrateKbps = br.bitRate;
-                        
-                        if (url.contains("_6000.")) { bitrateKbps = 6000; height = 1080; resolutionLabel = "1080p高清"; }
-                        else if (url.contains("_4000.")) { bitrateKbps = 4000; height = 1080; resolutionLabel = "1080p"; }
-                        else if (url.contains("_2000.")) { bitrateKbps = 2000; height = 720; resolutionLabel = "720p"; }
-                        else if (url.contains("_1000.")) { bitrateKbps = 1000; height = 480; resolutionLabel = "480p"; }
-                        else if (url.contains("_500.")) { bitrateKbps = 500; height = 360; resolutionLabel = "360p"; }
-                        else {
-                            if (bitrateKbps >= 6000) { height = 1080; resolutionLabel = "1080p高清"; }
-                            else if (bitrateKbps >= 4000) { height = 1080; resolutionLabel = "1080p"; }
-                            else if (bitrateKbps >= 2000) { height = 720; resolutionLabel = "720p"; }
-                            else if (bitrateKbps >= 1000) { height = 480; resolutionLabel = "480p"; }
-                            else { height = 360; resolutionLabel = "360p"; }
-                        }
-
-                        Variant v = new Variant(url, bitrateKbps, 0, height);
-                        v.resolutionLabel = resolutionLabel;
-                        variants.add(v);
-                        Log.d(TAG, "添加清晰度: " + bitrateKbps + "kbps (" + height + "p) -> " + url.substring(0, Math.min(url.length(), 60)));
-                    }
-                }
-            }
-        }
-
-        variants.sort((a, b) -> Integer.compare(b.height, a.height));
-
-        synchronized (variantListLock) {
-            this.variantList = variants;
-            this.huyaVariantMode = !variants.isEmpty();
-        }
-
-        Log.d(TAG, "设置了 " + variants.size() + " 个清晰度选项, huyaVariantMode=" + huyaVariantMode);
+        // ...（原方法省略）...
     }
+    */
 
     public Channel getCurrentChannel() {
         return currentChannel;
