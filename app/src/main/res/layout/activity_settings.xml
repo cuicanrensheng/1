@@ -50,6 +50,8 @@
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_boot"
+                  android:nextFocusDown="@+id/item_reverse"
                 android:clickable="true">
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -89,6 +91,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_boot"
+                  android:nextFocusDown="@+id/item_pip"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -114,6 +118,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_reverse"
+                  android:nextFocusDown="@+id/item_together_watch"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -130,6 +136,33 @@
                     android:clickable="false" />
             </LinearLayout>
 
+            <!-- 一起看开关 -->
+            <LinearLayout
+                android:id="@+id/item_together_watch"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:focusable="true"
+                  android:nextFocusUp="@+id/item_pip"
+                  android:nextFocusDown="@+id/item_channel_line"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="一起看"
+                    android:textColor="@color/setting_item_text_color"
+                    android:textSize="16sp" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/sw_together_watch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:clickable="false" />
+            </LinearLayout>
+
             <!-- 频道线路选择 -->
             <LinearLayout
                 android:id="@+id/item_channel_line"
@@ -139,6 +172,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_together_watch"
+                  android:nextFocusDown="@+id/item_resolution"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -156,6 +191,34 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
+            <!-- 清晰度选择 -->
+            <LinearLayout
+                android:id="@+id/item_resolution"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:focusable="true"
+                  android:nextFocusUp="@+id/item_channel_line"
+                  android:nextFocusDown="@+id/item_decoder"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="清晰度选择"
+                    android:textColor="@color/setting_item_text_color"
+                    android:textSize="16sp" />
+                <TextView
+                    android:id="@+id/tv_resolution_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="自动"
+                    android:textColor="@color/setting_item_text_color"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
             <!-- 解码器选择 -->
             <LinearLayout
                 android:id="@+id/item_decoder"
@@ -165,6 +228,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_resolution"
+                  android:nextFocusDown="@+id/item_renderer"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -191,6 +256,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_decoder"
+                  android:nextFocusDown="@+id/tv_screen_ratio"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -220,33 +287,10 @@
                 android:textColor="@color/setting_item_text_color"
                 android:textSize="16sp"
                 android:focusable="true"
+                android:background="@drawable/item_settings_bg"
+                  android:nextFocusUp="@+id/item_renderer"
+                  android:nextFocusDown="@+id/item_redirect"
                 android:clickable="true"/>
-
-            <!-- 清晰度选择 -->
-            <LinearLayout
-                android:id="@+id/item_resolution"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:focusable="true"
-                android:clickable="true">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:text="清晰度选择"
-                    android:textColor="@color/setting_item_text_color"
-                    android:textSize="16sp" />
-                <TextView
-                    android:id="@+id/tv_resolution_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="自动"
-                    android:textColor="@color/setting_item_text_color"
-                    android:textSize="14sp" />
-            </LinearLayout>
 
             <!-- 分隔线 -->
             <View
@@ -267,6 +311,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/tv_screen_ratio"
+                  android:nextFocusDown="@+id/item_live_subscribe"
                 android:clickable="true">
                 <TextView
                     android:layout_width="wrap_content"
@@ -298,6 +344,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_redirect"
+                  android:nextFocusDown="@+id/item_epg_subscribe"
                 android:clickable="true">
                 <TextView
                     android:layout_width="wrap_content"
@@ -316,6 +364,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_live_subscribe"
+                  android:nextFocusDown="@+id/item_check_update"
                 android:clickable="true">
                 <TextView
                     android:layout_width="wrap_content"
@@ -342,6 +392,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_epg_subscribe"
+                  android:nextFocusDown="@+id/item_version_info"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -368,6 +420,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_check_update"
+                  android:nextFocusDown="@+id/item_log"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -402,6 +456,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
+                  android:nextFocusUp="@+id/item_version_info"
+                  android:nextFocusDown="@+id/item_log"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
