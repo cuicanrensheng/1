@@ -176,7 +176,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅ 遥控器物理按键处理（支持长按OK打开设置）
+    // ✅【新增：创维/酷开电视专用键值与标准键值兼容适配】
     // ================================================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -186,6 +186,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         switch (keyCode) {
+            // ============================================================
+            // 1. OK键适配（通用 & 创维/酷开）
+            // ============================================================
             case KeyEvent.KEYCODE_DPAD_CENTER:
                 // 长按OK键：打开设置
                 if (event.isLongPress()) {
@@ -199,16 +202,23 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
 
+            // ============================================================
+            // 2. 菜单/面板键适配（通用 & 创维/酷开）
+            // ============================================================
             case KeyEvent.KEYCODE_MENU:
-                // 菜单键：切换频道面板
+            case KeyEvent.KEYCODE_GUIDE: // 创维遥控器上的“节目单/列表”键
                 if (channelPanelController != null) {
                     channelPanelController.togglePanel();
                     return true;
                 }
                 break;
 
+            // ============================================================
+            // 3. 设置键适配（通用 & 创维/酷开）
+            // ============================================================
             case KeyEvent.KEYCODE_SETTINGS:
-                // 设置键：打开设置页面
+            case KeyEvent.KEYCODE_CONTEXT_MENU: // 某些电视上的“更多”或“选项”键
+            case KeyEvent.KEYCODE_TV_OPTIONS:   // 创维/酷开电视专属“设置/选项”键
                 openSettings();
                 return true;
 
@@ -624,7 +634,7 @@ public class MainActivity extends AppCompatActivity {
     public void playNext() { channelPanelController.playNext(); }
 
     // ================================================================
-    // ✅ 退出弹窗（已修改：默认聚焦第一个按钮，并应用浅蓝背景+蓝色字体）
+    // ✅ 退出弹窗（默认聚焦第一个按钮，浅蓝背景+蓝色字体）
     // ================================================================
     public void showExitMenu() {
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
