@@ -10,6 +10,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.text.InputFilter;
 import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -32,10 +33,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/**
- * 设置对话框（替换原来的 SettingsActivity）
- * 直接继承 Dialog，避免 windowIsTranslucent 兼容性问题
- */
 public class SettingsDialog extends Dialog {
 
     private final Context context;
@@ -76,12 +73,19 @@ public class SettingsDialog extends Dialog {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ---- 设置透明背景 ----
+        // ---- 设置透明背景与窗口属性（关键修改） ----
         Window window = getWindow();
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+
+            // 设置窗口大小为全屏，保证点击外部 View 能覆盖整个屏幕
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
+
+            // ✅ 核心修复：强制指定窗口重力为 END（靠右）和 TOP（靠上）
+            window.setGravity(Gravity.END | Gravity.TOP);
+
+            // 保持屏幕常亮
             window.setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
                     WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
@@ -138,10 +142,6 @@ public class SettingsDialog extends Dialog {
             return false;
         });
     }
-
-    // ================================================================
-    // 以下方法全部从 SettingsActivity 迁移而来，仅将 this 改为 context
-    // ================================================================
 
     private void bindViews() {
         sw_boot = findViewById(R.id.sw_boot);
@@ -297,8 +297,6 @@ public class SettingsDialog extends Dialog {
                 break;
         }
     }
-
-    // ---- 各种对话框方法 ----
 
     private void showVersionInfoDialog() {
         String versionName = BuildConfig.VERSION_NAME;
