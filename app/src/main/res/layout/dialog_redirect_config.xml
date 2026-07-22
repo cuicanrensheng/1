@@ -61,7 +61,8 @@
                     android:text="允许跨域名重定向"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <app
+                <!-- ✅ 修正了这里的 Switch 标签 -->
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_cross_domain"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -82,7 +83,8 @@
                     android:text="允许HTTP/HTTPS跨协议跳转"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <app
+                <!-- ✅ 修正了这里的 Switch 标签 -->
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_cross_proto"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -105,7 +107,8 @@
                     android:text="跳转携带Referer/Cookie（防盗链必备）"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <app
+                <!-- ✅ 修正了这里的 Switch 标签 -->
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_follow_header"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -128,7 +131,8 @@
                     android:text="Cookie播放授权令牌"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <app
+                <!-- ✅ 修正了这里的 Switch 标签 -->
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_send_cookie"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -151,7 +155,8 @@
                     android:text="忽略HTTPS跳转证书错误"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <app
+                <!-- ✅ 修正了这里的 Switch 标签 -->
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/sw_ignore_ssl"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -191,7 +196,7 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- 🔥 重点：固定在底部的取消/保存按钮 -->
+    <!-- 固定在底部的取消/保存按钮 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -208,7 +213,7 @@
             android:backgroundTint="#55576A"
             android:layout_marginEnd="8dp" />
 
-        <!-- ✅【核心修改】：将保存按钮的 backgroundTint 改为和取消按钮一样的灰色 (#55576A) -->
+        <!-- 保持取消和保存按钮颜色一致 -->
         <Button
             android:id="@+id/btn_redirect_save"
             android:layout_width="wrap_content"
@@ -216,7 +221,6 @@
             android:text="保存"
             android:textColor="#FFFFFF"
             android:backgroundTint="#55576A" />
-            <!-- 原为 android:backgroundTint="#40A9FF"，现已修改 -->
     </LinearLayout>
 
 </LinearLayout>
