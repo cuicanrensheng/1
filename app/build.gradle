@@ -78,7 +78,7 @@ android {
             signingConfig signingConfigs.release
 
             // 🟢【新增 2】强制保留图标引用的资源，防止 shrinkResources 误删
-            keep 'ic_launcher_background', 'ic_launcher_foreground'
+            //keep 'ic_launcher_background', 'ic_launcher_foreground'
         }
         debug {
             signingConfig signingConfigs.debug
