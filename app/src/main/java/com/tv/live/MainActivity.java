@@ -127,11 +127,7 @@ public class MainActivity extends AppCompatActivity {
         return mInstanceRef != null ? mInstanceRef.get() : null;
     }
 
-    public void toggleTogetherWatch(boolean enable) {
-        if (appCoreManager != null) {
-            appCoreManager.toggleTogetherWatch(enable);
-        }
-    }
+    // 🔧【彻底清理】原 toggleTogetherWatch 方法已删除，无任何外部引用。
 
     public boolean isInCatchUpMode() {
         return isInCatchUpMode;
