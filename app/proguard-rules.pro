@@ -7,7 +7,7 @@
 # 清晰度轨道相关类强制保留
 -keep class androidx.media3.common.TrackGroup
 -keep class androidx.media3.common.TrackGroupArray
--keep class androidx.media3.exoplayer.trackselection.** {*;}
+-keep class androidx.media3.exoplayer.trackselection.** { *; }
 
 # 播放器核心组件
 -keep class androidx.media3.ui.PlayerView { *; }
@@ -16,9 +16,9 @@
 -keep enum androidx.media3.ui.SurfaceType
 -keep class androidx.media3.exoplayer.ExoPlayer
 -keep class androidx.media3.exoplayer.DefaultTrackSelector
--keep class androidx.media3.exoplayer.mediacodec.** {*;}
--keep class androidx.media3.exoplayer.hls.** {*;}
--keep class androidx.media3.exoplayer.source.** {*}
+-keep class androidx.media3.exoplayer.mediacodec.** { *; }
+-keep class androidx.media3.exoplayer.hls.** { *; }
+-keep class androidx.media3.exoplayer.source.** { *; }
 
 # ===================== 通用基础 =====================
 -keepattributes Signature,InnerClasses,SourceFile,LineNumberTable,Exceptions
@@ -28,13 +28,12 @@
     *** *(...);
 }
 
-# ===================== 项目自有类（⚠️ 已扩大范围） =====================
-# 为了安全起见，把所有 com.tv.live 包下的类及其内部类、字段全部保留
+# ===================== 项目自有类 =====================
 -keep class com.tv.live.** { *; }
 -keepclassmembers class com.tv.live.** { *; }
 -keep class com.tv.live.bean.** {*;}
 
-# ===================== fastjson (⚠️ 新增！) =====================
+# ===================== fastjson =====================
 -keepattributes Signature
 -keepattributes *Annotation*
 -dontwarn com.alibaba.fastjson.**
