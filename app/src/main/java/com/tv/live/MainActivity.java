@@ -872,6 +872,31 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 🔧 【新增】在设置关闭后立刻刷新界面配置（避免切后台再返回才能生效的问题）
+    public void refreshSettings() {
+        runOnUiThread(() -> {
+            // 重新读取所有 SP 配置（包含反转、画中画、解码器等）
+            loadSettings();
+            
+            // 刷新屏幕比例
+            if (screenRatioManager != null) {
+                screenRatioManager.apply();
+            }
+            
+            // 刷新画中画
+            if (pipManager != null) {
+                pipManager.setPipEnabled(pipEnable);
+            }
+
+            // 刷新频道反转
+            if (channelPanelController != null) {
+                channelPanelController.setReverse(channel_reverse);
+            }
+            
+            Log.d("MainActivity", "设置已主动刷新，无需切后台");
+        });
+    }
+
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
     }
