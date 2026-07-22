@@ -176,7 +176,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅【核心修复1】遥控器物理按键处理（支持长按OK打开设置）
+    // ✅ 遥控器物理按键处理（支持长按OK打开设置）
     // ================================================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -192,7 +192,7 @@ public class MainActivity extends AppCompatActivity {
                     openSettings();
                     return true;
                 }
-                // 短按OK键：打开/切换频道面板（直接切换，移除条件限制）
+                // 短按OK键：打开/切换频道面板
                 if (channelPanelController != null) {
                     channelPanelController.togglePanel();
                     return true;
@@ -230,7 +230,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // 以下方法保持原有逻辑，无改动
+    // 以下方法保持原有逻辑
     // ================================================================
 
     public void showLogWindow() {
@@ -623,6 +623,9 @@ public class MainActivity extends AppCompatActivity {
     public void playPrev() { channelPanelController.playPrev(); }
     public void playNext() { channelPanelController.playNext(); }
 
+    // ================================================================
+    // ✅ 退出弹窗（已修改：默认聚焦第一个按钮，并应用浅蓝背景+蓝色字体）
+    // ================================================================
     public void showExitMenu() {
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             return;
@@ -650,6 +653,9 @@ public class MainActivity extends AppCompatActivity {
             exitMenuDialog.show();
         }
 
+        // ✅ 核心：弹窗显示后，强制把焦点给第一个按钮（确认退出）
+        btnRest.post(() -> btnRest.requestFocus());
+
         btnRest.setOnClickListener(v -> {
             if (exitMenuDialog != null) {
                 exitMenuDialog.dismiss();
@@ -668,7 +674,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅【核心修复】按返回键：优先关闭面板，而不是弹出退出弹窗
+    // ✅ onBackPressed：优先关闭面板，而不是弹出退出弹窗
     // ================================================================
     @Override
     public void onBackPressed() {
@@ -685,7 +691,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // 3. 【关键修复】如果频道面板正在打开，优先关闭面板，不触发退出弹窗
+        // 3. 如果频道面板正在打开，优先关闭面板，不触发退出弹窗
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
             channelPanelController.hidePanel();
             return;
@@ -696,7 +702,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅【核心修复2】openSettings 方法（加入 3 秒超时强制解锁机制）
+    // ✅ openSettings 方法（加入 3 秒超时强制解锁机制）
     // ================================================================
     public void openSettings() {
         long now = System.currentTimeMillis();
