@@ -2,8 +2,8 @@ package com.tv.live;
 
 import android.app.Application;
 import android.os.Build;
-import com.huya.berry.client.HuyaBerry;
-import com.huya.berry.client.HuyaBerryConfig;
+// 🔧【清理虎牙SDK】已移除：import com.huya.berry.client.HuyaBerry;
+// 🔧【清理虎牙SDK】已移除：import com.huya.berry.client.HuyaBerryConfig;
 import com.tv.live.util.NetUtil;
 
 public class MyApplication extends Application {
@@ -16,15 +16,16 @@ public class MyApplication extends Application {
 
         NetUtil.init(this);
 
-        if (Build.VERSION.SDK_INT >= 21) {
-            HuyaBerry.instance().init(this, new HuyaBerryConfig.Builder()
-                    .gameId(2336)
-                    .appId("123456")
-                    .appKey("d8f193dd")
-                    .debugMode(false)
-                    .landscapeMode(false)
-                    .isOpenBugly(false)
-                    .build());
-        }
+        // 🔧【清理虎牙SDK】原虎牙 SDK 初始化代码已移除
+        // if (Build.VERSION.SDK_INT >= 21) {
+        //     HuyaBerry.instance().init(this, new HuyaBerryConfig.Builder()
+        //             .gameId(2336)
+        //             .appId("123456")
+        //             .appKey("d8f193dd")
+        //             .debugMode(false)
+        //             .landscapeMode(false)
+        //             .isOpenBugly(false)
+        //             .build());
+        // }
     }
 }
