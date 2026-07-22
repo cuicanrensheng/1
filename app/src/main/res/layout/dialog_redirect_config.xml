@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -29,7 +30,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="最大重定向次数(1~20)："
-                    android:textColor="#D0D0D0"
+                    android:textColor="#FFFFFF"
                     android:textSize="14sp" />
                 <EditText
                     android:id="@+id/et_redirect_max"
@@ -58,9 +59,9 @@
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"
                     android:text="允许跨域名重定向"
-                    android:textColor="#D0D0D0"
+                    android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <androidx.appcompat.widget.SwitchCompat
+                <app
                     android:id="@+id/sw_cross_domain"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -79,9 +80,9 @@
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"
                     android:text="允许HTTP/HTTPS跨协议跳转"
-                    android:textColor="#D0D0D0"
+                    android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <androidx.appcompat.widget.SwitchCompat
+                <app
                     android:id="@+id/sw_cross_proto"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -102,9 +103,9 @@
                     android:layout_marginEnd="8dp"
                     android:layout_centerVertical="true"
                     android:text="跳转携带Referer/Cookie（防盗链必备）"
-                    android:textColor="#D0D0D0"
+                    android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <androidx.appcompat.widget.SwitchCompat
+                <app
                     android:id="@+id/sw_follow_header"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -125,9 +126,9 @@
                     android:layout_marginEnd="8dp"
                     android:layout_centerVertical="true"
                     android:text="Cookie播放授权令牌"
-                    android:textColor="#D0D0D0"
+                    android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <androidx.appcompat.widget.SwitchCompat
+                <app
                     android:id="@+id/sw_send_cookie"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -148,9 +149,9 @@
                     android:layout_marginEnd="8dp"
                     android:layout_centerVertical="true"
                     android:text="忽略HTTPS跳转证书错误"
-                    android:textColor="#D0D0D0"
+                    android:textColor="#FFFFFF"
                     android:textSize="14sp" />
-                <androidx.appcompat.widget.SwitchCompat
+                <app
                     android:id="@+id/sw_ignore_ssl"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -207,13 +208,15 @@
             android:backgroundTint="#55576A"
             android:layout_marginEnd="8dp" />
 
+        <!-- ✅【核心修改】：将保存按钮的 backgroundTint 改为和取消按钮一样的灰色 (#55576A) -->
         <Button
             android:id="@+id/btn_redirect_save"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:text="保存"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#40A9FF" />
+            android:backgroundTint="#55576A" />
+            <!-- 原为 android:backgroundTint="#40A9FF"，现已修改 -->
     </LinearLayout>
 
 </LinearLayout>
