@@ -2,16 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.tv.live">
 
-    <!-- 权限声明（保留原有内容，无需修改） -->
+    <!-- ===================== 权限声明 ===================== -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!-- 画中画权限 -->
     <uses-permission android:name="android.permission.PICTURE_IN_PICTURE" />
-    <!-- 其他可能需要的权限... -->
+    <!-- 🟢【新增】精确闹钟权限（解决 BootReceiver 使用 setExactAndAllowWhileIdle 的 Lint 警告） -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- 🟢【新增】Android 13+ 通知权限（必须添加，否则 Lint 报错） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".MyApplication"
@@ -22,14 +24,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TVLive.NoTitle"
         android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config">
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true">
 
-        <!-- 主 Activity -->
+        <!-- 主 Activity（支持画中画、singleTask 模式） -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:screenOrientation="sensorLandscape">
+            android:screenOrientation="sensorLandscape"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -48,10 +54,7 @@
             android:exported="false"
             android:theme="@style/Theme.TVLive.NoTitle" />
 
-        <!-- ============================================================
-             【已删除】SettingsActivity 不再使用，改用 SettingsDialog
-             以下原声明已注释掉，可以安全删除
-        ============================================================ -->
+        <!-- SettingsActivity 已改用 SettingsDialog，注释掉 -->
         <!--
         <activity
             android:name=".SettingsActivity"
@@ -59,10 +62,12 @@
             android:theme="@style/TransparentTheme" />
         -->
 
-        <!-- 广播接收器（保持不变） -->
-        <receiver android:name=".BootReceiver"
+        <!-- 开机自启广播接收器 -->
+        <receiver
+            android:name=".BootReceiver"
             android:exported="true"
-            android:enabled="true">
+            android:enabled="true"
+            android:priority="1000">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
@@ -70,9 +75,11 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.POWER_CONNECTED" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
 
+        <!-- 延迟启动执行器 -->
         <receiver android:name=".BootStartReceiver"
             android:exported="false" />
 
