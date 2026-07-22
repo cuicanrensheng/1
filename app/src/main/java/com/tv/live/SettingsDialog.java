@@ -73,43 +73,30 @@ public class SettingsDialog extends Dialog {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ---- 设置透明背景与窗口属性（消除暗色遮罩） ----
         Window window = getWindow();
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            
-            // 设置窗口大小为全屏，保证点击外部 View 能覆盖整个屏幕
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
-            
-            // 强制指定窗口重力为 END（靠右）和 TOP（靠上）
             window.setGravity(Gravity.END | Gravity.TOP);
-            
-            // ✅ 核心修复：将遮罩程度设为 0，彻底去掉背后的暗色蒙版
             window.setDimAmount(0.0f);
-            
-            // 保持屏幕常亮
             window.setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
                     WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
 
-        // ---- 加载布局 ----
         setContentView(R.layout.activity_settings);
 
         sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         initRedirectDefaultConfig();
 
-        // ---- 绑定控件 ----
         bindViews();
 
-        // ---- 初始化管理器 ----
         bootStartManager = new BootStartManager(context, sp);
         sourceDialogManager = new SourceDialogManager(context, sp);
         qrCodeManager = new QRCodeManager(context);
         webServerManager = new WebServerManager(context, 10481);
         updateManager = new UpdateManager(context);
 
-        // ---- 读取状态 ----
         sw_boot.setChecked(sp.getBoolean("boot_auto_start", false));
         bootStartManager.updateBootStatusText(tv_boot_status);
         sw_reverse.setChecked(sp.getBoolean("channel_reverse", false));
@@ -121,22 +108,17 @@ public class SettingsDialog extends Dialog {
         updateRendererModeText(rendererMode);
         updateRedirectSettingText();
 
-        // 频道线路
         tv_channel_line.setText(getLineName(getCurrentLineIndex()));
 
-        // ---- 初始化设置项列表 ----
         initSettingsItemList();
 
-        // ---- 启动 Web 服务 ----
         webServerManager.start();
 
-        // ---- 点击外部空白区域关闭 ----
         View viewOutside = findViewById(R.id.view_outside);
         if (viewOutside != null) {
             viewOutside.setOnClickListener(v -> dismiss());
         }
 
-        // ---- 处理返回键 ----
         setOnKeyListener((dialog, keyCode, event) -> {
             if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
                 dismiss();
@@ -145,10 +127,6 @@ public class SettingsDialog extends Dialog {
             return false;
         });
     }
-
-    // ================================================================
-    // 以下方法全部从 SettingsActivity 迁移而来，仅将 this 改为 context
-    // ================================================================
 
     private void bindViews() {
         sw_boot = findViewById(R.id.sw_boot);
@@ -172,7 +150,6 @@ public class SettingsDialog extends Dialog {
     }
 
     private void initSettingsItemList() {
-        // 把所有设置项放入数组
         View[] items = {
                 findViewById(R.id.item_boot),
                 findViewById(R.id.item_reverse),
@@ -190,14 +167,12 @@ public class SettingsDialog extends Dialog {
                 findViewById(R.id.item_log)
         };
 
-        // 统一设置背景选择器
         for (View item : items) {
             item.setBackgroundResource(R.drawable.item_settings_bg);
             item.setFocusable(true);
             item.setClickable(true);
         }
 
-        // 遥控器焦点监听
         for (int i = 0; i < items.length; i++) {
             View item = items[i];
             int finalI = i;
@@ -213,7 +188,6 @@ public class SettingsDialog extends Dialog {
             });
         }
 
-        // 统一点击/确认监听
         View.OnClickListener clickListener = v -> {
             int clickedIndex = -1;
             for (int i = 0; i < items.length; i++) {
@@ -237,7 +211,6 @@ public class SettingsDialog extends Dialog {
             item.setOnClickListener(clickListener);
         }
 
-        // 默认选中第一项
         items[0].setSelected(true);
     }
 
@@ -899,11 +872,9 @@ public class SettingsDialog extends Dialog {
     @Override
     public void dismiss() {
         super.dismiss();
-        // 发送解锁广播
         Intent unlockIntent = new Intent("com.tv.live.UNLOCK_SETTINGS");
         unlockIntent.setPackage(context.getPackageName());
         context.sendBroadcast(unlockIntent);
-        // 释放资源
         if (webServerManager != null) webServerManager.stop();
         if (updateManager != null) updateManager.release();
     }
