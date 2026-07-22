@@ -11,7 +11,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-import android.util.Log;
 import androidx.core.content.ContextCompat; // 🔧 新增导入
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
@@ -151,7 +150,8 @@ public class AppCoreManager {
                 }
                 log("【网络】直播源列表已更新");
                 loadEpg();
-                fetchTogetherWatchChannels();
+                // 🔧【清理一起看】移除虎牙一起看频道的拉取逻辑
+                // fetchTogetherWatchChannels();
             }
             @Override
             public void onError(String errorMsg) {
@@ -464,65 +464,8 @@ public class AppCoreManager {
         Log.d("AppCoreManager", msg);
     }
 
-    public void toggleTogetherWatch(boolean enable) {
-        log("【虎牙一起看】切换开关：" + enable);
-        if (enable) {
-            fetchTogetherWatchChannels();
-        } else {
-            removeTogetherWatchChannels();
-        }
-        if (refreshListener != null) {
-            refreshListener.onRefreshNeeded();
-        }
-    }
-
-    private void removeTogetherWatchChannels() {
-        synchronized (channelListLock) {
-            List<Channel> nonTwChannels = new ArrayList<>();
-            for (Channel ch : channelSourceList) {
-                String group = ch.getGroup();
-                if (group == null || (!group.contains("一起看电影") && !group.contains("一起看剧") 
-                        && !group.contains("一起看动画") && !group.contains("一起看综艺"))) {
-                    nonTwChannels.add(ch);
-                }
-            }
-            int removedCount = channelSourceList.size() - nonTwChannels.size();
-            channelSourceList.clear();
-            channelSourceList.addAll(nonTwChannels);
-            log("【虎牙一起看】已移除 " + removedCount + " 个频道，剩余 " + channelSourceList.size() + " 个");
-        }
-        if (dataLoadListener != null) {
-            dataLoadListener.onLiveSourceLoaded(getChannelList(), false);
-        }
-    }
-
-    private void fetchTogetherWatchChannels() {
-        SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-        boolean togetherWatchEnable = sp.getBoolean("together_watch_enable", false);
-        if (!togetherWatchEnable) {
-            log("【虎牙一起看】开关已关闭，跳过加载");
-            return;
-        }
-        HuyaTogetherWatchManager.getInstance().fetchTogetherWatchChannels(
-                new HuyaTogetherWatchManager.OnChannelsFetchedListener() {
-                    @Override
-                    public void onSuccess(List<Channel> channels) {
-                        log("【虎牙一起看】加载成功，频道数：" + channels.size());
-                        synchronized (channelListLock) {
-                            channelSourceList.addAll(channels);
-                            log("【虎牙一起看】合并后总频道数：" + channelSourceList.size());
-                        }
-                        if (dataLoadListener != null) {
-                            dataLoadListener.onLiveSourceLoaded(getChannelList(), false);
-                        }
-                    }
-
-                    @Override
-                    public void onFailed(String errorMsg) {
-                        log("【虎牙一起看】加载失败：" + errorMsg);
-                    }
-                });
-    }
+    // 🔧【清理一起看】彻底移除 toggleTogetherWatch、removeTogetherWatchChannels、fetchTogetherWatchChannels 方法
+    // 这三个方法已被整块删除，同时移除了 loadLiveAndEpg 中对 fetchTogetherWatchChannels 的调用
 
     public void release() {
         onDestroy();
