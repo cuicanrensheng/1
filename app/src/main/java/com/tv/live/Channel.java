@@ -1,176 +1,103 @@
 package com.tv.live;
 
-import android.os.Parcel;
-import android.os.Parcelable;
-
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.StringReader;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-public class Channel implements Parcelable {
-    private String name;
-    // 主播放地址
-    private String mainPlayUrl;
-    // 备用播放地址列表
-    private List<String> backupUrls;
-    private String group;
-    private String channelId;
+public class PlaylistParser {
 
-    // 🟢【新增】记录当前选中的线路索引 (0=主源, 1及以上=备用源)
-    private int currentLineIndex = 0;
-    
-    // 🟢【新增】是否为虎牙一起看频道
-    private boolean isTogetherWatch = false;
-    // 🟢【新增】虎牙房间号（用于一起看频道）
-    private int huyaRoomId = 0;
-
-    public Channel(String name, String mainPlayUrl, String group, String channelId) {
-        this.name = name;
-        this.mainPlayUrl = mainPlayUrl;
-        this.group = group;
-        this.channelId = channelId;
-        this.backupUrls = new ArrayList<>();
-    }
-    
-    public Channel(String name, String mainPlayUrl, String group, String channelId, boolean isTogetherWatch, int huyaRoomId) {
-        this.name = name;
-        this.mainPlayUrl = mainPlayUrl;
-        this.group = group;
-        this.channelId = channelId;
-        this.backupUrls = new ArrayList<>();
-        this.isTogetherWatch = isTogetherWatch;
-        this.huyaRoomId = huyaRoomId;
+    /**
+     * 从网络 URL 解析直播源
+     * (内部会发起网络请求下载 M3U 文件)
+     */
+    public static List<Channel> parse(String url) throws Exception {
+        Map<String, Channel> channelMap = new LinkedHashMap<>();
+        BufferedReader br = new BufferedReader(new InputStreamReader(new URL(url).openStream()));
+        return parseInternal(br, channelMap);
     }
 
-    // 添加备用源，自动去重
-    public void addBackupUrl(String url) {
-        if (url != null && !backupUrls.contains(url)) {
-            backupUrls.add(url);
+    /**
+     * 🟢【新增】从字符串内容解析直播源
+     * (推荐 LiveSourceLoader 使用此方法，避免重复网络请求)
+     */
+    public static List<Channel> parseContent(String content) throws Exception {
+        if (content == null || content.isEmpty()) {
+            return new ArrayList<>();
         }
+        Map<String, Channel> channelMap = new LinkedHashMap<>();
+        BufferedReader br = new BufferedReader(new StringReader(content));
+        return parseInternal(br, channelMap);
     }
 
-    // ====== 【核心修改】根据选中的线路索引返回对应的播放地址 ======
-    public String getPlayUrl() {
-        // 如果选中了备用源，且备用源列表有对应索引，则返回备用源
-        if (currentLineIndex > 0 && currentLineIndex - 1 < backupUrls.size()) {
-            return backupUrls.get(currentLineIndex - 1);
+    // ============================================================
+    // 🟢【核心抽取】将原有逻辑提取为通用内部方法
+    // ============================================================
+    private static List<Channel> parseInternal(BufferedReader br, Map<String, Channel> channelMap) throws Exception {
+        String line;
+        String currentGroup = "未分类";
+
+        while ((line = br.readLine()) != null) {
+            line = line.trim();
+            if (line.startsWith("#EXTM3U")) continue;
+
+            if (line.startsWith("#EXTGRP:")) {
+                currentGroup = line.substring(8).trim();
+                continue;
+            }
+
+            if (line.startsWith("#EXTINF:")) {
+                String name = "";
+                String tvgId = "";
+                String group = currentGroup;
+
+                // 提取 tvg-id
+                if (line.contains("tvg-id=\"")) {
+                    try {
+                        tvgId = line.split("tvg-id=\"")[1].split("\"")[0].trim();
+                    } catch (Exception ignored) {}
+                }
+                // 提取 group-title
+                if (line.contains("group-title=\"")) {
+                    try {
+                        group = line.split("group-title=\"")[1].split("\"")[0].trim();
+                    } catch (Exception ignored) {}
+                }
+                // 提取频道名称
+                if (line.contains(",")) {
+                    name = line.substring(line.indexOf(",") + 1).trim();
+                }
+
+                String uri = br.readLine();
+                if (uri == null || !uri.startsWith("http")) continue;
+
+                // 全局去重：优先使用 tvg-id，没有则用频道名作为 Key
+                String key = !tvgId.isEmpty() ? tvgId : name;
+                if (key.isEmpty()) continue;
+
+                Channel existing = channelMap.get(key);
+                if (existing != null) {
+                    // ✅【核心修改】取消注释！将重复解析到的备用源地址添加到列表中
+                    // 仅仅做存储，完全不影响播放器自动选择逻辑，备用源留给用户手动切换
+                    existing.addBackupUrl(uri); 
+                    
+                    // 🟢【核心修改】只要解析到有效的分组名称，就无条件覆盖旧分组！
+                    if (group != null && !group.isEmpty()) {
+                        existing.setGroup(group);
+                    }
+                } else {
+                    // ✅ 频道不存在：新建（第一条作为主源 mainPlayUrl）
+                    Channel newChannel = new Channel(name, uri, group, tvgId);
+                    channelMap.put(key, newChannel);
+                }
+            }
         }
-        // 否则默认返回主源
-        return mainPlayUrl;
-    }
-
-    // 🟢【新增】设置当前线路索引（供设置页或切换线路逻辑调用）
-    public void setCurrentLineIndex(int index) {
-        this.currentLineIndex = index;
-    }
-
-    // 🟢【新增】获取当前线路索引
-    public int getCurrentLineIndex() {
-        return currentLineIndex;
-    }
-
-    // 新接口：获取主播放地址（备用逻辑可能需要用到）
-    public String getMainPlayUrl() {
-        return mainPlayUrl;
-    }
-
-    public void setMainPlayUrl(String mainPlayUrl) {
-        this.mainPlayUrl = mainPlayUrl;
-    }
-
-    // 获取全部备用源列表
-    public List<String> getBackupUrls() {
-        return backupUrls;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getGroup() {
-        return group;
-    }
-
-    // 🟢【新增】设置分组，用于解析时动态更新分组名
-    public void setGroup(String group) {
-        this.group = group;
-    }
-
-    public String getChannelId() {
-        return channelId;
-    }
-
-    public boolean isTogetherWatch() {
-        return isTogetherWatch;
-    }
-
-    public void setTogetherWatch(boolean togetherWatch) {
-        isTogetherWatch = togetherWatch;
-    }
-
-    public int getHuyaRoomId() {
-        return huyaRoomId;
-    }
-
-    public void setHuyaRoomId(int huyaRoomId) {
-        this.huyaRoomId = huyaRoomId;
-    }
-
-    // ==================== Parcelable 实现 ====================
-    protected Channel(Parcel in) {
-        name = in.readString();
-        mainPlayUrl = in.readString();
-        backupUrls = in.createStringArrayList();
-        group = in.readString();
-        channelId = in.readString();
-        currentLineIndex = in.readInt();
-        isTogetherWatch = in.readByte() != 0;
-        huyaRoomId = in.readInt();
-    }
-
-    public static final Creator<Channel> CREATOR = new Creator<Channel>() {
-        @Override
-        public Channel createFromParcel(Parcel in) {
-            return new Channel(in);
-        }
-
-        @Override
-        public Channel[] newArray(int size) {
-            return new Channel[size];
-        }
-    };
-
-    @Override
-    public int describeContents() {
-        return 0;
-    }
-
-    @Override
-    public void writeToParcel(Parcel dest, int flags) {
-        dest.writeString(name);
-        dest.writeString(mainPlayUrl);
-        dest.writeStringList(backupUrls);
-        dest.writeString(group);
-        dest.writeString(channelId);
-        dest.writeInt(currentLineIndex);
-        dest.writeByte((byte) (isTogetherWatch ? 1 : 0));
-        dest.writeInt(huyaRoomId);
-    }
-
-    public static class EpgItem {
-        public String dayName;
-        public String time;
-        public String title;
-        public boolean isPlaying;
-
-        public EpgItem(String dayName, String time, String title, boolean isPlaying) {
-            this.dayName = dayName;
-            this.time = time;
-            this.title = title;
-            this.isPlaying = isPlaying;
-        }
-
-        public String getReplayUrl() {
-            return null;
-        }
+        br.close();
+        // 将 Map 的所有 value 转成 List 返回
+        return new ArrayList<>(channelMap.values());
     }
 }
