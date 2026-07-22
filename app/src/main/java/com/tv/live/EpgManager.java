@@ -8,7 +8,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.tv.live.util.CacheManager;
-import com.tv.live.manager.HuyaTogetherWatchManager;
+// 🔧【清理一起看】已移除：import com.tv.live.manager.HuyaTogetherWatchManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -45,16 +45,19 @@ public class EpgManager {
 
     private static final String CACHE_KEY_EPG = "epg";
     
-    private static final String[] TOGETHER_WATCH_MOVIE_KEYWORDS = {"喜剧", "动作", "惊悚", "科幻", "古装", "爱情", "冒险", "战争", "恐怖", "犯罪"};
-    private static final String[] TOGETHER_WATCH_TV_KEYWORDS = {"古装", "军旅", "搞笑", "悬疑", "都市", "剧情", "家庭", "情感", "历史", "偶像"};
-    private static final String[] TOGETHER_WATCH_VARIETY_KEYWORDS = {"综艺", "真人秀", "访谈", "选秀", "歌舞", "竞技"};
-    private static final String[] TOGETHER_WATCH_ANIME_KEYWORDS = {"动画", "动漫", "卡通", "剧场版", "OVA"};
+    // 🔧【清理一起看】以下涉及虎牙一起看 EPG 模拟生成的字段全部废弃
+    /*
+    private static final String[] TOGETHER_WATCH_MOVIE_KEYWORDS = {...};
+    private static final String[] TOGETHER_WATCH_TV_KEYWORDS = {...};
+    private static final String[] TOGETHER_WATCH_VARIETY_KEYWORDS = {...};
+    private static final String[] TOGETHER_WATCH_ANIME_KEYWORDS = {...};
 
     private static final String FUNGOLIVE_SERVER = "http://nowtv-new.xiaoyouzb.cn";
     private static final String FUNGOLIVE_EPG_API = "/channel/get_channel_current_epg";
     private static final String FUNGOLIVE_SIGN_KEY = "fungolive";
 
     private final Map<String, List<Channel.EpgItem>> fungoliveEpgCache = new ConcurrentHashMap<>();
+    */
 
     public static EpgManager getInstance(Context ctx) {
         if (instance == null) {
@@ -292,6 +295,8 @@ public class EpgManager {
             return new ArrayList<>();
         }
 
+        // 🔧【清理一起看】彻底移除虎牙一起看 EPG 的生成与抓取逻辑
+        /*
         if (isTogetherWatchChannel(channelName)) {
             List<Channel.EpgItem> remoteEpg = fetchFungoliveEpg(channelName);
             if (remoteEpg != null && !remoteEpg.isEmpty()) {
@@ -299,6 +304,7 @@ public class EpgManager {
             }
             return generateTogetherWatchEpg(channelName);
         }
+        */
 
         if (channelEpgMap.containsKey(channelName)) {
             return channelEpgMap.get(channelName);
@@ -332,6 +338,8 @@ public class EpgManager {
             return new ArrayList<>();
         }
 
+        // 🔧【清理一起看】移除已废弃的 isTogetherWatch 判断，直接走标准名称查找
+        /*
         if (channel.isTogetherWatch()) {
             List<Channel.EpgItem> remoteEpg = fetchFungoliveEpg(channel.getName());
             if (remoteEpg != null && !remoteEpg.isEmpty()) {
@@ -339,232 +347,23 @@ public class EpgManager {
             }
             return generateTogetherWatchEpg(channel.getName());
         }
+        */
 
         return getEpg(channel.getName());
     }
 
-    private boolean isTogetherWatchChannel(String channelName) {
-        if (channelName == null) return false;
-        String lowerName = channelName.toLowerCase(Locale.ROOT);
-        return lowerName.contains("一起看") || 
-               lowerName.contains("喜剧") || 
-               lowerName.contains("动作") || 
-               lowerName.contains("惊悚") || 
-               lowerName.contains("科幻") || 
-               lowerName.contains("古装") || 
-               lowerName.contains("动画") || 
-               lowerName.contains("综艺") || 
-               lowerName.contains("剧集") || 
-               lowerName.contains("悬疑");
-    }
-
-    private List<Channel.EpgItem> generateTogetherWatchEpg(String channelName) {
-        List<Channel.EpgItem> epgList = new ArrayList<>();
-        Calendar now = Calendar.getInstance();
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US);
-        sdf.setLenient(true);
-        
-        String channelType = detectChannelType(channelName);
-        
-        String[][] programs = generateProgramsForType(channelType, channelName);
-        
-        int startHour = now.get(Calendar.HOUR_OF_DAY);
-        
-        for (int i = 0; i < programs.length; i++) {
-            int hour = (startHour + i) % 24;
-            int nextHour = (hour + 1) % 24;
-            
-            String timeStr = String.format("%02d:%02d - %02d:%02d", hour, 0, nextHour, 0);
-            
-            Calendar itemCal = Calendar.getInstance();
-            itemCal.set(Calendar.HOUR_OF_DAY, hour);
-            itemCal.set(Calendar.MINUTE, 0);
-            itemCal.set(Calendar.SECOND, 0);
-            
-            if (hour < startHour) {
-                itemCal.add(Calendar.DAY_OF_YEAR, 1);
-            }
-            
-            String dayName = getDayName(itemCal, now);
-            String title = programs[i][0];
-            String subTitle = programs[i][1];
-            
-            boolean isPlaying = hour == startHour;
-            
-            Channel.EpgItem item = new Channel.EpgItem(dayName, timeStr, title + (subTitle.isEmpty() ? "" : " - " + subTitle), isPlaying);
-            epgList.add(item);
-        }
-        
-        return epgList;
-    }
-
-    private String detectChannelType(String channelName) {
-        if (channelName == null) return "综合";
-        String lowerName = channelName.toLowerCase(Locale.ROOT);
-        
-        for (String keyword : TOGETHER_WATCH_MOVIE_KEYWORDS) {
-            if (lowerName.contains(keyword.toLowerCase(Locale.ROOT))) {
-                return "电影";
-            }
-        }
-        
-        for (String keyword : TOGETHER_WATCH_TV_KEYWORDS) {
-            if (lowerName.contains(keyword.toLowerCase(Locale.ROOT))) {
-                return "剧集";
-            }
-        }
-        
-        for (String keyword : TOGETHER_WATCH_ANIME_KEYWORDS) {
-            if (lowerName.contains(keyword.toLowerCase(Locale.ROOT))) {
-                return "动画";
-            }
-        }
-        
-        for (String keyword : TOGETHER_WATCH_VARIETY_KEYWORDS) {
-            if (lowerName.contains(keyword.toLowerCase(Locale.ROOT))) {
-                return "综艺";
-            }
-        }
-        
-        return "综合";
-    }
-
-    private String[][] generateProgramsForType(String type, String channelName) {
-        switch (type) {
-            case "电影":
-                return new String[][]{
-                    {"经典喜剧电影", "欢乐不断"},
-                    {"动作大片精选", "热血激情"},
-                    {"科幻巨制", "未来世界"},
-                    {"惊悚悬疑电影", "紧张刺激"},
-                    {"爱情文艺片", "浪漫唯美"},
-                    {"战争史诗", "震撼人心"},
-                    {"恐怖惊悚", "心跳加速"},
-                    {"犯罪推理", "烧脑解谜"},
-                    {"动画电影", "奇幻冒险"},
-                    {"纪录片", "探索世界"},
-                    {"家庭温情片", "感人至深"},
-                    {"冒险动作", "惊险刺激"},
-                    {"古装武侠", "江湖恩怨"},
-                    {"喜剧精选", "爆笑不停"},
-                    {"爱情电影", "甜蜜浪漫"},
-                    {"科幻经典", "视觉盛宴"},
-                    {"悬疑推理", "层层揭秘"},
-                    {"动作合集", "精彩不断"},
-                    {"喜剧电影", "开心一刻"},
-                    {"恐怖电影", "午夜惊魂"},
-                    {"犯罪电影", "正邪对决"},
-                    {"冒险电影", "探索未知"},
-                    {"战争电影", "历史重现"},
-                    {"文艺电影", "艺术享受"}
-                };
-            case "剧集":
-                return new String[][]{
-                    {"古装剧集", "历史传奇"},
-                    {"都市情感剧", "现代生活"},
-                    {"悬疑推理剧", "烧脑剧情"},
-                    {"家庭伦理剧", "亲情故事"},
-                    {"青春偶像剧", "浪漫爱情"},
-                    {"军旅题材剧", "热血军营"},
-                    {"谍战剧", "潜伏较量"},
-                    {"年代剧", "时代变迁"},
-                    {"农村题材", "乡土情怀"},
-                    {"神话剧", "神仙传说"},
-                    {"宫廷剧", "后宫风云"},
-                    {"武侠剧", "江湖恩怨"},
-                    {"商战剧", "商场博弈"},
-                    {"律政剧", "法庭较量"},
-                    {"医疗剧", "医者仁心"},
-                    {"警匪剧", "正邪交锋"},
-                    {"校园剧", "青春回忆"},
-                    {"职场剧", "职场风云"},
-                    {"家庭剧", "温馨生活"},
-                    {"情感剧", "爱恨情仇"},
-                    {"历史剧", "王朝兴衰"},
-                    {"偶像剧集", "追星必看"},
-                    {"剧情精选", "精彩不断"}
-                };
-            case "动画":
-                return new String[][]{
-                    {"日本动漫", "精彩不断"},
-                    {"国产动画", "国漫崛起"},
-                    {"欧美动画", "创意无限"},
-                    {"经典动画", "童年回忆"},
-                    {"剧场版", "震撼上映"},
-                    {"OVA", "独家放送"},
-                    {"新番动画", "最新更新"},
-                    {"热血动漫", "激情燃烧"},
-                    {"治愈系", "温暖人心"},
-                    {"悬疑动画", "烧脑解谜"},
-                    {"搞笑动画", "欢乐无限"},
-                    {"恋爱动画", "甜蜜浪漫"},
-                    {"科幻动画", "未来世界"},
-                    {"奇幻动画", "魔法世界"},
-                    {"冒险动画", "探索未知"},
-                    {"竞技动画", "热血拼搏"},
-                    {"校园动画", "青春校园"},
-                    {"推理动画", "真相只有一个"},
-                    {"恐怖动画", "惊悚刺激"},
-                    {"萌系动画", "可爱治愈"},
-                    {"音乐动画", "旋律优美"},
-                    {"运动动画", "挥洒汗水"},
-                    {"动画精选", "精彩合集"}
-                };
-            case "综艺":
-                return new String[][]{
-                    {"真人秀", "明星百态"},
-                    {"脱口秀", "幽默风趣"},
-                    {"歌唱比赛", "天籁之音"},
-                    {"舞蹈竞技", "舞姿翩翩"},
-                    {"游戏综艺", "欢乐互动"},
-                    {"访谈节目", "明星专访"},
-                    {"美食节目", "舌尖诱惑"},
-                    {"旅行综艺", "探索世界"},
-                    {"亲子节目", "温馨时刻"},
-                    {"喜剧节目", "爆笑连连"},
-                    {"选秀节目", "梦想起航"},
-                    {"竞技综艺", "热血拼搏"},
-                    {"情感节目", "真情实感"},
-                    {"文化综艺", "传承经典"},
-                    {"体育综艺", "运动激情"},
-                    {"音乐综艺", "视听盛宴"},
-                    {"才艺展示", "各显神通"},
-                    {"户外综艺", "亲近自然"},
-                    {"室内综艺", "欢乐时光"},
-                    {"晚会盛典", "星光熠熠"},
-                    {"颁奖典礼", "荣耀时刻"},
-                    {"演唱会", "现场直击"},
-                    {"综艺精选", "精彩不断"}
-                };
-            default:
-                return new String[][]{
-                    {"精彩节目", "正在热播"},
-                    {"热门内容", "不容错过"},
-                    {"精选推荐", "精彩呈现"},
-                    {"直播现场", "实时互动"},
-                    {"精彩回放", "重温经典"},
-                    {"特别节目", "独家放送"},
-                    {"精彩继续", "敬请期待"},
-                    {"热门推荐", "人气爆棚"},
-                    {"精品内容", "品质保证"},
-                    {"独家放送", "抢先观看"},
-                    {"精彩直播", "实时互动"},
-                    {"精选内容", "不容错过"},
-                    {"热门节目", "人气高涨"},
-                    {"精彩不断", "持续热播"},
-                    {"特别策划", "独家呈现"},
-                    {"精彩瞬间", "值得珍藏"},
-                    {"热门精选", "精彩呈现"},
-                    {"直播精选", "实时精彩"},
-                    {"精品推荐", "品质之选"},
-                    {"精彩内容", "持续更新"},
-                    {"热门直播", "人气爆棚"},
-                    {"精选直播", "精彩不断"},
-                    {"精彩节目", "持续热播"},
-                    {"热门内容", "精彩呈现"}
-                };
-        }
-    }
+    // 🔧【清理一起看】以下为虎牙和“一起看”专属 EPG 模拟生成的辅助方法，现已全部废弃
+    /*
+    private boolean isTogetherWatchChannel(String channelName) { ... }
+    private List<Channel.EpgItem> generateTogetherWatchEpg(String channelName) { ... }
+    private String detectChannelType(String channelName) { ... }
+    private String[][] generateProgramsForType(String type, String channelName) { ... }
+    private List<Channel.EpgItem> fetchFungoliveEpg(String channelName) { ... }
+    private List<Channel.EpgItem> fetchHuyaChannelEpg(String channelName) { ... }
+    private int getSubCategoryId(String channelType) { ... }
+    private List<Channel.EpgItem> parseHuyaChannelEpgResponse(String response, String currentChannelName) { ... }
+    private List<Channel.EpgItem> parseFungoliveEpgResponse(String response, String channelName) { ... }
+    */
 
     private String normalizeChannelName(String name) {
         if (name == null || name.isEmpty()) {
@@ -712,205 +511,5 @@ public class EpgManager {
         } catch (Exception e) {
             return "";
         }
-    }
-
-    private List<Channel.EpgItem> fetchFungoliveEpg(String channelName) {
-        if (fungoliveEpgCache.containsKey(channelName)) {
-            return fungoliveEpgCache.get(channelName);
-        }
-
-        List<Channel.EpgItem> epgList = fetchHuyaChannelEpg(channelName);
-        if (epgList != null && !epgList.isEmpty()) {
-            Log.d("HuyaEpg", "【虎牙EPG】获取成功，节目数=" + epgList.size());
-            fungoliveEpgCache.put(channelName, epgList);
-            return epgList;
-        }
-
-        return null;
-    }
-
-    private List<Channel.EpgItem> fetchHuyaChannelEpg(String channelName) {
-        try {
-            Log.d("HuyaEpg", "【虎牙EPG】开始从虎牙频道列表获取，channel=" + channelName);
-
-            String category = detectChannelType(channelName);
-            int subCategoryId = getSubCategoryId(category);
-            
-            if (subCategoryId <= 0) {
-                Log.d("HuyaEpg", "【虎牙EPG】无法识别频道类型，category=" + category);
-                return null;
-            }
-
-            String apiUrl = "https://live.cdn.huya.com/liveHttpUI/getTmpLiveList" +
-                    "?iGid=2135&iTmpId=" + subCategoryId + "&iPageNo=1&iPageSize=24";
-
-            Log.d("HuyaEpg", "【虎牙EPG】请求URL=" + apiUrl);
-
-            HttpURLConnection conn = (HttpURLConnection) new URL(apiUrl).openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(10000);
-            conn.addRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-            conn.addRequestProperty("Referer", "https://www.huya.com/");
-
-            int responseCode = conn.getResponseCode();
-            Log.d("HuyaEpg", "【虎牙EPG】响应码=" + responseCode);
-
-            if (responseCode == 200) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
-                }
-                reader.close();
-
-                String response = sb.toString();
-                Log.d("HuyaEpg", "【虎牙EPG】响应长度=" + response.length());
-
-                return parseHuyaChannelEpgResponse(response, channelName);
-            } else {
-                Log.d("HuyaEpg", "【虎牙EPG】请求失败，响应码=" + responseCode);
-            }
-        } catch (Exception e) {
-            Log.d("HuyaEpg", "【虎牙EPG】请求异常: " + e.getMessage());
-            e.printStackTrace();
-        }
-
-        return null;
-    }
-
-    private int getSubCategoryId(String channelType) {
-        switch (channelType) {
-            case "电影": return 2067;
-            case "剧集": return 2079;
-            case "动画": return 6861;
-            case "综艺": return 1011;
-            default: return 2067;
-        }
-    }
-
-    private List<Channel.EpgItem> parseHuyaChannelEpgResponse(String response, String currentChannelName) {
-        try {
-            JSONObject json = new JSONObject(response);
-            JSONArray vList = json.optJSONArray("vList");
-            if (vList == null || vList.length() == 0) {
-                Log.d("HuyaEpg", "【虎牙EPG】vList为空");
-                return null;
-            }
-
-            List<Channel.EpgItem> epgList = new ArrayList<>();
-            Calendar now = Calendar.getInstance();
-            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", java.util.Locale.US);
-
-            int startHour = now.get(Calendar.HOUR_OF_DAY);
-            boolean foundCurrentChannel = false;
-
-            for (int i = 0; i < Math.min(vList.length(), 24); i++) {
-                JSONObject room = vList.getJSONObject(i);
-                
-                String roomName = room.optString("sRoomName", "");
-                String introduction = room.optString("sIntroduction", "");
-                String displayTitle = TextUtils.isEmpty(roomName) ? introduction : roomName;
-                
-                if (TextUtils.isEmpty(displayTitle)) continue;
-
-                int hour = (startHour + i) % 24;
-                int nextHour = (hour + 1) % 24;
-                
-                String timeStr = String.format("%02d:%02d - %02d:%02d", hour, 0, nextHour, 0);
-                
-                Calendar itemCal = Calendar.getInstance();
-                itemCal.set(Calendar.HOUR_OF_DAY, hour);
-                itemCal.set(Calendar.MINUTE, 0);
-                itemCal.set(Calendar.SECOND, 0);
-                
-                if (hour < startHour) {
-                    itemCal.add(Calendar.DAY_OF_YEAR, 1);
-                }
-                
-                String dayName = getDayName(itemCal, now);
-                
-                boolean isPlaying = (!foundCurrentChannel && hour == startHour) ||
-                        displayTitle.equalsIgnoreCase(currentChannelName) ||
-                        (currentChannelName.contains(displayTitle) || displayTitle.contains(currentChannelName));
-                
-                if (isPlaying) {
-                    foundCurrentChannel = true;
-                }
-                
-                Channel.EpgItem item = new Channel.EpgItem(dayName, timeStr, displayTitle, isPlaying);
-                epgList.add(item);
-                
-                Log.d("HuyaEpg", "【虎牙EPG】节目" + (i+1) + ": " + timeStr + " - " + displayTitle + (isPlaying ? " (播放中)" : ""));
-            }
-
-            return epgList;
-        } catch (Exception e) {
-            Log.d("HuyaEpg", "【虎牙EPG】解析异常: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    private List<Channel.EpgItem> parseFungoliveEpgResponse(String response, String channelName) {
-        try {
-            JSONObject json = new JSONObject(response);
-            if (json.has("data")) {
-                JSONObject data = json.getJSONObject("data");
-
-                List<Channel.EpgItem> epgList = new ArrayList<>();
-                Calendar now = Calendar.getInstance();
-                SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.US);
-
-                if (data.has("current")) {
-                    JSONObject current = data.getJSONObject("current");
-                    String title = current.optString("title", "");
-                    String startTime = current.optString("startTime", "");
-                    String endTime = current.optString("endTime", "");
-
-                    if (!title.isEmpty()) {
-                        String timeStr = startTime + " - " + endTime;
-                        Channel.EpgItem item = new Channel.EpgItem("今天", timeStr, title, true);
-                        epgList.add(item);
-                    }
-                }
-
-                if (data.has("next")) {
-                    JSONObject next = data.getJSONObject("next");
-                    String title = next.optString("title", "");
-                    String startTime = next.optString("startTime", "");
-                    String endTime = next.optString("endTime", "");
-
-                    if (!title.isEmpty()) {
-                        String timeStr = startTime + " - " + endTime;
-                        Channel.EpgItem item = new Channel.EpgItem("今天", timeStr, title, false);
-                        epgList.add(item);
-                    }
-                }
-
-                if (data.has("list")) {
-                    JSONArray list = data.getJSONArray("list");
-                    for (int i = 0; i < list.length(); i++) {
-                        JSONObject itemObj = list.getJSONObject(i);
-                        String title = itemObj.optString("title", "");
-                        String startTime = itemObj.optString("startTime", "");
-                        String endTime = itemObj.optString("endTime", "");
-
-                        if (!title.isEmpty()) {
-                            String timeStr = startTime + " - " + endTime;
-                            boolean isPlaying = itemObj.optBoolean("isPlaying", false);
-                            Channel.EpgItem item = new Channel.EpgItem("今天", timeStr, title, isPlaying);
-                            epgList.add(item);
-                        }
-                    }
-                }
-
-                return epgList;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
     }
 }
