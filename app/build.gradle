@@ -101,6 +101,8 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.1'
     
     implementation 'com.google.code.gson:gson:2.10.1'
+    
+    implementation 'com.alibaba:fastjson:1.2.83'
 
     // ❌【已移除】本地 libs 文件夹的 AAR 以及远程 FFmpeg 扩展均不再需要
     
