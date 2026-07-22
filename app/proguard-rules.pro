@@ -28,10 +28,18 @@
     *** *(...);
 }
 
-# ===================== 项目自有类 =====================
+# ===================== 项目自有类（⚠️ 已扩大范围） =====================
+# 为了安全起见，把所有 com.tv.live 包下的类及其内部类、字段全部保留
+-keep class com.tv.live.** { *; }
+-keepclassmembers class com.tv.live.** { *; }
 -keep class com.tv.live.bean.** {*;}
--keep class com.tv.live.Channel {*;}
--keep class com.tv.live.TVPlayerManager {*;}
+
+# ===================== fastjson (⚠️ 新增！) =====================
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn com.alibaba.fastjson.**
+-keep class com.alibaba.fastjson.** { *; }
+-keepclassmembers class * { public <init>(org.json.JSONObject); }
 
 # ===================== Gson =====================
 -keep class com.google.gson.** {*;}
