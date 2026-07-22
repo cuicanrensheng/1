@@ -46,7 +46,7 @@ import java.util.List;
 @SuppressLint("UnsafeOptInUsageError")
 public class MainActivity extends AppCompatActivity {
     private static WeakReference<MainActivity> mInstanceRef;
-    
+
     public List<Channel> channelSourceList = new ArrayList<>(512);
     public int currentPlayIndex = 0;
 
@@ -71,6 +71,42 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isOpeningSettings = false;
     private long lastSettingsOpenTime = 0;
+    private long okKeyDownTime = 0;
+    private boolean okKeyLongPressed = false;
+    private static final long OK_LONG_PRESS_DURATION = 1500;
+
+    // ---------------- 多品牌电视按键映射 ----------------
+    private static boolean isOkKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_BUTTON_A
+                || keyCode == 100; // 某部分电视自定义确认键
+    }
+
+    private static boolean isMenuKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_MENU
+                || keyCode == KeyEvent.KEYCODE_HELP        // API 23+
+                || keyCode == KeyEvent.KEYCODE_SETTINGS
+                || keyCode == KeyEvent.KEYCODE_BUTTON_B
+                || keyCode == 101; // 创维/酷开等特殊设置键
+    }
+
+    private static boolean isChannelUpKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_DPAD_UP
+                || keyCode == KeyEvent.KEYCODE_CHANNEL_UP
+                || keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS;
+    }
+
+    private static boolean isChannelDownKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                || keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN
+                || keyCode == KeyEvent.KEYCODE_MEDIA_NEXT;
+    }
+
+    private Runnable openSettingsRunnable = () -> {
+        okKeyLongPressed = true;
+        openSettings();
+    };
 
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences sp;
@@ -81,31 +117,24 @@ public class MainActivity extends AppCompatActivity {
     private Runnable logUpdateRunnable;
 
     private boolean isInCatchUpMode = false;
-
     private AlertDialog exitMenuDialog = null;
-
     private BroadcastReceiver unlockReceiver;
+    private PlayerTouchListener touchListener;
 
     public static MainActivity getRunningInstance() {
         return mInstanceRef != null ? mInstanceRef.get() : null;
     }
 
-    public boolean isInCatchUpMode() {
-        return isInCatchUpMode;
+    public void toggleTogetherWatch(boolean enable) {
+        if (appCoreManager != null) {
+            appCoreManager.toggleTogetherWatch(enable);
+        }
     }
 
-    public PictureInPictureManager getPipManager() {
-        return pipManager;
-    }
-
-    private PlayerTouchListener touchListener;
-    public PlayerTouchListener getTouchListener() {
-        return touchListener;
-    }
-
-    public PlayerView getPlayerView() {
-        return playerView;
-    }
+    public boolean isInCatchUpMode() { return isInCatchUpMode; }
+    public PictureInPictureManager getPipManager() { return pipManager; }
+    public PlayerTouchListener getTouchListener() { return touchListener; }
+    public PlayerView getPlayerView() { return playerView; }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -133,7 +162,9 @@ public class MainActivity extends AppCompatActivity {
         log("【配置】EPG地址：" + UrlConfig.EPG_URL);
 
         playerView = findViewById(R.id.player_view);
-        playerView.setUseController(true);
+        playerView.setUseController(false);
+        playerView.setFocusable(false);
+        playerView.setFocusableInTouchMode(false);
         try {
             playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) null);
         } catch (Exception e) {}
@@ -147,7 +178,6 @@ public class MainActivity extends AppCompatActivity {
         mPlayerManager.registerRendererModeReceiver();
 
         loadSettings();
-
         screenRatioManager = new ScreenRatioManager(mPlayerManager, appConfig);
         screenRatioManager.apply();
 
@@ -176,72 +206,124 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅【修复编译错误】：将导致找不到符号的 KeyEvent 常量换成具体的整数值
+    // ✅【核心移植】完整的按键分发与拦截机制
     // ================================================================
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 如果面板打开，让面板优先处理按键（方向键等）
-        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-        }
+    private boolean panelOpenOnBackDown = false;
 
-        switch (keyCode) {
-            // ============================================================
-            // 1. OK键适配（通用 & 创维/酷开）
-            // ============================================================
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-                // 长按OK键：打开设置
-                if (event.isLongPress()) {
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        int action = event.getAction();
+        boolean panelOpen = channelPanelController != null && channelPanelController.isPanelOpen();
+
+        // 调试日志（正式版可注释掉）
+        android.util.Log.d("KEY_DEBUG", "keyCode=" + keyCode + " action=" + action + " repeat=" + event.getRepeatCount());
+
+        if (action == KeyEvent.ACTION_DOWN) {
+            if (event.getRepeatCount() == 0) {
+                // 1. 菜单/设置类按键：打开设置（同时如果面板开着，顺手关掉）
+                if (isMenuKey(keyCode)) {
+                    if (panelOpen) {
+                        channelPanelController.hidePanel();
+                    }
                     openSettings();
                     return true;
                 }
-                // 短按OK键：打开/切换频道面板
-                if (channelPanelController != null) {
-                    channelPanelController.togglePanel();
+
+                // 2. OK键事件：启动 1.5s 长按检测
+                if (isOkKey(keyCode)) {
+                    if (!panelOpen) {
+                        okKeyDownTime = System.currentTimeMillis();
+                        okKeyLongPressed = false;
+                        mMainHandler.removeCallbacks(openSettingsRunnable);
+                        mMainHandler.postDelayed(openSettingsRunnable, OK_LONG_PRESS_DURATION);
+                        return true;
+                    }
+                }
+
+                // 3. 换台键
+                if (isChannelUpKey(keyCode)) {
+                    if (!panelOpen) { channelPanelController.switchUp(); return true; }
+                } else if (isChannelDownKey(keyCode)) {
+                    if (!panelOpen) { channelPanelController.switchDown(); return true; }
+                } 
+                // 4. 左右方向键
+                else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    if (!panelOpen) { channelPanelController.togglePanel(); return true; }
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    if (!panelOpen) { openSettings(); return true; }
+                } 
+                // 5. 播放控制键
+                else if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
+                    if (mPlayerManager != null) {
+                        if (mPlayerManager.isPlaying()) { mPlayerManager.pause(); } else { mPlayerManager.resume(); }
+                    }
+                    return true;
+                } else if (keyCode == KeyEvent.KEYCODE_MEDIA_STOP) {
+                    if (mPlayerManager != null) { mPlayerManager.pause(); }
+                    return true;
+                } 
+                // 6. 数字键选台
+                else if (keyCode >= KeyEvent.KEYCODE_0 && keyCode <= KeyEvent.KEYCODE_9) {
+                    handleNumberKey(keyCode);
+                    return true;
+                } 
+                // 7. 返回键
+                else if (keyCode == KeyEvent.KEYCODE_BACK) {
+                    panelOpenOnBackDown = panelOpen;
+                    if (panelOpen) {
+                        channelPanelController.hidePanel();
+                    }
                     return true;
                 }
-                break;
-
-            // ============================================================
-            // 2. 菜单/面板键适配（通用 & 创维/酷开）
-            // ============================================================
-            case KeyEvent.KEYCODE_MENU:
-            case KeyEvent.KEYCODE_GUIDE: // 创维遥控器上的“节目单/列表”键 (代码 98)
-                if (channelPanelController != null) {
-                    channelPanelController.togglePanel();
-                    return true;
+            }
+        } else if (action == KeyEvent.ACTION_UP) {
+            // 1. OK键松开：取消长按任务，触发面板切换
+            if (isOkKey(keyCode)) {
+                mMainHandler.removeCallbacks(openSettingsRunnable);
+                if (!okKeyLongPressed) {
+                    if (!panelOpen) {
+                        channelPanelController.togglePanel();
+                    }
                 }
-                break;
-
-            // ============================================================
-            // 3. 设置键适配（通用 & 创维/酷开）
-            // ============================================================
-            case KeyEvent.KEYCODE_SETTINGS:
-            case 169: // KEYCODE_CONTEXT_MENU 的整数值，替代原常量避免低版本SDK编译错误
-            case 292: // KEYCODE_TV_OPTIONS 的整数值，创维/酷开电视专属“设置/选项”键
-                openSettings();
-                return true;
-
-            default:
-                break;
-        }
-        return super.onKeyDown(keyCode, event);
-    }
-
-    // 之前已有的 dispatchKeyEvent（面板打开时优先让面板处理按键）
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-            if (panelLayout != null && panelLayout.dispatchKeyEvent(event)) {
+                okKeyLongPressed = false;
+                okKeyDownTime = 0;
+            } 
+            // 2. 返回键松开：判定是否执行物理返回（防止面板刚关就退出）
+            else if (keyCode == KeyEvent.KEYCODE_BACK) {
+                if (!panelOpenOnBackDown && !panelOpen) {
+                    onBackPressed();
+                }
                 return true;
             }
         }
+
+        // 如果面板打开，让面板内部优先处理按键（方向键导航等）
+        if (panelOpen && panelLayout != null) {
+            if (panelLayout.dispatchKeyEvent(event)) {
+                return true;
+            }
+        }
+
         return super.dispatchKeyEvent(event);
     }
 
-    // ================================================================
-    // 以下方法保持原有逻辑
-    // ================================================================
+    // ---------------- 数字选台逻辑 ----------------
+    private void handleNumberKey(int keyCode) {
+        if (channelSourceList == null || channelSourceList.isEmpty()) return;
+        int num = keyCode - KeyEvent.KEYCODE_0;
+        if (num >= 0 && num <= 9) {
+            if (num == 0) num = 10; // 0 代表第 10 台
+            int targetIndex = num - 1;
+            if (targetIndex >= 0 && targetIndex < channelSourceList.size()) {
+                playChannel(channelSourceList.get(targetIndex), targetIndex);
+            }
+        }
+    }
 
+    // ================================================================
+    // 以下 UI 及管理器逻辑保持原有修复（浅蓝背景、返回处理等）
+    // ================================================================
     public void showLogWindow() {
         if (logWindowVisible) return;
         logWindowVisible = true;
@@ -284,33 +366,14 @@ public class MainActivity extends AppCompatActivity {
     public static void toggleLogWindow(boolean enable) {
         MainActivity activity = getRunningInstance();
         if (activity != null) {
-            if (enable) {
-                activity.showLogWindow();
-            } else {
-                activity.hideLogWindow();
-            }
+            if (enable) { activity.showLogWindow(); } else { activity.hideLogWindow(); }
         }
     }
 
-    public void setCatchUpMode(boolean enabled) {
-        this.isInCatchUpMode = enabled;
-    }
-
-    public ChannelPanelController getChannelPanelController() {
-        return channelPanelController;
-    }
-
-    public void showExoController() {
-        if (playerControlManager != null) {
-            playerControlManager.showExoController();
-        }
-    }
-
-    public void hideExoController() {
-        if (playerControlManager != null) {
-            playerControlManager.hideExoController();
-        }
-    }
+    public void setCatchUpMode(boolean enabled) { this.isInCatchUpMode = enabled; }
+    public ChannelPanelController getChannelPanelController() { return channelPanelController; }
+    public void showExoController() { if (playerControlManager != null) playerControlManager.showExoController(); }
+    public void hideExoController() { if (playerControlManager != null) playerControlManager.hideExoController(); }
 
     private void exitPlaybackMode() {
         if (isInCatchUpMode) {
@@ -410,11 +473,7 @@ public class MainActivity extends AppCompatActivity {
         public PlayerTouchListener(MainActivity activity) {
             this.activityRef = new WeakReference<>(activity);
         }
-
-        public void updateGestureHelper(PlayerGestureHelper helper) {
-            this.gestureHelper = helper;
-        }
-
+        public void updateGestureHelper(PlayerGestureHelper helper) { this.gestureHelper = helper; }
         @Override
         public boolean onTouch(View v, MotionEvent event) {
             if (gestureHelper != null) {
@@ -432,7 +491,6 @@ public class MainActivity extends AppCompatActivity {
 
         mPlayerManager.setOnPlayerViewRecreatedListener(newPlayerView -> {
             MainActivity.this.playerView = newPlayerView;
-
             gestureManager = new GestureManager(MainActivity.this);
             final PlayerGestureHelper newGestureHelper = gestureManager.create();
 
@@ -450,7 +508,6 @@ public class MainActivity extends AppCompatActivity {
                 newPlayerView.setUseController(false);
                 playerControlManager.hideExoController();
             }
-
             Log.d("MainActivity", "PlayerView 重建完成");
         });
 
@@ -556,6 +613,17 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onSourceFailed(String channelName, int failedCount) {}
         });
+
+        appCoreManager.setOnRefreshListener(() -> {
+            runOnUiThread(() -> {
+                List<Channel> newList = appCoreManager.getChannelList();
+                channelSourceList.clear();
+                channelSourceList.addAll(newList);
+                channelPanelController.setChannels(channelSourceList);
+                log("【刷新】频道列表已更新，频道数：" + channelSourceList.size());
+            });
+        });
+
         appCoreManager.registerReceivers();
     }
 
@@ -565,7 +633,7 @@ public class MainActivity extends AppCompatActivity {
         number_channel_enable = sp.getBoolean("number_channel_enable", true);
         boolean auto_update_source = sp.getBoolean("auto_update_source", true);
         pipEnable = sp.getBoolean("pip_enable", false);
-        
+
         String decoderMode = sp.getString("decoder_mode", "auto");
         int mode = TVPlayerManager.DECODER_MODE_AUTO;
         if ("hard".equals(decoderMode)) {
@@ -573,7 +641,7 @@ public class MainActivity extends AppCompatActivity {
         } else if ("soft".equals(decoderMode)) {
             mode = TVPlayerManager.DECODER_MODE_SOFT;
         }
-        
+
         if (mPlayerManager != null) mPlayerManager.setDecoderMode(mode);
         if (channelPanelController != null) {
             channelPanelController.setEpgEnable(epg_enable);
@@ -632,9 +700,7 @@ public class MainActivity extends AppCompatActivity {
     public void playPrev() { channelPanelController.playPrev(); }
     public void playNext() { channelPanelController.playNext(); }
 
-    // ================================================================
-    // ✅ 退出弹窗（默认聚焦第一个按钮，浅蓝背景+蓝色字体）
-    // ================================================================
+    // ✅【已整合】蓝色焦点 + 浅蓝色背景的退出弹窗
     public void showExitMenu() {
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             return;
@@ -657,13 +723,18 @@ public class MainActivity extends AppCompatActivity {
                 exitMenuDialog.getWindow().setAttributes(lp);
                 exitMenuDialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
-            
+
             exitMenuDialog.setOnDismissListener(dialog -> exitMenuDialog = null);
             exitMenuDialog.show();
-        }
 
-        // ✅ 核心：弹窗显示后，强制把焦点给第一个按钮（确认退出）
-        btnRest.post(() -> btnRest.requestFocus());
+            btnRest.setFocusable(true);
+            btnRest.setFocusableInTouchMode(true);
+            btnSettings.setFocusable(true);
+            btnSettings.setFocusableInTouchMode(true);
+
+            // ✅ 强制焦点落在第一个按钮（确认退出）
+            btnRest.post(() -> btnRest.requestFocus());
+        }
 
         btnRest.setOnClickListener(v -> {
             if (exitMenuDialog != null) {
@@ -677,73 +748,81 @@ public class MainActivity extends AppCompatActivity {
                 exitMenuDialog.dismiss();
             }
             mMainHandler.postDelayed(() -> {
+                isOpeningSettings = false;
                 openSettings();
             }, 100);
         });
     }
 
-    // ================================================================
-    // ✅ onBackPressed：优先关闭面板，而不是弹出退出弹窗
-    // ================================================================
     @Override
     public void onBackPressed() {
-        // 1. 如果处于追剧模式，先退出追剧模式
         if (isInCatchUpMode && playerControlManager != null && playerControlManager.isControllerShowing()) {
             exitPlaybackMode();
             return;
         }
 
-        // 2. 如果退出菜单弹窗已经显示，先关闭它
-        if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
-            exitMenuDialog.dismiss();
-            exitMenuDialog = null; 
-            return;
-        }
-
-        // 3. 如果频道面板正在打开，优先关闭面板，不触发退出弹窗
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
             channelPanelController.hidePanel();
             return;
         }
 
-        // 4. 以上情况都不满足，才显示退出菜单
+        if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
+            exitMenuDialog.dismiss();
+            exitMenuDialog = null;
+            return;
+        }
+
         showExitMenu();
     }
 
-    // ================================================================
-    // ✅ openSettings 方法（加入 3 秒超时强制解锁机制）
-    // ================================================================
+    // ✅【已整合】打开设置的超时保护与 Dialog 展示
     public void openSettings() {
-        long now = System.currentTimeMillis();
+        try {
+            long now = System.currentTimeMillis();
 
-        // 如果正在打开设置中，判断是否超时（3秒后强制解锁）
-        if (isOpeningSettings) {
-            if (now - lastSettingsOpenTime > 3000) {
-                isOpeningSettings = false;
-                Log.d("Settings", "🔄 强制解锁 isOpeningSettings（超过 3 秒）");
-            } else {
-                Log.d("Settings", "⛔ isOpeningSettings 为 true，被拦截（距离上次尝试不到 3 秒）");
-                return;
+            if (isOpeningSettings) {
+                if (now - lastSettingsOpenTime > 5000) {
+                    Log.d("Settings", "强制解锁 isOpeningSettings（超过 5 秒）");
+                    isOpeningSettings = false;
+                } else {
+                    Log.d("Settings", "isOpeningSettings 为 true，被拦截（距离上次尝试不到 5 秒）");
+                    return;
+                }
             }
+
+            if (isInCatchUpMode) return;
+
+            lastSettingsOpenTime = now;
+            isOpeningSettings = true;
+
+            try {
+                if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+                    channelPanelController.hidePanel();
+                }
+            } catch (Exception e) {
+                Log.e("Settings", "hidePanel 失败", e);
+            }
+
+            try {
+                if (playerControlManager != null) {
+                    playerControlManager.onOpenSettings();
+                }
+            } catch (Exception e) {
+                Log.e("Settings", "onOpenSettings 失败", e);
+            }
+
+            try {
+                SettingsDialog settingsDialog = new SettingsDialog(this);
+                settingsDialog.show();
+                Log.d("Settings", "SettingsDialog 显示成功");
+            } catch (Exception e) {
+                Log.e("Settings", "显示 SettingsDialog 失败", e);
+                isOpeningSettings = false;
+            }
+        } catch (Exception e) {
+            Log.e("Settings", "打开设置失败", e);
+            isOpeningSettings = false;
         }
-
-        if (isInCatchUpMode) return;
-
-        lastSettingsOpenTime = now;
-        isOpeningSettings = true;
-
-        appCoreManager.beforeOpenSettings();
-
-        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-            channelPanelController.hidePanel();
-        }
-
-        if (playerControlManager != null) {
-            playerControlManager.onOpenSettings();
-        }
-
-        // ---- 显示 SettingsDialog ----
-        new SettingsDialog(this).show();
     }
 
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
@@ -787,7 +866,8 @@ public class MainActivity extends AppCompatActivity {
         if (isOpeningSettings) {
             return;
         }
-        mMainHandler.removeCallbacksAndMessages(null);
+        mMainHandler.removeCallbacks(openSettingsRunnable);
+        mMainHandler.removeCallbacks(logUpdateRunnable);
         if (appCoreManager != null) {
             appCoreManager.onPause();
         }
@@ -822,6 +902,15 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
+                // 强制刷新播放器渲染，避免黑屏
+                try {
+                    if (playerView != null) {
+                        playerView.setVisibility(View.GONE);
+                        playerView.setVisibility(View.VISIBLE);
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("MainActivity", "刷新播放器失败", e);
+                }
             }
             if (playerControlManager != null) {
                 playerControlManager.onResume();
@@ -855,7 +944,7 @@ public class MainActivity extends AppCompatActivity {
             mInstanceRef.clear();
             mInstanceRef = null;
         }
-        
+
         mMainHandler.removeCallbacksAndMessages(null);
         if (infoDisplayManager != null) infoDisplayManager.release();
         if (displayManager != null) displayManager.release();
@@ -878,7 +967,6 @@ public class MainActivity extends AppCompatActivity {
             try {
                 unregisterReceiver(unlockReceiver);
             } catch (Exception e) {
-                // 忽略
             }
             unlockReceiver = null;
         }
