@@ -17,11 +17,6 @@ android {
         buildConfig true
     }
 
-    // 🟢【新增 1】强制启用 AAPT 图片压缩器，替代容易崩溃的 crunchPngs
-    aaptOptions {
-        cruncherEnabled true
-    }
-
     defaultConfig {
         applicationId "com.tv.live"
 
@@ -37,12 +32,8 @@ android {
         buildConfigField "String", "VERSION_NAME", "\"${versionName}\""
 
         ndk {
-            // 🔧 已恢复双架构支持，确保兼容老旧电视/盒子
             abiFilters 'arm64-v8a', 'armeabi-v7a'
         }
-
-        // ✅【体积优化】限制语言（仅中文和英文）和屏幕密度（电视常用 3 种）
-        resConfigs "zh-rCN", "en", "hdpi", "xhdpi", "xxhdpi"
     }
 
     signingConfigs {
@@ -70,15 +61,12 @@ android {
 
     buildTypes {
         release {
-            // ✅ 开启代码混淆和资源压缩
+            // ✅ 【核心修改】开启代码混淆和资源压缩
             minifyEnabled true
             shrinkResources true
-            // 🔧【已移除】移除 crunchPngs false，使用 aaptOptions 接管
+            crunchPngs false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-
-            // 🟢【新增 2】强制保留图标引用的资源，防止 shrinkResources 误删
-            //keep 'ic_launcher_background', 'ic_launcher_foreground'
         }
         debug {
             signingConfig signingConfigs.debug
@@ -92,13 +80,17 @@ android {
     }
 
     // ================================================================
-    // 🟢 Lint 基线配置（彻底禁用 Release 时的 Lint 检查）
+    // 🟢【关键修复】Lint 基线配置（彻底禁用 Release 时的 Lint 检查）
     // ================================================================
     lint {
+        // 所有的 107 个错误和 232 个警告都会写入这个文件
         baseline = file("lint-baseline.xml")
+        // 明确告诉 Gradle 即使有错误也别中断打包流程
         abortOnError false
+        // 🟢【核心修复】禁用 Release 构建的 Lint 检查，防止 CI 因基线更新而报错
         checkReleaseBuilds false
     }
+    // ================================================================
 }
 
 dependencies {
@@ -114,6 +106,8 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     
     implementation 'com.alibaba:fastjson:1.2.83'
+
+    // ❌【已移除】本地 libs 文件夹的 AAR 以及远程 FFmpeg 扩展均不再需要
     
     // ✅ 纯净版：仅保留远程 Media3 核心模块（版本锁定为 1.7.1）
     implementation "androidx.media3:media3-exoplayer:1.7.1"
@@ -132,9 +126,7 @@ dependencies {
     implementation "com.github.bumptech.glide:glide:4.16.0"
     annotationProcessor "com.github.bumptech.glide:compiler:4.16.0"
 
-    // ✅【体积优化】移除了重量级的 commons-lang3
-    // 如果代码中有用到 StringUtils，请全局替换为 TextUtils.isEmpty()
-    // implementation "org.apache.commons:commons-lang3:3.14.0"
+    implementation "org.apache.commons:commons-lang3:3.14.0"
 
     // 🔥 在可能引入旧版 ExoPlayer 的库上单独排除
     implementation("com.blankj:utilcodex:1.31.1") {
