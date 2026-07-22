@@ -176,17 +176,29 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================================================================
-    // ✅ 新增：遥控器按键直接打开面板/设置
+    // ✅【核心修复1】遥控器物理按键处理（支持长按OK打开设置）
     // ================================================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         // 如果面板打开，让面板优先处理按键（方向键等）
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
             // 方向键和确定键由 ListView 自己处理，不需要拦截
-            // 但菜单键、设置键等仍可触发面板/设置
         }
 
         switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+                // 长按OK键：打开设置
+                if (event.isLongPress()) {
+                    openSettings();
+                    return true;
+                }
+                // 短按OK键：打开/切换频道面板（直接切换，移除条件限制）
+                if (channelPanelController != null) {
+                    channelPanelController.togglePanel();
+                    return true;
+                }
+                break;
+
             case KeyEvent.KEYCODE_MENU:
                 // 菜单键：切换频道面板
                 if (channelPanelController != null) {
@@ -200,21 +212,13 @@ public class MainActivity extends AppCompatActivity {
                 openSettings();
                 return true;
 
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-                // 确定键：如果面板未打开，则打开面板（可选）
-                if (channelPanelController != null && !channelPanelController.isPanelOpen()) {
-                    channelPanelController.togglePanel();
-                    return true;
-                }
-                break;
-
             default:
                 break;
         }
         return super.onKeyDown(keyCode, event);
     }
 
-    // ✅ 之前已有的 dispatchKeyEvent（面板打开时优先让面板处理按键）
+    // 之前已有的 dispatchKeyEvent（面板打开时优先让面板处理按键）
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (channelPanelController != null && channelPanelController.isPanelOpen()) {
@@ -593,7 +597,6 @@ public class MainActivity extends AppCompatActivity {
         TVPlayerManager.LiveInfo live = mPlayerManager.getLiveInfo();
         if (infoDisplayManager != null) {
             infoDisplayManager.showInfoBar(channel, live);
-            // ✅【关键】加上这一行，传递 index + 1 作为频道号（因为从 0 开始）
             infoDisplayManager.showChannelNum(index + 1);
         }
         try {
@@ -664,34 +667,47 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // ================================================================
+    // ✅【核心修复】按返回键：优先关闭面板，而不是弹出退出弹窗
+    // ================================================================
     @Override
     public void onBackPressed() {
+        // 1. 如果处于追剧模式，先退出追剧模式
         if (isInCatchUpMode && playerControlManager != null && playerControlManager.isControllerShowing()) {
             exitPlaybackMode();
             return;
         }
 
+        // 2. 如果退出菜单弹窗已经显示，先关闭它
         if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
             exitMenuDialog.dismiss();
             exitMenuDialog = null; 
             return;
         }
 
+        // 3. 【关键修复】如果频道面板正在打开，优先关闭面板，不触发退出弹窗
+        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
+            channelPanelController.hidePanel();
+            return;
+        }
+
+        // 4. 以上情况都不满足，才显示退出菜单
         showExitMenu();
     }
 
     // ================================================================
-    // ✅【核心修改】openSettings 方法改为使用 SettingsDialog
+    // ✅【核心修复2】openSettings 方法（加入 3 秒超时强制解锁机制）
     // ================================================================
     public void openSettings() {
         long now = System.currentTimeMillis();
 
+        // 如果正在打开设置中，判断是否超时（3秒后强制解锁）
         if (isOpeningSettings) {
-            if (now - lastSettingsOpenTime > 5000) {
-                Log.d("Settings", "🔄 强制解锁 isOpeningSettings（超过 5 秒）");
+            if (now - lastSettingsOpenTime > 3000) {
                 isOpeningSettings = false;
+                Log.d("Settings", "🔄 强制解锁 isOpeningSettings（超过 3 秒）");
             } else {
-                Log.d("Settings", "⛔ isOpeningSettings 为 true，被拦截（距离上次尝试不到 5 秒）");
+                Log.d("Settings", "⛔ isOpeningSettings 为 true，被拦截（距离上次尝试不到 3 秒）");
                 return;
             }
         }
@@ -711,7 +727,7 @@ public class MainActivity extends AppCompatActivity {
             playerControlManager.onOpenSettings();
         }
 
-        // ---- 原 startActivity 改为显示 SettingsDialog ----
+        // ---- 显示 SettingsDialog ----
         new SettingsDialog(this).show();
     }
 
