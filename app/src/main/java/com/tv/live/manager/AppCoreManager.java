@@ -286,6 +286,7 @@ public class AppCoreManager {
             public void onReceive(Context context, Intent intent) {
                 if ("com.tv.live.REFRESH_LIVE_AND_EPG".equals(intent.getAction())) {
                     new Thread(() -> {
+                        // ✅ 强制清空所有缓存（包括历史缓存和频道列表）
                         if (cacheManager != null) {
                             cacheManager.clearAll();
                             log("【缓存】已强制清除所有缓存，正在重新拉取最新数据");
@@ -294,25 +295,28 @@ public class AppCoreManager {
                             channelSourceList.clear();
                         }
 
-                        // ✅【关键修复】直接从 SharedPreferences 读取 WebServerManager 写入的键
+                        // ✅ 读取网页推送的 custom_live_url
                         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
                         String customLive = sp.getString("custom_live_url", "");
                         if (!TextUtils.isEmpty(customLive)) {
                             UrlConfig.LIVE_URL = customLive;
+                            log("【推送】成功读取到网页推送的直播源地址：" + customLive);
                         } else {
-                            // 如果用户没推送，回退到 SourceManager
+                            // 回退到历史记录
                             SourceManager liveManager = new SourceManager(context, "live_history");
                             String defaultLive = liveManager.getDefaultUrl();
                             if (!TextUtils.isEmpty(defaultLive)) {
                                 UrlConfig.LIVE_URL = defaultLive;
+                                log("【推送】未找到推送地址，使用历史默认源：" + defaultLive);
                             }
                         }
 
+                        // EPG 同理
                         String customEpg = sp.getString("custom_epg_url", "");
                         if (!TextUtils.isEmpty(customEpg)) {
                             UrlConfig.EPG_URL = customEpg;
+                            log("【推送】成功读取到网页推送的EPG地址：" + customEpg);
                         } else {
-                            // 如果用户没推送，回退到 SourceManager
                             SourceManager epgManager = new SourceManager(context, "epg_history");
                             String defaultEpg = epgManager.getDefaultUrl();
                             if (!TextUtils.isEmpty(defaultEpg)) {
@@ -320,10 +324,12 @@ public class AppCoreManager {
                             }
                         }
 
+                        // ✅ 重置播放标记，确保加载完成后强制重新播放
                         hasPlayedWithCache = false;
                         if (refreshListener != null) {
                             refreshListener.onRefreshNeeded();
                         }
+                        // ✅ 重新加载（此时会使用新的 UrlConfig.LIVE_URL 发起网络请求）
                         loadLiveAndEpg();
                     }).start();
                 }
