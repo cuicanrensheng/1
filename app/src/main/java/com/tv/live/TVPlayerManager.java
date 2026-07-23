@@ -925,36 +925,26 @@ public class TVPlayerManager {
         if (isParsingMasterPlaylist) return;
         isParsingMasterPlaylist = true;
         sPlaylistExecutor.execute(() -> {
-            HttpURLConnection connection = null;
             try {
                 dLog("开始解析主播放列表: " + masterUrl);
-                URL url = new URL(masterUrl);
-                connection = (HttpURLConnection) url.openConnection();
-                connection.setConnectTimeout(5000);
-                connection.setReadTimeout(5000);
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10)");
+
+                Map<String, String> extraHeaders = new HashMap<>();
                 String cookies = CookieManager.getInstance().getCookie(masterUrl);
-                if (cookies != null) connection.setRequestProperty("Cookie", cookies);
+                if (cookies != null) extraHeaders.put("Cookie", cookies);
 
-                StringBuilder content = new StringBuilder();
-                try (InputStream is = connection.getInputStream();
-                     BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        content.append(line).append("\n");
+                try (okhttp3.Response response = NetUtil.getInstance().syncGetWithHeaders(masterUrl, extraHeaders)) {
+                    if (!response.isSuccessful() || response.body() == null) {
+                        Log.e(TAG, "获取主播放列表失败: " + response.code());
+                        return;
                     }
+                    String playlist = response.body().string();
+                    dLog("播放列表内容长度: " + playlist.length());
+                    parseMasterPlaylist(playlist, masterUrl);
                 }
-
-                String playlist = content.toString();
-                dLog("播放列表内容长度: " + playlist.length());
-                parseMasterPlaylist(playlist, masterUrl);
             } catch (Exception e) {
                 Log.e(TAG, "解析主播放列表失败: ", e);
                 synchronized (variantListLock) { variantList.clear(); }
             } finally {
-                if (connection != null) {
-                    try { connection.disconnect(); } catch (Exception ignored) {}
-                }
                 isParsingMasterPlaylist = false;
             }
         });
