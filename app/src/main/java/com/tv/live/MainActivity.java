@@ -589,31 +589,19 @@ public class MainActivity extends AppCompatActivity {
                     channelSourceList.addAll(finalList);
                     channelPanelController.setChannels(channelSourceList);
 
-                    if (channelPanelController != null) {
-                        String currentGroup = "";
-                        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-                            Channel ch = channelSourceList.get(currentPlayIndex);
-                            if (ch != null) currentGroup = ch.getGroup();
-                        }
-                        if (currentGroup != null && !currentGroup.isEmpty()) {
-                            channelPanelController.playChannel(currentPlayIndex);
-                        }
-                    }
-
+                    // ✅ 关键修复：重置索引，确保不越界
                     if (currentPlayIndex >= channelSourceList.size()) {
                         currentPlayIndex = 0;
                         Log.d("MainActivity", "currentPlayIndex 越界，已自动重置为 0");
                     }
 
+                    // ✅ 核心修复：强制播放当前索引的频道，确保新源生效
                     appCoreManager.setHasPlayedWithCache(true);
-
-                    if (!appCoreManager.hasPlayedWithCache()) {
-                        if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
-                            Channel ch = channelSourceList.get(currentPlayIndex);
-                            playChannel(ch, currentPlayIndex);
-                            appCoreManager.setHasPlayedWithCache(true);
-                        }
+                    if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
+                        Channel ch = channelSourceList.get(currentPlayIndex);
+                        playChannel(ch, currentPlayIndex);
                     }
+
                     displayManager.hideLoading();
                     log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channelSourceList.size());
                 });
