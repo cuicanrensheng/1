@@ -296,7 +296,9 @@ public class WebServerManager {
                     String[] kv = pair.split("=", 2);
                     String key = URLDecoder.decode(kv[0], "UTF-8");
                     String value = kv.length > 1 ? URLDecoder.decode(kv[1], "UTF-8") : "";
-                    params.put(key, value);
+                    if (!params.containsKey(key) || params.get(key).isEmpty()) {
+                        params.put(key, value);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -486,20 +488,52 @@ public class WebServerManager {
                 "    <!-- 🟢 新增：动态切换输入框的脚本 -->\n" +
                 "    <script>\n" +
                 "        function toggleLiveInput(type) {\n" +
-                "            document.getElementById('live_remote_div').style.display = 'none';\n" +
-                "            document.getElementById('live_file_div').style.display = 'none';\n" +
-                "            document.getElementById('live_static_div').style.display = 'none';\n" +
-                "            if (type === 'remote') document.getElementById('live_remote_div').style.display = 'flex';\n" +
-                "            else if (type === 'file') document.getElementById('live_file_div').style.display = 'flex';\n" +
-                "            else if (type === 'static') document.getElementById('live_static_div').style.display = 'flex';\n" +
+                "            var remoteDiv = document.getElementById('live_remote_div');\n" +
+                "            var fileDiv = document.getElementById('live_file_div');\n" +
+                "            var staticDiv = document.getElementById('live_static_div');\n" +
+                "            var remoteInput = remoteDiv.querySelector('input[name=live_url]');\n" +
+                "            var fileInput = fileDiv.querySelector('input[name=live_url]');\n" +
+                "            var staticInput = staticDiv.querySelector('textarea[name=live_url]');\n" +
+                "            remoteDiv.style.display = 'none';\n" +
+                "            fileDiv.style.display = 'none';\n" +
+                "            staticDiv.style.display = 'none';\n" +
+                "            remoteInput.disabled = true;\n" +
+                "            fileInput.disabled = true;\n" +
+                "            staticInput.disabled = true;\n" +
+                "            if (type === 'remote') {\n" +
+                "                remoteDiv.style.display = 'flex';\n" +
+                "                remoteInput.disabled = false;\n" +
+                "            } else if (type === 'file') {\n" +
+                "                fileDiv.style.display = 'flex';\n" +
+                "                fileInput.disabled = false;\n" +
+                "            } else if (type === 'static') {\n" +
+                "                staticDiv.style.display = 'flex';\n" +
+                "                staticInput.disabled = false;\n" +
+                "            }\n" +
                 "        }\n" +
                 "        function toggleEpgInput(type) {\n" +
-                "            document.getElementById('epg_remote_div').style.display = 'none';\n" +
-                "            document.getElementById('epg_file_div').style.display = 'none';\n" +
-                "            document.getElementById('epg_static_div').style.display = 'none';\n" +
-                "            if (type === 'remote') document.getElementById('epg_remote_div').style.display = 'flex';\n" +
-                "            else if (type === 'file') document.getElementById('epg_file_div').style.display = 'flex';\n" +
-                "            else if (type === 'static') document.getElementById('epg_static_div').style.display = 'flex';\n" +
+                "            var remoteDiv = document.getElementById('epg_remote_div');\n" +
+                "            var fileDiv = document.getElementById('epg_file_div');\n" +
+                "            var staticDiv = document.getElementById('epg_static_div');\n" +
+                "            var remoteInput = remoteDiv.querySelector('input[name=epg_url]');\n" +
+                "            var fileInput = fileDiv.querySelector('input[name=epg_url]');\n" +
+                "            var staticInput = staticDiv.querySelector('textarea[name=epg_url]');\n" +
+                "            remoteDiv.style.display = 'none';\n" +
+                "            fileDiv.style.display = 'none';\n" +
+                "            staticDiv.style.display = 'none';\n" +
+                "            remoteInput.disabled = true;\n" +
+                "            fileInput.disabled = true;\n" +
+                "            staticInput.disabled = true;\n" +
+                "            if (type === 'remote') {\n" +
+                "                remoteDiv.style.display = 'flex';\n" +
+                "                remoteInput.disabled = false;\n" +
+                "            } else if (type === 'file') {\n" +
+                "                fileDiv.style.display = 'flex';\n" +
+                "                fileInput.disabled = false;\n" +
+                "            } else if (type === 'static') {\n" +
+                "                staticDiv.style.display = 'flex';\n" +
+                "                staticInput.disabled = false;\n" +
+                "            }\n" +
                 "        }\n" +
                 "        // 默认直播源选中远程，防止页面回显时样式错乱\n" +
                 "        toggleLiveInput('remote');\n" +
