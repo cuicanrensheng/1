@@ -243,10 +243,16 @@ public class WebServerManager {
                     }
 
                     if (hasUpdate) {
-                        // 🔧 修复：发送显式 Intent
-                        Intent refreshIntent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
-                        refreshIntent.setPackage(context.getPackageName());
-                        context.sendBroadcast(refreshIntent);
+                        // 🔧【核心修复】优先直接通知主界面，比广播更可靠、更实时
+                        MainActivity activity = MainActivity.getRunningInstance();
+                        if (activity != null && !activity.isFinishing()) {
+                            activity.onReceiveConfig(liveUrl, epgUrl);
+                        } else {
+                            // 如果主界面没在运行，才走广播兜底
+                            Intent refreshIntent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                            refreshIntent.setPackage(context.getPackageName());
+                            context.sendBroadcast(refreshIntent);
+                        }
                     }
                 });
 
