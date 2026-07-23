@@ -208,6 +208,8 @@ public class EpgManager {
         sdf.setLenient(true);
 
         Calendar todayCheck = Calendar.getInstance();
+        Calendar maxDate = Calendar.getInstance();
+        maxDate.add(Calendar.DAY_OF_YEAR, 3);
 
         String currentChannelName = null;
         List<Channel.EpgItem> tempPrograms = new ArrayList<>();
@@ -241,6 +243,10 @@ public class EpgManager {
 
                         Calendar startCal = Calendar.getInstance();
                         startCal.setTime(sdf.parse(start));
+
+                        if (startCal.after(maxDate)) {
+                            continue;
+                        }
 
                         Calendar today = Calendar.getInstance();
                         String dayName = getDayName(startCal, today);

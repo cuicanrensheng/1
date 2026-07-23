@@ -12,6 +12,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -589,13 +590,34 @@ public class MainActivity extends AppCompatActivity {
                     channelSourceList.addAll(finalList);
                     channelPanelController.setChannels(channelSourceList);
 
-                    // ✅ 关键修复：重置索引，确保不越界
-                    if (currentPlayIndex >= channelSourceList.size()) {
+                    // ✅ 关键修复：新源加载后，尝试按"上次正在播放的频道名"找回索引
+                    if (!channelSourceList.isEmpty()) {
+                        String lastChannelName = mPlayerManager != null
+                                ? (mPlayerManager.getCurrentChannel() != null
+                                    ? mPlayerManager.getCurrentChannel().getName()
+                                    : null)
+                                : null;
+                        int matchedIndex = -1;
+                        if (!TextUtils.isEmpty(lastChannelName)) {
+                            for (int i = 0; i < channelSourceList.size(); i++) {
+                                if (lastChannelName.equals(channelSourceList.get(i).getName())) {
+                                    matchedIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        if (matchedIndex >= 0) {
+                            currentPlayIndex = matchedIndex;
+                        } else if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
+                            currentPlayIndex = 0;
+                        }
+                    } else {
                         currentPlayIndex = 0;
-                        Log.d("MainActivity", "currentPlayIndex 越界，已自动重置为 0");
                     }
+                    appConfig.setLastPlayIndex(currentPlayIndex);
+                    channelPanelController.setCurrentPlayIndex(currentPlayIndex);
 
-                    // ✅ 核心修复：强制播放当前索引的频道，确保新源生效
+                    // ✅ 强制播放当前索引的频道，确保新源生效
                     appCoreManager.setHasPlayedWithCache(true);
                     if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                         Channel ch = channelSourceList.get(currentPlayIndex);
@@ -658,6 +680,16 @@ public class MainActivity extends AppCompatActivity {
                 channelSourceList.clear();
                 channelSourceList.addAll(newList);
                 channelPanelController.setChannels(channelSourceList);
+
+                // ✅ 刷新时也重置索引到 0 并强制重播，确保新源立即生效
+                if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
+                    currentPlayIndex = 0;
+                }
+                appConfig.setLastPlayIndex(currentPlayIndex);
+                channelPanelController.setCurrentPlayIndex(currentPlayIndex);
+                if (!channelSourceList.isEmpty()) {
+                    playChannel(channelSourceList.get(currentPlayIndex), currentPlayIndex);
+                }
                 log("【刷新】频道列表已更新，频道数：" + channelSourceList.size());
             });
         });
@@ -886,6 +918,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
+        // ✅ 推送直播源：先把当前播放索引重置，避免新源越界或命中错误频道
+        currentPlayIndex = 0;
+        appConfig.setLastPlayIndex(0);
+        channelPanelController.setCurrentPlayIndex(0);
         appCoreManager.onReceiveConfig(liveUrl, epgUrl);
     }
 

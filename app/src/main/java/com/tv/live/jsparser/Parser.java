@@ -140,6 +140,8 @@ public class Parser {
     }
 
     public static void updatePlugin(final Context context) {
+        // 🔧 已改为手动触发，不再自动下载
+        // 需要更新插件时，请在设置页面添加按钮调用此方法
         String url = "http://nowtv.xiaoyouzb.net/list_android_js_meta_v2.php?version=4.1.6";
         try {
             Request request = new Request.Builder().url(url).get().build();

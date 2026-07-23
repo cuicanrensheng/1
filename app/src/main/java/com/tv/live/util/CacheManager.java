@@ -8,11 +8,11 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.util.Arrays;
 
 /**
  * ✅ 缓存管理工具类（内存优化版）
@@ -40,14 +40,14 @@ import java.io.OutputStream;
 public class CacheManager {
 
     private static final String CACHE_DIR = "tv_cache";
-    private static final long CACHE_VALID_TIME = 24 * 60 * 60 * 1000; // 缓存有效期：24小时
+    private static final long CACHE_VALID_TIME = 24 * 60 * 60 * 1000;
     private static final String SP_NAME = "tv_cache_sp";
     private static final String KEY_LAST_PLAY_URL = "last_play_url";
     private static final String KEY_LAST_PLAY_NAME = "last_play_name";
     private static final String KEY_LAST_PLAY_INDEX = "last_play_index";
 
-    // 流式读写的缓冲区大小
-    private static final int BUFFER_SIZE = 8192; // 8KB
+    private static final long MAX_CACHE_SIZE = 20 * 1024 * 1024; // 最大缓存：20MB
+    private static final int BUFFER_SIZE = 8192;
 
     private Context context;
     private SharedPreferences sp;
@@ -94,6 +94,7 @@ public class CacheManager {
         if (is == null) {
             return -1;
         }
+        trimCacheIfNeeded();
 
         File cacheFile = getCacheFile(key);
         FileOutputStream fos = null;
@@ -104,7 +105,6 @@ public class CacheManager {
             byte[] buffer = new byte[BUFFER_SIZE];
             int bytesRead;
 
-            // 流式读写，边读边写，不用全部读到内存
             while ((bytesRead = is.read(buffer)) != -1) {
                 fos.write(buffer, 0, bytesRead);
                 totalBytes += bytesRead;
@@ -239,13 +239,6 @@ public class CacheManager {
 
     /**
      * 获取缓存文件对象
-     *
-     * 【说明】
-     * 供外部直接操作文件使用，比如用 FileInputStream 读取。
-     * 注意：调用者需要自己判断文件是否存在、是否过期。
-     *
-     * @param key 缓存键
-     * @return 缓存文件对象
      */
     public File getCacheFile(String key) {
         File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
@@ -253,6 +246,61 @@ public class CacheManager {
             cacheDir.mkdirs();
         }
         return new File(cacheDir, key + ".cache");
+    }
+
+    private void trimCacheIfNeeded() {
+        File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
+        if (!cacheDir.exists() || !cacheDir.isDirectory()) return;
+
+        long totalSize = getCacheDirSize(cacheDir);
+        if (totalSize < MAX_CACHE_SIZE) return;
+
+        File[] files = cacheDir.listFiles();
+        if (files == null || files.length == 0) return;
+
+        Arrays.sort(files, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+
+        long targetSize = MAX_CACHE_SIZE / 2;
+        long currentSize = totalSize;
+        for (File file : files) {
+            if (currentSize <= targetSize) break;
+            if (file.delete()) {
+                currentSize -= file.length();
+            }
+        }
+    }
+
+    private long getCacheDirSize(File dir) {
+        long size = 0;
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    size += getCacheDirSize(file);
+                } else {
+                    size += file.length();
+                }
+            }
+        }
+        return size;
+    }
+
+    /**
+     * 获取当前缓存总大小（字节）
+     */
+    public long getCacheTotalSize() {
+        File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
+        return getCacheDirSize(cacheDir);
+    }
+
+    /**
+     * 获取当前缓存总大小（可读字符串）
+     */
+    public String getCacheTotalSizeReadable() {
+        long size = getCacheTotalSize();
+        if (size < 1024) return size + " B";
+        if (size < 1024 * 1024) return String.format("%.2f KB", size / 1024.0);
+        return String.format("%.2f MB", size / (1024.0 * 1024));
     }
 
     // ------------------------------------------------

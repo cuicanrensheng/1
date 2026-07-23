@@ -8,16 +8,19 @@ import com.tv.live.Channel;
 import com.tv.live.PlaylistParser;
 import com.tv.live.UrlConfig;
 import com.tv.live.util.CacheManager;
+import com.tv.live.util.NetUtil;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
+
+import okhttp3.Response;
 
 /**
  * ✅ 直播源加载器（带缓存 + GitHub 智能加速 + 完整3xx重定向处理）
@@ -404,82 +407,61 @@ public class LiveSourceLoader {
         }
     }
     // ====================================================================
-    // 下载原始内容【完整修复重定向】
+    // 下载原始内容【统一走 NetUtil，UA / Referer / Origin 一致】
     // ====================================================================
     /**
      * 下载原始M3U文本内容
      * 修复：完整3xx重定向、相对路径、最大跳转、UA、日志、GZIP兼容
      */
     private String downloadRawContent(String urlStr) {
-        HttpURLConnection conn = null;
-        BufferedReader reader = null;
-        String currentUrl = urlStr;
         final int MAX_REDIRECT = 5;
-        int redirectCount = 0;
+        String currentUrl = urlStr;
         try {
-            while (redirectCount <= MAX_REDIRECT) {
-                URL url = new URL(currentUrl);
-                conn = (HttpURLConnection) url.openConnection();
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(15000);
-                conn.setRequestMethod("GET");
-                conn.setInstanceFollowRedirects(false);
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android) LiveTV M3U Downloader");
-                conn.connect();
-                int responseCode = conn.getResponseCode();
-                // 处理3xx重定向
-                if (responseCode >= 300 && responseCode < 400) {
-                    redirectCount++;
-                    String location = conn.getHeaderField("Location");
-                    // 🟢【已移除】SettingsActivity.log("【直播源下载重定向】第" + redirectCount + "次跳转，原地址：" + currentUrl + " -> Location：" + location);
-                    if (location == null || location.isEmpty()) {
-                        // 🟢【已移除】SettingsActivity.log("【直播源下载】重定向Location为空，终止下载");
-                        return null;
-                    }
-                    // 拼接相对路径
-                    if (!location.startsWith("http")) {
-                        URL baseUrl = new URL(currentUrl);
-                        currentUrl = new URL(baseUrl, location).toString();
-                    } else {
-                        currentUrl = location;
-                    }
-                    conn.disconnect();
-                    conn = null;
-                    if (redirectCount >= MAX_REDIRECT) {
-                        // 🟢【已移除】SettingsActivity.log("【直播源下载】重定向已达最大次数" + MAX_REDIRECT + "，下载失败");
-                        return null;
-                    }
-                    continue;
-                }
-                // 非200直接失败
-                if (responseCode != 200) {
-                    // 🟢【已移除】SettingsActivity.log("【直播源下载】响应码非200：" + responseCode + " url=" + currentUrl);
+            for (int redirectCount = 0; redirectCount <= MAX_REDIRECT; redirectCount++) {
+                Response response;
+                try {
+                    // 走 NetUtil：自定义 UA / Referer / Origin / Cookie / 防盗链
+                    response = NetUtil.getInstance().syncGetNoRedirect(currentUrl);
+                } catch (IOException e) {
+                    e.printStackTrace();
                     return null;
                 }
-                // 读取流
-                InputStream is = conn.getInputStream();
-                String encoding = conn.getContentEncoding();
-                if ((encoding != null && encoding.equalsIgnoreCase("gzip")) || currentUrl.endsWith(".gz")) {
-                    is = new GZIPInputStream(is);
+                try (Response resp = response) {
+                    int responseCode = resp.code();
+                    if (responseCode >= 300 && responseCode < 400) {
+                        if (redirectCount >= MAX_REDIRECT) return null;
+                        String location = resp.header("Location");
+                        if (location == null || location.isEmpty()) return null;
+                        if (!location.startsWith("http")) {
+                            currentUrl = new URL(new URL(currentUrl), location).toString();
+                        } else {
+                            currentUrl = location;
+                        }
+                        continue;
+                    }
+                    if (responseCode != 200 || resp.body() == null) return null;
+
+                    InputStream is = resp.body().byteStream();
+                    String encoding = resp.header("Content-Encoding");
+                    if ((encoding != null && encoding.equalsIgnoreCase("gzip")) || currentUrl.endsWith(".gz")) {
+                        is = new GZIPInputStream(is);
+                    }
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+                    StringBuilder sb = new StringBuilder();
+                    try {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            sb.append(line).append("\n");
+                        }
+                    } finally {
+                        try { reader.close(); } catch (Exception ignored) {}
+                    }
+                    return sb.toString();
                 }
-                reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line).append("\n");
-                }
-                return sb.toString();
             }
-            return null;
         } catch (Exception e) {
             e.printStackTrace();
-            // 🟢【已移除】SettingsActivity.log("【直播源下载】下载异常：" + e.getMessage());
-            return null;
-        } finally {
-            try {
-                if (reader != null) reader.close();
-                if (conn != null) conn.disconnect();
-            } catch (Exception ignored) {}
         }
+        return null;
     }
 }

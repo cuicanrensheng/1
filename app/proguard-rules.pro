@@ -1,72 +1,58 @@
-# ===================== Media3 播放器完整防混淆 =====================
--keep class androidx.media3.** { *; }
--keep interface androidx.media3.** { *; }
--keep enum androidx.media3.** { *; }
--dontwarn androidx.media3.**
-
-# 清晰度轨道相关类强制保留
--keep class androidx.media3.common.TrackGroup
--keep class androidx.media3.common.TrackGroupArray
--keep class androidx.media3.exoplayer.trackselection.** { *; }
-
-# 播放器核心组件
--keep class androidx.media3.ui.PlayerView { *; }
--keep class androidx.media3.ui.AspectRatioFrameLayout { *; }
--keep class androidx.media3.ui.SurfaceType { *; }
--keep enum androidx.media3.ui.SurfaceType
--keep class androidx.media3.exoplayer.ExoPlayer
--keep class androidx.media3.exoplayer.DefaultTrackSelector
--keep class androidx.media3.exoplayer.mediacodec.** { *; }
--keep class androidx.media3.exoplayer.hls.** { *; }
--keep class androidx.media3.exoplayer.source.** { *; }
-
-# ===================== 通用基础 =====================
--keepattributes Signature,InnerClasses,SourceFile,LineNumberTable,Exceptions
+# ===================== 基础配置 =====================
+-keepattributes Signature,InnerClasses,SourceFile,LineNumberTable,Exceptions,*Annotation*
 -keepclasseswithmembers class * { native <methods>; }
 -keepclassmembers class * {
     void *(android.view.View);
     *** *(...);
 }
 
-# ===================== 项目自有类 =====================
--keep class com.tv.live.** { *; }
--keepclassmembers class com.tv.live.** { *; }
--keep class com.tv.live.bean.** {*;}
+# ===================== 项目自有类（仅保留反射需要的） =====================
+# Activity / Service / Receiver（AndroidManifest 需要反射实例化）
+-keep class com.tv.live.MainActivity { *; }
+-keep class com.tv.live.ChannelListActivity { *; }
+-keep class com.tv.live.CrashActivity { *; }
+-keep class com.tv.live.MyApplication { *; }
+-keep class com.tv.live.BootStartReceiver { *; }
+-keep class com.tv.live.BootReceiver { *; }
+
+# JS 接口（WebView 通过反射调用）
+-keep class com.tv.live.jsparser.JsLayer$ParserJsInterface { *; }
+-keepclassmembers class com.tv.live.jsparser.** { <methods>; }
+
+# 数据模型（JSON 序列化需要保留字段名）
+-keep class com.tv.live.Channel { *; }
+-keep class com.tv.live.Channel$EpgItem { *; }
+-keep class com.tv.live.Channel$Variant { *; }
+-keep class com.tv.live.bean.** { *; }
+
+# ===================== Media3（仅保留必要接口） =====================
+-keep interface androidx.media3.** { *; }
+-keep class androidx.media3.common.** { *; }
+-keep class androidx.media3.exoplayer.** { *; }
+-keep class androidx.media3.ui.** { *; }
+-dontwarn androidx.media3.**
 
 # ===================== fastjson =====================
--keepattributes Signature
 -keepattributes *Annotation*
 -dontwarn com.alibaba.fastjson.**
 -keep class com.alibaba.fastjson.** { *; }
 -keepclassmembers class * { public <init>(org.json.JSONObject); }
 
-# ===================== Gson =====================
--keep class com.google.gson.** {*;}
--dontwarn com.google.gson
-
-# ===================== Glide =====================
--keep public class * implements com.bumptech.glide.module.GlideModule
--keep class com.bumptech.glide.** {*;}
--dontwarn com.bumptech.glide.**
-
-# ===================== OkHttp Retrofit =====================
+# ===================== OkHttp =====================
+-dontwarn okhttp3.**
+-dontwarn okio.**
 -keep class okhttp3.** { *; }
 -keep interface okhttp3.** { *; }
--dontwarn okhttp3.**
--keep class retrofit2.** { *; }
--dontwarn retrofit2.**
 
 # ===================== NanoHttpd =====================
 -keep class org.nanohttpd.** {*;}
 -dontwarn org.nanohttpd
 
-# ===================== Apache Commons (⭐修复核心报错) =====================
--keep class org.apache.commons.** {*;}
--dontwarn org.apache.commons
+# ===================== ZXing =====================
+-keep class com.google.zxing.** {*;}
+-dontwarn com.google.zxing.**
 
-# ⭐【新增】解决 R8 缺失 java.lang.invoke.MethodHandleProxies 的致命错误
+# ===================== 其他 =====================
 -dontwarn java.lang.invoke.MethodHandleProxies
-
-# ⭐【新增】解决 javax.ws.rs 服务类缺失的警告
 -dontwarn javax.ws.rs.ext.**
 -dontwarn org.glassfish.jersey.**
