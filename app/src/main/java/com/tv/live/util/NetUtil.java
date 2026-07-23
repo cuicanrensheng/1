@@ -154,4 +154,18 @@ public class NetUtil {
     public OkHttpClient getClient() {
         return mClient;
     }
+
+    public Response syncGetNoRedirect(String url) throws IOException {
+        Headers headers = createCommonHeaders(url);
+        Request request = new Request.Builder()
+                .url(url)
+                .headers(headers)
+                .get()
+                .build();
+        OkHttpClient noRedirectClient = mClient.newBuilder()
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build();
+        return noRedirectClient.newCall(request).execute();
+    }
 }

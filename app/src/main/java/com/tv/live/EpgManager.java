@@ -93,15 +93,10 @@ public class EpgManager {
     }
 
     private String extractEpgUrlFromM3u(String m3uUrl) {
-        HttpURLConnection conn = null;
         BufferedReader reader = null;
-        try {
-            URL url = new URL(m3uUrl);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
-            conn.connect();
-            InputStream is = conn.getInputStream();
+        try (okhttp3.Response response = com.tv.live.util.NetUtil.getInstance().syncGet(m3uUrl)) {
+            if (!response.isSuccessful() || response.body() == null) return null;
+            InputStream is = response.body().byteStream();
             if (m3uUrl.endsWith(".gz")) {
                 is = new GZIPInputStream(is);
             }
@@ -131,57 +126,44 @@ public class EpgManager {
             }
         } catch (Exception e) {
         } finally {
-            try {
-                if (reader != null) reader.close();
-                if (conn != null) conn.disconnect();
-            } catch (Exception ignored) {}
+            try { if (reader != null) reader.close(); } catch (Exception ignored) {}
         }
         return null;
     }
 
     public void loadEpg(Runnable callback) {
         new Thread(() -> {
-            HttpURLConnection conn = null;
-            InputStream in = null;
+            try (okhttp3.Response response = com.tv.live.util.NetUtil.getInstance().syncGet(epgUrl)) {
+                if (!response.isSuccessful() || response.body() == null) return;
 
-            try {
-                URL url = new URL(epgUrl);
-                conn = (HttpURLConnection) url.openConnection();
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(15000);
-                conn.connect();
-                in = conn.getInputStream();
-
-                if (epgUrl.endsWith(".gz")) {
-                    in = new GZIPInputStream(in);
-                }
-
-                long savedBytes = cacheManager.saveFileCache(CACHE_KEY_EPG, in);
-                if (savedBytes <= 0) {
-                    return;
-                }
-
-                hasPrintedSample = false;
-                channelEpgMap.clear();
-
-                InputStream cacheIs = cacheManager.getFileCacheStream(CACHE_KEY_EPG);
-                if (cacheIs == null) {
-                    return;
-                }
+                InputStream rawIn = response.body().byteStream();
+                InputStream in = epgUrl.endsWith(".gz") ? new GZIPInputStream(rawIn) : rawIn;
 
                 try {
-                    parseXml(cacheIs);
+                    long savedBytes = cacheManager.saveFileCache(CACHE_KEY_EPG, in);
+                    if (savedBytes <= 0) {
+                        return;
+                    }
+
+                    hasPrintedSample = false;
+                    channelEpgMap.clear();
+
+                    InputStream cacheIs = cacheManager.getFileCacheStream(CACHE_KEY_EPG);
+                    if (cacheIs == null) {
+                        return;
+                    }
+
+                    try {
+                        parseXml(cacheIs);
+                    } finally {
+                        cacheIs.close();
+                    }
                 } finally {
-                    cacheIs.close();
+                    try { in.close(); } catch (Exception ignored) {}
                 }
 
             } catch (Exception e) {
                 e.printStackTrace();
-            } finally {
-                try {
-                    if (in != null) in.close();
-                    if (conn != null) conn.disconnect();
-                } catch (Exception ignored) {}
             }
 
             if (callback != null) {

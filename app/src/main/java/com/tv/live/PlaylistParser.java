@@ -1,20 +1,29 @@
 package com.tv.live;
 
+import com.tv.live.util.NetUtil;
+
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringReader;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import okhttp3.Response;
+
 public class PlaylistParser {
 
     public static List<Channel> parse(String url) throws Exception {
         Map<String, Channel> channelMap = new LinkedHashMap<>();
-        BufferedReader br = new BufferedReader(new InputStreamReader(new URL(url).openStream()));
-        return parseInternal(br, channelMap);
+        try (Response response = NetUtil.getInstance().syncGet(url)) {
+            if (!response.isSuccessful() || response.body() == null) {
+                throw new IOException("请求失败 code=" + response.code());
+            }
+            BufferedReader br = new BufferedReader(new InputStreamReader(response.body().byteStream()));
+            return parseInternal(br, channelMap);
+        }
     }
 
     public static List<Channel> parseContent(String content) throws Exception {
