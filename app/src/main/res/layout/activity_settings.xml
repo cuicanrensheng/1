@@ -446,9 +446,9 @@
                 android:layout_marginBottom="8dp"
                 android:background="#33FFFFFF"/>
 
-            <!-- 日志输出 -->
+            <!-- 退出弹窗 -->
             <LinearLayout
-                android:id="@+id/item_log"
+                android:id="@+id/item_exit_dialog"
                 android:layout_width="match_parent"
                 android:layout_height="55dp"
                 android:gravity="center_vertical"
@@ -456,20 +456,20 @@
                 android:paddingEnd="8dp"
                 android:focusable="true"
                   android:nextFocusUp="@+id/item_version_info"
-                  android:nextFocusDown="@+id/item_log"
+                  android:nextFocusDown="@+id/item_exit_dialog"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="日志输出"
+                    android:text="退出弹窗"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <TextView
-                    android:id="@+id/tv_log_status"
+                    android:id="@+id/tv_exit_dialog_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="关闭"
+                    android:text="开启"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="14sp" />
             </LinearLayout>

@@ -840,7 +840,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        showExitMenu();
+        boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", true);
+        if (exitDialogEnabled) {
+            showExitMenu();
+        } else {
+            finishAffinity();
+        }
     }
 
     public void openSettings() {

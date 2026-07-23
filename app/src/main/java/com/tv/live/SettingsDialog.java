@@ -47,8 +47,8 @@ public class SettingsDialog extends android.app.Dialog {
     private TextView tv_resolution_status;
     private View itemResolution;
     
-    private View itemLog;
-    private TextView tv_log_status;
+    private View itemExitDialog;
+    private TextView tv_exit_dialog_status;
 
     private View itemVersionInfo;
     private TextView tv_version_short;
@@ -129,8 +129,8 @@ public class SettingsDialog extends android.app.Dialog {
         itemResolution = findViewById(R.id.item_resolution);
         tv_resolution_status = findViewById(R.id.tv_resolution_status);
 
-        itemLog = findViewById(R.id.item_log);
-        tv_log_status = findViewById(R.id.tv_log_status);
+        itemExitDialog = findViewById(R.id.item_exit_dialog);
+        tv_exit_dialog_status = findViewById(R.id.tv_exit_dialog_status);
 
         itemVersionInfo = findViewById(R.id.item_version_info);
         tv_version_short = findViewById(R.id.tv_version_short);
@@ -188,6 +188,9 @@ public class SettingsDialog extends android.app.Dialog {
         }
         tv_channel_line.setText(getLineName(currentLineIndex));
 
+        boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", true);
+        tv_exit_dialog_status.setText(exitDialogEnabled ? "开启" : "关闭");
+
         initSettingsItemList();
 
         webServerManager.start();
@@ -218,7 +221,7 @@ public class SettingsDialog extends android.app.Dialog {
             findViewById(R.id.item_epg_subscribe),
             findViewById(R.id.item_check_update),
             findViewById(R.id.item_version_info),
-            findViewById(R.id.item_log)
+            findViewById(R.id.item_exit_dialog)
         };
 
         for (View item : items) {
@@ -298,7 +301,7 @@ public class SettingsDialog extends android.app.Dialog {
                 findViewById(R.id.item_epg_subscribe),
                 findViewById(R.id.item_check_update),
                 findViewById(R.id.item_version_info),
-                findViewById(R.id.item_log)
+                findViewById(R.id.item_exit_dialog)
             };
             if (items.length > 0 && items[0] != null) {
                 items[0].requestFocus();
@@ -361,12 +364,11 @@ public class SettingsDialog extends android.app.Dialog {
                 showVersionInfoDialog();
                 break;
             case 13:
-                boolean logEnabled = sp.getBoolean("log_enable", false);
-                boolean newState = !logEnabled;
-                sp.edit().putBoolean("log_enable", newState).apply();
-                tv_log_status.setText(newState ? "开启" : "关闭");
-                Toast.makeText(getContext(), "日志已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
-                MainActivity.toggleLogWindow(newState);
+                boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", true);
+                boolean newState = !exitDialogEnabled;
+                sp.edit().putBoolean("exit_dialog_enable", newState).apply();
+                tv_exit_dialog_status.setText(newState ? "开启" : "关闭");
+                Toast.makeText(getContext(), "退出弹窗已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
                 break;
         }
     }
@@ -1530,7 +1532,7 @@ public class SettingsDialog extends android.app.Dialog {
             findViewById(R.id.item_epg_subscribe),
             findViewById(R.id.item_check_update),
             findViewById(R.id.item_version_info),
-            findViewById(R.id.item_log)
+            findViewById(R.id.item_exit_dialog)
         };
 
         if (keyCode == KeyEvent.KEYCODE_BACK) {
