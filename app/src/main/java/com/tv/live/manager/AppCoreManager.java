@@ -150,8 +150,6 @@ public class AppCoreManager {
                 }
                 log("【网络】直播源列表已更新");
                 loadEpg();
-                // 🔧【清理一起看】移除虎牙一起看频道的拉取逻辑
-                // fetchTogetherWatchChannels();
             }
             @Override
             public void onError(String errorMsg) {
@@ -296,16 +294,30 @@ public class AppCoreManager {
                             channelSourceList.clear();
                         }
 
-                        SourceManager liveManager = new SourceManager(context, "live_history");
-                        String defaultLive = liveManager.getDefaultUrl();
-                        if (!TextUtils.isEmpty(defaultLive)) {
-                            UrlConfig.LIVE_URL = defaultLive;
+                        // ✅【关键修复】直接从 SharedPreferences 读取 WebServerManager 写入的键
+                        SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+                        String customLive = sp.getString("custom_live_url", "");
+                        if (!TextUtils.isEmpty(customLive)) {
+                            UrlConfig.LIVE_URL = customLive;
+                        } else {
+                            // 如果用户没推送，回退到 SourceManager
+                            SourceManager liveManager = new SourceManager(context, "live_history");
+                            String defaultLive = liveManager.getDefaultUrl();
+                            if (!TextUtils.isEmpty(defaultLive)) {
+                                UrlConfig.LIVE_URL = defaultLive;
+                            }
                         }
 
-                        SourceManager epgManager = new SourceManager(context, "epg_history");
-                        String defaultEpg = epgManager.getDefaultUrl();
-                        if (!TextUtils.isEmpty(defaultEpg)) {
-                            UrlConfig.EPG_URL = defaultEpg;
+                        String customEpg = sp.getString("custom_epg_url", "");
+                        if (!TextUtils.isEmpty(customEpg)) {
+                            UrlConfig.EPG_URL = customEpg;
+                        } else {
+                            // 如果用户没推送，回退到 SourceManager
+                            SourceManager epgManager = new SourceManager(context, "epg_history");
+                            String defaultEpg = epgManager.getDefaultUrl();
+                            if (!TextUtils.isEmpty(defaultEpg)) {
+                                UrlConfig.EPG_URL = defaultEpg;
+                            }
                         }
 
                         hasPlayedWithCache = false;
@@ -319,11 +331,9 @@ public class AppCoreManager {
         };
         try {
             IntentFilter filterToggle = new IntentFilter("com.tv.live.TOGGLE_CONTROL");
-            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, toggleControllerReceiver, filterToggle, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             IntentFilter filterRefresh = new IntentFilter("com.tv.live.REFRESH_LIVE_AND_EPG");
-            // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
             ContextCompat.registerReceiver(context, refreshReceiver, filterRefresh, ContextCompat.RECEIVER_NOT_EXPORTED);
 
             receiversRegistered = true;
@@ -379,8 +389,6 @@ public class AppCoreManager {
             playerManager.release();
         }
         synchronized (channelListLock) {
-            // 🛡️ 修复：不再赋值为 null，改为 clear() —— 避免 LiveSourceLoader 异步回调回来时
-            //         读到 null channelSourceList 导致 isEmpty() NPE（真机 PID 30860 崩溃根因）
             if (channelSourceList != null) {
                 channelSourceList.clear();
             } else {
@@ -398,7 +406,6 @@ public class AppCoreManager {
     public boolean hasPlayedWithCache() { return hasPlayedWithCache; }
     public void setHasPlayedWithCache(boolean played) { this.hasPlayedWithCache = played; }
 
-    // 🛠️ 判空保护
     public List<Channel> getChannelList() {
         synchronized (channelListLock) {
             if (channelSourceList == null) {
@@ -463,9 +470,6 @@ public class AppCoreManager {
     private void log(String msg) {
         Log.d("AppCoreManager", msg);
     }
-
-    // 🔧【清理一起看】彻底移除 toggleTogetherWatch、removeTogetherWatchChannels、fetchTogetherWatchChannels 方法
-    // 这三个方法已被整块删除，同时移除了 loadLiveAndEpg 中对 fetchTogetherWatchChannels 的调用
 
     public void release() {
         onDestroy();
