@@ -840,7 +840,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", true);
+        boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", false);
         if (exitDialogEnabled) {
             showExitMenu();
         } else {

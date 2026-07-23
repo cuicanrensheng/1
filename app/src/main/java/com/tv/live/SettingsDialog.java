@@ -188,7 +188,7 @@ public class SettingsDialog extends android.app.Dialog {
         }
         tv_channel_line.setText(getLineName(currentLineIndex));
 
-        boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", true);
+        boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", false);
         tv_exit_dialog_status.setText(exitDialogEnabled ? "开启" : "关闭");
 
         initSettingsItemList();
@@ -364,7 +364,7 @@ public class SettingsDialog extends android.app.Dialog {
                 showVersionInfoDialog();
                 break;
             case 13:
-                boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", true);
+                boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", false);
                 boolean newState = !exitDialogEnabled;
                 sp.edit().putBoolean("exit_dialog_enable", newState).apply();
                 tv_exit_dialog_status.setText(newState ? "开启" : "关闭");
