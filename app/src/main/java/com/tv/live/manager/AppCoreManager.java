@@ -459,7 +459,9 @@ public class AppCoreManager {
                 channelSourceList.clear();
             }
 
+            // ✅ 关键修复：重置播放状态，确保加载完成后强制重新播放
             hasPlayedWithCache = false;
+
             loadLiveAndEpg();
         }).start();
     }
