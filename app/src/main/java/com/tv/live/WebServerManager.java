@@ -756,18 +756,7 @@ public class WebServerManager {
     }
 
     private void addHistory(String key, String url) {
-        SharedPreferences sp = context.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
-        String history = sp.getString(key, "");
-        StringBuilder sb = new StringBuilder();
-        sb.append(url);
-        if (!history.isEmpty()) {
-            String[] arr = history.split("\\|");
-            for (String s : arr) {
-                if (!s.equals(url) && sb.length() < 1000) {
-                    sb.append("|").append(s);
-                }
-            }
-        }
-        sp.edit().putString(key, sb.toString()).apply();
+        SourceManager sourceManager = new SourceManager(context, key);
+        sourceManager.addSource("网页推送", url);
     }
 }
