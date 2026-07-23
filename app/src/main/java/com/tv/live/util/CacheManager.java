@@ -13,7 +13,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.io.FileReader; 
 /**
  * ✅ 缓存管理工具类（内存优化版）
  *
@@ -187,7 +186,7 @@ public class CacheManager {
         StringBuilder sb = new StringBuilder();
         BufferedReader reader = null;
         try {
-            reader = new BufferedReader(new FileReader(cacheFile));
+            reader = new BufferedReader(new InputStreamReader(new FileInputStream(cacheFile)));
             String line;
             while ((line = reader.readLine()) != null) {
                 sb.append(line).append("\n");
