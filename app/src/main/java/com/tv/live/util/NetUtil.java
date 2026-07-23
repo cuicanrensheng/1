@@ -63,15 +63,16 @@ public class NetUtil {
         Map<String, String> headerMap = new HashMap<>();
 
         String userAgent = "ExoPlayer";
-        if (url.contains("huya.com") || url.contains("huya.cn")) {
-            userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-        } else if (sAppContext != null) {
+
+        // 🔧【已移除所有浏览器UA兜底逻辑】
+        // 无论请求什么网址，UA 只取决于：自定义 UA -> VLC -> ExoPlayer
+        if (sAppContext != null) {
             SharedPreferences sp = sAppContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-            
             String customUA = sp.getString("custom_user_agent", "");
             if (!TextUtils.isEmpty(customUA)) {
                 userAgent = customUA;
             } else {
+                // 如果没填自定义，则读取 "VLC 或 ExoPlayer" 的模式
                 String uaMode = sp.getString("user_agent_mode", "exo"); 
                 if ("vlc".equals(uaMode)) {
                     userAgent = "VLC";
@@ -87,6 +88,8 @@ public class NetUtil {
         headerMap.put("Icy-MetaData", "1"); 
         headerMap.put("Accept-Language", "zh-CN,zh;q=0.9");
 
+        // ⚠️【注意】Referer 和 Origin 依然保留针对部分平台的防盗链处理
+        // 这是为了确保下载 M3U 或视频流时不被 403 拦截，与 User-Agent 分离
         String referer, origin;
         if (url.contains("huya.com") || url.contains("huya.cn")) {
             referer = "https://www.huya.com/";
