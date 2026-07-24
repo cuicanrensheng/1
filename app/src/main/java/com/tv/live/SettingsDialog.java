@@ -81,6 +81,10 @@ public class SettingsDialog extends android.app.Dialog {
 
     private int selectedItemPosition = 0;
 
+    // 🟢【新增】记录对话框打开的时间戳和忽略延迟
+    private long mShowTime = 0;
+    private static final long IGNORE_KEY_DELAY_MS = 500; // 忽略打开后 500ms 内的按键
+
     public SettingsDialog(android.content.Context context) {
         super(context);
     }
@@ -285,6 +289,9 @@ public class SettingsDialog extends android.app.Dialog {
 
     @Override
     public void show() {
+        // 🟢【新增】记录对话框打开的时间
+        mShowTime = System.currentTimeMillis();
+
         super.show();
         mainHandler.postDelayed(() -> {
             View[] items = {
@@ -1558,6 +1565,11 @@ public class SettingsDialog extends android.app.Dialog {
                 return true;
             }
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            // 🟢【关键修复】增加防误触逻辑：如果打开时间不足 500ms 则忽略按键
+            if (System.currentTimeMillis() - mShowTime < IGNORE_KEY_DELAY_MS) {
+                android.util.Log.d("SettingsDialog", "忽略打开后短时间内的按键，防止误触");
+                return true; // 拦截并消耗按键，但不执行任何操作
+            }
             performItemAction(selectedItemPosition);
             return true;
         }
