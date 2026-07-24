@@ -1156,7 +1156,10 @@ public class SettingsDialog extends android.app.Dialog {
         boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
         final String[] currentUaMode = { sp.getString(KEY_USER_AGENT_MODE, "exo") };
         
-        View dialogView = android.view.LayoutInflater.from(getContext()).inflate(R.layout.dialog_redirect_config, null);
+        android.view.LayoutInflater inflater = android.view.LayoutInflater.from(
+                new android.view.ContextThemeWrapper(getContext(), androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog)
+        );
+        View dialogView = inflater.inflate(R.layout.dialog_redirect_config, null);
         EditText etMax = dialogView.findViewById(R.id.et_redirect_max);
         SwitchCompat swCrossDomain = dialogView.findViewById(R.id.sw_cross_domain);
         SwitchCompat swCrossProto = dialogView.findViewById(R.id.sw_cross_proto);
@@ -1434,6 +1437,8 @@ public class SettingsDialog extends android.app.Dialog {
                 .create();
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            dialog.getWindow().setLayout((int) (getContext().getResources().getDisplayMetrics().widthPixels * 0.85),
+                    android.view.WindowManager.LayoutParams.WRAP_CONTENT);
         }
         final View finalBtnCancel = btnCancel;
         final View finalBtnSave = btnSave;
