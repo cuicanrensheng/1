@@ -6,6 +6,7 @@ import android.text.TextUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 多源管理器
@@ -347,11 +348,11 @@ public class SourceManager {
             return all;
         }
 
-        String lowerKeyword = keyword.toLowerCase();
+        String lowerKeyword = keyword.toLowerCase(Locale.ROOT);
         List<SourceItem> result = new ArrayList<>();
         for (SourceItem si : all) {
-            if (si.name.toLowerCase().contains(lowerKeyword)
-                    || si.url.toLowerCase().contains(lowerKeyword)) {
+            if (si.name.toLowerCase(Locale.ROOT).contains(lowerKeyword)
+                    || si.url.toLowerCase(Locale.ROOT).contains(lowerKeyword)) {
                 result.add(si);
             }
         }

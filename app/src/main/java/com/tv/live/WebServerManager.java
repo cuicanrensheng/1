@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.Locale;
 
 /**
  * 网页后台管理器
@@ -179,7 +180,7 @@ public class WebServerManager {
 
             int contentLength = 0;
             for (String headerLine : headerLines) {
-                if (headerLine.toLowerCase().startsWith("content-length:")) {
+                if (headerLine.toLowerCase(Locale.ROOT).startsWith("content-length:")) {
                     try {
                         contentLength = Integer.parseInt(headerLine.split(":")[1].trim());
                     } catch (Exception e) {

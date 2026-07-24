@@ -23,6 +23,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="center"
+        android:contentDescription="@null"
         android:background="@android:color/black"
         android:alpha="0.0"
         android:visibility="gone"

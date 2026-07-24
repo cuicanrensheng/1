@@ -12,6 +12,8 @@ import android.util.Log; // 🟢 替换为原生日志
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.Locale;
+
 /**
  * 开机自启管理器
  */
@@ -82,7 +84,7 @@ public class BootStartManager {
 
         String manufacturer = Build.MANUFACTURER;
         if (manufacturer != null) {
-            manufacturer = manufacturer.toLowerCase();
+            manufacturer = manufacturer.toLowerCase(Locale.ROOT);
             if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
                 Log.d(TAG, "【自启】检测到 MIUI 系统，需手动开启自启");
                 return BootStatus.SYSTEM_RESTRICTED;

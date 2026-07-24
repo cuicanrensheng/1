@@ -40,7 +40,8 @@ public class JsLayer {
     }
 
     public static void init(Context context) {
-        webView = new WebView(context);
+        Context appContext = context.getApplicationContext();
+        webView = new WebView(appContext);
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
         webView.addJavascriptInterface(new ParserJsInterface(), "client");
@@ -50,9 +51,9 @@ public class JsLayer {
                 super.onPageFinished(view, url);
             }
         });
-        assetManager = context.getAssets();
-        filesDirPath = context.getFilesDir().getPath() + "/";
-        mContext = context;
+        assetManager = appContext.getAssets();
+        filesDirPath = appContext.getFilesDir().getPath() + "/";
+        mContext = appContext;
         okHttpClient = new OkHttpClient.Builder()
                 .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)

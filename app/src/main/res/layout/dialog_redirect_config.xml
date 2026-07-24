@@ -252,6 +252,7 @@
 
                 <Button
                     android:id="@+id/btn_redirect_cancel"
+                    style="?android:attr/buttonBarButtonStyle"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
                     android:text="取消"
@@ -265,6 +266,7 @@
 
                 <Button
                     android:id="@+id/btn_redirect_save"
+                    style="?android:attr/buttonBarButtonStyle"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
                     android:text="保存"

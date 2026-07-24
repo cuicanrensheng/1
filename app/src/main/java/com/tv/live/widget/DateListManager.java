@@ -15,6 +15,7 @@ import com.tv.live.R;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 日期列表管理器（已恢复遥控器焦点）
@@ -92,7 +93,7 @@ public class DateListManager {
 
             int month = cal.get(Calendar.MONTH) + 1;
             int day = cal.get(Calendar.DAY_OF_MONTH);
-            String dateStr = String.format("%d/%d", month, day);
+            String dateStr = String.format(Locale.ROOT, "%d/%d", month, day);
 
             dateDisplayList.add(weekStr + "\n" + dateStr);
             cal.add(Calendar.DAY_OF_YEAR, 1);

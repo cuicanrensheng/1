@@ -65,12 +65,12 @@
             android:layout_width="140dp"
             android:layout_height="140dp"
             android:background="#FFFFFF"
-            android:scaleType="fitCenter" />
+            android:scaleType="fitCenter"
+            android:contentDescription="@null" />
             
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_weight="1"
             android:orientation="vertical"
             android:layout_marginStart="16dp">
 
@@ -106,9 +106,8 @@
         android:gravity="center_vertical">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:layout_marginEnd="16dp">
@@ -196,6 +195,7 @@
 
             <Button
                 android:id="@+id/btn_clear"
+                style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:text="🗑️"
@@ -208,6 +208,7 @@
 
             <Button
                 android:id="@+id/btn_confirm"
+                style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
                 android:text="确定"
@@ -223,6 +224,7 @@
 
             <Button
                 android:id="@+id/btn_close"
+                style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
                 android:text="关闭"

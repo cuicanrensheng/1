@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Locale;
 /**
  * ✅ 缓存管理工具类（内存优化版）
  *
@@ -298,8 +299,8 @@ public class CacheManager {
     public String getCacheTotalSizeReadable() {
         long size = getCacheTotalSize();
         if (size < 1024) return size + " B";
-        if (size < 1024 * 1024) return String.format("%.2f KB", size / 1024.0);
-        return String.format("%.2f MB", size / (1024.0 * 1024));
+        if (size < 1024 * 1024) return String.format(Locale.ROOT, "%.2f KB", size / 1024.0);
+        return String.format(Locale.ROOT, "%.2f MB", size / (1024.0 * 1024));
     }
 
     // ------------------------------------------------

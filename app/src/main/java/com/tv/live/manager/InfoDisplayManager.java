@@ -410,7 +410,7 @@ public class InfoDisplayManager {
         Calendar cal = Calendar.getInstance();
         int h = cal.get(Calendar.HOUR_OF_DAY);
         int m = cal.get(Calendar.MINUTE);
-        return String.format("%02d:%02d", h, m);
+        return String.format(Locale.ROOT, "%02d:%02d", h, m);
     }
 
     private boolean timeBetween(String now, String start, String end){

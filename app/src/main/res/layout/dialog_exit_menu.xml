@@ -20,6 +20,7 @@
             android:layout_height="80dp"
             android:src="@mipmap/ic_launcher"
             android:background="@drawable/player_logo_bg"
+            android:contentDescription="@null"
             android:padding="12dp"
             android:scaleType="centerInside" />
     </LinearLayout>

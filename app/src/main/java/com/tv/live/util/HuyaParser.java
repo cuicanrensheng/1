@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Locale;
 
 import okhttp3.Response;
 
@@ -158,7 +159,7 @@ public class HuyaParser {
 
     private static String fetchFromStreamInfoAPI(int roomId) {
         try {
-            String url = String.format(API_STREAM_INFO, roomId);
+            String url = String.format(Locale.ROOT, API_STREAM_INFO, roomId);
             
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");

@@ -26,7 +26,7 @@
     android:layout_height="45dp"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingLeft="15dp"
+    android:paddingStart="15dp"
     android:background="@drawable/list_item_bg">
     <!--
       ✅ 【修改说明】删掉了这两行：
@@ -78,7 +78,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:layout_marginLeft="10dp"
+        android:layout_marginStart="10dp"
         android:textColor="@color/list_item_text"
         android:textSize="16sp"
         android:focusable="false"
