@@ -1,12 +1,19 @@
 package com.tv.live;
 
 import android.app.Application;
+import android.content.Context; // ✅ 新增导入
 import android.os.Build;
-// 🔧【清理虎牙SDK】已移除：import com.huya.berry.client.HuyaBerry;
-// 🔧【清理虎牙SDK】已移除：import com.huya.berry.client.HuyaBerryConfig;
+import androidx.multidex.MultiDex; // ✅ 新增导入
 import com.tv.live.util.NetUtil;
 
 public class MyApplication extends Application {
+
+    // ✅ 新增：在 Application 创建之初安装 MultiDex，解决旧电视启动闪退
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(base);
+        MultiDex.install(this);
+    }
 
     @Override
     public void onCreate() {
