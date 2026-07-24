@@ -922,8 +922,8 @@ public class SettingsDialog extends android.app.Dialog {
     private void updateRendererModeText(String mode) {
         if (tv_renderer_type == null) return;
         switch (mode) {
-            case "texture": tv_renderer_type.setText("TextureView"); break;
-            case "surface": default: tv_renderer_type.setText("SurfaceView"); break;
+            case "texture": tv_renderer_type.setText(getContext().getString(R.string.texture_view)); break;
+            case "surface": default: tv_renderer_type.setText(getContext().getString(R.string.surface_view)); break;
         }
     }
 

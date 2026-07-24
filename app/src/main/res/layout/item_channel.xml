@@ -27,6 +27,7 @@
     android:orientation="horizontal"
     android:gravity="center_vertical"
     android:paddingStart="15dp"
+    android:paddingEnd="15dp"
     android:background="@drawable/list_item_bg">
     <!--
       ✅ 【修改说明】删掉了这两行：

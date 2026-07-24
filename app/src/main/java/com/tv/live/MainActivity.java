@@ -158,7 +158,6 @@ public class MainActivity extends AppCompatActivity {
         displayManager.applyFullScreen();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        logWindowContainer = findViewById(R.id.log_window_container);
         logScrollView = findViewById(R.id.log_scroll_view);
         tvLogContent = findViewById(R.id.tv_log_content);
 

@@ -19,6 +19,7 @@
     <string name="decoder_select">解码器选择</string>
     <string name="render_mode">渲染方式</string>
     <string name="surface_view">SurfaceView</string>
+    <string name="texture_view">TextureView</string>
     <string name="screen_ratio">屏幕比例</string>
     <string name="http_redirect_config">HTTP重定向网络配置</string>
     <string name="live_source_subscribe">直播源订阅</string>
@@ -50,4 +51,13 @@
     <string name="confirm">确定</string>
 
     <string name="delete">删除</string>
+
+    <string name="number_one">1</string>
+    <string name="number_one_dot">1.</string>
+    <string name="number_two_dot">2.</string>
+    <string name="hint_input_name">请输入名称(选填)</string>
+    <string name="hint_input_url">请输入地址</string>
+    <string name="icon_check">✓</string>
+    <string name="icon_copy">📋</string>
+    <string name="icon_delete">🗑️</string>
 </resources>

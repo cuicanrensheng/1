@@ -74,7 +74,8 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:layout_marginStart="16dp">
+            android:layout_marginStart="16dp"
+            android:baselineAligned="false">
 
             <!-- ✨ 已去除：列表订阅 4个字 -->
             
@@ -128,9 +129,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:baselineAligned="false">
                     <TextView
-                        android:text="1."
+                        android:text="@string/number_one_dot"
                         android:textColor="#A0A0A0"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -142,12 +144,13 @@
                         android:layout_weight="1"
                         android:minHeight="32dp"
                         android:textSize="14sp"
-                        android:hint="请输入名称(选填)"
+                        android:hint="@string/hint_input_name"
                         android:textColor="#FFFFFF"
                         android:textColorHint="#888888"
                         android:background="@null"
                         android:paddingBottom="4dp"
                         android:singleLine="true"
+                        android:inputType="text"
                         android:autofillHints="" />
                 </LinearLayout>
                 <View
@@ -160,14 +163,16 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="6"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:baselineAligned="false">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:baselineAligned="false">
                     <TextView
-                        android:text="2."
+                        android:text="@string/number_two_dot"
                         android:textColor="#A0A0A0"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -179,12 +184,13 @@
                         android:layout_weight="1"
                         android:minHeight="32dp"
                         android:textSize="14sp"
-                        android:hint="请输入地址"
+                        android:hint="@string/hint_input_url"
                         android:textColor="#FFFFFF"
                         android:textColorHint="#888888"
                         android:background="@null"
                         android:paddingBottom="4dp"
                         android:singleLine="true"
+                        android:inputType="textUri"
                         android:autofillHints="" />
                 </LinearLayout>
                 <View
@@ -206,7 +212,7 @@
                 style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:text="🗑️"
+                android:text="@string/icon_delete"
                 android:backgroundTint="#55576A"
                 android:layout_marginEnd="8dp"
                 android:focusable="true"
