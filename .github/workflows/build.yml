@@ -57,37 +57,58 @@ jobs:
             echo "✅ 安全检查通过：未发现旧版 ExoPlayer 依赖"
           fi
 
-      # 🟢【新增 1】运行 Android Lint 静态代码检查
       - name: Run Lint
         run: ./gradlew lintRelease -Pandroid.lint.abortOnError=false
-        # 🟢【关键修改】加上这一行，即使 Lint 报错，也会继续执行后续上传步骤
         continue-on-error: true
 
-      # 🟢【新增 2】运行单元测试
       - name: Run Unit Tests
         run: ./gradlew testRelease --no-daemon --stacktrace
 
-      # 🟢【新增 3】上传 Lint 报告
       - name: Upload Lint Report
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
           path: app/build/reports/lint-results-release.html
 
-      # 🟢【新增 4】上传单元测试报告
       - name: Upload Test Report
         uses: actions/upload-artifact@v4
         with:
           name: test-report
           path: app/build/reports/tests/testReleaseUnitTest/index.html
 
-      # 🟢【新增 5】上传 Lint 基线文件
       - name: Upload Lint Baseline
         uses: actions/upload-artifact@v4
         with:
           name: lint-baseline
           path: app/lint-baseline.xml
 
+      # ==============================================================
+      # 🔧【核心修复 1】自动更新 app/build.gradle 并提交版本号
+      # 让每次打包的 APK 内部版本号和云端 update.json 对齐！
+      # ==============================================================
+      - name: 自动更新 Gradle 版本号并提交回仓库
+        run: |
+          NEW_VERSION_CODE=${{ github.run_number }}
+          
+          # 1. 获取当前 build.gradle 中的 versionName（例如 2.0）
+          OLD_VERSION_NAME=$(grep "versionName" app/build.gradle | head -1 | awk -F'"' '{print $2}')
+          
+          # 2. 使用 sed 替换 versionCode 和 versionName (附加构建号)
+          # 修改后 versionName 变成 "2.0.2136" 这样的格式，清楚地标明本次构建版本
+          sed -i "s/versionCode [0-9]*/versionCode $NEW_VERSION_CODE/" app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$OLD_VERSION_NAME.$NEW_VERSION_CODE\"/" app/build.gradle
+          
+          # 3. 将修改提交回 GitHub（注意：使用 [skip ci] 避免触发新构建循环）
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add app/build.gradle
+          git commit -m "Auto bump versionCode to $NEW_VERSION_CODE [skip ci]" || echo "No changes to commit"
+          git push
+
+      # ==============================================================
+      # 🔧【核心修复 2】生成 update.json
+      # 因为刚刚修改了 app/build.gradle，现在生成的 APK 版本号与这里一致
+      # ==============================================================
       - name: 开始执行 Release 打包...
         run: |
           echo "🎯 开始执行 Release 打包..."
@@ -98,21 +119,16 @@ jobs:
             -PkeyAlias=${{ secrets.KEY_ALIAS }} \
             -PkeyPassword=${{ secrets.KEY_PASSWORD }}
 
-      # ==============================================================
-      # ✅【核心修复】生成 update.json
-      # 1. 动态从 app/build.gradle 读取真实的 versionName
-      # 2. 动态读取 app/release_notes.txt 作为更新说明
-      # ==============================================================
       - name: 生成 update.json
         run: |
           VERSION_CODE=${{ github.run_number }}
           
-          # 🔧 动态解析 versionName，不再硬编码 1.0.x
+          # 由于刚刚在第一步修改了 app/build.gradle，这里读取到的就是刚刚改好的版本名
           VERSION_NAME=$(grep "versionName" app/build.gradle | head -1 | awk -F'"' '{print $2}')
           
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION_CODE/app-release.apk"
 
-          # 🔧 动态读取 release_notes.txt，将多行文本转义为 JSON 字符串，并替换换行符为 \n
+          # 🔧 动态读取 release_notes.txt
           if [ -f app/release_notes.txt ]; then
             RELEASE_NOTES=$(cat app/release_notes.txt | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           else
