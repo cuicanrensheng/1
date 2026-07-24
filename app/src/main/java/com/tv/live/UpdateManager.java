@@ -33,7 +33,7 @@ import java.net.URL;
  */
 public class UpdateManager {
     // 🔥 保持您指定的 URL 不变
-    private static final String UPDATE_JSON_URL = "https://ghproxy.com/https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json";
+    private static final String UPDATE_JSON_URL = "https://gitmirror.com/https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json";
     private static final String APK_FILE_NAME = "tv_live_update.apk";
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
     private static boolean isChecking = false;
