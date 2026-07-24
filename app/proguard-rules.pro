@@ -1,13 +1,37 @@
-# ===================== 基础配置 =====================
--keepattributes Signature,InnerClasses,SourceFile,LineNumberTable,Exceptions,*Annotation*
--keepclasseswithmembers class * { native <methods>; }
--keepclassmembers class * {
-    void *(android.view.View);
-    *** *(...);
+-optimizationpasses 5
+-dontusemixedcaseclassnames
+-dontskipnonpubliclibraryclasses
+-dontpreverify
+-verbose
+
+-optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
+
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes SourceFile,LineNumberTable
+
+-keepclasseswithmembernames class * {
+    native <methods>;
 }
 
-# ===================== 项目自有类（仅保留反射需要的） =====================
-# Activity / Service / Receiver（AndroidManifest 需要反射实例化）
+-keepclassmembers class * extends android.app.Activity {
+    public void *(android.view.View);
+}
+
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+-keepclassmembers class * implements java.io.Serializable {
+    static final long serialVersionUID;
+    private static final java.io.ObjectStreamField[] serialPersistentFields;
+    private void writeObject(java.io.ObjectOutputStream);
+    private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
+
 -keep class com.tv.live.MainActivity { *; }
 -keep class com.tv.live.ChannelListActivity { *; }
 -keep class com.tv.live.CrashActivity { *; }
@@ -15,44 +39,85 @@
 -keep class com.tv.live.BootStartReceiver { *; }
 -keep class com.tv.live.BootReceiver { *; }
 
-# JS 接口（WebView 通过反射调用）
 -keep class com.tv.live.jsparser.JsLayer$ParserJsInterface { *; }
--keepclassmembers class com.tv.live.jsparser.** { <methods>; }
+-keepclassmembers class com.tv.live.jsparser.** {
+    public <methods>;
+}
 
-# 数据模型（JSON 序列化需要保留字段名）
 -keep class com.tv.live.Channel { *; }
 -keep class com.tv.live.Channel$EpgItem { *; }
 -keep class com.tv.live.Channel$Variant { *; }
 -keep class com.tv.live.bean.** { *; }
+-keep class com.tv.live.SourceManager$SourceItem { *; }
 
-# ===================== Media3（仅保留必要接口） =====================
--keep interface androidx.media3.** { *; }
--keep class androidx.media3.common.** { *; }
--keep class androidx.media3.exoplayer.** { *; }
--keep class androidx.media3.ui.** { *; }
+-keep interface androidx.media3.common.Player { *; }
+-keep interface androidx.media3.common.MediaItem { *; }
+-keep interface androidx.media3.common.Timeline { *; }
+-keep interface androidx.media3.common.CryptoException { *; }
+-keep interface androidx.media3.common.analytics.AnalyticsListener { *; }
+
+-keep class androidx.media3.common.util.** { *; }
+-keep class androidx.media3.common.C.TrackType { *; }
+-keep class androidx.media3.common.Format { *; }
+-keep class androidx.media3.common.MimeTypes { *; }
+-keep class androidx.media3.common.Player$State { *; }
+-keep class androidx.media3.common.Player$EventDispatcher { *; }
+-keep class androidx.media3.common.util.Assertions { *; }
+-keep class androidx.media3.common.util.UnstableApi { *; }
+
+-keep class androidx.media3.exoplayer.ExoPlayerImpl { *; }
+-keep class androidx.media3.exoplayer.ExoPlayerImpl$Builder { *; }
+-keep class androidx.media3.exoplayer.DefaultRenderersFactory { *; }
+-keep class androidx.media3.exoplayer.DefaultLoadControl { *; }
+-keep class androidx.media3.exoplayer.DefaultTrackSelector { *; }
+-keep class androidx.media3.exoplayer.source.DefaultMediaSourceFactory { *; }
+-keep class androidx.media3.exoplayer.source.hls.HlsMediaSource { *; }
+-keep class androidx.media3.exoplayer.source.hls.HlsMediaSource$Factory { *; }
+
+-keep class androidx.media3.ui.PlayerView { *; }
+-keep class androidx.media3.ui.AspectRatioFrameLayout { *; }
+
 -dontwarn androidx.media3.**
 
-# ===================== fastjson =====================
--keepattributes *Annotation*
 -dontwarn com.alibaba.fastjson.**
--keep class com.alibaba.fastjson.** { *; }
--keepclassmembers class * { public <init>(org.json.JSONObject); }
+-keep class com.alibaba.fastjson.JSON { *; }
+-keep class com.alibaba.fastjson.JSONObject { *; }
+-keep class com.alibaba.fastjson.JSONArray { *; }
+-keep class com.alibaba.fastjson.parser.JSONParser { *; }
+-keep class com.alibaba.fastjson.parser.DefaultJSONParser { *; }
+-keep class com.alibaba.fastjson.serializer.JSONSerializer { *; }
+-keep class com.alibaba.fastjson.serializer.SerializeWriter { *; }
+-keep class com.alibaba.fastjson.parser.deserializer.** { *; }
+-keep class com.alibaba.fastjson.serializer.** { *; }
+-keepclassmembers class * {
+    @com.alibaba.fastjson.annotation.JSONField *;
+}
 
-# ===================== OkHttp =====================
 -dontwarn okhttp3.**
 -dontwarn okio.**
--keep class okhttp3.** { *; }
--keep interface okhttp3.** { *; }
+-keep class okhttp3.OkHttpClient { *; }
+-keep class okhttp3.OkHttpClient$Builder { *; }
+-keep class okhttp3.Request { *; }
+-keep class okhttp3.Request$Builder { *; }
+-keep class okhttp3.Response { *; }
+-keep class okhttp3.Call { *; }
+-keep class okhttp3.Callback { *; }
+-keep class okhttp3.ConnectionPool { *; }
+-keep class okhttp3.Interceptor { *; }
 
-# ===================== NanoHttpd =====================
+-keep class com.google.zxing.BinaryBitmap { *; }
+-keep class com.google.zxing.MultiFormatReader { *; }
+-keep class com.google.zxing.DecodeHintType { *; }
+-keep class com.google.zxing.Result { *; }
+-keep class com.google.zxing.common.HybridBinarizer { *; }
+-keep class com.google.zxing.common.BitMatrix { *; }
+-keep class com.google.zxing.qrcode.QRCodeReader { *; }
+-keep class com.google.zxing.qrcode.detector.Detector { *; }
+-dontwarn com.google.zxing.**
+
 -keep class org.nanohttpd.** {*;}
 -dontwarn org.nanohttpd
 
-# ===================== ZXing =====================
--keep class com.google.zxing.** {*;}
--dontwarn com.google.zxing.**
-
-# ===================== 其他 =====================
 -dontwarn java.lang.invoke.MethodHandleProxies
 -dontwarn javax.ws.rs.ext.**
 -dontwarn org.glassfish.jersey.**

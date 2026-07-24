@@ -71,12 +71,12 @@ android {
 
     buildTypes {
         release {
-            // ✅ 【核心修改】开启代码混淆和资源压缩
             minifyEnabled true
             shrinkResources true
             crunchPngs false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
+            multiDexEnabled false
         }
         debug {
             signingConfig signingConfigs.debug
@@ -97,8 +97,8 @@ android {
     }
 
     androidResources {
-        // 启用 aapt2 的 PNG 优化
         noCompress ''
+        generateLocaleConfig false
     }
 
     // ================================================================
