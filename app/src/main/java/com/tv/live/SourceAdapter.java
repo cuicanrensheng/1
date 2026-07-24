@@ -10,6 +10,7 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 多源列表适配器
