@@ -98,16 +98,32 @@ jobs:
             -PkeyAlias=${{ secrets.KEY_ALIAS }} \
             -PkeyPassword=${{ secrets.KEY_PASSWORD }}
 
+      # ==============================================================
+      # ✅【核心修复】生成 update.json
+      # 1. 动态从 app/build.gradle 读取真实的 versionName
+      # 2. 动态读取 app/release_notes.txt 作为更新说明
+      # ==============================================================
       - name: 生成 update.json
         run: |
           VERSION_CODE=${{ github.run_number }}
-          VERSION_NAME="1.0.$VERSION_CODE"
+          
+          # 🔧 动态解析 versionName，不再硬编码 1.0.x
+          VERSION_NAME=$(grep "versionName" app/build.gradle | head -1 | awk -F'"' '{print $2}')
+          
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION_CODE/app-release.apk"
+
+          # 🔧 动态读取 release_notes.txt，将多行文本转义为 JSON 字符串，并替换换行符为 \n
+          if [ -f app/release_notes.txt ]; then
+            RELEASE_NOTES=$(cat app/release_notes.txt | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          else
+            RELEASE_NOTES="自动更新版本"
+          fi
+
           cat > update.json << EOF
           {
             "versionCode": $VERSION_CODE,
             "versionName": "$VERSION_NAME",
-            "message": "自动更新版本",
+            "message": "$RELEASE_NOTES",
             "downloadUrl": "$DOWNLOAD_URL"
           }
           EOF
