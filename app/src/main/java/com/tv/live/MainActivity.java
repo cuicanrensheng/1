@@ -228,7 +228,15 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean panelOpenOnBackDown = false;
 
+    // ==============================================================
+    // ✅【核心修复】在 dispatchKeyEvent 开头加入空指针防御
+    // ==============================================================
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // 如果核心组件尚未初始化，直接跳过所有按键处理，避免 NPE
+        if (channelPanelController == null || mPlayerManager == null) {
+            return super.dispatchKeyEvent(event);
+        }
+
         int keyCode = event.getKeyCode();
         int action = event.getAction();
         boolean panelOpen = channelPanelController != null && channelPanelController.isPanelOpen();
