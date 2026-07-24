@@ -176,35 +176,12 @@ public class BootReceiver extends BroadcastReceiver {
 
             long triggerAt = System.currentTimeMillis() + delayMs;
 
-            // ✅【关键修复】Android 12+ 检查是否可以使用精确闹钟
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (!alarmManager.canScheduleExactAlarms()) {
-                    Log.w(TAG, "无法使用精确闹钟，降级为非精确闹钟");
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
-                    return;
-                }
-            }
-
-            // 设置闹钟（优先使用精确闹钟）
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerAt,
-                        pendingIntent
-                );
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                alarmManager.setExact(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerAt,
-                        pendingIntent
-                );
-            } else {
-                alarmManager.set(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerAt,
-                        pendingIntent
-                );
-            }
+            // 使用非精确闹钟，避免申请 SCHEDULE_EXACT_ALARM 权限
+            alarmManager.set(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAt,
+                    pendingIntent
+            );
             Log.d(TAG, "已设置延迟启动闹钟，" + delayMs + "ms 后启动");
 
         } catch (Exception e) {

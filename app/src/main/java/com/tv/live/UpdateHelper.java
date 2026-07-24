@@ -1,14 +1,10 @@
 package com.tv.live;
 
 import android.content.Context;
-import android.content.Intent;
-import android.net.Uri;
-import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
-import androidx.core.content.FileProvider;
 import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.File;
@@ -125,8 +121,7 @@ public class UpdateHelper {
                     synchronized (UpdateHelper.class) {
                         isDownloading = false;
                     }
-                    Toast.makeText(context, "下载完成，开始安装", Toast.LENGTH_SHORT).show();
-                    installApk(context, apkFile);
+                    Toast.makeText(context, "下载完成，请手动安装", Toast.LENGTH_SHORT).show();
                 });
 
             } catch (Exception e) {
@@ -140,25 +135,5 @@ public class UpdateHelper {
         }).start();
     }
 
-    private static void installApk(Context context, File apkFile) {
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                Uri uri = FileProvider.getUriForFile(
-                        context,
-                        context.getPackageName() + ".fileprovider",
-                        apkFile
-                );
-                intent.setDataAndType(uri, "application/vnd.android.package-archive");
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } else {
-                intent.setDataAndType(Uri.fromFile(apkFile), "application/vnd.android.package-archive");
-            }
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-        } catch (Exception e) {
-            // 🟢 捕获异常：防止因 FileProvider 配置遗漏导致直接闪退
-            Toast.makeText(context, "安装失败，请检查应用是否有安装未知应用权限：\n" + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
+
 }

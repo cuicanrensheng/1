@@ -1,7 +1,6 @@
 package com.tv.live.jsparser;
 
 import android.content.Context;
-import android.os.Environment;
 import android.text.TextUtils;
 import android.util.Base64;
 
@@ -191,7 +190,7 @@ public class Parser {
 
     private static String getExtendJsDir() {
         if (extendJsDir == null) {
-            extendJsDir = Environment.getExternalStorageDirectory() + File.separator + "parser" + File.separator;
+            extendJsDir = context.getExternalFilesDir(null) + File.separator + "parser" + File.separator;
             File dir = new File(extendJsDir);
             if (!dir.exists()) {
                 dir.mkdirs();
