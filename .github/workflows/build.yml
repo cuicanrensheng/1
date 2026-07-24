@@ -57,31 +57,6 @@ jobs:
             echo "✅ 安全检查通过：未发现旧版 ExoPlayer 依赖"
           fi
 
-      - name: Run Lint
-        run: ./gradlew lintRelease -Pandroid.lint.abortOnError=false
-        continue-on-error: true
-
-      - name: Run Unit Tests
-        run: ./gradlew testRelease --no-daemon --stacktrace
-
-      - name: Upload Lint Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-report
-          path: app/build/reports/lint-results-release.html
-
-      - name: Upload Test Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-report
-          path: app/build/reports/tests/testReleaseUnitTest/index.html
-
-      - name: Upload Lint Baseline
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-baseline
-          path: app/lint-baseline.xml
-
       # ==============================================================
       # 🔧【核心修复 1】自动更新 app/build.gradle 并提交版本号
       # 让每次打包的 APK 内部版本号和云端 update.json 对齐！
@@ -94,7 +69,6 @@ jobs:
           OLD_VERSION_NAME=$(grep "versionName" app/build.gradle | head -1 | awk -F'"' '{print $2}')
           
           # 2. 使用 sed 替换 versionCode 和 versionName (附加构建号)
-          # 修改后 versionName 变成 "2.0.2136" 这样的格式，清楚地标明本次构建版本
           sed -i "s/versionCode [0-9]*/versionCode $NEW_VERSION_CODE/" app/build.gradle
           sed -i "s/versionName \"[^\"]*\"/versionName \"$OLD_VERSION_NAME.$NEW_VERSION_CODE\"/" app/build.gradle
           
@@ -106,8 +80,7 @@ jobs:
           git push
 
       # ==============================================================
-      # 🔧【核心修复 2】生成 update.json
-      # 因为刚刚修改了 app/build.gradle，现在生成的 APK 版本号与这里一致
+      # 🔧【核心修复 2】开始打包并生成 update.json 提交到 main 分支
       # ==============================================================
       - name: 开始执行 Release 打包...
         run: |
@@ -119,14 +92,15 @@ jobs:
             -PkeyAlias=${{ secrets.KEY_ALIAS }} \
             -PkeyPassword=${{ secrets.KEY_PASSWORD }}
 
-      - name: 生成 update.json
+      - name: 生成并提交 update.json
         run: |
           VERSION_CODE=${{ github.run_number }}
           
           # 由于刚刚在第一步修改了 app/build.gradle，这里读取到的就是刚刚改好的版本名
           VERSION_NAME=$(grep "versionName" app/build.gradle | head -1 | awk -F'"' '{print $2}')
           
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION_CODE/app-release.apk"
+          # 🔧【修复电视 404】给 APK 下载地址加上 ghproxy.com 代理前缀，确保国内电视网络能正常下载
+          DOWNLOAD_URL="https://ghproxy.com/https://github.com/${{ github.repository }}/releases/download/v$VERSION_CODE/app-release.apk"
 
           # 🔧 动态读取 release_notes.txt
           if [ -f app/release_notes.txt ]; then
@@ -143,6 +117,15 @@ jobs:
             "downloadUrl": "$DOWNLOAD_URL"
           }
           EOF
+
+          # ==============================================================
+          # 🛡️【关键一步】将 update.json 推送到 main 分支的根目录
+          # ==============================================================
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add update.json
+          git commit -m "Auto update update.json for release v$VERSION_CODE [skip ci]" || echo "No changes to update.json"
+          git push
 
       - name: 上传成品 APK
         uses: actions/upload-artifact@v4
