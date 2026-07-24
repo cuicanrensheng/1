@@ -24,6 +24,7 @@ import okhttp3.Response;
 
 public class Parser {
     private static final String SALT = "com.yuntu.a8.info.encrypt";
+    private static Context appContext;
     private static String extendJsDir = null;
     private static String jsDir = "";
     private static Set<String> jsMap = Collections.synchronizedSet(new HashSet<>());
@@ -181,6 +182,7 @@ public class Parser {
     }
 
     private static void setJsDir(Context context) {
+        appContext = context;
         jsDir = context.getFilesDir().getAbsolutePath() + File.separator + "js" + File.separator + "parser" + File.separator;
         File dir = new File(jsDir);
         if (!dir.exists()) {
@@ -189,8 +191,8 @@ public class Parser {
     }
 
     private static String getExtendJsDir() {
-        if (extendJsDir == null) {
-            extendJsDir = context.getExternalFilesDir(null) + File.separator + "parser" + File.separator;
+        if (extendJsDir == null && appContext != null) {
+            extendJsDir = appContext.getExternalFilesDir(null) + File.separator + "parser" + File.separator;
             File dir = new File(extendJsDir);
             if (!dir.exists()) {
                 dir.mkdirs();
