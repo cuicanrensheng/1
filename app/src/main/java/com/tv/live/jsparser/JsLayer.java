@@ -67,12 +67,26 @@ public class JsLayer {
         return webViewRef != null && webViewRef.get() != null && assetManager != null;
     }
 
+    // ==============================================================
+    // ✅【核心修复】在 evaluate 方法中加入 WebView 重新初始化逻辑
+    // ==============================================================
     public static void evaluate(String str, final JsCallback jsCallback) {
         WebView wv = webViewRef != null ? webViewRef.get() : null;
+        
+        // 如果 WebView 已被系统回收，尝试用缓存的 Context 重新初始化
         if (wv == null || assetManager == null) {
-            jsCallback.onError("not initialized");
-            return;
+            Context ctx = mContextRef != null ? mContextRef.get() : null;
+            if (ctx != null) {
+                init(ctx); // 重新初始化
+                wv = webViewRef != null ? webViewRef.get() : null;
+            }
+            // 如果重新初始化后仍然失败，则直接回调错误
+            if (wv == null || assetManager == null) {
+                jsCallback.onError("not initialized");
+                return;
+            }
         }
+
         try {
             pendingCallback = jsCallback;
             String assetFileToString = assetFileToString("js/native_layer.js");
