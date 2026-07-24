@@ -35,8 +35,8 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionCode 2145
-        versionName "2.0.2141.2142.2143.2144.2145"
+        versionCode 2146
+        versionName "2.0.2141.2142.2143.2144.2145.2146"
 
         // ✅【核心修复】开启 MultiDex 支持，解决核心库脱糖报错
         multiDexEnabled true 
