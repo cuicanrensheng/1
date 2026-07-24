@@ -19,7 +19,7 @@
             android:id="@+id/tv_dialog_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="直播源订阅"
+            android:text="@string/live_source_subscribe"
             android:textColor="#FFFFFF"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -36,14 +36,14 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="扫码远程输入"
+                android:text="@string/scan_qr_input"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:id="@+id/tv_ip_address"
-                android:text="http://192.168.1.2:9978/"
+                android:text="@string/sample_ip_address"
                 android:textColor="#A0A0A0"
                 android:textSize="12sp" />
         </LinearLayout>
@@ -219,7 +219,7 @@
                 style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
-                android:text="确定"
+                android:text="@string/confirm"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#55576A"
                 android:layout_marginEnd="8dp"
@@ -235,7 +235,7 @@
                 style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
-                android:text="关闭"
+                android:text="@string/close"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#55576A"
                 android:paddingStart="12dp"

@@ -95,7 +95,7 @@
                 android:layout_width="50dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
-                android:text="节\n目\n单"
+                android:text="@string/epg_button"
                 android:textColor="#ffffff"
                 android:textSize="14sp"
                 android:focusable="true"
@@ -125,7 +125,7 @@
                 android:layout_width="50dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
-                android:text="频\n道\n组"
+                android:text="@string/channel_group_button"
                 android:textColor="#ffffff"
                 android:textSize="14sp"
                 android:focusable="true"
@@ -297,7 +297,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="接下来："
+                android:text="@string/next_program"
                 android:textColor="#666666"
                 android:textSize="12sp" />
 
@@ -345,7 +345,7 @@
                 android:textColor="#FFFFFF"
                 android:textSize="12sp"
                 android:typeface="monospace"
-                android:text="日志将在此显示..." />
+                android:text="@string/log_placeholder" />
         </ScrollView>
     </FrameLayout>
 

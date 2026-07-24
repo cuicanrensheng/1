@@ -62,7 +62,7 @@
                         android:layout_width="0dp"
                         android:layout_weight="1"
                         android:layout_height="wrap_content"
-                        android:text="开机自启"
+                        android:text="@string/boot_autostart"
                         android:textColor="@color/setting_item_text_color"
                         android:textSize="16sp" />
                     <androidx.appcompat.widget.SwitchCompat
@@ -77,7 +77,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="未开启"
+                    android:text="@string/not_enabled"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="12sp" />
             </LinearLayout>
@@ -98,7 +98,7 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="换台反转"
+                    android:text="@string/channel_reverse"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -125,7 +125,7 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="画中画"
+                    android:text="@string/pip"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -151,7 +151,7 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="一起看"
+                    android:text="@string/together_watch"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -178,14 +178,14 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="频道线路选择"
+                    android:text="@string/channel_line_select"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_channel_line"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="主源"
+                    android:text="@string/main_source"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -206,14 +206,14 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="清晰度选择"
+                    android:text="@string/resolution_select"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_resolution_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="自动"
+                    android:text="@string/auto"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -234,14 +234,14 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="解码器选择"
+                    android:text="@string/decoder_select"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_decoder_mode"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="自动"
+                    android:text="@string/auto"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -262,14 +262,14 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="渲染方式"
+                    android:text="@string/render_mode"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_renderer_type"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="SurfaceView"
+                    android:text="@string/surface_view"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -282,7 +282,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:text="屏幕比例"
+                android:text="@string/screen_ratio"
                 android:textColor="@color/setting_item_text_color"
                 android:textSize="16sp"
                 android:focusable="true"
@@ -316,7 +316,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="HTTP重定向网络配置"
+                    android:text="@string/http_redirect_config"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <TextView
@@ -349,7 +349,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="直播源订阅"
+                    android:text="@string/live_source_subscribe"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -369,7 +369,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="节目单订阅"
+                    android:text="@string/epg_subscribe"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -398,14 +398,14 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="检查更新"
+                    android:text="@string/check_update"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp"/>
                 <Button
                     android:id="@+id/btn_check_update"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="检查更新"
+                    android:text="@string/check_update"
                     android:focusable="false"
                     android:clickable="false"/>
             </LinearLayout>
@@ -426,14 +426,14 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="版本信息"
+                    android:text="@string/version_info"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp"/>
                 <TextView
                     android:id="@+id/tv_version_short"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="v2.0"
+                    android:text="@string/version_2_0"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -462,14 +462,14 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="退出弹窗"
+                    android:text="@string/exit_dialog"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_exit_dialog_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="关闭"
+                    android:text="@string/close"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -480,7 +480,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:gravity="center"
-                android:text="网页设置：http://设备IP:10481"
+                android:text="@string/web_settings_url"
                 android:textColor="@color/setting_item_text_color"
                 android:textSize="12sp"/>
 

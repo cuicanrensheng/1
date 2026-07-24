@@ -31,7 +31,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="最大重定向次数(1~20)："
+                    android:text="@string/max_redirect_count"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
                 <EditText
@@ -75,7 +75,7 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="允许跨域名重定向"
+                    android:text="@string/allow_cross_domain"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -106,7 +106,7 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="允许HTTP/HTTPS跨协议跳转"
+                    android:text="@string/allow_cross_protocol"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -137,7 +137,7 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="跳转携带Referer/Cookie（防盗链必备）"
+                    android:text="@string/follow_headers"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -168,7 +168,7 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="Cookie播放授权令牌"
+                    android:text="@string/cookie_auth_token"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -199,7 +199,7 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="忽略HTTPS跳转证书错误"
+                    android:text="@string/ignore_ssl_errors"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
                 <androidx.appcompat.widget.SwitchCompat
@@ -231,14 +231,14 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="UA切换"
+                    android:text="@string/ua_switch"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_user_agent_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="ExoPlayer默认"
+                    android:text="@string/exoplayer_default"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -256,7 +256,7 @@
                     style="?android:attr/buttonBarButtonStyle"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
-                    android:text="取消"
+                    android:text="@string/cancel"
                     android:textColor="@color/btn_text_color"
                     android:background="@drawable/btn_cancel_bg"
                     android:layout_marginEnd="8dp"
@@ -270,7 +270,7 @@
                     style="?android:attr/buttonBarButtonStyle"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
-                    android:text="保存"
+                    android:text="@string/save"
                     android:textColor="@color/btn_text_color"
                     android:background="@drawable/btn_cancel_bg"
                     android:focusable="true"
