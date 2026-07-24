@@ -38,6 +38,9 @@ android {
         versionCode 20
         versionName "2.0"
 
+        // ✅【核心修复】开启 MultiDex 支持，解决核心库脱糖报错
+        multiDexEnabled true 
+
         buildConfigField "int", "VERSION_CODE", "${versionCode}"
         buildConfigField "String", "VERSION_NAME", "\"${versionName}\""
 
@@ -76,7 +79,9 @@ android {
             crunchPngs false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-            multiDexEnabled false
+            
+            // ✅【核心修复】删除或注释掉这行，让 Release 也能正常继承 MultiDex 设置
+            // multiDexEnabled false  
         }
         debug {
             signingConfig signingConfigs.debug
@@ -102,14 +107,14 @@ android {
     }
 
     // ================================================================
-    // 🟢【关键修复】Lint 基线配置（彻底禁用 Release 时的 Lint 检查）
+    // 🟢【Lint 基线配置】彻底禁用 Release 时的 Lint 检查
     // ================================================================
     lint {
         // 所有的 107 个错误和 232 个警告都会写入这个文件
         baseline = file("lint-baseline.xml")
         // 明确告诉 Gradle 即使有错误也别中断打包流程
         abortOnError false
-        // 🟢【核心修复】禁用 Release 构建的 Lint 检查，防止 CI 因基线更新而报错
+        // 🟢 禁用 Release 构建的 Lint 检查，防止 CI 因基线更新而报错
         checkReleaseBuilds false
     }
     // ================================================================
@@ -129,6 +134,9 @@ dependencies {
     implementation "androidx.media3:media3-exoplayer-hls:1.7.1"
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
+
+    // ✅【建议添加】显式引入 MultiDex 依赖库
+    implementation 'androidx.multidex:multidex:2.0.1' 
 }
 
 // ================================================================
