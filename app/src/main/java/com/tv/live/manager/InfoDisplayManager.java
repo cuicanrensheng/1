@@ -268,7 +268,7 @@ public class InfoDisplayManager {
             String start = extractTimeSegment(currItem.time, false);
             String end = (currIndex + 1 < todayList.size()) ? extractTimeSegment(todayList.get(currIndex + 1).time, false) : "23:59";
             if (tvCurrentTimeRange != null) {
-                tvCurrentTimeRange.setText(start + " - " + end);
+                tvCurrentTimeRange.setText(String.format(Locale.ROOT, "%s - %s", start, end));
             }
 
             long nowMs = timeToMs(nowTime, false, 0);
@@ -296,9 +296,9 @@ public class InfoDisplayManager {
                     if (playedMin >= 60) {
                         int h = (int) (playedMin / 60);
                         int m = (int) (playedMin % 60);
-                        tvRemainingTime.setText("已播放" + h + "时" + m + "分");
+                        tvRemainingTime.setText(String.format(Locale.ROOT, "已播放%d时%d分", h, m));
                     } else {
-                        tvRemainingTime.setText("已播放" + playedMin + "分钟");
+                        tvRemainingTime.setText(String.format(Locale.ROOT, "已播放%d分钟", playedMin));
                     }
                 }
             }
@@ -322,7 +322,7 @@ public class InfoDisplayManager {
             String s = extractTimeSegment(nextItem.time, false);
             String e = (currIndex + 2 < todayList.size()) ? extractTimeSegment(todayList.get(currIndex + 2).time, false) : "23:59";
             if (tvNextTimeRange != null) {
-                tvNextTimeRange.setText(s + " - " + e);
+                tvNextTimeRange.setText(String.format(Locale.ROOT, "%s - %s", s, e));
             }
             if (tvNextProgramName != null) {
                 tvNextProgramName.setText(nextItem.title);

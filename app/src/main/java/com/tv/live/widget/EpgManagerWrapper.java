@@ -433,7 +433,7 @@ public class EpgManagerWrapper {
             Channel.EpgItem item = list.get(position);
             String endTime = epgEndTimeMap.get(item);
             holder.tv_dayName.setText(item.dayName);
-            holder.tv_time.setText(item.time + "-" + endTime);
+            holder.tv_time.setText(String.format(Locale.ROOT, "%s-%s", item.time, endTime));
             holder.tv_title.setText(item.title);
 
             boolean isSelected = (position == selectedPosition);

@@ -3,7 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:background="@drawable/dialog_bg_corner">
+    android:background="@drawable/dialog_bg_corner"
+    android:baselineAligned="false">
 
     <!-- 分组栏 -->
     <ListView

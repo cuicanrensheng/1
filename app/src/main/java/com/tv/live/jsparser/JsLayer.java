@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
@@ -29,8 +30,8 @@ import okhttp3.Response;
 public class JsLayer {
     static AssetManager assetManager = null;
     static String filesDirPath = null;
-    static WebView webView = null;
-    static Context mContext = null;
+    static WeakReference<WebView> webViewRef = null;
+    static WeakReference<Context> mContextRef = null;
     static OkHttpClient okHttpClient = null;
     static JsCallback pendingCallback = null;
 
@@ -41,11 +42,11 @@ public class JsLayer {
 
     public static void init(Context context) {
         Context appContext = context.getApplicationContext();
-        webView = new WebView(appContext);
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.getSettings().setDomStorageEnabled(true);
-        webView.addJavascriptInterface(new ParserJsInterface(), "client");
-        webView.setWebViewClient(new WebViewClient() {
+        WebView newWebView = new WebView(appContext);
+        newWebView.getSettings().setJavaScriptEnabled(true);
+        newWebView.getSettings().setDomStorageEnabled(true);
+        newWebView.addJavascriptInterface(new ParserJsInterface(), "client");
+        newWebView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
@@ -53,20 +54,22 @@ public class JsLayer {
         });
         assetManager = appContext.getAssets();
         filesDirPath = appContext.getFilesDir().getPath() + "/";
-        mContext = appContext;
+        webViewRef = new WeakReference<>(newWebView);
+        mContextRef = new WeakReference<>(appContext);
         okHttpClient = new OkHttpClient.Builder()
                 .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 .build();
-        webView.loadDataWithBaseURL("file:///android_asset/", "<html><body></body></html>", "text/html", "UTF-8", null);
+        newWebView.loadDataWithBaseURL("file:///android_asset/", "<html><body></body></html>", "text/html", "UTF-8", null);
     }
 
     public static boolean isInit() {
-        return webView != null && assetManager != null;
+        return webViewRef != null && webViewRef.get() != null && assetManager != null;
     }
 
     public static void evaluate(String str, final JsCallback jsCallback) {
-        if (webView == null || assetManager == null) {
+        WebView wv = webViewRef != null ? webViewRef.get() : null;
+        if (wv == null || assetManager == null) {
             jsCallback.onError("not initialized");
             return;
         }
@@ -74,8 +77,9 @@ public class JsLayer {
             pendingCallback = jsCallback;
             String assetFileToString = assetFileToString("js/native_layer.js");
             String fullScript = assetFileToString + str;
-            webView.post(() -> {
-                webView.evaluateJavascript(fullScript, value -> {
+            final WebView finalWv = wv;
+            finalWv.post(() -> {
+                finalWv.evaluateJavascript(fullScript, value -> {
                     if (value != null && !"null".equals(value)) {
                         pendingCallback.onResult(value.replace("\"", ""));
                     } else {
@@ -90,10 +94,14 @@ public class JsLayer {
     }
 
     public static void release() {
-        if (webView != null) {
-            webView.removeAllViews();
-            webView.destroy();
-            webView = null;
+        if (webViewRef != null) {
+            WebView wv = webViewRef.get();
+            if (wv != null) {
+                wv.removeAllViews();
+                wv.destroy();
+            }
+            webViewRef.clear();
+            webViewRef = null;
         }
     }
 

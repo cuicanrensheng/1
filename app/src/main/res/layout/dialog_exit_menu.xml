@@ -5,7 +5,8 @@
     android:orientation="horizontal"
     android:padding="24dp"
     android:background="@drawable/panel_bg"
-    android:gravity="center_vertical">
+    android:gravity="center_vertical"
+    android:baselineAligned="false">
 
     <!-- 左侧：自己软件的图标 -->
     <LinearLayout

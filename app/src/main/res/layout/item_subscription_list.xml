@@ -5,7 +5,6 @@
     android:orientation="horizontal"
     android:padding="10dp"
     android:gravity="center_vertical"
-    android:background="#333545"
     android:layout_marginBottom="4dp"
     android:focusable="true"
     android:clickable="true">

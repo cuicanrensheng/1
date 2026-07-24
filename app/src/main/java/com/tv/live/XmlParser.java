@@ -18,7 +18,7 @@ public class XmlParser {
             xml.setInput(is, StandardCharsets.UTF_8.name());
 
             Calendar today = Calendar.getInstance();
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US);
             
             String currentChannel = null;
             // 🟢 每次检测到新频道时，我们会重新创建这个列表，防止无限累积导致 OOM

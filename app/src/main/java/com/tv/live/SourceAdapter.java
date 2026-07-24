@@ -85,7 +85,7 @@ public class SourceAdapter extends ArrayAdapter<SourceManager.SourceItem> {
             return convertView;
         }
 
-        holder.indexTv.setText((position + 1) + ". ");
+        holder.indexTv.setText(String.format(Locale.ROOT, "%d. ", position + 1));
 
         StringBuilder displayText = new StringBuilder();
         displayText.append(item.name);
