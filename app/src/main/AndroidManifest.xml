@@ -41,9 +41,10 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize" />
 
+        <!-- ✅ 修改点：将主题改为与主界面一致的全屏黑色主题，避免电视上 Dialog 渲染崩溃 -->
         <activity
             android:name=".CrashActivity"
-            android:theme="@android:style/Theme.DeviceDefault.Light.Dialog"
+            android:theme="@style/Theme.TVLive.NoTitle"
             android:exported="false"
             android:excludeFromRecents="true" />
 
