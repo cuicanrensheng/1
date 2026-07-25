@@ -128,8 +128,6 @@ public class MainActivity extends AppCompatActivity {
         return mInstanceRef != null ? mInstanceRef.get() : null;
     }
 
-    // 🔧【彻底清理】原 toggleTogetherWatch 方法已删除，无任何外部引用。
-
     public boolean isInCatchUpMode() {
         return isInCatchUpMode;
     }
@@ -238,12 +236,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean panelOpenOnBackDown = false;
 
-    // ==============================================================
-    // ✅【核心修复】在 dispatchKeyEvent 开头加入空指针防御
-    // 🛡️【电视防闪退】整体 try-catch 保护，任何按键异常都不允许崩溃
-    // ==============================================================
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // 如果核心组件尚未初始化，直接跳过所有按键处理，避免 NPE
         if (channelPanelController == null || mPlayerManager == null || event == null) {
             return super.dispatchKeyEvent(event);
         }
@@ -273,7 +266,6 @@ public class MainActivity extends AppCompatActivity {
 
                     if (isOkKey(keyCode)) {
                         if (!panelOpen) {
-                            // ✅ 取消长按OK键打开设置，改为单击OK键切换面板
                             channelPanelController.togglePanel();
                             return true;
                         }
@@ -327,7 +319,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             } else if (action == KeyEvent.ACTION_UP) {
                 if (isOkKey(keyCode)) {
-                    // ✅ 取消长按OK键打开设置，OK键在ACTION_DOWN已处理，UP时直接返回
                     okKeyLongPressed = false;
                     okKeyTriggered = false;
                     okKeyDownTime = 0;
@@ -350,7 +341,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         } catch (Exception e) {
-            // 🛡️【电视防闪退】捕获所有按键处理异常，防止崩溃
             android.util.Log.e("KEY_DEBUG", "dispatchKeyEvent 异常 keyCode=" + keyCode + ": " + e.getMessage(), e);
         }
 
@@ -590,7 +580,11 @@ public class MainActivity extends AppCompatActivity {
             infoDisplayManager.updateLiveInfo(info);
             if (pipManager != null) pipManager.updatePlayState(true);
         });
-        mPlayerManager.setOnSourceFailedListener(() -> runOnUiThread(() -> {
+        
+        // ================================================================
+        // ✅【核心修复 1】将 runOnUiThread 改为 mMainHandler.post，防止空指针
+        // ================================================================
+        mPlayerManager.setOnSourceFailedListener(() -> mMainHandler.post(() -> {
             String channelName = "";
             if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                 Channel ch = channelSourceList.get(currentPlayIndex);
@@ -605,13 +599,13 @@ public class MainActivity extends AppCompatActivity {
         appCoreManager.setOnDataLoadListener(new AppCoreManager.OnDataLoadListener() {
             @Override
             public void onLiveSourceLoaded(List<Channel> channels, boolean fromCache) {
-                runOnUiThread(() -> {
+                // ✅【核心修复 2】替换 runOnUiThread 为 mMainHandler.post
+                mMainHandler.post(() -> {
                     List<Channel> finalList = appCoreManager.getChannelList();
                     channelSourceList.clear();
                     channelSourceList.addAll(finalList);
                     channelPanelController.setChannels(channelSourceList);
 
-                    // ✅ 关键修复：新源加载后，尝试按"上次正在播放的频道名"找回索引
                     if (!channelSourceList.isEmpty()) {
                         String lastChannelName = mPlayerManager != null
                                 ? (mPlayerManager.getCurrentChannel() != null
@@ -638,7 +632,6 @@ public class MainActivity extends AppCompatActivity {
                     appConfig.setLastPlayIndex(currentPlayIndex);
                     channelPanelController.setCurrentPlayIndex(currentPlayIndex);
 
-                    // ✅ 强制播放当前索引的频道，确保新源生效
                     appCoreManager.setHasPlayedWithCache(true);
                     if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                         Channel ch = channelSourceList.get(currentPlayIndex);
@@ -652,7 +645,8 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onLiveSourceFailed(String errorMsg) {
-                runOnUiThread(() -> {
+                // ✅【核心修复 2】替换 runOnUiThread 为 mMainHandler.post
+                mMainHandler.post(() -> {
                     if (channelSourceList.isEmpty()) {
                         displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
                     } else {
@@ -664,7 +658,8 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onEpgLoaded() {
-                runOnUiThread(() -> {
+                // ✅【核心修复 2】替换 runOnUiThread 为 mMainHandler.post
+                mMainHandler.post(() -> {
                     if (currentPlayIndex >= 0 && currentPlayIndex < channelSourceList.size()) {
                         Channel curr = channelSourceList.get(currentPlayIndex);
                         infoDisplayManager.updateEpgInfo(curr);
@@ -674,7 +669,8 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onLoadTimeout(boolean hasData) {
-                runOnUiThread(() -> {
+                // ✅【核心修复 2】替换 runOnUiThread 为 mMainHandler.post
+                mMainHandler.post(() -> {
                     log("【加载】超时，自动隐藏加载动画");
                     if (!hasData) {
                         displayManager.updateLoadingText("加载失败，请检查网络或稍后重试");
@@ -696,13 +692,13 @@ public class MainActivity extends AppCompatActivity {
         });
 
         appCoreManager.setOnRefreshListener(() -> {
-            runOnUiThread(() -> {
+            // ✅【核心修复 2】替换 runOnUiThread 为 mMainHandler.post
+            mMainHandler.post(() -> {
                 List<Channel> newList = appCoreManager.getChannelList();
                 channelSourceList.clear();
                 channelSourceList.addAll(newList);
                 channelPanelController.setChannels(channelSourceList);
 
-                // ✅ 刷新时也重置索引到 0 并强制重播，确保新源立即生效
                 if (currentPlayIndex < 0 || currentPlayIndex >= channelSourceList.size()) {
                     currentPlayIndex = 0;
                 }
@@ -845,7 +841,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        // 🛡️【电视防闪退】整体 try-catch，防止返回键处理异常导致崩溃
         try {
             if (isInCatchUpMode && playerControlManager != null && playerControlManager.isControllerShowing()) {
                 exitPlaybackMode();
@@ -936,23 +931,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 🔧 【新增】在设置关闭后立刻刷新界面配置（避免切后台再返回才能生效的问题）
+    // 🔧 刷新配置
     public void refreshSettings() {
-        runOnUiThread(() -> {
-            // 重新读取所有 SP 配置（包含反转、画中画、解码器等）
+        // ✅【核心修复 3】将 runOnUiThread 改为 mMainHandler.post
+        mMainHandler.post(() -> {
             loadSettings();
             
-            // 刷新屏幕比例
             if (screenRatioManager != null) {
                 screenRatioManager.apply();
             }
             
-            // 刷新画中画
             if (pipManager != null) {
                 pipManager.setPipEnabled(pipEnable);
             }
 
-            // 刷新频道反转
             if (channelPanelController != null) {
                 channelPanelController.setReverse(channel_reverse);
             }
@@ -962,7 +954,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onReceiveConfig(final String liveUrl, final String epgUrl) {
-        // ✅ 推送直播源：先把当前播放索引重置，避免新源越界或命中错误频道
         currentPlayIndex = 0;
         appConfig.setLastPlayIndex(0);
         channelPanelController.setCurrentPlayIndex(0);
@@ -1052,7 +1043,6 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
-                // 强制刷新播放器渲染，避免黑屏
                 try {
                     if (playerView != null) {
                         playerView.setVisibility(View.GONE);
@@ -1087,6 +1077,9 @@ public class MainActivity extends AppCompatActivity {
         appCoreManager.onWindowFocusChanged(hasFocus);
     }
 
+    // ================================================================
+    // ✅【核心修复 4】移除全部 Message，解除播放器的所有监听器
+    // ================================================================
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -1101,7 +1094,16 @@ public class MainActivity extends AppCompatActivity {
         if (channelPanelController != null) channelPanelController.release();
         if (appCoreManager != null) appCoreManager.release();
         if (pipManager != null) pipManager.release();
-        if (mPlayerManager != null) mPlayerManager.release();
+        
+        if (mPlayerManager != null) {
+            // 先把所有监听器置空，彻底断绝后台线程调用 runOnUiThread 的可能
+            mPlayerManager.setOnPlayStateListener(null);
+            mPlayerManager.setOnLiveInfoUpdateListener(null);
+            mPlayerManager.setOnSourceFailedListener(null);
+            mPlayerManager.release();
+            mPlayerManager = null;
+        }
+        
         if (playerControlManager != null) {
             playerControlManager.release();
         }
