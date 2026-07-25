@@ -291,19 +291,29 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         try {
             int maxRead = (int) Math.min(readLength,
                     bytesToRead == C.LENGTH_UNSET ? Integer.MAX_VALUE : bytesToRead - bytesRead);
-            int readSize = inputStream.read(buffer, offset, maxRead);
-            if (readSize == -1) {
-                if (bytesToRead != C.LENGTH_UNSET && bytesRead != bytesToRead) {
-                    throw new HttpDataSource.HttpDataSourceException(
-                            "流提前中断",
-                            new DataSpec(Uri.parse(connection.getURL().toString())),
-                            HttpDataSource.HttpDataSourceException.TYPE_READ);
+            // ✅ 循环读取填满 buffer，避免单次 read 返回较少字节导致加载线程频繁唤醒
+            int totalRead = 0;
+            while (totalRead < maxRead) {
+                int readSize = inputStream.read(buffer, offset + totalRead, maxRead - totalRead);
+                if (readSize == -1) {
+                    if (bytesToRead != C.LENGTH_UNSET && bytesRead + totalRead != bytesToRead) {
+                        throw new HttpDataSource.HttpDataSourceException(
+                                "流提前中断",
+                                new DataSpec(Uri.parse(connection.getURL().toString())),
+                                HttpDataSource.HttpDataSourceException.TYPE_READ);
+                    }
+                    break;
                 }
+                totalRead += readSize;
+                // 直播流单次读到数据即可返回，不必强制填满（避免阻塞过久）
+                if (totalRead > 0) break;
+            }
+            if (totalRead == 0) {
                 return C.RESULT_END_OF_INPUT;
             }
-            bytesRead += readSize;
-            bytesTransferred(readSize);
-            return readSize;
+            bytesRead += totalRead;
+            bytesTransferred(totalRead);
+            return totalRead;
         } catch (IOException e) {
             throw new HttpDataSource.HttpDataSourceException(e,
                     new DataSpec(Uri.parse(connection.getURL().toString())),

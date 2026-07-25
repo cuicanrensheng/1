@@ -80,7 +80,8 @@ public class TVPlayerManager {
     public static final int DECODER_MODE_SOFT = 2;
     
     private static final int MAX_RETRY_COUNT = 2;
-    private static final long STUCK_TIMEOUT = 20000;
+    // ✅ 卡住检测阈值 20s → 10s，加速自动恢复
+    private static final long STUCK_TIMEOUT = 10000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
 
     private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
@@ -122,6 +123,11 @@ public class TVPlayerManager {
     private long lastPosition = 0;
     private Runnable stuckCheckRunnable;
 
+    // ✅ onVideoSizeChanged 防抖：避免直播流多码率自适应频繁切换时刷 UI 导致渲染抖动
+    private int lastVideoWidth = 0;
+    private int lastVideoHeight = 0;
+    private Runnable videoSizeNotifyRunnable;
+
     private Handler mHandler;
     private Runnable hideChannelRunnable;
 
@@ -142,7 +148,8 @@ public class TVPlayerManager {
 
     private DefaultTrackSelector trackSelector;
 
-    private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
+    // ✅ 修复初始 scaleMode 与 XML resize_mode="fit" 不一致导致画面跳动
+    private ScaleMode mCurrentScaleMode = ScaleMode.FIT;
 
     // 记录当前已应用的渲染器类型
     private Boolean mCurrentUseTexture = null;
@@ -285,6 +292,12 @@ public class TVPlayerManager {
                 .setLoadControl(loadControl)
                 .setTrackSelector(trackSelector)
                 .build();
+
+        // ✅ 显式设置视频缩放模式，避免部分电视默认模式与 resize_mode 冲突导致画面拉伸/撕裂
+        try {
+            player.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+        } catch (Exception ignored) {
+        }
 
         // ✅ MediaCodecUtil 枚举耗时（部分电视盒子 50~200ms），移到子线程避免阻塞主线程
         new Thread(() -> {
@@ -436,8 +449,22 @@ public class TVPlayerManager {
 
             @Override
             public void onVideoSizeChanged(VideoSize videoSize) {
+                // ✅ 防抖：尺寸未实际变化时不刷新 UI；连续变化时合并为最后一次刷新
+                if (videoSize.width == lastVideoWidth && videoSize.height == lastVideoHeight) {
+                    return;
+                }
+                lastVideoWidth = videoSize.width;
+                lastVideoHeight = videoSize.height;
                 dLog("视频分辨率变化：" + videoSize.width + "×" + videoSize.height);
-                notifyLiveInfoUpdate();
+
+                if (videoSizeNotifyRunnable != null) {
+                    mHandler.removeCallbacks(videoSizeNotifyRunnable);
+                }
+                videoSizeNotifyRunnable = () -> {
+                    notifyLiveInfoUpdate();
+                    videoSizeNotifyRunnable = null;
+                };
+                mHandler.postDelayed(videoSizeNotifyRunnable, 300);
             }
         };
         player.addListener(playerListener);
@@ -517,7 +544,9 @@ public class TVPlayerManager {
             }
             retryRunnable = null;
         };
-        mHandler.postDelayed(retryRunnable, 3000);
+        // ✅ 重试间隔递增：第1次 1.5s，第2次 3s，避免重试风暴，同时快速恢复
+        long retryDelay = retryCount >= 2 ? 3000 : 1500;
+        mHandler.postDelayed(retryRunnable, retryDelay);
     }
 
     public void setDecoderMode(int mode) {
@@ -576,8 +605,9 @@ public class TVPlayerManager {
                 Toast.makeText(context, "已切换至 自动模式", Toast.LENGTH_SHORT).show();
             }
 
-            playUrlInternal(currentUrl, currentPosition);
-            mHandler.postDelayed(() -> { isSwitching = false; }, 30000);
+            // ✅ 修复直播花屏：直播流无明确定位点，不传 currentPosition 避免触发 seekTo 重新拉 segment
+            playUrlInternal(currentUrl);
+            mHandler.postDelayed(() -> { isSwitching = false; }, 5000);
         } else if (playerView == null) {
             isSwitching = false;
         }
@@ -924,8 +954,9 @@ public class TVPlayerManager {
                     .setAllowCrossProtocolRedirects(sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL, true))
                     .setFollowRedirectsWithHeaders(sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS, true))
                     .setIgnoreSslErrorRedirect(sp.getBoolean(KEY_REDIRECT_IGNORE_SSL, false))
-                    .setConnectTimeoutMs(8000)
-                    .setReadTimeoutMs(10000);
+                    // ✅ 缩短超时：直播场景慢分片会阻塞后续加载，原 8s/10s 过长
+                    .setConnectTimeoutMs(5000)
+                    .setReadTimeoutMs(8000);
 
             MediaItem mediaItem = MediaItem.fromUri(currentUrl);
             MediaSource mediaSource;
@@ -1289,12 +1320,38 @@ public class TVPlayerManager {
             "c2.intel.goldfish.",
             "omx.google.android.",
             "c2.amlogic.avc.decoder.awesome",
+            // ✅ 扩充黑名单：电视盒子常见不稳定硬解
+            "c2.amlogic.avc.decoder.secure",
+            "omx.hisilicon.avc.decoder",
+            "omx.allwinner.avc.decoder",
+            "c2.rk.avc.decoder",
+            "omx.rk.avc.decoder",
+    };
+
+    // ✅ 已知稳定硬解前缀（AUTO 模式优先排序）
+    private static final String[] STABLE_HARDWARE_PREFIX_LOWER = new String[] {
+            "c2.mtk.",
+            "c2.qti.",
+            "c2.android.",
+            "omx.mtk.",
+            "omx.qti.",
+            "omx.exynos.",
+            "omx.nvidia.",
     };
 
     static boolean isUnstableHardwareDecoder(String codecName) {
         if (codecName == null) return false;
         String lower = codecName.toLowerCase(Locale.ROOT);
         for (String prefix : UNSTABLE_HARDWARE_BLACKLIST_LOWER) {
+            if (lower.startsWith(prefix)) return true;
+        }
+        return false;
+    }
+
+    static boolean isStableHardwareDecoder(String codecName) {
+        if (codecName == null) return false;
+        String lower = codecName.toLowerCase(Locale.ROOT);
+        for (String prefix : STABLE_HARDWARE_PREFIX_LOWER) {
             if (lower.startsWith(prefix)) return true;
         }
         return false;
@@ -1332,8 +1389,25 @@ public class TVPlayerManager {
                 return soft;
             }
             case DECODER_MODE_AUTO:
-            default:
-                return afterBlacklist;
+            default: {
+                // ✅ AUTO 模式优化排序：稳定硬解 → 软解 → 其他硬解（不稳定）
+                List<MediaCodecInfo> stableHard = new ArrayList<>();
+                List<MediaCodecInfo> soft = new ArrayList<>();
+                List<MediaCodecInfo> otherHard = new ArrayList<>();
+                for (MediaCodecInfo codec : afterBlacklist) {
+                    if (isSoftwareDecoder(codec)) {
+                        soft.add(codec);
+                    } else if (isStableHardwareDecoder(codec.name)) {
+                        stableHard.add(codec);
+                    } else {
+                        otherHard.add(codec);
+                    }
+                }
+                List<MediaCodecInfo> result = new ArrayList<>(stableHard);
+                result.addAll(soft);
+                result.addAll(otherHard);
+                return result;
+            }
         }
     }
 
