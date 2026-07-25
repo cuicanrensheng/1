@@ -212,10 +212,10 @@
                 android:id="@+id/tv_tag_fhd"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="8dp"
                 android:background="#33FFFFFF"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
                 android:textSize="12sp"
                 android:textColor="#FFFFFF" />
 
@@ -224,10 +224,10 @@
                 android:id="@+id/tv_tag_audio"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="4dp"
                 android:background="#33FFFFFF"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
                 android:textSize="12sp"
                 android:textColor="#FFFFFF" />
 
@@ -236,7 +236,7 @@
                 android:id="@+id/tv_bitrate"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="8dp"
                 android:textColor="#99FFFFFF"
                 android:textSize="13sp" />
         </LinearLayout>
