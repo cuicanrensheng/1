@@ -1340,8 +1340,12 @@ public class TVPlayerManager {
     public void reattachPlayerView() {
         try {
             if (playerView == null || player == null) return;
-            playerView.setPlayer(null);
-            playerView.setPlayer(player);
+            // ✅【修复黑屏闪烁】原 setPlayer(null) + setPlayer(player) 会触发 SurfaceView 销毁重建，
+            // 导致 onResume / 首次启动时画面闪黑。
+            // 仅当 playerView 未绑定 player 或绑定的不是当前 player 时，才直接绑定，避免 null 解绑步骤。
+            if (playerView.getPlayer() != player) {
+                playerView.setPlayer(player);
+            }
         } catch (Exception ignored) {}
     }
 
