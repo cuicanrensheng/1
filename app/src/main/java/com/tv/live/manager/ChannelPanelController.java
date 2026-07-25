@@ -6,6 +6,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.tv.live.Channel;
 import com.tv.live.MainActivity;
@@ -25,6 +26,9 @@ public class ChannelPanelController {
 
     private static final long CHANNEL_COOLDOWN = 300;
     private static final int MAX_AUTO_SKIP = 10;
+    // ✅ 加载期间空列表提示防抖，避免连续弹 Toast
+    private static final long EMPTY_LIST_TOAST_COOLDOWN = 2000;
+    private long lastEmptyListToastTime = 0;
 
     private MainActivity activity;
     private Context context;
@@ -223,6 +227,7 @@ public class ChannelPanelController {
         }
         lastChannelChangeTime = now;
         if (channelSourceList == null || channelSourceList.isEmpty()) {
+            notifyLoading();
             return;
         }
         
@@ -265,6 +270,7 @@ public class ChannelPanelController {
         }
         lastChannelChangeTime = now;
         if (channelSourceList == null || channelSourceList.isEmpty()) {
+            notifyLoading();
             return;
         }
         
@@ -323,7 +329,10 @@ public class ChannelPanelController {
     }
 
     public void playChannel(int index) {
-        if (channelSourceList == null || channelSourceList.isEmpty()) return;
+        if (channelSourceList == null || channelSourceList.isEmpty()) {
+            notifyLoading();
+            return;
+        }
         index = Math.max(0, Math.min(index, channelSourceList.size() - 1));
         currentPlayIndex = index;
         Channel ch = channelSourceList.get(index);
@@ -356,6 +365,22 @@ public class ChannelPanelController {
 
         if (channelChangeListener != null) {
             channelChangeListener.onChannelChanged(ch, index);
+        }
+    }
+
+    /**
+     * 加载期间频道列表为空时给出提示，避免切台操作被静默丢弃。
+     * 带 2s 防抖，防止连续按键反复弹 Toast。
+     */
+    private void notifyLoading() {
+        long now = System.currentTimeMillis();
+        if (now - lastEmptyListToastTime < EMPTY_LIST_TOAST_COOLDOWN) {
+            return;
+        }
+        lastEmptyListToastTime = now;
+        try {
+            Toast.makeText(context, "正在加载频道列表...", Toast.LENGTH_SHORT).show();
+        } catch (Exception ignored) {
         }
     }
 

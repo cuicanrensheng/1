@@ -128,6 +128,19 @@ public class TVPlayerManager {
     private int lastVideoHeight = 0;
     private Runnable videoSizeNotifyRunnable;
 
+    // ✅ Cookie 预取缓存：避免主线程调用 CookieManager.getCookie 阻塞切台
+    private volatile String cachedCookie = null;
+    private volatile String cachedCookieUrl = null;
+    private final Object cookieLock = new Object();
+
+    // ✅ SharedPreferences 配置缓存：避免每次切台重复读取 SP 阻塞主线程
+    private volatile int cachedRedirectMaxCount = 5;
+    private volatile boolean cachedRedirectCrossDomain = true;
+    private volatile boolean cachedRedirectCrossProtocol = true;
+    private volatile boolean cachedRedirectFollowHeaders = true;
+    private volatile boolean cachedRedirectIgnoreSsl = false;
+    private volatile boolean cachedSendCookie = true;
+
     private Handler mHandler;
     private Runnable hideChannelRunnable;
 
@@ -214,6 +227,9 @@ public class TVPlayerManager {
         this.context = context;
         this.sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         mHandler = new Handler(Looper.getMainLooper());
+
+        // ✅ 初始化 SP 配置缓存，避免每次切台主线程重复读取
+        refreshRedirectConfigCache();
 
         hideChannelRunnable = () -> hideChannelNum();
 
@@ -549,6 +565,62 @@ public class TVPlayerManager {
         mHandler.postDelayed(retryRunnable, retryDelay);
     }
 
+    /**
+     * ✅ 刷新重定向相关 SP 配置缓存，避免每次切台主线程重复读取。
+     * 在设置面板修改配置后也应调用。
+     */
+    public void refreshRedirectConfigCache() {
+        synchronized (sp) {
+            cachedRedirectMaxCount = sp.getInt(KEY_REDIRECT_MAX_COUNT, 5);
+            cachedRedirectCrossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN, true);
+            cachedRedirectCrossProtocol = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL, true);
+            cachedRedirectFollowHeaders = sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS, true);
+            cachedRedirectIgnoreSsl = sp.getBoolean(KEY_REDIRECT_IGNORE_SSL, false);
+            cachedSendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
+        }
+    }
+
+    /**
+     * ✅ 异步预取 Cookie，避免主线程调用 CookieManager.getCookie 阻塞切台。
+     * CookieManager 首次调用会懒加载 Chromium 原生库，在电视盒子上耗时 100~500ms。
+     */
+    public void prefetchCookie(String url) {
+        if (TextUtils.isEmpty(url) || !cachedSendCookie) return;
+        sPlaylistExecutor.execute(() -> {
+            try {
+                String cookie = CookieManager.getInstance().getCookie(url);
+                synchronized (cookieLock) {
+                    cachedCookie = cookie;
+                    cachedCookieUrl = url;
+                }
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    /**
+     * ✅ 主线程快速读取已预取的 Cookie，无阻塞。
+     */
+    private String getCachedCookie(String url) {
+        if (TextUtils.isEmpty(url) || !cachedSendCookie) return null;
+        synchronized (cookieLock) {
+            if (url.equals(cachedCookieUrl)) {
+                return cachedCookie;
+            }
+        }
+        // 缓存未命中或 URL 不匹配，同步降级（首次切台场景）
+        try {
+            String cookie = CookieManager.getInstance().getCookie(url);
+            synchronized (cookieLock) {
+                cachedCookie = cookie;
+                cachedCookieUrl = url;
+            }
+            return cookie;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     public void setDecoderMode(int mode) {
         if (mDecoderMode == mode) return;
         mDecoderMode = mode;
@@ -823,6 +895,11 @@ public class TVPlayerManager {
         isRetrying = false;
         initialPlayStartTime = 0;
         resetPerformanceStats();
+
+        // ✅ 异步预取 Cookie，避免 playUrlInternal 主线程阻塞
+        if (!TextUtils.isEmpty(url)) {
+            prefetchCookie(url);
+        }
         
         // 🔧【清理虎牙SDK】移除虎牙“一起看”逻辑
         /*
@@ -940,20 +1017,19 @@ public class TVPlayerManager {
                 reusableHeaderMap.put(name, globalHeaders.get(name));
             }
 
-            SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-            boolean sendCookie = sp.getBoolean(KEY_REDIRECT_SEND_COOKIE, true);
-            if (sendCookie) {
-                String cookies = CookieManager.getInstance().getCookie(currentUrl);
+            // ✅ 使用缓存的 SP 配置，避免每次切台主线程重复读取 SP
+            if (cachedSendCookie) {
+                String cookies = getCachedCookie(currentUrl);
                 if (cookies != null) reusableHeaderMap.put("Cookie", cookies);
             }
 
             httpFactory.setDefaultRequestProperties(reusableHeaderMap);
             httpFactory.setChannelName(currentChannelName);
-            httpFactory.setMaxRedirects(sp.getInt(KEY_REDIRECT_MAX_COUNT, 5))
-                    .setAllowCrossDomainRedirects(sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN, true))
-                    .setAllowCrossProtocolRedirects(sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL, true))
-                    .setFollowRedirectsWithHeaders(sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS, true))
-                    .setIgnoreSslErrorRedirect(sp.getBoolean(KEY_REDIRECT_IGNORE_SSL, false))
+            httpFactory.setMaxRedirects(cachedRedirectMaxCount)
+                    .setAllowCrossDomainRedirects(cachedRedirectCrossDomain)
+                    .setAllowCrossProtocolRedirects(cachedRedirectCrossProtocol)
+                    .setFollowRedirectsWithHeaders(cachedRedirectFollowHeaders)
+                    .setIgnoreSslErrorRedirect(cachedRedirectIgnoreSsl)
                     // ✅ 缩短超时：直播场景慢分片会阻塞后续加载，原 8s/10s 过长
                     .setConnectTimeoutMs(5000)
                     .setReadTimeoutMs(8000);
