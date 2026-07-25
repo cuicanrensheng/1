@@ -21,9 +21,6 @@ import com.tv.live.manager.InfoDisplayManager;
 
 import java.util.List;
 
-/**
- * 画中画(PIP)核心管理器
- */
 public class PictureInPictureManager {
 
     private static PictureInPictureManager instance;
@@ -61,9 +58,6 @@ public class PictureInPictureManager {
         void onRestoreLandscapeUi();
     }
 
-    // ====================================================================
-    // 基础状态方法
-    // ====================================================================
     public boolean isPipSupported() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false;
         try {
@@ -120,9 +114,6 @@ public class PictureInPictureManager {
         this.isReturnFromBackgroundPip = isReturn;
     }
 
-    // ====================================================================
-    // 是否应该进入画中画
-    // ====================================================================
     public boolean shouldEnterPip(boolean isExternalPlayer) {
         if (!isPipSupported()) return false;
         if (!pipEnabled) return false;
@@ -135,9 +126,6 @@ public class PictureInPictureManager {
         return shouldEnterPip(false);
     }
 
-    // ====================================================================
-    // 构建默认画中画参数（16:9）
-    // ====================================================================
     public PictureInPictureParams buildDefaultPipParams() {
         if (!isPipSupported()) return null;
         try {
@@ -147,14 +135,10 @@ public class PictureInPictureManager {
                 return builder.build();
             }
         } catch (Exception e) {
-            // 忽略异常
         }
         return null;
     }
 
-    // ====================================================================
-    // 便捷进入画中画方法
-    // ====================================================================
     public boolean enterPip(Activity activity, TVPlayerManager playerManager, boolean mainSwitch) {
         if (activity == null) return false;
         if (!shouldEnterPip()) return false;
@@ -177,9 +161,6 @@ public class PictureInPictureManager {
         }
     }
 
-    // ====================================================================
-    // 进入画中画（底层方法）
-    // ====================================================================
     public boolean enterPictureInPicture(Activity activity, PictureInPictureParams params) {
         if (!isPipSupported() || !pipEnabled || activity == null || activity.isFinishing()) {
             return false;
@@ -197,9 +178,6 @@ public class PictureInPictureManager {
         return false;
     }
 
-    // ====================================================================
-    // onPause 处理
-    // ====================================================================
     public void handleOnPause(Runnable resumeAction, Runnable pauseAction) {
         if (!isPipSupported()) {
             if (pauseAction != null) pauseAction.run();
@@ -220,9 +198,6 @@ public class PictureInPictureManager {
         handleOnPause(resumeAction, null);
     }
 
-    // ====================================================================
-    // 画中画模式变化回调（新增后台返回检测）
-    // ====================================================================
     public void onPipModeChanged(Activity activity, boolean isInPip) {
         this.isInPipMode = isInPip;
         this.isPipEntering = false;
@@ -236,9 +211,6 @@ public class PictureInPictureManager {
         }
     }
 
-    // ====================================================================
-    // 退出画中画处理
-    // ====================================================================
     public void handleExitPip(Runnable releaseAction) {
         handleExitPip(null, releaseAction);
     }
@@ -258,9 +230,6 @@ public class PictureInPictureManager {
         isReturnFromBackgroundPip = false;
     }
 
-    // ====================================================================
-    // 处理进入画中画
-    // ====================================================================
     public void handleEnterPip(Activity activity,
                                ChannelPanelController channelPanelController,
                                InfoDisplayManager infoDisplayManager,
@@ -280,9 +249,6 @@ public class PictureInPictureManager {
         } catch (Exception ignored) {}
     }
 
-    // ====================================================================
-    // 处理退出画中画的 UI 恢复
-    // ====================================================================
     public void handleExitPipRestore(Activity activity,
                                      DisplayManager displayManager,
                                      PlayerView playerView,
@@ -332,9 +298,6 @@ public class PictureInPictureManager {
         } catch (Exception ignored) {}
     }
 
-    // ====================================================================
-    // 恢复手势和切台功能
-    // ====================================================================
     private void restoreGestureAndChannelSwitch(Activity activity) {
         try {
             if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
@@ -353,15 +316,9 @@ public class PictureInPictureManager {
         } catch (Exception ignored) {}
     }
 
-    // ====================================================================
-    // 播放状态和频道信息更新
-    // ====================================================================
     public void updatePlayState(boolean isPlaying) {}
     public void updateChannelInfo(int num, String name, String bitrate) {}
 
-    // ====================================================================
-    // 隐藏画中画模式下的所有 UI
-    // ====================================================================
     public void hideAllUi(ChannelPanelController channelPanelController,
                           InfoDisplayManager infoDisplayManager) {
         try {
@@ -370,14 +327,10 @@ public class PictureInPictureManager {
             }
             if (infoDisplayManager != null) {
                 infoDisplayManager.hideInfoBar();
-                // ✅ 已删除 infoDisplayManager.hideChannelNum(); 
             }
         } catch (Exception ignored) {}
     }
 
-    // ====================================================================
-    // 画中画模式下保持播放（三重保险）
-    // ====================================================================
     public void keepPlaying(TVPlayerManager playerManager,
                             PlayerView playerView,
                             List<Channel> channelSourceList,
@@ -403,18 +356,12 @@ public class PictureInPictureManager {
         }
     }
 
-    // ====================================================================
-    // 恢复播放（简单版）
-    // ====================================================================
     public void resumePlayback(TVPlayerManager playerManager) {
         try {
             if (playerManager != null) playerManager.resume();
         } catch (Exception ignored) {}
     }
 
-    // ====================================================================
-    // 彻底解决内存泄漏
-    // ====================================================================
     public void release() {
         mainHandler.removeCallbacksAndMessages(null);
         listener = null;
