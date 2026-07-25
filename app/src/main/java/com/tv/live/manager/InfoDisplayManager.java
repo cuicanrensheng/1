@@ -99,7 +99,8 @@ public class InfoDisplayManager {
         this.tvNextProgramName = tvNextProgramName;
         this.tvNextTimeRange = tvNextTimeRange;
         if(tvTagAudio != null){
-            tvTagAudio.setText("立体声");
+            tvTagAudio.setText("");
+            tvTagAudio.setVisibility(View.GONE);
         }
     }
 
@@ -142,6 +143,14 @@ public class InfoDisplayManager {
         if(info == null) return;
         if(tvTagFhd != null){
             tvTagFhd.setText(parseQualityText(info.resolution));
+        }
+        if(tvTagAudio != null){
+            if(info.audio != null && !info.audio.isEmpty() && !"未知".equals(info.audio)){
+                tvTagAudio.setText(info.audio);
+                tvTagAudio.setVisibility(View.VISIBLE);
+            } else {
+                tvTagAudio.setVisibility(View.GONE);
+            }
         }
         if(tvBitrate != null){
             tvBitrate.setText(info.bitrate);
