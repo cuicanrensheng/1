@@ -35,8 +35,8 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionCode 2167
-        versionName "2.0.2141.2142.2143.2144.2145.2146.2151.2152.2155.2156.2162.2163.2165.2166.2167"
+        versionCode 2166
+        versionName "2.0.2141.2142.2143.2144.2145.2146.2151.2152.2155.2156.2162.2163.2165.2166"
 
         // ✅【核心修复】开启 MultiDex 支持，解决核心库脱糖报错
         multiDexEnabled true 
@@ -106,18 +106,11 @@ android {
         generateLocaleConfig false
     }
 
-    // ================================================================
-    // 🟢【Lint 基线配置】彻底禁用 Release 时的 Lint 检查
-    // ================================================================
     lint {
-        // 所有的 107 个错误和 232 个警告都会写入这个文件
         baseline = file("lint-baseline.xml")
-        // 明确告诉 Gradle 即使有错误也别中断打包流程
         abortOnError false
-        // 🟢 禁用 Release 构建的 Lint 检查，防止 CI 因基线更新而报错
         checkReleaseBuilds false
     }
-    // ================================================================
 }
 
 dependencies {
@@ -135,8 +128,11 @@ dependencies {
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
 
-    // ✅【建议添加】显式引入 MultiDex 依赖库
+    // ✅ 显式引入 MultiDex 依赖库
     implementation 'androidx.multidex:multidex:2.0.1' 
+
+    // ✅【关键新增】显式引入 Emoji2 库，确保方案A的代码能编译通过
+    implementation 'androidx.emoji2:emoji2:1.3.0'
 }
 
 // ================================================================
