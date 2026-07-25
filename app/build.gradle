@@ -35,10 +35,10 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionCode 2170
-        versionName "2.0.2141.2142.2143.2144.2145.2146.2151.2152.2155.2156.2162.2163.2165.2166.2168.2169.2170"
+        versionCode 2169
+        versionName "2.0.2141.2142.2143.2144.2145.2146.2151.2152.2155.2156.2162.2163.2165.2166.2168.2169"
 
-        // ✅【核心修复】开启 MultiDex 支持，解决核心库脱糖报错
+        // ✅【核心修复】开启 MultiDex 支持
         multiDexEnabled true 
 
         buildConfigField "int", "VERSION_CODE", "${versionCode}"
@@ -51,14 +51,10 @@ android {
 
     signingConfigs {
         release {
-            // 🔥 直接硬编码路径，因为 CI 会将密钥库解码到 app/release.keystore
             storeFile file("release.keystore")
-            
-            // 从 -P 参数读取密码和别名
             storePassword project.findProperty("storePassword")
             keyAlias project.findProperty("keyAlias")
             keyPassword project.findProperty("keyPassword")
-            
             v1SigningEnabled true
             v2SigningEnabled true
         }
@@ -79,9 +75,6 @@ android {
             crunchPngs false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-            
-            // ✅【核心修复】删除或注释掉这行，让 Release 也能正常继承 MultiDex 设置
-            // multiDexEnabled false  
         }
         debug {
             signingConfig signingConfigs.debug
@@ -116,10 +109,12 @@ android {
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
-    implementation "androidx.appcompat:appcompat:1.6.1"
+    // ✅【最核心修复】在 appcompat 中剔除 emoji2，彻底解决旧电视闪退
+    implementation('androidx.appcompat:appcompat:1.6.1') {
+        exclude group: 'androidx.emoji2'
+    }
 
     implementation 'com.google.zxing:core:3.5.1'
-
     implementation 'com.alibaba:fastjson:1.2.83'
 
     implementation "androidx.media3:media3-exoplayer:1.7.1"
@@ -128,16 +123,9 @@ dependencies {
 
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
 
-    // ✅ 显式引入 MultiDex 依赖库
-    implementation 'androidx.multidex:multidex:2.0.1' 
-
-    // ✅【关键新增】显式引入 Emoji2 库，确保方案A的代码能编译通过
-    implementation 'androidx.emoji2:emoji2:1.3.0'
+    implementation 'androidx.multidex:multidex:2.0.1'
 }
 
-// ================================================================
-// 🔒 只保留 force，无全局 exclude（避免 AGP 死锁）
-// ================================================================
 configurations.all {
     resolutionStrategy {
         force "androidx.media3:media3-common:1.7.1"
