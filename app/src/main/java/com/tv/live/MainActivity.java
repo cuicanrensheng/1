@@ -218,22 +218,12 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        try {
-            return super.onKeyDown(keyCode, event);
-        } catch (Exception e) {
-            android.util.Log.e("KEY_DEBUG", "onKeyDown 异常 keyCode=" + keyCode + ": " + e.getMessage(), e);
-            return true;
-        }
+        return false;
     }
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        try {
-            return super.onKeyUp(keyCode, event);
-        } catch (Exception e) {
-            android.util.Log.e("KEY_DEBUG", "onKeyUp 异常 keyCode=" + keyCode + ": " + e.getMessage(), e);
-            return true;
-        }
+        return false;
     }
 
     private boolean panelOpenOnBackDown = false;
@@ -584,6 +574,15 @@ public class MainActivity extends AppCompatActivity {
         });
 
         mPlayerManager.attachPlayerView(playerView);
+
+        // ✅【核心修复】初始化手势监听器并绑定到 PlayerView
+        if (touchListener == null) {
+            touchListener = new PlayerTouchListener(MainActivity.this);
+        }
+        PlayerGestureHelper gestureHelper = gestureManager.create();
+        touchListener.updateGestureHelper(gestureHelper);
+        playerView.setOnTouchListener(touchListener);
+
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
         mPlayerManager.setOnLiveInfoUpdateListener(info -> {
