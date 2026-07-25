@@ -1,8 +1,11 @@
 package com.tv.live;
 
 import android.app.Activity;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -17,10 +20,6 @@ import android.widget.TextView;
 /**
  * 崩溃显示页面
  * 应用崩溃时自动弹出，显示详细错误信息
- *
- * 【说明】
- * 用代码动态创建布局，不需要 XML 布局文件
- * 提供「重启应用」和「退出应用」两个按钮
  */
 public class CrashActivity extends Activity {
 
@@ -118,38 +117,64 @@ public class CrashActivity extends Activity {
 
         setContentView(rootLayout);
 
-        // ===== 显示崩溃信息 =====
+        // ================================================================
+        // 【核心修复】加载崩溃信息
+        // ================================================================
+        
+        // 1. 先尝试读取内存中的日志
         String crashLog = CrashHandler.CRASH_LOG;
+        
+        // 2. 如果内存里为空，回退读取本地保存的日志文件（解决无详细信息问题）
         if (TextUtils.isEmpty(crashLog)) {
-            tvError.setText("未知错误");
-            tvDetail.setText("无详细信息");
-        } else {
+            crashLog = CrashHandler.getInstance().getLatestCrashLog();
+        }
+
+        String errorMsg = "发生了未处理的异常";
+        String detailMsg = "无详细信息";
+
+        if (!TextUtils.isEmpty(crashLog)) {
             // 提取异常信息作为摘要
             String[] lines = crashLog.split("\n");
-            String errorMsg = "";
             for (String line : lines) {
                 if (line.startsWith("异常信息：")) {
                     errorMsg = line.replace("异常信息：", "");
                     break;
                 }
             }
-            if (TextUtils.isEmpty(errorMsg)) {
-                errorMsg = "发生了未处理的异常";
+            // 防止超长文本导致电视卡死，做长度限制
+            if (crashLog.length() > 4000) {
+                detailMsg = crashLog.substring(0, 4000) + "\n\n...(日志过长已截断，请去设置页查看完整文件)";
+            } else {
+                detailMsg = crashLog;
             }
-            tvError.setText(errorMsg);
-            tvDetail.setText(crashLog);
         }
+        
+        tvError.setText(errorMsg);
+        tvDetail.setText(detailMsg);
 
-        // 重启按钮点击
+        // ================================================================
+        // 按钮点击事件
+        // ================================================================
+
+        // 重启按钮点击（使用 AlarmManager 实现真正的重启）
         btnRestart.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                // 获取 ALARM 服务
+                AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
                 Intent intent = new Intent(CrashActivity.this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                startActivity(intent);
+                
+                PendingIntent pendingIntent = PendingIntent.getActivity(
+                        CrashActivity.this,
+                        0,
+                        intent,
+                        PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+                );
+                if (alarmManager != null) {
+                    alarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 1000, pendingIntent);
+                }
                 finish();
-                android.os.Process.killProcess(android.os.Process.myPid());
-                System.exit(0);
             }
         });
 
