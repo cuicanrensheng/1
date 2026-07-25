@@ -61,17 +61,14 @@ public class PictureInPictureManager {
     public boolean isPipSupported() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false;
         try {
-            android.app.ActivityManager am = (android.app.ActivityManager) appContext.getSystemService(Context.ACTIVITY_SERVICE);
-            if (am != null && !am.isLowRamMode() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                android.content.pm.PackageManager pm = appContext.getPackageManager();
-                if (pm.hasSystemFeature("android.software.leanback")) {
-                    return pm.hasSystemFeature("android.software.picture_in_picture");
-                }
-                return true;
+            android.content.pm.PackageManager pm = appContext.getPackageManager();
+            if (pm.hasSystemFeature("android.software.leanback")) {
+                return pm.hasSystemFeature("android.software.picture_in_picture");
             }
+            return true;
         } catch (Exception e) {
+            return false;
         }
-        return false;
     }
 
     public void setPipEnabled(boolean enabled) {
