@@ -85,15 +85,20 @@ public class DisplayManager {
             // 第二部分：Android 11+ 的 WindowInsetsController
             // ================================================
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                android.view.WindowInsetsController controller =
-                        activity.getWindow().getInsetsController();
-                if (controller != null) {
-                    controller.hide(android.view.WindowInsets.Type.systemBars());
-                    controller.setSystemBarsBehavior(
-                            android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                    );
+                try {
+                    android.view.WindowInsetsController controller =
+                            activity.getWindow().getInsetsController();
+                    if (controller != null) {
+                        controller.hide(android.view.WindowInsets.Type.systemBars());
+                        controller.setSystemBarsBehavior(
+                                android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        );
+                    }
+                    activity.getWindow().setDecorFitsSystemWindows(false);
+                } catch (Exception e) {
+                    // ✅ 电视盒子兼容：部分电视系统WindowInsetsController实现不完整，忽略异常
+                    e.printStackTrace();
                 }
-                activity.getWindow().setDecorFitsSystemWindows(false);
             }
 
             // 🟢【缓存】标记已成功应用全屏，防止后续重复调用

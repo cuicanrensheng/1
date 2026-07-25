@@ -152,7 +152,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         mInstanceRef = new WeakReference<>(this);
         sp = getSharedPreferences("app_settings", MODE_PRIVATE);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         displayManager = new DisplayManager(this);
         setContentView(R.layout.activity_main);
         displayManager.applyFullScreen();

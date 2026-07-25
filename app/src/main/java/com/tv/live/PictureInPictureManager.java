@@ -65,7 +65,23 @@ public class PictureInPictureManager {
     // 基础状态方法
     // ====================================================================
     public boolean isPipSupported() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O;
+        // ✅ 电视盒子兼容：电视通常不支持画中画，需要检查系统是否支持
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false;
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+            if (am != null && !am.isLowRamMode() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // 检查是否是电视设备，电视通常不支持PiP
+                android.content.pm.PackageManager pm = context.getPackageManager();
+                if (pm.hasSystemFeature("android.software.leanback")) {
+                    // 电视设备，检查是否真正支持PiP
+                    return pm.hasSystemFeature("android.software.picture_in_picture");
+                }
+                return true;
+            }
+        } catch (Exception e) {
+            // 忽略异常
+        }
+        return false;
     }
 
     public void setPipEnabled(boolean enabled) {
