@@ -218,118 +218,140 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        return super.onKeyDown(keyCode, event);
+        try {
+            return super.onKeyDown(keyCode, event);
+        } catch (Exception e) {
+            android.util.Log.e("KEY_DEBUG", "onKeyDown 异常 keyCode=" + keyCode + ": " + e.getMessage(), e);
+            return true;
+        }
     }
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        return super.onKeyUp(keyCode, event);
+        try {
+            return super.onKeyUp(keyCode, event);
+        } catch (Exception e) {
+            android.util.Log.e("KEY_DEBUG", "onKeyUp 异常 keyCode=" + keyCode + ": " + e.getMessage(), e);
+            return true;
+        }
     }
 
     private boolean panelOpenOnBackDown = false;
 
     // ==============================================================
     // ✅【核心修复】在 dispatchKeyEvent 开头加入空指针防御
+    // 🛡️【电视防闪退】整体 try-catch 保护，任何按键异常都不允许崩溃
     // ==============================================================
     public boolean dispatchKeyEvent(KeyEvent event) {
         // 如果核心组件尚未初始化，直接跳过所有按键处理，避免 NPE
-        if (channelPanelController == null || mPlayerManager == null) {
+        if (channelPanelController == null || mPlayerManager == null || event == null) {
             return super.dispatchKeyEvent(event);
         }
 
         int keyCode = event.getKeyCode();
         int action = event.getAction();
-        boolean panelOpen = channelPanelController != null && channelPanelController.isPanelOpen();
+        boolean panelOpen;
+        try {
+            panelOpen = channelPanelController.isPanelOpen();
+        } catch (Exception e) {
+            android.util.Log.e("KEY_DEBUG", "isPanelOpen 异常: " + e.getMessage(), e);
+            panelOpen = false;
+        }
 
-        android.util.Log.d("KEY_DEBUG", "keyCode=" + keyCode + " action=" + action + " repeat=" + event.getRepeatCount());
+        try {
+            android.util.Log.d("KEY_DEBUG", "keyCode=" + keyCode + " action=" + action + " repeat=" + event.getRepeatCount());
 
-        if (action == KeyEvent.ACTION_DOWN) {
-            if (event.getRepeatCount() == 0) {
-                if (isMenuKey(keyCode)) {
-                    if (panelOpen) {
-                        channelPanelController.hidePanel();
-                    }
-                    openSettings();
-                    return true;
-                }
-
-                if (isOkKey(keyCode)) {
-                    if (!panelOpen) {
-                        // ✅ 取消长按OK键打开设置，改为单击OK键切换面板
-                        channelPanelController.togglePanel();
-                        return true;
-                    }
-                }
-
-                if (isChannelUpKey(keyCode)) {
-                    if (!panelOpen) {
-                        channelPanelController.switchUp();
-                        return true;
-                    }
-                } else if (isChannelDownKey(keyCode)) {
-                    if (!panelOpen) {
-                        channelPanelController.switchDown();
-                        return true;
-                    }
-                } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                    if (!panelOpen) {
-                        channelPanelController.togglePanel();
-                        return true;
-                    }
-                } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                    if (!panelOpen) {
+            if (action == KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() == 0) {
+                    if (isMenuKey(keyCode)) {
+                        if (panelOpen) {
+                            channelPanelController.hidePanel();
+                        }
                         openSettings();
                         return true;
                     }
-                } else if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
-                    if (mPlayerManager != null) {
-                        if (mPlayerManager.isPlaying()) {
-                            mPlayerManager.pause();
-                        } else {
-                            mPlayerManager.resume();
+
+                    if (isOkKey(keyCode)) {
+                        if (!panelOpen) {
+                            // ✅ 取消长按OK键打开设置，改为单击OK键切换面板
+                            channelPanelController.togglePanel();
+                            return true;
                         }
                     }
-                    return true;
-                } else if (keyCode == KeyEvent.KEYCODE_MEDIA_STOP) {
-                    if (mPlayerManager != null) {
-                        mPlayerManager.pause();
-                    }
-                    return true;
-                } else if (keyCode >= KeyEvent.KEYCODE_0 && keyCode <= KeyEvent.KEYCODE_9) {
-                    handleNumberKey(keyCode);
-                    return true;
-                } else if (keyCode == KeyEvent.KEYCODE_BACK) {
-                    panelOpenOnBackDown = panelOpen;
-                    android.util.Log.d("KEY_DEBUG", "Back DOWN: panelOpen=" + panelOpen + ", panelOpenOnBackDown=" + panelOpenOnBackDown);
-                    if (panelOpen) {
-                        channelPanelController.hidePanel();
-                    }
-                    return true;
-                }
-            }
-        } else if (action == KeyEvent.ACTION_UP) {
-            if (isOkKey(keyCode)) {
-                // ✅ 取消长按OK键打开设置，OK键在ACTION_DOWN已处理，UP时直接返回
-                okKeyLongPressed = false;
-                okKeyTriggered = false;
-                okKeyDownTime = 0;
-                if (!panelOpen) {
-                    return true;
-                }
-            } else if (keyCode == KeyEvent.KEYCODE_BACK) {
-                android.util.Log.d("KEY_DEBUG", "Back UP: panelOpenOnBackDown=" + panelOpenOnBackDown + ", panelOpen=" + panelOpen);
-                if (!panelOpenOnBackDown && !panelOpen) {
-                    android.util.Log.d("KEY_DEBUG", "Calling onBackPressed()");
-                    onBackPressed();
-                }
-                return true;
-            }
-        }
 
-        if (panelOpen && panelLayout != null) {
-            if (panelLayout.dispatchKeyEvent(event)) {
-                return true;
+                    if (isChannelUpKey(keyCode)) {
+                        if (!panelOpen) {
+                            channelPanelController.switchUp();
+                            return true;
+                        }
+                    } else if (isChannelDownKey(keyCode)) {
+                        if (!panelOpen) {
+                            channelPanelController.switchDown();
+                            return true;
+                        }
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                        if (!panelOpen) {
+                            channelPanelController.togglePanel();
+                            return true;
+                        }
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        if (!panelOpen) {
+                            openSettings();
+                            return true;
+                        }
+                    } else if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
+                        if (mPlayerManager != null) {
+                            if (mPlayerManager.isPlaying()) {
+                                mPlayerManager.pause();
+                            } else {
+                                mPlayerManager.resume();
+                            }
+                        }
+                        return true;
+                    } else if (keyCode == KeyEvent.KEYCODE_MEDIA_STOP) {
+                        if (mPlayerManager != null) {
+                            mPlayerManager.pause();
+                        }
+                        return true;
+                    } else if (keyCode >= KeyEvent.KEYCODE_0 && keyCode <= KeyEvent.KEYCODE_9) {
+                        handleNumberKey(keyCode);
+                        return true;
+                    } else if (keyCode == KeyEvent.KEYCODE_BACK) {
+                        panelOpenOnBackDown = panelOpen;
+                        android.util.Log.d("KEY_DEBUG", "Back DOWN: panelOpen=" + panelOpen + ", panelOpenOnBackDown=" + panelOpenOnBackDown);
+                        if (panelOpen) {
+                            channelPanelController.hidePanel();
+                        }
+                        return true;
+                    }
+                }
+            } else if (action == KeyEvent.ACTION_UP) {
+                if (isOkKey(keyCode)) {
+                    // ✅ 取消长按OK键打开设置，OK键在ACTION_DOWN已处理，UP时直接返回
+                    okKeyLongPressed = false;
+                    okKeyTriggered = false;
+                    okKeyDownTime = 0;
+                    if (!panelOpen) {
+                        return true;
+                    }
+                } else if (keyCode == KeyEvent.KEYCODE_BACK) {
+                    android.util.Log.d("KEY_DEBUG", "Back UP: panelOpenOnBackDown=" + panelOpenOnBackDown + ", panelOpen=" + panelOpen);
+                    if (!panelOpenOnBackDown && !panelOpen) {
+                        android.util.Log.d("KEY_DEBUG", "Calling onBackPressed()");
+                        onBackPressed();
+                    }
+                    return true;
+                }
             }
+
+            if (panelOpen && panelLayout != null) {
+                if (panelLayout.dispatchKeyEvent(event)) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            // 🛡️【电视防闪退】捕获所有按键处理异常，防止崩溃
+            android.util.Log.e("KEY_DEBUG", "dispatchKeyEvent 异常 keyCode=" + keyCode + ": " + e.getMessage(), e);
         }
 
         return super.dispatchKeyEvent(event);
@@ -823,27 +845,45 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        if (isInCatchUpMode && playerControlManager != null && playerControlManager.isControllerShowing()) {
-            exitPlaybackMode();
-            return;
-        }
+        // 🛡️【电视防闪退】整体 try-catch，防止返回键处理异常导致崩溃
+        try {
+            if (isInCatchUpMode && playerControlManager != null && playerControlManager.isControllerShowing()) {
+                exitPlaybackMode();
+                return;
+            }
 
-        if (channelPanelController != null && channelPanelController.isPanelOpen()) {
-            channelPanelController.hidePanel();
-            return;
-        }
+            if (channelPanelController != null) {
+                try {
+                    if (channelPanelController.isPanelOpen()) {
+                        channelPanelController.hidePanel();
+                        return;
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("KEY_DEBUG", "onBackPressed hidePanel 异常: " + e.getMessage(), e);
+                }
+            }
 
-        if (exitMenuDialog != null && exitMenuDialog.isShowing()) {
-            exitMenuDialog.dismiss();
-            exitMenuDialog = null;
-            return;
-        }
+            if (exitMenuDialog != null) {
+                try {
+                    if (exitMenuDialog.isShowing()) {
+                        exitMenuDialog.dismiss();
+                        exitMenuDialog = null;
+                        return;
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("KEY_DEBUG", "onBackPressed exitMenu 异常: " + e.getMessage(), e);
+                    exitMenuDialog = null;
+                }
+            }
 
-        boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", false);
-        if (exitDialogEnabled) {
-            showExitMenu();
-        } else {
-            finishAffinity();
+            boolean exitDialogEnabled = sp != null && sp.getBoolean("exit_dialog_enable", false);
+            if (exitDialogEnabled) {
+                showExitMenu();
+            } else {
+                finishAffinity();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("KEY_DEBUG", "onBackPressed 异常: " + e.getMessage(), e);
         }
     }
 

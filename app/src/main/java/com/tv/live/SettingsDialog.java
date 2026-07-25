@@ -85,6 +85,11 @@ public class SettingsDialog extends android.app.Dialog {
     private long mShowTime = 0;
     private static final long IGNORE_KEY_DELAY_MS = 500; // 忽略打开后 500ms 内的按键
 
+    // 🛡️【电视防闪退】dismiss 防重入标志，避免 BACK 键 DOWN/UP 重复触发 dismiss
+    private boolean isDismissing = false;
+    // 🛡️【电视防闪退】标记是否已经处理过 BACK 键，防止事件泄露触发 onBackPressed
+    private boolean backHandled = false;
+
     public SettingsDialog(android.content.Context context) {
         super(context);
     }
@@ -291,6 +296,9 @@ public class SettingsDialog extends android.app.Dialog {
     public void show() {
         // 🟢【新增】记录对话框打开的时间
         mShowTime = System.currentTimeMillis();
+        // 🛡️【电视防闪退】重置防重入标志
+        isDismissing = false;
+        backHandled = false;
 
         super.show();
         mainHandler.postDelayed(() -> {
@@ -1530,73 +1538,122 @@ public class SettingsDialog extends android.app.Dialog {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        View[] items = {
-            findViewById(R.id.item_boot),
-            findViewById(R.id.item_reverse),
-            findViewById(R.id.item_pip),
-            findViewById(R.id.item_channel_line),
-            findViewById(R.id.item_resolution),
-            findViewById(R.id.item_decoder),
-            findViewById(R.id.item_renderer),
-            findViewById(R.id.tv_screen_ratio),
-            findViewById(R.id.item_redirect),
-            findViewById(R.id.item_live_subscribe),
-            findViewById(R.id.item_epg_subscribe),
-            findViewById(R.id.item_check_update),
-            findViewById(R.id.item_version_info),
-            findViewById(R.id.item_exit_dialog)
-        };
+        // 🛡️【电视防闪退】整体 try-catch，防止任何按键处理异常导致崩溃
+        try {
+            View[] items = {
+                findViewById(R.id.item_boot),
+                findViewById(R.id.item_reverse),
+                findViewById(R.id.item_pip),
+                findViewById(R.id.item_channel_line),
+                findViewById(R.id.item_resolution),
+                findViewById(R.id.item_decoder),
+                findViewById(R.id.item_renderer),
+                findViewById(R.id.tv_screen_ratio),
+                findViewById(R.id.item_redirect),
+                findViewById(R.id.item_live_subscribe),
+                findViewById(R.id.item_epg_subscribe),
+                findViewById(R.id.item_check_update),
+                findViewById(R.id.item_version_info),
+                findViewById(R.id.item_exit_dialog)
+            };
 
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            dismiss();
-            return true;
-        }
-
-        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-            int nextPos = selectedItemPosition + 1;
-            if (nextPos < items.length && items[nextPos] != null) {
-                items[nextPos].requestFocus();
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                // 🛡️【电视防闪退】标记 BACK 已处理，防止 UP 泄露触发 onBackPressed 二次 dismiss
+                backHandled = true;
+                dismiss();
                 return true;
             }
-        } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            int prevPos = selectedItemPosition - 1;
-            if (prevPos >= 0 && items[prevPos] != null) {
-                items[prevPos].requestFocus();
+
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                int nextPos = selectedItemPosition + 1;
+                if (nextPos < items.length && items[nextPos] != null) {
+                    items[nextPos].requestFocus();
+                    return true;
+                }
+            } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                int prevPos = selectedItemPosition - 1;
+                if (prevPos >= 0 && items[prevPos] != null) {
+                    items[prevPos].requestFocus();
+                    return true;
+                }
+            } else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+                // 🟢【关键修复】增加防误触逻辑：如果打开时间不足 500ms 则忽略按键
+                if (System.currentTimeMillis() - mShowTime < IGNORE_KEY_DELAY_MS) {
+                    android.util.Log.d("SettingsDialog", "忽略打开后短时间内的按键，防止误触");
+                    return true; // 拦截并消耗按键，但不执行任何操作
+                }
+                performItemAction(selectedItemPosition);
                 return true;
             }
-        } else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-            // 🟢【关键修复】增加防误触逻辑：如果打开时间不足 500ms 则忽略按键
-            if (System.currentTimeMillis() - mShowTime < IGNORE_KEY_DELAY_MS) {
-                android.util.Log.d("SettingsDialog", "忽略打开后短时间内的按键，防止误触");
-                return true; // 拦截并消耗按键，但不执行任何操作
-            }
-            performItemAction(selectedItemPosition);
-            return true;
+        } catch (Exception e) {
+            android.util.Log.e("SettingsDialog", "onKeyDown 异常: " + e.getMessage(), e);
         }
-
         return super.onKeyDown(keyCode, event);
     }
 
     @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        // 🛡️【电视防闪退】消耗 BACK UP 事件，防止未处理的 UP 泄露触发 Dialog.onBackPressed -> cancel() -> 二次 dismiss
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            return true;
+        }
+        try {
+            return super.onKeyUp(keyCode, event);
+        } catch (Exception e) {
+            android.util.Log.e("SettingsDialog", "onKeyUp 异常: " + e.getMessage(), e);
+            return true;
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        // 🛡️【电视防闪退】拦截 Dialog 默认的 onBackPressed -> cancel()，避免与 onKeyDown 中的 dismiss 重复调用
+        // dismiss 已由 onKeyDown 中的 BACK 处理触发，这里直接消耗，不调用 super.onBackPressed()
+        if (!isDismissing) {
+            dismiss();
+        }
+    }
+
+    @Override
     public void dismiss() {
-        if (webServerManager != null) {
-            webServerManager.stop();
+        // 🛡️【电视防闪退】防重入：BACK DOWN 触发 dismiss 后，BACK UP 泄露触发的 onBackPressed 会被拦截，
+        // 但仍可能存在其他路径重复调用 dismiss，加标志保护避免二次释放资源
+        if (isDismissing) {
+            android.util.Log.d("SettingsDialog", "dismiss 已在执行中，忽略重复调用");
+            return;
         }
-        if (updateManager != null) {
-            updateManager.release();
+        isDismissing = true;
+        try {
+            if (webServerManager != null) {
+                webServerManager.stop();
+            }
+            if (updateManager != null) {
+                updateManager.release();
+            }
+            mainHandler.removeCallbacksAndMessages(null);
+
+            Intent unlockIntent = new Intent("com.tv.live.UNLOCK_SETTINGS");
+            unlockIntent.setPackage(getContext().getPackageName());
+            try {
+                getContext().sendBroadcast(unlockIntent);
+            } catch (Exception e) {
+                android.util.Log.e("SettingsDialog", "发送解锁广播失败: " + e.getMessage(), e);
+            }
+
+            super.dismiss();
+        } catch (Exception e) {
+            android.util.Log.e("SettingsDialog", "dismiss 异常: " + e.getMessage(), e);
+            isDismissing = false;
         }
-        mainHandler.removeCallbacksAndMessages(null);
-        
-        Intent unlockIntent = new Intent("com.tv.live.UNLOCK_SETTINGS");
-        unlockIntent.setPackage(getContext().getPackageName());
-        getContext().sendBroadcast(unlockIntent);
-        
-        super.dismiss();
 
         // 🔧 设置弹窗关闭后，立即通知主界面刷新配置
-        MainActivity activity = MainActivity.getRunningInstance();
-        if (activity != null && !activity.isFinishing()) {
-            activity.refreshSettings();
+        try {
+            MainActivity activity = MainActivity.getRunningInstance();
+            if (activity != null && !activity.isFinishing()) {
+                activity.refreshSettings();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("SettingsDialog", "refreshSettings 异常: " + e.getMessage(), e);
         }
     }
 }
