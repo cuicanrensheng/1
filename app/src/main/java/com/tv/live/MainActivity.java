@@ -255,10 +255,8 @@ public class MainActivity extends AppCompatActivity {
 
                 if (isOkKey(keyCode)) {
                     if (!panelOpen) {
-                        okKeyDownTime = System.currentTimeMillis();
-                        okKeyLongPressed = false;
-                        mMainHandler.removeCallbacks(openSettingsRunnable);
-                        mMainHandler.postDelayed(openSettingsRunnable, OK_LONG_PRESS_DURATION);
+                        // ✅ 取消长按OK键打开设置，改为单击OK键切换面板
+                        channelPanelController.togglePanel();
                         return true;
                     }
                 }
@@ -311,19 +309,13 @@ public class MainActivity extends AppCompatActivity {
             }
         } else if (action == KeyEvent.ACTION_UP) {
             if (isOkKey(keyCode)) {
-                mMainHandler.removeCallbacks(openSettingsRunnable);
-                if (!okKeyLongPressed) {
-                    if (!panelOpen) {
-                        channelPanelController.togglePanel();
-                        okKeyLongPressed = false;
-                        okKeyTriggered = false;
-                        okKeyDownTime = 0;
-                        return true;
-                    }
-                }
+                // ✅ 取消长按OK键打开设置，OK键在ACTION_DOWN已处理，UP时直接返回
                 okKeyLongPressed = false;
                 okKeyTriggered = false;
                 okKeyDownTime = 0;
+                if (!panelOpen) {
+                    return true;
+                }
             } else if (keyCode == KeyEvent.KEYCODE_BACK) {
                 android.util.Log.d("KEY_DEBUG", "Back UP: panelOpenOnBackDown=" + panelOpenOnBackDown + ", panelOpen=" + panelOpen);
                 if (!panelOpenOnBackDown && !panelOpen) {
