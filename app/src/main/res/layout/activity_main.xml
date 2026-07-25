@@ -13,7 +13,7 @@
         android:layout_gravity="center"
         app:use_controller="false"
         app:resize_mode="fit"
-        app:keep_content_on_player_reset="true"
+        app:keep_content_on_player_reset="false"
         app:surface_type="surface_view" />
 
     <!-- 全局遮罩层 -->

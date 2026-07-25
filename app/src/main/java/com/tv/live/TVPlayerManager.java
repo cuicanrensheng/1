@@ -253,6 +253,8 @@ public class TVPlayerManager {
         SoftwareFirstMediaCodecSelector codecSelector = new SoftwareFirstMediaCodecSelector(mDecoderMode);
         renderersFactory.setMediaCodecSelector(codecSelector);
         renderersFactory.setEnableDecoderFallback(true);
+        // ✅ 启用扩展渲染器（FFmpeg 等），硬解失败时自动 fallback 到软解，避免花屏/卡死
+        renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
 
         switch (mDecoderMode) {
             case DECODER_MODE_SOFT:
@@ -267,8 +269,12 @@ public class TVPlayerManager {
                 break;
         }
 
+        // ✅ 直播场景 buffer 调优：提高起播/重缓冲阈值，避免网络抖动反复 BUFFERING
+        // minBuffer=5000, maxBuffer=50000, bufferForPlayback=1500, bufferForPlaybackAfterRebuffer=3000
+        // 并启用 backBuffer=30000ms，保留已解码帧，切台/重试时不丢帧导致花屏
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(3000, 60000, 1000, 2000)
+                .setBufferDurationsMs(5000, 50000, 1500, 3000)
+                .setBackBuffer(30000, true)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
 
@@ -280,19 +286,28 @@ public class TVPlayerManager {
                 .setTrackSelector(trackSelector)
                 .build();
 
-        try {
-            List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos("video/avc", false, false);
-            int softCount = 0, hardCount = 0;
-            for (MediaCodecInfo codec : h264Codecs) {
-                if (isSoftwareDecoder(codec)) softCount++;
-                else hardCount++;
+        // ✅ MediaCodecUtil 枚举耗时（部分电视盒子 50~200ms），移到子线程避免阻塞主线程
+        new Thread(() -> {
+            try {
+                List<MediaCodecInfo> h264Codecs = MediaCodecUtil.getDecoderInfos("video/avc", false, false);
+                int softCount = 0, hardCount = 0;
+                for (MediaCodecInfo codec : h264Codecs) {
+                    if (isSoftwareDecoder(codec)) softCount++;
+                    else hardCount++;
+                }
+                dLog("【解码器】软解 " + softCount + " 个，硬解 " + hardCount + " 个");
+            } catch (Exception ignored) {
             }
-            dLog("【解码器】软解 " + softCount + " 个，硬解 " + hardCount + " 个");
-        } catch (Exception ignored) {
-        }
+        }).start();
 
         initPlayerListener();
-        CookieManager.getInstance().setAcceptCookie(true);
+        // ✅ CookieManager 与 WebView 共享锁，移到子线程避免主线程卡顿
+        new Thread(() -> {
+            try {
+                CookieManager.getInstance().setAcceptCookie(true);
+            } catch (Exception ignored) {
+            }
+        }).start();
     }
 
     static boolean isSoftwareDecoder(MediaCodecInfo codec) {
@@ -633,7 +648,8 @@ public class TVPlayerManager {
         PlayerView newPlayerView = new PlayerView(themedContext);
         newPlayerView.setLayoutParams(layoutParams);
         newPlayerView.setUseController(useController);
-        newPlayerView.setKeepContentOnPlayerReset(true);
+        // ✅ 修复切台花屏：不保留上一帧残影，避免不完整 I/P 帧渲染成花屏
+        newPlayerView.setKeepContentOnPlayerReset(false);
         newPlayerView.setKeepScreenOn(true);
 
         int resizeMode;
@@ -658,7 +674,8 @@ public class TVPlayerManager {
         parent.removeView(playerView);
         playerView = newPlayerView;
 
-        if (currentPosition > 0) player.seekTo(currentPosition);
+        // ✅ 修复直播花屏：直播流无明确定位点，seekTo 会触发重新拉取 segment 列表导致花屏/卡顿，跳过 seek。
+        // if (currentPosition > 0) player.seekTo(currentPosition);
         if (wasPlaying) {
             mHandler.postDelayed(() -> {
                 if (player != null && !player.isPlaying()) player.play();
@@ -732,7 +749,20 @@ public class TVPlayerManager {
         playerView = view;
         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         String rendererMode = sp.getString("renderer_type", "surface");
-        switchRenderer("texture".equals(rendererMode));
+        boolean wantTexture = "texture".equals(rendererMode);
+
+        // ✅ 修复首屏花屏：首次 attach 时 mCurrentUseTexture==null，原逻辑会强制重建 PlayerView，
+        // 导致 XML 中的 SurfaceView 被移除重建，首帧渲染延迟丢帧花屏。
+        // 首次直接初始化 mCurrentUseTexture 并绑定 Player，不触发 switchRenderer 的 view 重建分支。
+        if (mCurrentUseTexture == null) {
+            mCurrentUseTexture = wantTexture;
+            playerView.setPlayer(player);
+            playerView.setUseController(false);
+            playerView.setKeepContentOnPlayerReset(false);
+            return;
+        }
+
+        switchRenderer(wantTexture);
         playerView.setPlayer(player);
         playerView.setUseController(false);
     }
@@ -1193,6 +1223,18 @@ public class TVPlayerManager {
     public void resume() {
         try {
             if (player != null) player.play();
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * ✅ 修复花屏：重新绑定 Player 到 PlayerView，避免 setVisibility(GONE/VISIBLE) 触发 SurfaceView 销毁重建。
+     * 该方法不会重建 View 层级，只重置 Player 关联，确保 surface 复用，避免首帧花屏/绿屏。
+     */
+    public void reattachPlayerView() {
+        try {
+            if (playerView == null || player == null) return;
+            playerView.setPlayer(null);
+            playerView.setPlayer(player);
         } catch (Exception ignored) {}
     }
 

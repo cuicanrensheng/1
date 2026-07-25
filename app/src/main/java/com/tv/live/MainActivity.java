@@ -1052,11 +1052,12 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
-                // 强制刷新播放器渲染，避免黑屏
+                // ✅ 修复花屏：原 setVisibility(GONE/VISIBLE) 会销毁重建 SurfaceView，
+                // 导致 ExoPlayer 丢失 surface 丢帧，首帧渲染花屏/绿屏。
+                // 改用重新绑定 Player 的方式，不触发 SurfaceView 重建。
                 try {
                     if (playerView != null) {
-                        playerView.setVisibility(View.GONE);
-                        playerView.setVisibility(View.VISIBLE);
+                        mPlayerManager.reattachPlayerView();
                     }
                 } catch (Exception e) {
                     android.util.Log.e("MainActivity", "刷新播放器失败", e);
