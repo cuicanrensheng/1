@@ -3,10 +3,12 @@ package com.tv.live;
 import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Process;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -20,6 +22,7 @@ import android.widget.TextView;
 /**
  * 崩溃显示页面
  * 应用崩溃时自动弹出，显示详细错误信息
+ * 纯代码动态构建，绝不依赖 activity_main.xml，防止因 PlayerView 崩溃导致连崩溃页都进不去
  */
 public class CrashActivity extends Activity {
 
@@ -28,14 +31,16 @@ public class CrashActivity extends Activity {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
 
-        // ===== 用代码动态创建布局 =====
+        // ============================================================
+        // 纯代码动态创建布局（防御性编程，杜绝 XML 解析崩溃）
+        // ============================================================
         LinearLayout rootLayout = new LinearLayout(this);
         rootLayout.setOrientation(LinearLayout.VERTICAL);
         rootLayout.setBackgroundColor(0xFFFFFFFF);
         rootLayout.setPadding(48, 48, 48, 48);
         rootLayout.setGravity(Gravity.CENTER_HORIZONTAL);
 
-        // 标题
+        // --- 1. 标题 ---
         TextView tvTitle = new TextView(this);
         tvTitle.setText("😢 应用崩溃了");
         tvTitle.setTextSize(22);
@@ -48,7 +53,7 @@ public class CrashActivity extends Activity {
         tvTitle.setLayoutParams(titleParams);
         rootLayout.addView(tvTitle);
 
-        // 错误摘要
+        // --- 2. 错误摘要 ---
         TextView tvError = new TextView(this);
         tvError.setTextSize(15);
         tvError.setTextColor(0xFFFF4D4F);
@@ -60,16 +65,15 @@ public class CrashActivity extends Activity {
         tvError.setLayoutParams(errorParams);
         rootLayout.addView(tvError);
 
-        // 滚动容器（放详细堆栈）
+        // --- 3. 滚动容器（详细日志） ---
         ScrollView scrollView = new ScrollView(this);
         LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
-                1);
+                1); // 权重为1，自动填满剩余空间
         scrollParams.setMargins(0, 0, 0, 24);
         scrollView.setLayoutParams(scrollParams);
 
-        // 详细堆栈信息
         TextView tvDetail = new TextView(this);
         tvDetail.setTextSize(11);
         tvDetail.setTextColor(Color.BLACK);
@@ -78,7 +82,7 @@ public class CrashActivity extends Activity {
         scrollView.addView(tvDetail);
         rootLayout.addView(scrollView);
 
-        // 按钮容器
+        // --- 4. 按钮容器 ---
         LinearLayout btnLayout = new LinearLayout(this);
         btnLayout.setOrientation(LinearLayout.HORIZONTAL);
         btnLayout.setGravity(Gravity.CENTER);
@@ -114,26 +118,20 @@ public class CrashActivity extends Activity {
         btnLayout.addView(btnExit);
 
         rootLayout.addView(btnLayout);
-
         setContentView(rootLayout);
 
-        // ================================================================
-        // 🔥【核心修改】完整加载崩溃信息，不再截断日志
-        // ================================================================
-        
-        // 1. 先尝试读取内存中的日志
+        // ============================================================
+        // 读取并显示崩溃信息
+        // ============================================================
         String crashLog = CrashHandler.CRASH_LOG;
-        
-        // 2. 如果内存里为空，回退读取本地保存的日志文件
         if (TextUtils.isEmpty(crashLog)) {
             crashLog = CrashHandler.getInstance().getLatestCrashLog();
         }
 
         String errorMsg = "发生了未处理的异常";
-        String detailMsg = "无详细信息";
+        String detailMsg = "无详细信息 (日志文件可能未保存)";
 
         if (!TextUtils.isEmpty(crashLog)) {
-            // 提取异常信息作为摘要
             String[] lines = crashLog.split("\n");
             for (String line : lines) {
                 if (line.startsWith("异常信息：")) {
@@ -141,27 +139,23 @@ public class CrashActivity extends Activity {
                     break;
                 }
             }
-            
-            // 🛡️【关键删除】删除了之前的 if (crashLog.length() > 4000) 截断逻辑！
-            // 现在无论日志多长，都会 100% 完整赋值给 tvDetail
-            detailMsg = crashLog; 
+            detailMsg = crashLog; // 完整显示，不再截断
         }
-        
+
         tvError.setText(errorMsg);
         tvDetail.setText(detailMsg);
 
-        // ================================================================
-        // 按钮点击事件
-        // ================================================================
+        // ============================================================
+        // 【核心修复】点击事件绑定
+        // ============================================================
 
-        // 重启按钮点击（使用 AlarmManager 实现真正的重启）
-        btnRestart.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+        // 1. 重启按钮点击
+        btnRestart.setOnClickListener(v -> {
+            try {
+                AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
                 Intent intent = new Intent(CrashActivity.this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                
+
                 PendingIntent pendingIntent = PendingIntent.getActivity(
                         CrashActivity.this,
                         0,
@@ -171,25 +165,28 @@ public class CrashActivity extends Activity {
                 if (alarmManager != null) {
                     alarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 1000, pendingIntent);
                 }
-                finish();
-            }
+            } catch (Exception ignored) {}
+            // 无论是正常重启还是失败，当前页面都要关闭
+            finish();
         });
 
-        // 退出按钮点击
-        btnExit.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finish();
-                android.os.Process.killProcess(android.os.Process.myPid());
-                System.exit(0);
-            }
+        // 2. 退出按钮点击 (彻底杀死进程)
+        btnExit.setOnClickListener(v -> {
+            // 销毁当前的 Activity
+            finish();
+            // 🔥 强制杀死当前应用进程
+            Process.killProcess(Process.myPid());
+            System.exit(0);
         });
     }
 
+    // ============================================================
+    // 按返回键也彻底退出
+    // ============================================================
     @Override
     public void onBackPressed() {
         finish();
-        android.os.Process.killProcess(android.os.Process.myPid());
+        Process.killProcess(Process.myPid());
         System.exit(0);
     }
 }
