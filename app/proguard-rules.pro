@@ -50,6 +50,10 @@
 -keep class com.tv.live.bean.** { *; }
 -keep class com.tv.live.SourceManager$SourceItem { *; }
 
+# ==========================================================
+# 🔥 核心修复：ExoPlayer (Media3) 混淆保留规则
+# 这确保 PlayerView 在 XML 中能正常加载，不会崩溃
+# ==========================================================
 -keep interface androidx.media3.common.Player { *; }
 -keep interface androidx.media3.common.MediaItem { *; }
 -keep interface androidx.media3.common.Timeline { *; }
@@ -79,6 +83,9 @@
 
 -dontwarn androidx.media3.**
 
+# ==========================================================
+# 第三方库混淆规则
+# ==========================================================
 -dontwarn com.alibaba.fastjson.**
 -keep class com.alibaba.fastjson.JSON { *; }
 -keep class com.alibaba.fastjson.JSONObject { *; }
