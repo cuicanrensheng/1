@@ -4,7 +4,9 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/dialog_bg_corner"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:maxWidth="600dp"
+    android:maxHeight="650dp">
 
     <ScrollView
         android:layout_width="match_parent"
