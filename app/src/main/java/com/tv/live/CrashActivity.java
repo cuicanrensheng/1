@@ -118,13 +118,13 @@ public class CrashActivity extends Activity {
         setContentView(rootLayout);
 
         // ================================================================
-        // 【核心修复】加载崩溃信息
+        // 🔥【核心修改】完整加载崩溃信息，不再截断日志
         // ================================================================
         
         // 1. 先尝试读取内存中的日志
         String crashLog = CrashHandler.CRASH_LOG;
         
-        // 2. 如果内存里为空，回退读取本地保存的日志文件（解决无详细信息问题）
+        // 2. 如果内存里为空，回退读取本地保存的日志文件
         if (TextUtils.isEmpty(crashLog)) {
             crashLog = CrashHandler.getInstance().getLatestCrashLog();
         }
@@ -141,12 +141,10 @@ public class CrashActivity extends Activity {
                     break;
                 }
             }
-            // 防止超长文本导致电视卡死，做长度限制
-            if (crashLog.length() > 4000) {
-                detailMsg = crashLog.substring(0, 4000) + "\n\n...(日志过长已截断，请去设置页查看完整文件)";
-            } else {
-                detailMsg = crashLog;
-            }
+            
+            // 🛡️【关键删除】删除了之前的 if (crashLog.length() > 4000) 截断逻辑！
+            // 现在无论日志多长，都会 100% 完整赋值给 tvDetail
+            detailMsg = crashLog; 
         }
         
         tvError.setText(errorMsg);
@@ -160,7 +158,6 @@ public class CrashActivity extends Activity {
         btnRestart.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 获取 ALARM 服务
                 AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
                 Intent intent = new Intent(CrashActivity.this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -191,7 +188,6 @@ public class CrashActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // 按返回键也退出应用
         finish();
         android.os.Process.killProcess(android.os.Process.myPid());
         System.exit(0);
