@@ -35,8 +35,8 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionCode 2174
-        versionName "2.0.2141.2142.2143.2144.2145.2146.2151.2152.2155.2156.2162.2163.2165.2166.2168.2169.2172.2173.2174"
+        versionCode 2173
+        versionName "2.0.2141.2142.2143.2144.2145.2146.2151.2152.2155.2156.2162.2163.2165.2166.2168.2169.2172.2173"
 
         multiDexEnabled true 
 
@@ -69,10 +69,9 @@ android {
 
     buildTypes {
         release {
-            // 🔥【紧急修复】将 minifyEnabled 和 shrinkResources 暂时改为 false
-            // 这样编译出来的包不会混淆，就能避免 PlayerView 被删掉崩溃
-            minifyEnabled false
-            shrinkResources false
+            // 🔥【最终验证】开启混淆和资源压缩，验证 proguard-rules.pro 是否生效
+            minifyEnabled true
+            shrinkResources true
             
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
