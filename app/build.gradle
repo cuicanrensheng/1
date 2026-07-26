@@ -38,7 +38,6 @@ android {
         versionCode 2172
         versionName "2.0.2141.2142.2143.2144.2145.2146.2151.2152.2155.2156.2162.2163.2165.2166.2168.2169.2172"
 
-        // ✅【核心修复】开启 MultiDex 支持
         multiDexEnabled true 
 
         buildConfigField "int", "VERSION_CODE", "${versionCode}"
@@ -70,9 +69,11 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
-            crunchPngs false
+            // 🔥【紧急修复】将 minifyEnabled 和 shrinkResources 暂时改为 false
+            // 这样编译出来的包不会混淆，就能避免 PlayerView 被删掉崩溃
+            minifyEnabled false
+            shrinkResources false
+            
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
@@ -109,7 +110,7 @@ android {
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
-    // ✅【最核心修复】在 appcompat 中剔除 emoji2，彻底解决旧电视闪退
+    // ✅【核心修复】在 appcompat 中剔除 emoji2，解决了第一个空指针问题
     implementation('androidx.appcompat:appcompat:1.6.1') {
         exclude group: 'androidx.emoji2'
     }
