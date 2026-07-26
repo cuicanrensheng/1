@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.PowerManager;
 import android.util.Log;
 
 /**
@@ -54,6 +55,11 @@ public class BootStartReceiver extends BroadcastReceiver {
 
         Log.d(TAG, "开始启动应用...");
 
+        // 🛡️【微调 1：在 5.1.1 上强制点亮屏幕】
+        // 部分电视盒子在开机后 3 秒屏幕可能是休眠/黑屏状态，
+        // 直接启动 Activity 会导致启动失败。
+        acquireWakeLock(context);
+
         // ====================================================================
         // 多重兜底方案，确保能启动成功
         // ====================================================================
@@ -85,6 +91,30 @@ public class BootStartReceiver extends BroadcastReceiver {
         }
 
         Log.e(TAG, "所有方案都失败，启动应用失败");
+    }
+
+    // ====================================================================
+    // 辅助工具：唤醒屏幕锁 (新增)
+    // ====================================================================
+    /**
+     * 申请临时的 CPU 唤醒锁，防止 5.1.1 旧设备在唤醒前屏幕未点亮。
+     * 在 3 秒后自动释放，不会造成耗电。
+     */
+    private void acquireWakeLock(Context context) {
+        try {
+            PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (powerManager != null) {
+                PowerManager.WakeLock wakeLock = powerManager.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK, 
+                        "BootStartReceiver:WakeLock"
+                );
+                // 仅申请 1000 毫秒唤醒，启动 Activity 后自动释放
+                wakeLock.acquire(1000);
+                Log.d(TAG, "已获取临时 CPU 唤醒锁");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "获取唤醒锁失败，不影响启动", e);
+        }
     }
 
     // ====================================================================
