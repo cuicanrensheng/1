@@ -12,18 +12,13 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- ✅ 电视盒子兼容：声明触摸屏非必需（电视盒子无触摸屏） -->
+    <!-- ✅ 电视盒子兼容：声明非必需硬件 -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-    <!-- ✅ 电视盒子兼容：声明传感器非必需 -->
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />
-    <!-- ✅ 电视盒子兼容：声明电话功能非必需 -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
-    <!-- ✅ 电视盒子兼容：声明相机非必需 -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <!-- ✅ 电视盒子兼容：声明GPS非必需 -->
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
-    <!-- ✅ 电视盒子兼容：声明麦克风非必需 -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
@@ -48,7 +43,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-                <!-- ✅ 电视盒子兼容：添加 Leanback 启动入口，让电视桌面显示应用图标 -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
@@ -58,32 +52,35 @@
             android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize" />
 
-        <!-- ✅ 修改点：将主题改为与主界面一致的全屏黑色主题，避免电视上 Dialog 渲染崩溃 -->
         <activity
             android:name=".CrashActivity"
             android:theme="@style/Theme.TVLive.NoTitle"
             android:exported="false"
             android:excludeFromRecents="true" />
 
+        <!-- ========================================================== -->
+        <!-- ✅【核心修复】精简并合并开机自启接收器                      -->
+        <!-- ========================================================== -->
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
             android:exported="true">
-            <intent-filter android:priority="1000">
+            <intent-filter>
+                <!-- 标准开机广播 -->
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <!-- Android 5.1.1 及旧电视常被遗漏的广播 -->
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
-                <category android:name="android.intent.category.DEFAULT" />
+                <!-- 应用更新后触发 (应对某些系统不发送开机广播的情况) -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 
+        <!-- 如果你需要保持自定义广播作为调试备用，可以保留，但需改成 exported="true" -->
         <receiver
             android:name=".BootStartReceiver"
             android:enabled="true"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.tv.live.START_APP" />
             </intent-filter>
