@@ -4,7 +4,8 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/dialog_bg_corner"
-    android:padding="0dp">
+    android:padding="0dp"
+    android:maxWidth="700dp">
 
     <!-- 顶部：标题 + 扫码远程输入 -->
     <RelativeLayout
@@ -77,17 +78,15 @@
             android:layout_marginStart="16dp"
             android:baselineAligned="false">
 
-            <!-- ✨ 已去除：列表订阅 4个字 -->
-            
-            <!-- 列表视图：去掉了顶部的 marginTop 以防有间隙 -->
+            <!-- 列表视图 -->
             <ListView
-            android:id="@+id/lv_source_list"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:divider="@null"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:nextFocusDown="@+id/btn_clear" />
+                android:id="@+id/lv_source_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="@null"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:nextFocusDown="@+id/btn_clear" />
         </LinearLayout>
     </LinearLayout>
 
