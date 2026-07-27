@@ -586,6 +586,12 @@ public class MainActivity extends AppCompatActivity {
         });
 
         mPlayerManager.attachPlayerView(playerView);
+
+        touchListener = new PlayerTouchListener(MainActivity.this);
+        final PlayerGestureHelper gestureHelper = gestureManager.create();
+        touchListener.updateGestureHelper(gestureHelper);
+        playerView.setOnTouchListener(touchListener);
+
         playerStateListener = new PlayerStateListenerImpl(this);
         mPlayerManager.setOnPlayStateListener(playerStateListener);
         mPlayerManager.setOnLiveInfoUpdateListener(info -> {

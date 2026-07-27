@@ -7,6 +7,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Handler;
@@ -14,10 +16,12 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
+import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 
@@ -97,6 +101,7 @@ public class TVPlayerManager {
     private Context context;
     private ExoPlayer player;
     private PlayerView playerView;
+    private ImageView screenshotView;
     private Player.Listener playerListener;
     private String currentUrl;
     private int currentChannelNumber = 0;
@@ -540,6 +545,13 @@ public class TVPlayerManager {
             mHandler.removeCallbacks(stuckCheckRunnable);
             mHandler.removeCallbacks(retryRunnable);
             mHandler.removeCallbacks(hideChannelRunnable);
+        } catch (Exception e) {
+            Log.e(TAG, "移除回调异常", e);
+        }
+
+        showSnapshot();
+
+        try {
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -578,14 +590,65 @@ public class TVPlayerManager {
             }
 
             playUrlInternal(currentUrl, currentPosition);
-            mHandler.postDelayed(() -> { isSwitching = false; }, 30000);
+            mHandler.postDelayed(() -> {
+                hideSnapshot();
+                isSwitching = false;
+            }, 3000);
         } else if (playerView == null) {
+            hideSnapshot();
             isSwitching = false;
         }
     }
 
     public int getDecoderMode() {
         return mDecoderMode;
+    }
+
+    private void showSnapshot() {
+        if (playerView == null) return;
+        try {
+            ViewParent rawParent = playerView.getParent();
+            if (!(rawParent instanceof ViewGroup)) return;
+            ViewGroup parent = (ViewGroup) rawParent;
+
+            playerView.setDrawingCacheEnabled(true);
+            Bitmap snapshot = playerView.getDrawingCache();
+            if (snapshot != null) {
+                snapshot = snapshot.copy(Bitmap.Config.ARGB_8888, false);
+            }
+            playerView.setDrawingCacheEnabled(false);
+
+            if (snapshot != null) {
+                if (screenshotView == null) {
+                    screenshotView = new ImageView(context);
+                    screenshotView.setScaleType(ImageView.ScaleType.FIT_XY);
+                    screenshotView.setLayoutParams(new FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT));
+                }
+                screenshotView.setImageBitmap(snapshot);
+                int index = parent.indexOfChild(playerView);
+                parent.addView(screenshotView, index);
+                dLog("快照已显示");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "显示快照失败", e);
+        }
+    }
+
+    private void hideSnapshot() {
+        if (screenshotView != null) {
+            try {
+                ViewParent parent = screenshotView.getParent();
+                if (parent instanceof ViewGroup) {
+                    ((ViewGroup) parent).removeView(screenshotView);
+                }
+                screenshotView.setImageBitmap(null);
+                dLog("快照已隐藏");
+            } catch (Exception e) {
+                Log.e(TAG, "隐藏快照失败", e);
+            }
+        }
     }
 
     // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
@@ -643,6 +706,8 @@ public class TVPlayerManager {
         boolean useController = playerView.getUseController();
         ViewGroup.LayoutParams layoutParams = playerView.getLayoutParams();
 
+        showSnapshot();
+
         int index = parent.indexOfChild(playerView);
         int styleRes = useTexture ? R.style.PlayerView_Texture : R.style.PlayerView_Surface;
         ContextThemeWrapper themedContext = new ContextThemeWrapper(context, styleRes);
@@ -667,27 +732,38 @@ public class TVPlayerManager {
         }
         newPlayerView.setResizeMode(resizeMode);
 
-        parent.addView(newPlayerView, index, layoutParams);
+        parent.addView(newPlayerView, index);
 
         newPlayerView.setPlayer(player);
         playerView.setPlayer(null);
-        parent.removeView(playerView);
-        playerView = newPlayerView;
 
-        if (currentPosition > 0) player.seekTo(currentPosition);
-        if (wasPlaying) {
+        mHandler.postDelayed(() -> {
+            try {
+                parent.removeView(playerView);
+            } catch (Exception e) {
+                Log.e(TAG, "移除旧 PlayerView 失败", e);
+            }
+            playerView = newPlayerView;
+
+            if (currentPosition > 0) player.seekTo(currentPosition);
+            if (wasPlaying) {
+                mHandler.postDelayed(() -> {
+                    if (player != null && !player.isPlaying()) player.play();
+                }, 200);
+            }
+
+            if (onPlayerViewRecreatedListener != null) {
+                onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
+            }
+            playerView.requestFocus();
+
+            mCurrentUseTexture = useTexture;
+            isRenderingSwitching = false;
+
             mHandler.postDelayed(() -> {
-                if (player != null && !player.isPlaying()) player.play();
-            }, 200);
-        }
-
-        if (onPlayerViewRecreatedListener != null) {
-            onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
-        }
-        playerView.requestFocus();
-
-        mCurrentUseTexture = useTexture;
-        isRenderingSwitching = false;
+                hideSnapshot();
+            }, 1000);
+        }, 100);
     }
 
     // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
@@ -746,11 +822,17 @@ public class TVPlayerManager {
 
     public void attachPlayerView(PlayerView view) {
         playerView = view;
-        SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-        String rendererMode = sp.getString("renderer_type", "surface");
-        switchRenderer("texture".equals(rendererMode));
         playerView.setPlayer(player);
         playerView.setUseController(false);
+
+        SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        String rendererMode = sp.getString("renderer_type", "surface");
+        boolean useTexture = "texture".equals(rendererMode);
+        if (useTexture) {
+            switchRenderer(true);
+        } else {
+            mCurrentUseTexture = false;
+        }
     }
 
     private void updateWakeLock(boolean enable) {
@@ -768,6 +850,17 @@ public class TVPlayerManager {
 
     public void playUrl(String url, String channelName, Channel channel) {
         Log.d(TAG, "playUrl: url=" + url + ", channelName=" + channelName + ", channel=" + channel);
+
+        if (url != null && url.equals(currentUrl) && player != null && player.isPlaying()) {
+            Log.d(TAG, "【播放】已在播放同一URL，跳过重复播放");
+            if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
+            this.currentChannel = channel;
+            if (channel != null && TextUtils.isEmpty(this.currentChannelName)) {
+                this.currentChannelName = channel.getName();
+            }
+            return;
+        }
+
         if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
         this.currentChannel = channel;
         this.backupRetryIndex = -1;
