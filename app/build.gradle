@@ -38,6 +38,8 @@ android {
         versionCode 2200
         versionName "2.0.2195.2196.2197.2198.2199.2200"
 
+        resConfigs "zh"
+
         multiDexEnabled true 
 
         buildConfigField "int", "VERSION_CODE", "${versionCode}"
