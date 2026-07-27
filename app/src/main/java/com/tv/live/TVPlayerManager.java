@@ -231,6 +231,7 @@ public class TVPlayerManager {
                 mHandler.postDelayed(this, 2000);
             }
         };
+        initPlayer();
     }
     
     private void dLog(String msg) {
@@ -285,10 +286,6 @@ public class TVPlayerManager {
 
         initPlayerListener();
         CookieManager.getInstance().setAcceptCookie(true);
-
-        if (playerView != null) {
-            playerView.setPlayer(player);
-        }
     }
 
     static boolean isSoftwareDecoder(MediaCodecInfo codec) {
@@ -811,9 +808,7 @@ public class TVPlayerManager {
 
     public void attachPlayerView(PlayerView view) {
         playerView = view;
-        if (player != null) {
-            playerView.setPlayer(player);
-        }
+        playerView.setPlayer(player);
         playerView.setUseController(false);
 
         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
@@ -894,10 +889,7 @@ public class TVPlayerManager {
 
     private void playUrlInternal(String url, long initialSeekPosition) {
         try {
-            if (url == null || url.trim().isEmpty()) return;
-            if (player == null) {
-                initPlayer();
-            }
+            if (player == null || url == null || url.trim().isEmpty()) return;
 
             String playUrl = url.trim();
             if (currentChannel != null) {
@@ -1022,7 +1014,7 @@ public class TVPlayerManager {
         Pattern streamInfPattern = Pattern.compile("^#EXT-X-STREAM-INF:", Pattern.CASE_INSENSITIVE);
         Pattern bandwidthPattern = Pattern.compile("BANDWIDTH=(\\d+)", Pattern.CASE_INSENSITIVE);
         Pattern resolutionPattern = Pattern.compile("RESOLUTION=(\\d+)x(\\d+)", Pattern.CASE_INSENSITIVE);
-        dLog("播放列表内容（截取前500字符）：\\n" + playlist.substring(0, Math.min(playlist.length(), 500)));
+        dLog("播放列表内容（截取前500字符）：\n" + playlist.substring(0, Math.min(playlist.length(), 500)));
 
         String[] lines = playlist.split("\\r?\\n");
         for (int i = 0; i < lines.length; i++) {
@@ -1266,15 +1258,19 @@ public class TVPlayerManager {
     public void togglePlayWhenReady() {
         try {
             if (player == null) return;
+            if (player.getPlaybackState() == androidx.media3.common.Player.STATE_IDLE
+                    || player.getPlaybackState() == androidx.media3.common.Player.STATE_ENDED) {
+                return;
+            }
             player.setPlayWhenReady(!player.getPlayWhenReady());
-        } catch (Exception e) {
-            Log.e(TAG, "togglePlayWhenReady 异常", e);
-        }
+        } catch (Exception ignored) {}
     }
 
     public boolean isPlaying() {
         try {
-            return player != null && player.isPlaying();
+            return player != null && player.getPlayWhenReady()
+                    && player.getPlaybackState() != androidx.media3.common.Player.STATE_IDLE
+                    && player.getPlaybackState() != androidx.media3.common.Player.STATE_ENDED;
         } catch (Exception e) {
             return false;
         }
@@ -1284,6 +1280,10 @@ public class TVPlayerManager {
         try {
             stopStuckDetection();
             cancelRetry();
+            mHandler.removeCallbacksAndMessages(null);
+            updateWakeLock(false);
+            unregisterDecoderModeReceiver();
+            unregisterRendererModeReceiver();
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -1292,12 +1292,79 @@ public class TVPlayerManager {
                 player.release();
                 player = null;
             }
-            if (screenshotView != null) {
-                screenshotView.setImageBitmap(null);
-                screenshotView = null;
+            if (playerView != null) {
+                playerView.setPlayer(null);
+                playerView = null;
             }
+            instance = null;
         } catch (Exception e) {
             Log.e(TAG, "释放异常", e);
+        }
+    }
+
+    private static final String[] UNSTABLE_HARDWARE_BLACKLIST_LOWER = new String[] {
+            "c2.intel.goldfish.",
+            "omx.google.android.",
+            "c2.amlogic.avc.decoder.awesome",
+    };
+
+    static boolean isUnstableHardwareDecoder(String codecName) {
+        if (codecName == null) return false;
+        String lower = codecName.toLowerCase(Locale.ROOT);
+        for (String prefix : UNSTABLE_HARDWARE_BLACKLIST_LOWER) {
+            if (lower.startsWith(prefix)) return true;
+        }
+        return false;
+    }
+
+    static List<MediaCodecInfo> applyCodecPolicy(List<MediaCodecInfo> allCodecs, int mode) {
+        if (allCodecs == null || allCodecs.isEmpty()) return allCodecs;
+
+        List<MediaCodecInfo> afterBlacklist = new ArrayList<>();
+        for (MediaCodecInfo codec : allCodecs) {
+            if (codec == null) continue;
+            if (isUnstableHardwareDecoder(codec.name)) continue;
+            afterBlacklist.add(codec);
+        }
+        if (afterBlacklist.isEmpty()) {
+            afterBlacklist = new ArrayList<>(allCodecs);
+        }
+
+        switch (mode) {
+            case DECODER_MODE_HARD: {
+                List<MediaCodecInfo> hard = new ArrayList<>();
+                for (MediaCodecInfo codec : afterBlacklist) {
+                    if (!isSoftwareDecoder(codec)) hard.add(codec);
+                }
+                return hard.isEmpty() ? afterBlacklist : hard;
+            }
+            case DECODER_MODE_SOFT: {
+                List<MediaCodecInfo> soft = new ArrayList<>();
+                List<MediaCodecInfo> hard = new ArrayList<>();
+                for (MediaCodecInfo codec : afterBlacklist) {
+                    if (isSoftwareDecoder(codec)) soft.add(codec);
+                    else hard.add(codec);
+                }
+                soft.addAll(hard);
+                return soft;
+            }
+            case DECODER_MODE_AUTO:
+            default:
+                return afterBlacklist;
+        }
+    }
+
+    private static class SoftwareFirstMediaCodecSelector implements MediaCodecSelector {
+        private final int decoderMode;
+
+        public SoftwareFirstMediaCodecSelector(int mode) {
+            this.decoderMode = mode;
+        }
+
+        @Override
+        public List<MediaCodecInfo> getDecoderInfos(String mimeType, boolean requiresSecureDecoder, boolean requiresTunnelingDecoder) throws MediaCodecUtil.DecoderQueryException {
+            List<MediaCodecInfo> allCodecs = MediaCodecUtil.getDecoderInfos(mimeType, false, false);
+            return applyCodecPolicy(allCodecs, decoderMode);
         }
     }
 }
