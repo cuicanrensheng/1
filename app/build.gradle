@@ -35,8 +35,8 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionCode 2197
-        versionName "2.0.2195.2196.2197"
+        versionCode 2198
+        versionName "2.0.2195.2196.2197.2198"
 
         multiDexEnabled true 
 
