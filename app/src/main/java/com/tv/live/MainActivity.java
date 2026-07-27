@@ -71,6 +71,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean number_channel_enable;
 
     private boolean isOpeningSettings = false;
+    private SettingsDialog settingsDialog;
+    private long settingsCloseTime = 0;
     private long lastSettingsOpenTime = 0;
     private long okKeyDownTime = 0;
     private boolean okKeyTriggered = false;
@@ -202,6 +204,7 @@ public class MainActivity extends AppCompatActivity {
             public void onReceive(Context context, Intent intent) {
                 if ("com.tv.live.UNLOCK_SETTINGS".equals(intent.getAction())) {
                     isOpeningSettings = false;
+                    settingsCloseTime = System.currentTimeMillis();
                     Log.d("MainActivity", "📡 收到解锁广播，isOpeningSettings 已重置");
                 }
             }
@@ -314,6 +317,9 @@ public class MainActivity extends AppCompatActivity {
                         if (panelOpen) {
                             channelPanelController.hidePanel();
                         }
+                        if (settingsDialog != null && settingsDialog.isShowing()) {
+                            return super.dispatchKeyEvent(event);
+                        }
                         return true;
                     }
                 }
@@ -327,6 +333,9 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } else if (keyCode == KeyEvent.KEYCODE_BACK) {
                     android.util.Log.d("KEY_DEBUG", "Back UP: panelOpenOnBackDown=" + panelOpenOnBackDown + ", panelOpen=" + panelOpen);
+                    if (settingsDialog != null && settingsDialog.isShowing()) {
+                        return super.dispatchKeyEvent(event);
+                    }
                     if (!panelOpenOnBackDown && !panelOpen) {
                         android.util.Log.d("KEY_DEBUG", "Calling onBackPressed()");
                         onBackPressed();
@@ -538,6 +547,9 @@ public class MainActivity extends AppCompatActivity {
         public boolean onTouch(View v, MotionEvent event) {
             if (gestureHelper != null) {
                 gestureHelper.handleTouch(event);
+            }
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                v.performClick();
             }
             return true;
         }
@@ -871,6 +883,24 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
+            if (settingsDialog != null) {
+                try {
+                    if (settingsDialog.isShowing()) {
+                        settingsDialog.dismiss();
+                        settingsDialog = null;
+                        return;
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("KEY_DEBUG", "onBackPressed settingsDialog 异常: " + e.getMessage(), e);
+                    settingsDialog = null;
+                }
+            }
+
+            if (settingsCloseTime > 0 && System.currentTimeMillis() - settingsCloseTime < 1000) {
+                android.util.Log.d("KEY_DEBUG", "设置刚关闭，忽略退出操作");
+                return;
+            }
+
             boolean exitDialogEnabled = sp != null && sp.getBoolean("exit_dialog_enable", false);
             if (exitDialogEnabled) {
                 showExitMenu();
@@ -918,7 +948,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             try {
-                SettingsDialog settingsDialog = new SettingsDialog(this);
+                settingsDialog = new SettingsDialog(this);
                 settingsDialog.show();
                 Log.d("Settings", "SettingsDialog 显示成功");
             } catch (Exception e) {
@@ -985,7 +1015,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void log(String msg) {
-        if (sp.getBoolean("log_enable", false)) {
+        if (sp.getBoolean("log_enable", true)) {
             Log.d("MainActivity", msg);
             LogCollector.getInstance().addLog("MainActivity", msg);
         }

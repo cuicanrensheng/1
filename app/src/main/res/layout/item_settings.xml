@@ -28,6 +28,6 @@
         android:layout_height="wrap_content"
         android:text="@string/delete"
         android:textSize="12sp"
-        android:focusable="false"
+        android:focusable="true"
         android:clickable="true"/>
 </LinearLayout>

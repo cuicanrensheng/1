@@ -14,7 +14,7 @@
         android:layout_height="match_parent"
         android:background="@android:color/transparent"
         android:clickable="true"
-        android:focusable="false" />
+        android:focusable="true" />
 
     <!-- 设置面板 -->
     <ScrollView

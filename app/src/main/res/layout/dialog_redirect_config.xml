@@ -48,7 +48,8 @@
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:background="@null"
-                    android:autofillHints="" />
+                    android:autofillHints=""
+                    android:hint="@string/max_redirect_count" />
             </LinearLayout>
             <View
                 android:layout_width="match_parent"

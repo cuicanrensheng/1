@@ -921,7 +921,7 @@ public class SettingsDialog extends android.app.Dialog {
             }
         }
 
-        showCommonSelectionDialog("渲染方式选择", modes, checkedItem, (which) -> {
+        showCommonSelectionDialog(getContext().getString(R.string.render_mode_select), modes, checkedItem, (which) -> {
             String selectedMode = modeValues[which];
             sp.edit().putString("renderer_type", selectedMode).apply();
             updateRendererModeText(selectedMode);

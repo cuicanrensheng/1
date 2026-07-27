@@ -5,7 +5,7 @@
     <string name="epg_button">节\n目\n单</string>
     <string name="channel_group_button">频\n道\n组</string>
     <string name="next_program">接下来：</string>
-    <string name="log_placeholder">日志将在此显示...</string>
+    <string name="log_placeholder">日志将在此显示…</string>
 
     <string name="boot_autostart">开机自启</string>
     <string name="not_enabled">未开启</string>
@@ -18,6 +18,7 @@
     <string name="auto">自动</string>
     <string name="decoder_select">解码器选择</string>
     <string name="render_mode">渲染方式</string>
+    <string name="render_mode_select">渲染方式选择</string>
     <string name="surface_view">SurfaceView</string>
     <string name="texture_view">TextureView</string>
     <string name="screen_ratio">屏幕比例</string>

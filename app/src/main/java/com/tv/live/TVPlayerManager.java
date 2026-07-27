@@ -242,7 +242,7 @@ public class TVPlayerManager {
     }
     
     private void dLog(String msg) {
-        if (sp.getBoolean("log_enable", false)) {
+        if (sp.getBoolean("log_enable", true)) {
             Log.d(TAG, msg);
             com.tv.live.util.LogCollector.getInstance().addLog(TAG, msg);
         }
@@ -330,6 +330,7 @@ public class TVPlayerManager {
                 Throwable rootCause = error.getCause();
                 boolean isRedirectError = false;
                 boolean isAudioDiscontinuity = false;
+                boolean isCodecError = false;
                 int depth = 0;
                 while (rootCause != null && depth < 20) {
                     if (rootCause instanceof RedirectFailedException) {
@@ -339,6 +340,12 @@ public class TVPlayerManager {
                     String className = rootCause.getClass().getName();
                     if (className.contains("AudioSink") && className.contains("Discontinuity")) {
                         isAudioDiscontinuity = true;
+                        break;
+                    }
+                    if (className.contains("MediaCodec") || 
+                        className.contains("IllegalStateException") ||
+                        (rootCause.getMessage() != null && rootCause.getMessage().contains("surface"))) {
+                        isCodecError = true;
                         break;
                     }
                     rootCause = rootCause.getCause();
@@ -354,6 +361,15 @@ public class TVPlayerManager {
                         }
                     } catch (Exception e) {
                         Log.e(TAG, "音频恢复失败", e);
+                    }
+                    return;
+                }
+
+                if (isCodecError && mDecoderMode != DECODER_MODE_SOFT) {
+                    Log.w(TAG, "MediaCodec 硬解码异常，自动切换到软解码模式");
+                    setDecoderMode(DECODER_MODE_SOFT);
+                    if (!TextUtils.isEmpty(currentUrl)) {
+                        playUrlInternal(currentUrl);
                     }
                     return;
                 }

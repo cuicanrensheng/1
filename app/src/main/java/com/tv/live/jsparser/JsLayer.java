@@ -21,6 +21,7 @@ import java.net.URL;
 import java.util.HashMap;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import okhttp3.OkHttpClient;
@@ -181,8 +182,9 @@ public class JsLayer {
         public String AESDecrypt128(String str, String str2) {
             try {
                 byte[] decode = Base64.decode(str.getBytes(), 0);
-                Cipher cipher = Cipher.getInstance("AES/ECB/NoPadding");
-                cipher.init(2, new SecretKeySpec(str2.getBytes(), "AES"));
+                byte[] iv = new byte[16];
+                Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+                cipher.init(2, new SecretKeySpec(str2.getBytes(), "AES"), new IvParameterSpec(iv));
                 return new String(cipher.doFinal(decode));
             } catch (Throwable th) {
                 th.printStackTrace();
