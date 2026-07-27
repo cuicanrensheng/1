@@ -99,7 +99,7 @@ public class UpdateManager {
                 String updateMessage = json.optString("body", "暂无更新内容");
                 boolean forceUpdate = json.optBoolean("forceUpdate", false);
 
-                int latestVersionCode = 0;
+                final int latestVersionCode;
                 String latestVersionName = tagName;
                 try {
                     if (tagName.startsWith("v")) {
