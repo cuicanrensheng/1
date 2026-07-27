@@ -1,6 +1,6 @@
 package com.tv.live;
 
-import android.annotation.SuppressLint; // 🟢 已导入
+import android.annotation.SuppressLint;
 import android.widget.Toast;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -44,14 +44,10 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
-import androidx.core.content.ContextCompat; // 🔧 新增导入
+import androidx.core.content.ContextCompat;
 
 import com.tv.live.util.NetUtil;
 import com.tv.live.exception.RedirectFailedException;
-// 🔧【清理虎牙SDK】移除虎牙 Berry SDK 的导入
-// import com.huya.berry.client.HuyaBerry;
-// import com.huya.berry.client.customui.CustomUICallback;
-// import com.huya.berry.client.customui.model.LiveInfo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -73,9 +69,6 @@ import javax.net.ssl.HttpsURLConnection;
 
 import okhttp3.Headers;
 
-// 🟢【两个关键修复】
-// 1. @SuppressLint("UnsafeOptInUsageError") - 解决 Media3 不稳定 API 的 Lint 错误
-// 2. @SuppressLint("StaticFieldLeak") - 消除静态 Context 持有警告（ApplicationContext 安全）
 @SuppressLint({"UnsafeOptInUsageError", "StaticFieldLeak"})
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
@@ -94,7 +87,6 @@ public class TVPlayerManager {
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
 
-    // ✅【修复编译错误】补全缺失的全局线路索引 Key 常量
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     private static volatile TVPlayerManager instance;
@@ -149,10 +141,8 @@ public class TVPlayerManager {
 
     private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
-    // 记录当前已应用的渲染器类型
     private Boolean mCurrentUseTexture = null;
 
-    // 清晰度相关
     private final Object variantListLock = new Object();
     private volatile List<Variant> variantList = new ArrayList<>();
     private volatile boolean huyaVariantMode = false;
@@ -161,14 +151,12 @@ public class TVPlayerManager {
 
     private SharedPreferences sp;
 
-    // 解析主播放列表使用的单线程池
     private static final ExecutorService sPlaylistExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "TVPlayer-PlaylistParser");
         t.setDaemon(true);
         return t;
     });
 
-    // 清晰度实体类
     public static class Variant {
         public String url;
         public int bandwidth;
@@ -243,7 +231,6 @@ public class TVPlayerManager {
                 mHandler.postDelayed(this, 2000);
             }
         };
-        initPlayer();
     }
     
     private void dLog(String msg) {
@@ -298,6 +285,10 @@ public class TVPlayerManager {
 
         initPlayerListener();
         CookieManager.getInstance().setAcceptCookie(true);
+
+        if (playerView != null) {
+            playerView.setPlayer(player);
+        }
     }
 
     static boolean isSoftwareDecoder(MediaCodecInfo codec) {
@@ -651,7 +642,6 @@ public class TVPlayerManager {
         }
     }
 
-    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
         try {
@@ -766,7 +756,6 @@ public class TVPlayerManager {
         }, 100);
     }
 
-    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -822,7 +811,9 @@ public class TVPlayerManager {
 
     public void attachPlayerView(PlayerView view) {
         playerView = view;
-        playerView.setPlayer(player);
+        if (player != null) {
+            playerView.setPlayer(player);
+        }
         playerView.setUseController(false);
 
         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
@@ -873,43 +864,10 @@ public class TVPlayerManager {
         initialPlayStartTime = 0;
         resetPerformanceStats();
         
-        // 🔧【清理虎牙SDK】移除虎牙“一起看”逻辑
-        /*
-        if (channel != null && channel.isTogetherWatch()) {
-            int roomId = channel.getHuyaRoomId();
-            Log.d(TAG, "检测到一起看频道，roomId=" + roomId);
-            if (roomId > 0) {
-                fetchHuyaPlayUrl(roomId);
-                return;
-            }
-        }
-        */
-        
         Log.d(TAG, "普通频道，直接播放");
         huyaVariantMode = false;
         playUrlInternal(url, 0);
     }
-
-    // ============================================================
-    // 🔧【清理虎牙SDK】以下 4 个方法专用于虎牙 Berry SDK，现已全部废弃并注释
-    // ============================================================
-    /*
-    private void fetchHuyaPlayUrl(int roomId) {
-        // ...（原方法省略）...
-    }
-    
-    private int selectBestLine(java.util.Vector<Integer> lines) {
-        // ...（原方法省略）...
-    }
-    
-    private int selectBestBitrate(java.util.Vector<com.huya.berry.client.customui.model.BitRateInfo> bitRates) {
-        // ...（原方法省略）...
-    }
-    
-    private void setupHuyaVariants(com.huya.berry.client.customui.model.LiveInfo liveInfo, java.util.Vector<Integer> lines) {
-        // ...（原方法省略）...
-    }
-    */
 
     public Channel getCurrentChannel() {
         return currentChannel;
@@ -936,12 +894,14 @@ public class TVPlayerManager {
 
     private void playUrlInternal(String url, long initialSeekPosition) {
         try {
-            if (player == null || url == null || url.trim().isEmpty()) return;
+            if (url == null || url.trim().isEmpty()) return;
+            if (player == null) {
+                initPlayer();
+            }
 
             String playUrl = url.trim();
             if (currentChannel != null) {
                 SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-                // ✅ 读取该频道的独立线路索引
                 String channelKey = currentChannel.getChannelId();
                 if (TextUtils.isEmpty(channelKey)) {
                     channelKey = currentChannel.getName();
@@ -949,7 +909,6 @@ public class TVPlayerManager {
                 String prefKey = "channel_line_index_" + channelKey;
                 int lineIndex = sp.getInt(prefKey, 0);
 
-                // 🔧 去掉 !mainUrl.equals(String.valueOf(currentChannel.getHuyaRoomId())) 的判断，因为 Channel 里已移除了 Huya 相关字段
                 if (lineIndex == 0) {
                     String mainUrl = currentChannel.getMainPlayUrl();
                     if (!TextUtils.isEmpty(mainUrl)) {
@@ -982,7 +941,6 @@ public class TVPlayerManager {
 
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
             
-            // ✅【核心修改】所有网络请求头（包括 UA）完全依照 NetUtil 定义，移除任何本地覆盖逻辑
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             reusableHeaderMap.clear();
             for (String name : globalHeaders.names()) {
@@ -1064,7 +1022,7 @@ public class TVPlayerManager {
         Pattern streamInfPattern = Pattern.compile("^#EXT-X-STREAM-INF:", Pattern.CASE_INSENSITIVE);
         Pattern bandwidthPattern = Pattern.compile("BANDWIDTH=(\\d+)", Pattern.CASE_INSENSITIVE);
         Pattern resolutionPattern = Pattern.compile("RESOLUTION=(\\d+)x(\\d+)", Pattern.CASE_INSENSITIVE);
-        dLog("播放列表内容（截取前500字符）：\n" + playlist.substring(0, Math.min(playlist.length(), 500)));
+        dLog("播放列表内容（截取前500字符）：\\n" + playlist.substring(0, Math.min(playlist.length(), 500)));
 
         String[] lines = playlist.split("\\r?\\n");
         for (int i = 0; i < lines.length; i++) {
@@ -1308,19 +1266,15 @@ public class TVPlayerManager {
     public void togglePlayWhenReady() {
         try {
             if (player == null) return;
-            if (player.getPlaybackState() == androidx.media3.common.Player.STATE_IDLE
-                    || player.getPlaybackState() == androidx.media3.common.Player.STATE_ENDED) {
-                return;
-            }
             player.setPlayWhenReady(!player.getPlayWhenReady());
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.e(TAG, "togglePlayWhenReady 异常", e);
+        }
     }
 
     public boolean isPlaying() {
         try {
-            return player != null && player.getPlayWhenReady()
-                    && player.getPlaybackState() != androidx.media3.common.Player.STATE_IDLE
-                    && player.getPlaybackState() != androidx.media3.common.Player.STATE_ENDED;
+            return player != null && player.isPlaying();
         } catch (Exception e) {
             return false;
         }
@@ -1330,10 +1284,6 @@ public class TVPlayerManager {
         try {
             stopStuckDetection();
             cancelRetry();
-            mHandler.removeCallbacksAndMessages(null);
-            updateWakeLock(false);
-            unregisterDecoderModeReceiver();
-            unregisterRendererModeReceiver();
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -1342,79 +1292,12 @@ public class TVPlayerManager {
                 player.release();
                 player = null;
             }
-            if (playerView != null) {
-                playerView.setPlayer(null);
-                playerView = null;
+            if (screenshotView != null) {
+                screenshotView.setImageBitmap(null);
+                screenshotView = null;
             }
-            instance = null;
         } catch (Exception e) {
             Log.e(TAG, "释放异常", e);
-        }
-    }
-
-    private static final String[] UNSTABLE_HARDWARE_BLACKLIST_LOWER = new String[] {
-            "c2.intel.goldfish.",
-            "omx.google.android.",
-            "c2.amlogic.avc.decoder.awesome",
-    };
-
-    static boolean isUnstableHardwareDecoder(String codecName) {
-        if (codecName == null) return false;
-        String lower = codecName.toLowerCase(Locale.ROOT);
-        for (String prefix : UNSTABLE_HARDWARE_BLACKLIST_LOWER) {
-            if (lower.startsWith(prefix)) return true;
-        }
-        return false;
-    }
-
-    static List<MediaCodecInfo> applyCodecPolicy(List<MediaCodecInfo> allCodecs, int mode) {
-        if (allCodecs == null || allCodecs.isEmpty()) return allCodecs;
-
-        List<MediaCodecInfo> afterBlacklist = new ArrayList<>();
-        for (MediaCodecInfo codec : allCodecs) {
-            if (codec == null) continue;
-            if (isUnstableHardwareDecoder(codec.name)) continue;
-            afterBlacklist.add(codec);
-        }
-        if (afterBlacklist.isEmpty()) {
-            afterBlacklist = new ArrayList<>(allCodecs);
-        }
-
-        switch (mode) {
-            case DECODER_MODE_HARD: {
-                List<MediaCodecInfo> hard = new ArrayList<>();
-                for (MediaCodecInfo codec : afterBlacklist) {
-                    if (!isSoftwareDecoder(codec)) hard.add(codec);
-                }
-                return hard.isEmpty() ? afterBlacklist : hard;
-            }
-            case DECODER_MODE_SOFT: {
-                List<MediaCodecInfo> soft = new ArrayList<>();
-                List<MediaCodecInfo> hard = new ArrayList<>();
-                for (MediaCodecInfo codec : afterBlacklist) {
-                    if (isSoftwareDecoder(codec)) soft.add(codec);
-                    else hard.add(codec);
-                }
-                soft.addAll(hard);
-                return soft;
-            }
-            case DECODER_MODE_AUTO:
-            default:
-                return afterBlacklist;
-        }
-    }
-
-    private static class SoftwareFirstMediaCodecSelector implements MediaCodecSelector {
-        private final int decoderMode;
-
-        public SoftwareFirstMediaCodecSelector(int mode) {
-            this.decoderMode = mode;
-        }
-
-        @Override
-        public List<MediaCodecInfo> getDecoderInfos(String mimeType, boolean requiresSecureDecoder, boolean requiresTunnelingDecoder) throws MediaCodecUtil.DecoderQueryException {
-            List<MediaCodecInfo> allCodecs = MediaCodecUtil.getDecoderInfos(mimeType, false, false);
-            return applyCodecPolicy(allCodecs, decoderMode);
         }
     }
 }
