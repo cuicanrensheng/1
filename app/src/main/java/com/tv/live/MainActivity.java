@@ -1078,15 +1078,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
-                mPlayerManager.resume();
-                try {
-                    if (playerView != null) {
-                        playerView.setVisibility(View.GONE);
-                        playerView.setVisibility(View.VISIBLE);
-                    }
-                } catch (Exception e) {
-                    android.util.Log.e("MainActivity", "刷新播放器失败", e);
-                }
+                mPlayerManager.onForeground();
             }
             if (playerControlManager != null) {
                 playerControlManager.onResume();

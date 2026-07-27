@@ -17,6 +17,8 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
 import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -142,6 +144,10 @@ public class TVPlayerManager {
     private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
     private Boolean mCurrentUseTexture = null;
+
+    // Surface 就绪状态（方案C：修复后台返回前台黑屏）
+    private boolean surfaceReady = false;
+    private boolean pendingBindPlayer = false;
 
     private final Object variantListLock = new Object();
     private volatile List<Variant> variantList = new ArrayList<>();
@@ -790,8 +796,14 @@ public class TVPlayerManager {
     public void onForeground() {
         try {
             if (player != null && playerView != null) {
-                playerView.setPlayer(player);
-                player.play();
+                if (surfaceReady) {
+                    if (playerView.getPlayer() != player) {
+                        playerView.setPlayer(player);
+                    }
+                    player.play();
+                } else {
+                    pendingBindPlayer = true;
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "切前台异常", e);
@@ -810,6 +822,33 @@ public class TVPlayerManager {
         playerView = view;
         playerView.setPlayer(player);
         playerView.setUseController(false);
+
+        // 方案C：监听 SurfaceHolder 回调，确保 Surface 就绪后再绑定播放器
+        View videoSurfaceView = playerView.getVideoSurfaceView();
+        if (videoSurfaceView instanceof SurfaceView) {
+            SurfaceView surfaceView = (SurfaceView) videoSurfaceView;
+            surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+                @Override
+                public void surfaceCreated(SurfaceHolder holder) {
+                    surfaceReady = true;
+                    if (player != null && playerView != null && playerView.getPlayer() != player) {
+                        playerView.setPlayer(player);
+                    }
+                    if (pendingBindPlayer && player != null) {
+                        pendingBindPlayer = false;
+                        player.play();
+                    }
+                }
+
+                @Override
+                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+                @Override
+                public void surfaceDestroyed(SurfaceHolder holder) {
+                    surfaceReady = false;
+                }
+            });
+        }
 
         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         String rendererMode = sp.getString("renderer_type", "surface");
