@@ -4,15 +4,15 @@ import android.content.Context;
 import android.text.TextUtils;
 import android.util.Base64;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -48,9 +48,13 @@ public class Parser {
                 @Override
                 public void onResult(String str2) {
                     try {
-                        List parseArray = JSON.parseArray(str2, String.class);
-                        if (parseArray != null && parseArray.size() > 0) {
-                            JsLayer.evaluate(Parser.getParseJs((String) parseArray.get(0)) + ";getParseResult('" + ((String) parseArray.get(1)) + "','" + str + "');", jsCallback);
+                        List<String> parseArray = new ArrayList<>();
+                        JSONArray array = new JSONArray(str2);
+                        for (int i = 0; i < array.length(); i++) {
+                            parseArray.add(array.getString(i));
+                        }
+                        if (!parseArray.isEmpty()) {
+                            JsLayer.evaluate(Parser.getParseJs(parseArray.get(0)) + ";getParseResult('" + parseArray.get(1) + "','" + str + "');", jsCallback);
                         } else {
                             jsCallback.onError("no js parser");
                         }
@@ -140,20 +144,18 @@ public class Parser {
     }
 
     public static void updatePlugin(final Context context) {
-        // 🔧 已改为手动触发，不再自动下载
-        // 需要更新插件时，请在设置页面添加按钮调用此方法
         String url = "http://nowtv.xiaoyouzb.net/list_android_js_meta_v2.php?version=4.1.6";
         try {
             Request request = new Request.Builder().url(url).get().build();
             try (Response response = okHttpClient.newCall(request).execute()) {
                 if (response.isSuccessful() && response.body() != null) {
                     String str2 = response.body().string();
-                    JSONObject parseObject = JSON.parseObject(str2);
-                    if (parseObject.getIntValue("error_code") != 0) {
+                    JSONObject parseObject = new JSONObject(str2);
+                    if (parseObject.getInt("error_code") != 0) {
                         return;
                     }
                     JSONArray jSONArray = parseObject.getJSONArray("data");
-                    for (int i = 0; i < jSONArray.size(); i++) {
+                    for (int i = 0; i < jSONArray.length(); i++) {
                         JSONObject pluginData = jSONArray.getJSONObject(i);
                         getUpdateFile(context, pluginData.getString("url"), pluginData.getString("md5"));
                     }

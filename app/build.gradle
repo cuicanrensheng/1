@@ -35,8 +35,8 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionCode 2201
-        versionName "2.0.2195.2196.2197.2198.2199.2200.2201"
+        versionCode 2200
+        versionName "2.0.2195.2196.2197.2198.2199.2200"
 
         resConfigs "zh"
 
@@ -63,7 +63,6 @@ android {
 
     buildTypes {
         release {
-            // ✅ 保持混淆开启，你的 proguard-rules.pro 已经完美适配
             minifyEnabled true
             shrinkResources true
             
@@ -104,12 +103,9 @@ android {
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
-    // 🟢【方案 B 核心修改】升级 appcompat 到 1.7.0
-    // 这个版本内嵌了 Emoji2 的兼容逻辑，既不需要 exclude，也不需要外部显式初始化
     implementation 'androidx.appcompat:appcompat:1.7.0'
 
     implementation 'com.google.zxing:core:3.5.1'
-    implementation 'com.alibaba:fastjson:1.2.83'
 
     implementation "androidx.media3:media3-exoplayer:1.7.1"
     implementation "androidx.media3:media3-ui:1.7.1"

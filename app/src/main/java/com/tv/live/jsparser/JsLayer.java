@@ -8,8 +8,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.TypeReference;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -68,20 +67,15 @@ public class JsLayer {
         return webViewRef != null && webViewRef.get() != null && assetManager != null;
     }
 
-    // ==============================================================
-    // ✅【核心修复】在 evaluate 方法中加入 WebView 重新初始化逻辑
-    // ==============================================================
     public static void evaluate(String str, final JsCallback jsCallback) {
         WebView wv = webViewRef != null ? webViewRef.get() : null;
         
-        // 如果 WebView 已被系统回收，尝试用缓存的 Context 重新初始化
         if (wv == null || assetManager == null) {
             Context ctx = mContextRef != null ? mContextRef.get() : null;
             if (ctx != null) {
-                init(ctx); // 重新初始化
+                init(ctx);
                 wv = webViewRef != null ? webViewRef.get() : null;
             }
-            // 如果重新初始化后仍然失败，则直接回调错误
             if (wv == null || assetManager == null) {
                 jsCallback.onError("not initialized");
                 return;
@@ -209,7 +203,17 @@ public class JsLayer {
         }
 
         private HttpUtil.Builder getHttpBuilder(String str, String str2) {
-            HashMap<String, String> headers = JSON.parseObject(str2, new TypeReference<HashMap<String, String>>() {});
+            HashMap<String, String> headers = new HashMap<>();
+            try {
+                JSONObject obj = new JSONObject(str2);
+                java.util.Iterator<String> keys = obj.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    headers.put(key, obj.optString(key, ""));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
             return new HttpUtil.Builder(str).setHeaders(headers);
         }
     }
