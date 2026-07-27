@@ -99,18 +99,19 @@ public class UpdateManager {
                 String updateMessage = json.optString("body", "暂无更新内容");
                 boolean forceUpdate = json.optBoolean("forceUpdate", false);
 
-                final int latestVersionCode;
+                int tempVersionCode = 0;
                 String latestVersionName = tagName;
                 try {
                     if (tagName.startsWith("v")) {
-                        latestVersionCode = Integer.parseInt(tagName.substring(1));
+                        tempVersionCode = Integer.parseInt(tagName.substring(1));
                     } else {
-                        latestVersionCode = Integer.parseInt(tagName);
+                        tempVersionCode = Integer.parseInt(tagName);
                     }
                 } catch (NumberFormatException e) {
                     e.printStackTrace();
-                    latestVersionCode = 0;
+                    tempVersionCode = 0;
                 }
+                final int latestVersionCode = tempVersionCode;
 
                 String downloadUrl = "";
                 if (json.has("assets")) {
