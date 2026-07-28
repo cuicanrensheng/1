@@ -1,14 +1,12 @@
 package com.tv.live;
 
-import android.annotation.SuppressLint;
+import android.annotation.SuppressLint; // 🟢 已导入
 import android.widget.Toast;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Handler;
@@ -16,14 +14,11 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
-import android.view.Surface;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.Surface; // 🟢 新增导入
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.webkit.CookieManager;
 
@@ -46,7 +41,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
-import androidx.core.content.ContextCompat;
+import androidx.core.content.ContextCompat; // 🔧 新增导入
 
 import com.tv.live.util.NetUtil;
 import com.tv.live.exception.RedirectFailedException;
@@ -71,6 +66,9 @@ import javax.net.ssl.HttpsURLConnection;
 
 import okhttp3.Headers;
 
+// 🟢【两个关键修复】
+// 1. @SuppressLint("UnsafeOptInUsageError") - 解决 Media3 不稳定 API 的 Lint 错误
+// 2. @SuppressLint("StaticFieldLeak") - 消除静态 Context 持有警告（ApplicationContext 安全）
 @SuppressLint({"UnsafeOptInUsageError", "StaticFieldLeak"})
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
@@ -89,13 +87,13 @@ public class TVPlayerManager {
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
 
+    // ✅【修复编译错误】补全缺失的全局线路索引 Key 常量
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     private static volatile TVPlayerManager instance;
     private Context context;
     private ExoPlayer player;
     private PlayerView playerView;
-    private ImageView screenshotView;
     private Player.Listener playerListener;
     private String currentUrl;
     private int currentChannelNumber = 0;
@@ -143,26 +141,24 @@ public class TVPlayerManager {
 
     private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
+    // 记录当前已应用的渲染器类型
     private Boolean mCurrentUseTexture = null;
 
-    // Surface 就绪状态（方案C：修复后台返回前台黑屏）
-    private boolean surfaceReady = false;
-    private boolean pendingBindPlayer = false;
-
+    // 清晰度相关
     private final Object variantListLock = new Object();
     private volatile List<Variant> variantList = new ArrayList<>();
-    private volatile boolean huyaVariantMode = false;
-    private String currentResolutionLabel = "";
     private volatile boolean isParsingMasterPlaylist = false;
 
     private SharedPreferences sp;
 
+    // 解析主播放列表使用的单线程池
     private static final ExecutorService sPlaylistExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "TVPlayer-PlaylistParser");
         t.setDaemon(true);
         return t;
     });
 
+    // 清晰度实体类
     public static class Variant {
         public String url;
         public int bandwidth;
@@ -241,7 +237,7 @@ public class TVPlayerManager {
     }
     
     private void dLog(String msg) {
-        if (sp.getBoolean("log_enable", true)) {
+        if (sp.getBoolean("log_enable", false)) {
             Log.d(TAG, msg);
             com.tv.live.util.LogCollector.getInstance().addLog(TAG, msg);
         }
@@ -267,7 +263,7 @@ public class TVPlayerManager {
         }
 
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(10000, 50000, 300, 500)
+                .setBufferDurationsMs(2000, 45000, 800, 1500)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
 
@@ -328,49 +324,14 @@ public class TVPlayerManager {
 
                 Throwable rootCause = error.getCause();
                 boolean isRedirectError = false;
-                boolean isAudioDiscontinuity = false;
-                boolean isCodecError = false;
                 int depth = 0;
                 while (rootCause != null && depth < 20) {
                     if (rootCause instanceof RedirectFailedException) {
                         isRedirectError = true;
                         break;
                     }
-                    String className = rootCause.getClass().getName();
-                    if (className.contains("AudioSink") && className.contains("Discontinuity")) {
-                        isAudioDiscontinuity = true;
-                        break;
-                    }
-                    if (className.contains("MediaCodec") || 
-                        className.contains("IllegalStateException") ||
-                        (rootCause.getMessage() != null && rootCause.getMessage().contains("surface"))) {
-                        isCodecError = true;
-                        break;
-                    }
                     rootCause = rootCause.getCause();
                     depth++;
-                }
-
-                if (isAudioDiscontinuity) {
-                    Log.w(TAG, "音频时间戳不连续，尝试恢复播放");
-                    try {
-                        if (player != null) {
-                            player.prepare();
-                            player.play();
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "音频恢复失败", e);
-                    }
-                    return;
-                }
-
-                if (isCodecError && mDecoderMode != DECODER_MODE_SOFT) {
-                    Log.w(TAG, "MediaCodec 硬解码异常，自动切换到软解码模式");
-                    setDecoderMode(DECODER_MODE_SOFT);
-                    if (!TextUtils.isEmpty(currentUrl)) {
-                        playUrlInternal(currentUrl);
-                    }
-                    return;
                 }
 
                 boolean backupSwitched = false;
@@ -539,13 +500,6 @@ public class TVPlayerManager {
             mHandler.removeCallbacks(stuckCheckRunnable);
             mHandler.removeCallbacks(retryRunnable);
             mHandler.removeCallbacks(hideChannelRunnable);
-        } catch (Exception e) {
-            Log.e(TAG, "移除回调异常", e);
-        }
-
-        showSnapshot();
-
-        try {
             if (player != null) {
                 if (playerListener != null) {
                     player.removeListener(playerListener);
@@ -584,12 +538,8 @@ public class TVPlayerManager {
             }
 
             playUrlInternal(currentUrl, currentPosition);
-            mHandler.postDelayed(() -> {
-                hideSnapshot();
-                isSwitching = false;
-            }, 3000);
+            mHandler.postDelayed(() -> { isSwitching = false; }, 30000);
         } else if (playerView == null) {
-            hideSnapshot();
             isSwitching = false;
         }
     }
@@ -598,53 +548,7 @@ public class TVPlayerManager {
         return mDecoderMode;
     }
 
-    private void showSnapshot() {
-        if (playerView == null) return;
-        try {
-            ViewParent rawParent = playerView.getParent();
-            if (!(rawParent instanceof ViewGroup)) return;
-            ViewGroup parent = (ViewGroup) rawParent;
-
-            playerView.setDrawingCacheEnabled(true);
-            Bitmap snapshot = playerView.getDrawingCache();
-            if (snapshot != null) {
-                snapshot = snapshot.copy(Bitmap.Config.ARGB_8888, false);
-            }
-            playerView.setDrawingCacheEnabled(false);
-
-            if (snapshot != null) {
-                if (screenshotView == null) {
-                    screenshotView = new ImageView(context);
-                    screenshotView.setScaleType(ImageView.ScaleType.FIT_XY);
-                    screenshotView.setLayoutParams(new FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT));
-                }
-                screenshotView.setImageBitmap(snapshot);
-                int index = parent.indexOfChild(playerView);
-                parent.addView(screenshotView, index);
-                dLog("快照已显示");
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "显示快照失败", e);
-        }
-    }
-
-    private void hideSnapshot() {
-        if (screenshotView != null) {
-            try {
-                ViewParent parent = screenshotView.getParent();
-                if (parent instanceof ViewGroup) {
-                    ((ViewGroup) parent).removeView(screenshotView);
-                }
-                screenshotView.setImageBitmap(null);
-                dLog("快照已隐藏");
-            } catch (Exception e) {
-                Log.e(TAG, "隐藏快照失败", e);
-            }
-        }
-    }
-
+    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
         try {
@@ -692,14 +596,19 @@ public class TVPlayerManager {
         if (!(rawParent instanceof ViewGroup)) return;
         ViewGroup parent = (ViewGroup) rawParent;
 
+        View blackMask = new View(context);
+        blackMask.setBackgroundColor(Color.BLACK);
+        ViewGroup.LayoutParams maskParams = new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        parent.addView(blackMask, maskParams);
+        blackMask.bringToFront();
+
         isRenderingSwitching = true;
         bufferCount = 0;
         long currentPosition = player.getCurrentPosition();
         boolean wasPlaying = player.isPlaying();
         boolean useController = playerView.getUseController();
         ViewGroup.LayoutParams layoutParams = playerView.getLayoutParams();
-
-        showSnapshot();
 
         int index = parent.indexOfChild(playerView);
         int styleRes = useTexture ? R.style.PlayerView_Texture : R.style.PlayerView_Surface;
@@ -708,7 +617,6 @@ public class TVPlayerManager {
         newPlayerView.setLayoutParams(layoutParams);
         newPlayerView.setUseController(useController);
         newPlayerView.setKeepContentOnPlayerReset(true);
-        newPlayerView.setKeepScreenOn(true);
 
         int resizeMode;
         switch (mCurrentScaleMode) {
@@ -724,41 +632,35 @@ public class TVPlayerManager {
                 break;
         }
         newPlayerView.setResizeMode(resizeMode);
-
-        parent.addView(newPlayerView, index);
-
         newPlayerView.setPlayer(player);
+
+        parent.addView(newPlayerView, index, layoutParams);
         playerView.setPlayer(null);
+        parent.removeView(playerView);
+        playerView = newPlayerView;
 
-        mHandler.postDelayed(() -> {
-            try {
-                parent.removeView(playerView);
-            } catch (Exception e) {
-                Log.e(TAG, "移除旧 PlayerView 失败", e);
-            }
-            playerView = newPlayerView;
-
-            if (currentPosition > 0) player.seekTo(currentPosition);
-            if (wasPlaying) {
-                mHandler.postDelayed(() -> {
-                    if (player != null && !player.isPlaying()) player.play();
-                }, 200);
-            }
-
-            if (onPlayerViewRecreatedListener != null) {
-                onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
-            }
-            playerView.requestFocus();
-
-            mCurrentUseTexture = useTexture;
-            isRenderingSwitching = false;
-
+        if (currentPosition > 0) player.seekTo(currentPosition);
+        if (wasPlaying) {
             mHandler.postDelayed(() -> {
-                hideSnapshot();
-            }, 1000);
+                if (player != null && !player.isPlaying()) player.play();
+            }, 200);
+        }
+
+        if (onPlayerViewRecreatedListener != null) {
+            onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
+        }
+        playerView.requestFocus();
+
+        final ViewGroup parentFinal = parent;
+        playerView.postDelayed(() -> {
+            blackMask.animate().alpha(0f).setDuration(250).withEndAction(() -> parentFinal.removeView(blackMask)).start();
         }, 100);
+
+        mCurrentUseTexture = useTexture;
+        isRenderingSwitching = false;
     }
 
+    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -796,14 +698,8 @@ public class TVPlayerManager {
     public void onForeground() {
         try {
             if (player != null && playerView != null) {
-                if (surfaceReady) {
-                    if (playerView.getPlayer() != player) {
-                        playerView.setPlayer(player);
-                    }
-                    player.play();
-                } else {
-                    pendingBindPlayer = true;
-                }
+                playerView.setPlayer(player);
+                player.play();
             }
         } catch (Exception e) {
             Log.e(TAG, "切前台异常", e);
@@ -820,44 +716,11 @@ public class TVPlayerManager {
 
     public void attachPlayerView(PlayerView view) {
         playerView = view;
-        playerView.setPlayer(player);
-        playerView.setUseController(false);
-
-        // 方案C：监听 SurfaceHolder 回调，确保 Surface 就绪后再绑定播放器
-        View videoSurfaceView = playerView.getVideoSurfaceView();
-        if (videoSurfaceView instanceof SurfaceView) {
-            SurfaceView surfaceView = (SurfaceView) videoSurfaceView;
-            surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
-                @Override
-                public void surfaceCreated(SurfaceHolder holder) {
-                    surfaceReady = true;
-                    if (player != null && playerView != null && playerView.getPlayer() != player) {
-                        playerView.setPlayer(player);
-                    }
-                    if (pendingBindPlayer && player != null) {
-                        pendingBindPlayer = false;
-                        player.play();
-                    }
-                }
-
-                @Override
-                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-
-                @Override
-                public void surfaceDestroyed(SurfaceHolder holder) {
-                    surfaceReady = false;
-                }
-            });
-        }
-
         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         String rendererMode = sp.getString("renderer_type", "surface");
-        boolean useTexture = "texture".equals(rendererMode);
-        if (useTexture) {
-            switchRenderer(true);
-        } else {
-            mCurrentUseTexture = false;
-        }
+        switchRenderer("texture".equals(rendererMode));
+        playerView.setPlayer(player);
+        playerView.setUseController(false);
     }
 
     private void updateWakeLock(boolean enable) {
@@ -874,18 +737,6 @@ public class TVPlayerManager {
     }
 
     public void playUrl(String url, String channelName, Channel channel) {
-        Log.d(TAG, "playUrl: url=" + url + ", channelName=" + channelName + ", channel=" + channel);
-
-        if (url != null && url.equals(currentUrl) && player != null && player.isPlaying()) {
-            Log.d(TAG, "【播放】已在播放同一URL，跳过重复播放");
-            if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
-            this.currentChannel = channel;
-            if (channel != null && TextUtils.isEmpty(this.currentChannelName)) {
-                this.currentChannelName = channel.getName();
-            }
-            return;
-        }
-
         if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
         this.currentChannel = channel;
         this.backupRetryIndex = -1;
@@ -897,9 +748,6 @@ public class TVPlayerManager {
         isRetrying = false;
         initialPlayStartTime = 0;
         resetPerformanceStats();
-        
-        Log.d(TAG, "普通频道，直接播放");
-        huyaVariantMode = false;
         playUrlInternal(url, 0);
     }
 
@@ -933,28 +781,27 @@ public class TVPlayerManager {
             String playUrl = url.trim();
             if (currentChannel != null) {
                 SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+                // ✅ 读取该频道的独立线路索引
                 String channelKey = currentChannel.getChannelId();
                 if (TextUtils.isEmpty(channelKey)) {
                     channelKey = currentChannel.getName();
                 }
                 String prefKey = "channel_line_index_" + channelKey;
                 int lineIndex = sp.getInt(prefKey, 0);
+                // 如果没有独立设置，则回退到全局索引（兼容旧版，常量已补全）
+                if (lineIndex == 0 && sp.contains(KEY_CHANNEL_LINE_INDEX)) {
+                    lineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
+                }
 
                 if (lineIndex == 0) {
-                    String mainUrl = currentChannel.getMainPlayUrl();
-                    if (!TextUtils.isEmpty(mainUrl)) {
-                        playUrl = mainUrl;
-                    }
+                    playUrl = currentChannel.getMainPlayUrl();
                 } else {
                     List<String> backups = currentChannel.getBackupUrls();
                     int backupIndex = lineIndex - 1;
                     if (backupIndex >= 0 && backupIndex < backups.size()) {
                         playUrl = backups.get(backupIndex);
                     } else {
-                        String mainUrl = currentChannel.getMainPlayUrl();
-                        if (!TextUtils.isEmpty(mainUrl)) {
-                            playUrl = mainUrl;
-                        }
+                        playUrl = currentChannel.getMainPlayUrl();
                         Log.w(TAG, "线路索引越界，已自动切回主源");
                     }
                 }
@@ -964,14 +811,15 @@ public class TVPlayerManager {
                 currentUrl = playUrl;
             }
 
-            if (isHlsUrl(currentUrl) && !huyaVariantMode) {
+            if (isHlsUrl(currentUrl)) {
                 fetchAndParseMasterPlaylist(currentUrl);
-            } else if (!huyaVariantMode) {
+            } else {
                 synchronized (variantListLock) { variantList.clear(); }
             }
 
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
             
+            // ✅【核心修改】所有网络请求头（包括 UA）完全依照 NetUtil 定义，移除任何本地覆盖逻辑
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             reusableHeaderMap.clear();
             for (String name : globalHeaders.names()) {
@@ -1023,26 +871,36 @@ public class TVPlayerManager {
         if (isParsingMasterPlaylist) return;
         isParsingMasterPlaylist = true;
         sPlaylistExecutor.execute(() -> {
+            HttpURLConnection connection = null;
             try {
                 dLog("开始解析主播放列表: " + masterUrl);
-
-                Map<String, String> extraHeaders = new HashMap<>();
+                URL url = new URL(masterUrl);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10)");
                 String cookies = CookieManager.getInstance().getCookie(masterUrl);
-                if (cookies != null) extraHeaders.put("Cookie", cookies);
+                if (cookies != null) connection.setRequestProperty("Cookie", cookies);
 
-                try (okhttp3.Response response = NetUtil.getInstance().syncGetWithHeaders(masterUrl, extraHeaders)) {
-                    if (!response.isSuccessful() || response.body() == null) {
-                        Log.e(TAG, "获取主播放列表失败: " + response.code());
-                        return;
+                StringBuilder content = new StringBuilder();
+                try (InputStream is = connection.getInputStream();
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        content.append(line).append("\n");
                     }
-                    String playlist = response.body().string();
-                    dLog("播放列表内容长度: " + playlist.length());
-                    parseMasterPlaylist(playlist, masterUrl);
                 }
+
+                String playlist = content.toString();
+                dLog("播放列表内容长度: " + playlist.length());
+                parseMasterPlaylist(playlist, masterUrl);
             } catch (Exception e) {
                 Log.e(TAG, "解析主播放列表失败: ", e);
                 synchronized (variantListLock) { variantList.clear(); }
             } finally {
+                if (connection != null) {
+                    try { connection.disconnect(); } catch (Exception ignored) {}
+                }
                 isParsingMasterPlaylist = false;
             }
         });
@@ -1108,30 +966,15 @@ public class TVPlayerManager {
         }
     }
 
-    public String getCurrentResolutionLabel() {
-        return currentResolutionLabel;
-    }
-
     public List<String> getAvailableResolutions() {
         List<String> resolutions = new ArrayList<>();
-        java.util.Set<String> seenLabels = new java.util.HashSet<>();
         synchronized (variantListLock) {
-            if (huyaVariantMode) {
-                for (Variant v : variantList) {
-                    if (!seenLabels.contains(v.resolutionLabel)) {
-                        seenLabels.add(v.resolutionLabel);
-                        resolutions.add(v.resolutionLabel);
-                    }
-                }
-            } else {
-                for (Variant v : variantList) {
-                    if (!resolutions.contains(v.resolutionLabel)) {
-                        resolutions.add(v.resolutionLabel);
-                    }
+            for (Variant v : variantList) {
+                if (!resolutions.contains(v.resolutionLabel)) {
+                    resolutions.add(v.resolutionLabel);
                 }
             }
         }
-        Log.d(TAG, "getAvailableResolutions: 返回 " + resolutions.size() + " 个选项: " + resolutions);
         return resolutions;
     }
 
@@ -1154,7 +997,6 @@ public class TVPlayerManager {
         if (selected == null) {
             selected = snapshot.get(snapshot.size() - 1);
         }
-        currentResolutionLabel = selected.resolutionLabel;
         dLog("切换清晰度到：" + selected.resolutionLabel + "，URL=" + selected.url);
         playUrlInternal(selected.url);
     }
@@ -1178,6 +1020,24 @@ public class TVPlayerManager {
             }
         } catch (Exception e) {
             Log.e(TAG, "设置缩放模式异常", e);
+        }
+    }
+
+    // ============================================================
+    // 🟢【新增】绑定 Surface 渲染（用于 TV Input Framework 后台播放）
+    // ============================================================
+    /**
+     * 绑定 Surface 渲染（用于 TV Input Framework 后台播放）
+     * @param surface 系统提供的 Surface
+     */
+    public void setSurface(Surface surface) {
+        try {
+            if (player != null) {
+                player.setVideoSurface(surface);
+                Log.d(TAG, "播放器已绑定 Surface");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "绑定 Surface 失败", e);
         }
     }
 
