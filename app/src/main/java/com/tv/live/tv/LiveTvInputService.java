@@ -98,19 +98,16 @@ public class LiveTvInputService extends TvInputService {
         }
 
         @Override
-        public void onSetVolume(float volume) {
-            // 忽略音量设置
-        }
-
-        @Override
         public void onRelease() {
             Log.d(TAG, "TIF Session 释放");
+
+            // 先通知系统视频不可用，防止退出黑屏
+            notifyVideoUnavailable(TvInputManager.VIDEO_UNAVAILABLE_REASON_TUNING);
+
             if (mPlayerManager != null) {
                 mPlayerManager.release();
                 mPlayerManager = null;
             }
-            // ✅ 修复：通知系统视频已不可用，防止退出时系统界面卡黑屏
-            notifyVideoUnavailable(TvInputManager.VIDEO_UNAVAILABLE_REASON_BUFFERING);
         }
 
         @Override
