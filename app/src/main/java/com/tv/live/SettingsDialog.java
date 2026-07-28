@@ -392,6 +392,9 @@ public class SettingsDialog extends android.app.Dialog {
         String versionName = BuildConfig.VERSION_NAME;
         int versionCode = BuildConfig.VERSION_CODE;
         String updateNotes = updateManager.getUpdateMessage();
+        if (TextUtils.isEmpty(updateNotes) || "null".equalsIgnoreCase(updateNotes)) {
+            updateNotes = "暂无更新内容，点击右上角检查更新可获取最新版本。";
+        }
         String userAgent = sp.getString("custom_user_agent", "");
         if (TextUtils.isEmpty(userAgent)) {
             String uaMode = sp.getString(KEY_USER_AGENT_MODE, "exo");
@@ -404,37 +407,71 @@ public class SettingsDialog extends android.app.Dialog {
         String sdkVersion = "Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")";
         String playerVersion = "androidx.media3 1.7.1";
 
-        String message = "版本信息: v" + versionName + " (" + versionCode + ")\n\n" +
-                         "更新内容: \n" + updateNotes + "\n\n" +
-                         "UA: " + userAgent + "\n\n" +
-                         "SDK 版本: " + sdkVersion + "\n\n" +
-                         "播放器版本: " + playerVersion;
+        // ============================================================
+        // ✅ 修复：把 UA / SDK 版本 / 播放器版本 放在前面，
+        //     避免被较长的更新日志挤出可视区域；
+        //     再包一层 ScrollView，保证内容多时可以滚动查看
+        // ============================================================
+        StringBuilder sb = new StringBuilder();
+        sb.append("版本信息: v").append(versionName).append(" (").append(versionCode).append(")\n\n");
+        sb.append("UA: ").append(userAgent).append("\n\n");
+        sb.append("SDK 版本: ").append(sdkVersion).append("\n\n");
+        sb.append("播放器版本: ").append(playerVersion).append("\n\n");
+        sb.append("━━━━━━━━━━━━━━━━━━\n");
+        sb.append("更新内容:\n").append(updateNotes);
 
+        String message = sb.toString();
         SpannableString spannableString = new SpannableString(message);
-        spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, 5, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-        int startUc = message.indexOf("更新内容:");
-        if (startUc != -1) {
-            spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), startUc, startUc + 5, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-        }
+
+        // 给各个字段标签加粗
+        int p;
+        p = message.indexOf("版本信息");
+        if (p != -1) spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), p, p + 4, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        p = message.indexOf("UA:");
+        if (p != -1) spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), p, p + 3, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        p = message.indexOf("SDK 版本");
+        if (p != -1) spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), p, p + 6, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        p = message.indexOf("播放器版本");
+        if (p != -1) spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), p, p + 6, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        p = message.indexOf("更新内容");
+        if (p != -1) spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), p, p + 4, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
 
         LinearLayout layout = new LinearLayout(getContext());
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setBackgroundResource(R.drawable.dialog_bg_corner);
-        layout.setPadding(24, 24, 24, 24);
+        int pad = dp2px(16);
+        layout.setPadding(pad, pad, pad, pad);
 
         TextView titleView = new TextView(getContext());
         titleView.setText("📱 应用详情");
         titleView.setTextColor(Color.WHITE);
         titleView.setTextSize(20);
         titleView.setTypeface(null, Typeface.BOLD);
+        titleView.setPadding(0, 0, 0, dp2px(8));
         layout.addView(titleView);
+
+        // 内容用 ScrollView 包起来，长内容可滚动
+        ScrollView scrollView = new ScrollView(getContext());
+        scrollView.setScrollbarFadingEnabled(false);
+        scrollView.setVerticalScrollBarEnabled(true);
+        scrollView.setFillViewport(true);
 
         TextView msgView = new TextView(getContext());
         msgView.setText(spannableString);
         msgView.setTextColor(Color.WHITE);
         msgView.setTextSize(16);
-        msgView.setPadding(0, 16, 0, 0);
-        layout.addView(msgView);
+        msgView.setLineSpacing(0, 1.25f);
+        msgView.setFocusable(true);
+        msgView.setFocusableInTouchMode(true);
+
+        scrollView.addView(msgView, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+        ));
+        layout.addView(scrollView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp2px(380)   // 限定一个高度，保证滚动区域稳定
+        ));
 
         AlertDialog dialog = new AlertDialog.Builder(getContext())
                 .setView(layout)
@@ -448,6 +485,11 @@ public class SettingsDialog extends android.app.Dialog {
                 msgView.requestFocus();
             }
         }, 200);
+    }
+
+    private int dp2px(int dp) {
+        float density = getContext().getResources().getDisplayMetrics().density;
+        return (int) (dp * density + 0.5f);
     }
 
     private String getLineName(int index) {
