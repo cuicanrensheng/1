@@ -1,6 +1,7 @@
 package com.tv.live.tv;
 
 import android.content.ContentUris;
+import android.media.tv.TvInputManager;
 import android.media.tv.TvInputService;
 import android.net.Uri;
 import android.os.Handler;
@@ -15,7 +16,6 @@ import com.tv.live.TVPlayerManager;
 
 import java.util.List;
 
-// ✅ 名字改成 LiveTvInputService，避免和系统类冲突
 public class LiveTvInputService extends TvInputService {
 
     private static final String TAG = "LiveTvInputService";
@@ -31,7 +31,6 @@ public class LiveTvInputService extends TvInputService {
         private Handler mMainHandler = new Handler(Looper.getMainLooper());
 
         public TvInputSession() {
-            // ✅ 这里的 this 现在指向 LiveTvInputService，完美避开冲突！
             super(LiveTvInputService.this);
             mPlayerManager = TVPlayerManager.getInstance(LiveTvInputService.this);
         }
@@ -83,7 +82,7 @@ public class LiveTvInputService extends TvInputService {
                 return true;
             } else {
                 Log.w(TAG, "未找到该频道，播放失败");
-                notifyVideoUnavailable(TvInputService.VIDEO_UNAVAILABLE_REASON_TUNING);
+                notifyVideoUnavailable(TvInputManager.VIDEO_UNAVAILABLE_REASON_TUNING);
                 return false;
             }
         }
@@ -99,18 +98,12 @@ public class LiveTvInputService extends TvInputService {
         }
 
         @Override
-        public void onSetVolume(float volume) {
-            // 忽略音量设置
-        }
-
-        @Override
         public void onRelease() {
             Log.d(TAG, "TIF Session 释放");
             if (mPlayerManager != null) {
                 mPlayerManager.release();
                 mPlayerManager = null;
             }
-            notifyVideoUnavailable(TvInputService.VIDEO_UNAVAILABLE_REASON_BUFFERING);
         }
 
         @Override
