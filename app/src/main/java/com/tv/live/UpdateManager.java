@@ -1,4 +1,5 @@
 package com.tv.live;
+
 import android.util.Log;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
@@ -96,7 +97,20 @@ public class UpdateManager {
 
                 JSONObject json = new JSONObject(sb.toString());
                 String tagName = json.getString("tag_name");
-                String updateMessage = json.optString("body", "暂无更新内容");
+
+                // ========== 修复：避免 body 为 null 时显示 "null" ==========
+                String updateMessage;
+                if (json.isNull("body")) {
+                    updateMessage = "暂无更新内容";
+                } else {
+                    updateMessage = json.optString("body", "暂无更新内容");
+                }
+                // 防御性判断：如果返回的字符串是 "null" 也替换
+                if ("null".equals(updateMessage)) {
+                    updateMessage = "暂无更新内容";
+                }
+                // ====================================================
+
                 boolean forceUpdate = json.optBoolean("forceUpdate", false);
 
                 int tempVersionCode = 0;
@@ -126,7 +140,7 @@ public class UpdateManager {
                     }
                 }
 
-                // 保存更新日志
+                // 保存更新日志（已修复）
                 saveUpdateMessage(updateMessage);
 
                 if (downloadUrl.isEmpty()) {
@@ -225,7 +239,7 @@ public class UpdateManager {
     }
 
     // ============================================================
-    // 下载阶段：保持不变，使用私有目录（无需存储权限）
+    // 下载阶段：使用私有目录（无需存储权限）
     // ============================================================
     private void startDownload(String downloadUrl) {
         synchronized (UpdateManager.class) {
@@ -270,7 +284,7 @@ public class UpdateManager {
         }
     }
 
-    // 🟢【关键修复】针对 Android 13+ 下载广播的安全注册
+    // Android 13+ 下载广播安全注册
     private void registerDownloadCompleteReceiver() {
         downloadCompleteReceiver = new BroadcastReceiver() {
             @Override
@@ -284,7 +298,6 @@ public class UpdateManager {
         };
 
         IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-        // 🔧 修复：使用 ContextCompat.registerReceiver 并传递 ContextCompat.RECEIVER_NOT_EXPORTED
         ContextCompat.registerReceiver(context, downloadCompleteReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
@@ -315,22 +328,19 @@ public class UpdateManager {
                             cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI)
                     );
                     if (uriString != null && !uriString.isEmpty()) {
-                        Uri privateUri = Uri.parse(uriString); // 私有目录的 Uri
+                        Uri privateUri = Uri.parse(uriString);
 
-                        // 🟢 复制到公共 Download 目录（Android 10+ 用 MediaStore，低版本直接使用）
+                        // 复制到公共 Download 目录（Android 10+ 用 MediaStore）
                         Uri publicUri;
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             publicUri = copyToPublicDownload(privateUri);
                             if (publicUri == null) {
-                                // 复制失败，回退到私有 Uri，仍可安装
-                                publicUri = privateUri;
+                                publicUri = privateUri; // 回退到私有 Uri
                             }
                         } else {
-                            // Android 9 及以下：直接使用原有路径（就是公共目录）
                             publicUri = privateUri;
                         }
 
-                        // 使用公共 Uri 安装（用户可在文件管理器看到该文件）
                         Intent installIntent = new Intent(Intent.ACTION_VIEW);
                         installIntent.setDataAndType(publicUri, "application/vnd.android.package-archive");
                         installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -358,29 +368,25 @@ public class UpdateManager {
         }
     }
 
-    // 🟢 新增：使用 MediaStore 将 APK 从私有目录复制到公共 Download 目录
+    // 使用 MediaStore 将 APK 从私有目录复制到公共 Download 目录
     private Uri copyToPublicDownload(Uri privateUri) {
-        // ✅【关键修复】添加 API 版本判断，消除 Lint NewApi Error
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            Log.w("UpdateManager", "当前 Android 版本低于 10，无法使用 MediaStore 复制到公共目录");
+            Log.w("UpdateManager", "当前 Android 版本低于 10，无法使用 MediaStore 复制");
             return null;
         }
 
         try {
-            // 1. 准备公共 Download 目录的 ContentValues
             ContentValues values = new ContentValues();
             values.put(MediaStore.Downloads.DISPLAY_NAME, APK_FILE_NAME);
             values.put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive");
             values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
 
-            // 2. 创建公共文件并获取 Uri
             Uri externalUri = MediaStore.Downloads.EXTERNAL_CONTENT_URI;
             Uri publicUri = context.getContentResolver().insert(externalUri, values);
             if (publicUri == null) {
                 return null;
             }
 
-            // 3. 打开输入流（私有文件）和输出流（公共文件）
             try (InputStream inputStream = context.getContentResolver().openInputStream(privateUri);
                  OutputStream outputStream = context.getContentResolver().openOutputStream(publicUri)) {
 
@@ -388,7 +394,6 @@ public class UpdateManager {
                     return null;
                 }
 
-                // 4. 复制文件
                 byte[] buffer = new byte[8192];
                 int length;
                 while ((length = inputStream.read(buffer)) != -1) {
