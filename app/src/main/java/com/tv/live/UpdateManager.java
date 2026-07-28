@@ -33,8 +33,10 @@ import java.net.URL;
  * 应用更新管理器
  */
 public class UpdateManager {
-    // 使用 GitHub Releases API 获取最新版本
-    private static final String UPDATE_JSON_URL = "https://api.github.com/repos/cuicanrensheng/1/releases/latest";
+    // 优先从仓库的 update.json 获取完整更新信息（包含详细更新日志）
+    private static final String UPDATE_JSON_URL = "https://ghproxy.com/https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json";
+    // 备用：GitHub Releases API（用于获取下载链接）
+    private static final String RELEASES_API_URL = "https://api.github.com/repos/cuicanrensheng/1/releases/latest";
     private static final String APK_FILE_NAME = "tv_live_update.apk";
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
     private static boolean isChecking = false;
@@ -72,6 +74,9 @@ public class UpdateManager {
 
         new Thread(() -> {
             try {
+                // ==========================================================
+                // 步骤1：优先从 update.json 获取完整的版本信息和更新日志
+                // ==========================================================
                 URL url = new URL(UPDATE_JSON_URL);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
@@ -95,34 +100,46 @@ public class UpdateManager {
                 conn.disconnect();
 
                 JSONObject json = new JSONObject(sb.toString());
-                String tagName = json.getString("tag_name");
-                String updateMessage = json.optString("body", "暂无更新内容");
+                final int latestVersionCode = json.optInt("versionCode", 0);
+                String latestVersionName = json.optString("versionName", "未知");
+                String updateMessage = json.optString("message", "暂无更新内容");
+                String downloadUrl = json.optString("downloadUrl", "");
                 boolean forceUpdate = json.optBoolean("forceUpdate", false);
 
-                int tempVersionCode = 0;
-                String latestVersionName = tagName;
-                try {
-                    if (tagName.startsWith("v")) {
-                        tempVersionCode = Integer.parseInt(tagName.substring(1));
-                    } else {
-                        tempVersionCode = Integer.parseInt(tagName);
-                    }
-                } catch (NumberFormatException e) {
-                    e.printStackTrace();
-                    tempVersionCode = 0;
-                }
-                final int latestVersionCode = tempVersionCode;
+                // ==========================================================
+                // 步骤2：如果 update.json 没有下载链接，备用从 Releases API 获取
+                // ==========================================================
+                if (downloadUrl.isEmpty()) {
+                    try {
+                        URL releasesUrl = new URL(RELEASES_API_URL);
+                        HttpURLConnection releasesConn = (HttpURLConnection) releasesUrl.openConnection();
+                        releasesConn.setRequestMethod("GET");
+                        releasesConn.setConnectTimeout(8000);
+                        releasesConn.setReadTimeout(8000);
 
-                String downloadUrl = "";
-                if (json.has("assets")) {
-                    JSONArray assets = json.getJSONArray("assets");
-                    for (int i = 0; i < assets.length(); i++) {
-                        JSONObject asset = assets.getJSONObject(i);
-                        String assetName = asset.getString("name");
-                        if (assetName.endsWith(".apk")) {
-                            downloadUrl = asset.getString("browser_download_url");
-                            break;
+                        if (releasesConn.getResponseCode() == 200) {
+                            BufferedReader r2 = new BufferedReader(new InputStreamReader(releasesConn.getInputStream()));
+                            StringBuilder sb2 = new StringBuilder();
+                            String l2;
+                            while ((l2 = r2.readLine()) != null) sb2.append(l2);
+                            r2.close();
+                            releasesConn.getInputStream().close();
+                            releasesConn.disconnect();
+
+                            JSONObject relJson = new JSONObject(sb2.toString());
+                            if (relJson.has("assets")) {
+                                JSONArray assets = relJson.getJSONArray("assets");
+                                for (int i = 0; i < assets.length(); i++) {
+                                    JSONObject asset = assets.getJSONObject(i);
+                                    if (asset.getString("name").endsWith(".apk")) {
+                                        downloadUrl = asset.getString("browser_download_url");
+                                        break;
+                                    }
+                                }
+                            }
                         }
+                    } catch (Exception ex) {
+                        Log.w("UpdateManager", "从Releases获取下载链接失败，继续使用已有信息", ex);
                     }
                 }
 
@@ -135,6 +152,16 @@ public class UpdateManager {
                             isChecking = false;
                         }
                         Toast.makeText(context, "最新版本未提供下载链接", Toast.LENGTH_SHORT).show();
+                    });
+                    return;
+                }
+
+                if (latestVersionCode == 0) {
+                    MAIN_HANDLER.post(() -> {
+                        synchronized (UpdateManager.class) {
+                            isChecking = false;
+                        }
+                        Toast.makeText(context, "获取版本信息失败", Toast.LENGTH_SHORT).show();
                     });
                     return;
                 }
