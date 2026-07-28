@@ -56,13 +56,6 @@
             </intent-filter>
         </activity>
 
-        <!-- 设置页面 -->
-        <activity
-            android:name=".SettingsActivity"
-            android:theme="@style/TransparentTheme"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize" />
-
         <!-- 频道列表页面 -->
         <activity
             android:name=".ChannelListActivity"
