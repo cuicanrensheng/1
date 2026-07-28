@@ -2,5 +2,5 @@
   "versionCode": 2218,
   "versionName": "2.0.2217.2218",
   "message": "📺 电视直播更新日志\n\n本次更新主要修复和优化：\n\n✅ 修复：更新弹窗中内容显示为 null 的问题\n✅ 优化：下载流程更稳定，支持 Android 13+ 安全注册\n✅ 改进：安装前自动复制 APK 到公共 Download 目录，方便手动安装\n✅ 增强：检查更新时增加防抖动和并发锁，避免重复请求\n\n💡 如果遇到安装问题，请前往“设置 → 应用管理”开启“安装未知应用”权限。\n\n感谢您的使用！",
-  "downloadUrl": "https://ghproxy.com/https://github.com/cuicanrensheng/1/releases/download/v2218/app-release.apk"
+  "downloadUrl": "https://github.com/cuicanrensheng/1/releases/download/v2218/app-release.apk"
 }
