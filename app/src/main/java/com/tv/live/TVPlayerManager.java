@@ -1043,6 +1043,13 @@ public class TVPlayerManager {
         }
     }
 
+    // ============================================================
+    // 🟢【新增】获取当前清晰度标签（供 SettingsDialog 使用）
+    // ============================================================
+    public String getCurrentResolutionLabel() {
+        return currentResolutionLabel;
+    }
+
     public void setCurrentChannelNumber(int num) {
         currentChannelNumber = num;
     }
