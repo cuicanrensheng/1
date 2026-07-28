@@ -150,6 +150,8 @@ public class TVPlayerManager {
     private volatile boolean isParsingMasterPlaylist = false;
 
     private SharedPreferences sp;
+    // 当前清晰度标签（用于 SettingsDialog 读取）
+    private String currentResolutionLabel = "自适应";
 
     // 解析主播放列表使用的单线程池
     private static final ExecutorService sPlaylistExecutor = Executors.newSingleThreadExecutor(r -> {
