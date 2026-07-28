@@ -2,7 +2,6 @@ package com.tv.live.tv;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
@@ -54,7 +53,7 @@ public class SetupActivity extends Activity {
                 editor.apply();
 
                 Toast.makeText(SetupActivity.this, "配置已保存，返回主页后请手动切换信号源", Toast.LENGTH_LONG).show();
-                finish(); // 关闭设置页
+                finish();
             }
         });
     }
