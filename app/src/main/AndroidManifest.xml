@@ -118,8 +118,9 @@
         </activity>
 
         <!-- 2. TIF 核心服务 -->
+        <!-- ✅ 注意：这里已改成了 .tv.LiveTvInputService -->
         <service
-            android:name=".tv.TvInputService"
+            android:name=".tv.LiveTvInputService"
             android:permission="android.permission.BIND_TV_INPUT"
             android:exported="true">
             <intent-filter>
