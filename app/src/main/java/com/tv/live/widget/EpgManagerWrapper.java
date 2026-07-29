@@ -454,11 +454,11 @@ public class EpgManagerWrapper {
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             } else if (isPlaying) {
-                // ✅ 播放中状态：蓝字 + 加粗 + 透明背景（仅保留文字，避免和选中状态背景重叠）
-                holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_title.setTypeface(null, Typeface.BOLD);
+                // ✅ 播放中状态：白字 + 透明背景（与频道列表规则一致，仅通过按钮颜色区分）
+                holder.tv_dayName.setTextColor(Color.WHITE);
+                holder.tv_time.setTextColor(Color.LTGRAY);
+                holder.tv_title.setTextColor(Color.WHITE);
+                holder.tv_title.setTypeface(null, Typeface.NORMAL);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             } else {
                 // ✅ 未选中状态：白字 + 常规 + 透明背景
