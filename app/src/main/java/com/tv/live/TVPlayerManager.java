@@ -1,6 +1,6 @@
 package com.tv.live;
 
-import android.annotation.SuppressLint; // 🟢 已导入
+import android.annotation.SuppressLint;
 import android.widget.Toast;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -17,7 +17,7 @@ import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
-import android.view.Surface; // 🟢 新增导入
+import android.view.Surface;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.webkit.CookieManager;
@@ -41,9 +41,10 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
-import androidx.core.content.ContextCompat; // 🔧 新增导入
+import androidx.core.content.ContextCompat;
 
 import com.tv.live.util.NetUtil;
+import com.tv.live.util.HuyaParser;  // 🔧 新增导入
 import com.tv.live.exception.RedirectFailedException;
 
 import java.io.BufferedReader;
@@ -66,9 +67,6 @@ import javax.net.ssl.HttpsURLConnection;
 
 import okhttp3.Headers;
 
-// 🟢【两个关键修复】
-// 1. @SuppressLint("UnsafeOptInUsageError") - 解决 Media3 不稳定 API 的 Lint 错误
-// 2. @SuppressLint("StaticFieldLeak") - 消除静态 Context 持有警告（ApplicationContext 安全）
 @SuppressLint({"UnsafeOptInUsageError", "StaticFieldLeak"})
 public class TVPlayerManager {
     private static final String TAG = "TVPlayerManager";
@@ -89,7 +87,6 @@ public class TVPlayerManager {
     private static final String KEY_REDIRECT_IGNORE_SSL = "redirect_ignore_ssl";
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
 
-    // ✅【修复编译错误】补全缺失的全局线路索引 Key 常量
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
 
     private static volatile TVPlayerManager instance;
@@ -145,26 +142,21 @@ public class TVPlayerManager {
 
     private ScaleMode mCurrentScaleMode = ScaleMode.FILL;
 
-    // 记录当前已应用的渲染器类型
     private Boolean mCurrentUseTexture = null;
 
-    // 清晰度相关
     private final Object variantListLock = new Object();
     private volatile List<Variant> variantList = new ArrayList<>();
     private volatile boolean isParsingMasterPlaylist = false;
 
     private SharedPreferences sp;
-    // 当前清晰度标签（用于 SettingsDialog 读取）
     private String currentResolutionLabel = "自适应";
 
-    // 解析主播放列表使用的单线程池
     private static final ExecutorService sPlaylistExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "TVPlayer-PlaylistParser");
         t.setDaemon(true);
         return t;
     });
 
-    // 清晰度实体类
     public static class Variant {
         public String url;
         public int bandwidth;
@@ -626,7 +618,6 @@ public class TVPlayerManager {
         return mDecoderMode;
     }
 
-    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerDecoderModeReceiver() {
         if (decoderReceiverRegistered) return;
         try {
@@ -680,7 +671,6 @@ public class TVPlayerManager {
         boolean useController = playerView.getUseController();
         ViewGroup.LayoutParams layoutParams = playerView.getLayoutParams();
 
-        // 1. 先创建新PlayerView并绑定播放器（播放器不暂停，持续解码输出）
         int index = parent.indexOfChild(playerView);
         int styleRes = useTexture ? R.style.PlayerView_Texture : R.style.PlayerView_Surface;
         ContextThemeWrapper themedContext = new ContextThemeWrapper(context, styleRes);
@@ -704,22 +694,18 @@ public class TVPlayerManager {
         }
         newPlayerView.setResizeMode(resizeMode);
 
-        // 2. 新View放到旧View下方（add到index+1位置，旧View在上）
         newPlayerView.setPlayer(player);
         parent.addView(newPlayerView, index + 1, layoutParams);
 
-        // 3. 通知回调（重新注册Surface回调等）
         if (onPlayerViewRecreatedListener != null) {
             onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
         }
 
-        // 4. 延迟移除旧View：等新View渲染出首帧后再移除，避免黑屏
         PlayerView oldPlayerView = playerView;
         playerView = newPlayerView;
         playerView.requestFocus();
 
         mHandler.postDelayed(() -> {
-            // 新View已渲染画面，安全移除旧View（不解绑播放器，因为已绑定到新View）
             oldPlayerView.setPlayer(null);
             parent.removeView(oldPlayerView);
             if (wasPlaying && player != null && !player.isPlaying()) {
@@ -731,7 +717,6 @@ public class TVPlayerManager {
         isRenderingSwitching = false;
     }
 
-    // 🔧 修复：使用 ContextCompat.registerReceiver 替代版本判断，消除 Lint Error
     public void registerRendererModeReceiver() {
         if (rendererReceiverRegistered) return;
         try {
@@ -766,7 +751,6 @@ public class TVPlayerManager {
         }
     }
 
-    // Surface 状态追踪（修复：音量键/后台卡片花屏）
     private boolean surfaceReady = false;
     private boolean pendingBindPlayer = false;
 
@@ -831,7 +815,6 @@ public class TVPlayerManager {
                     @Override
                     public void surfaceCreated(android.view.SurfaceHolder holder) {
                         surfaceReady = true;
-                        // 播放器从未解绑，无需重新绑定，确保播放即可
                         if (player != null && !player.isPlaying()) {
                             player.play();
                         }
@@ -847,9 +830,6 @@ public class TVPlayerManager {
                     @Override
                     public void surfaceDestroyed(android.view.SurfaceHolder holder) {
                         surfaceReady = false;
-                        // 不解绑播放器，不暂停播放
-                        // PlayerView内部自动处理Surface无效情况
-                        // 播放器持续运行，Surface重建后直接恢复画面
                         pendingBindPlayer = true;
                         Log.d(TAG, "Surface销毁，播放器保持运行不解绑");
                     }
@@ -922,25 +902,80 @@ public class TVPlayerManager {
         lastStallStartTime = 0;
     }
 
+    // ================================================================
+    // 🔧 核心修改：虎牙房间号检测与解析
+    // ================================================================
+    private boolean isHuyaRoomUrl(String url) {
+        if (TextUtils.isEmpty(url)) return false;
+        try {
+            java.net.URI uri = java.net.URI.create(url.trim());
+            String host = uri.getHost();
+            if (host == null) return false;
+            if (!host.contains("huya.com") && !host.contains("huya.cn")) return false;
+            String path = uri.getPath();
+            if (TextUtils.isEmpty(path)) return false;
+            String roomIdStr = path.replace("/", "").trim();
+            return roomIdStr.matches("\\d+");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private void playUrlInternal(String url) {
         playUrlInternal(url, 0);
     }
 
     private void playUrlInternal(String url, long initialSeekPosition) {
+        if (isHuyaRoomUrl(url)) {
+            String roomIdStr = url.replaceAll(".*/(\\d+).*", "$1");
+            int roomId;
+            try {
+                roomId = Integer.parseInt(roomIdStr);
+            } catch (NumberFormatException e) {
+                autoRetry("虎牙房间号格式错误: " + url);
+                return;
+            }
+            HuyaParser.parse(roomId, new HuyaParser.OnParseResultListener() {
+                @Override
+                public void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch) {
+                    String realUrl = !TextUtils.isEmpty(hlsUrl) ? hlsUrl : flvUrl;
+                    if (TextUtils.isEmpty(realUrl)) {
+                        autoRetry("虎牙解析返回空地址");
+                    } else {
+                        doPlay(realUrl, initialSeekPosition);
+                    }
+                }
+                @Override
+                public void onFailed(String errorMsg) {
+                    // 解析失败 -> 尝试备用源（若存在）
+                    if (!trySwitchBackup()) {
+                        if (sourceFailedListener != null) {
+                            mHandler.post(() -> sourceFailedListener.onSourceFailed());
+                        }
+                    }
+                }
+            });
+            return;
+        }
+        doPlay(url, initialSeekPosition);
+    }
+
+    // ================================================================
+    // 实际播放逻辑（从原 playUrlInternal 提取）
+    // ================================================================
+    private void doPlay(String url, long initialSeekPosition) {
         try {
             if (player == null || url == null || url.trim().isEmpty()) return;
 
             String playUrl = url.trim();
             if (currentChannel != null) {
                 SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-                // ✅ 读取该频道的独立线路索引
                 String channelKey = currentChannel.getChannelId();
                 if (TextUtils.isEmpty(channelKey)) {
                     channelKey = currentChannel.getName();
                 }
                 String prefKey = "channel_line_index_" + channelKey;
                 int lineIndex = sp.getInt(prefKey, 0);
-                // 如果没有独立设置，则回退到全局索引（兼容旧版，常量已补全）
                 if (lineIndex == 0 && sp.contains(KEY_CHANNEL_LINE_INDEX)) {
                     lineIndex = sp.getInt(KEY_CHANNEL_LINE_INDEX, 0);
                 }
@@ -971,7 +1006,6 @@ public class TVPlayerManager {
 
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
             
-            // ✅【核心修改】所有网络请求头（包括 UA）完全依照 NetUtil 定义，移除任何本地覆盖逻辑
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             reusableHeaderMap.clear();
             for (String name : globalHeaders.names()) {
@@ -1175,13 +1209,6 @@ public class TVPlayerManager {
         }
     }
 
-    // ============================================================
-    // 🟢【新增】绑定 Surface 渲染（用于 TV Input Framework 后台播放）
-    // ============================================================
-    /**
-     * 绑定 Surface 渲染（用于 TV Input Framework 后台播放）
-     * @param surface 系统提供的 Surface
-     */
     public void setSurface(Surface surface) {
         try {
             if (player != null) {
@@ -1193,9 +1220,6 @@ public class TVPlayerManager {
         }
     }
 
-    // ============================================================
-    // 🟢【新增】获取当前清晰度标签（供 SettingsDialog 使用）
-    // ============================================================
     public String getCurrentResolutionLabel() {
         return currentResolutionLabel;
     }
