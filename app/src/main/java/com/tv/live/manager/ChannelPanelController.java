@@ -403,6 +403,16 @@ public class ChannelPanelController {
         boolean willOpen = !isPanelOpen();
 
         if (willOpen) {
+            // 确保 OK 键只打开左侧面板，关闭右侧面板
+            if (llRightPanel != null) {
+                llRightPanel.setVisibility(View.GONE);
+            }
+            if (llLeftPanel != null) {
+                llLeftPanel.setVisibility(View.VISIBLE);
+            }
+            rightPanelOpen = false;
+            epgPanelOpen = false;
+
             if (GroupListManager.GROUP_ALL.equals(currentGroupName)
                     || currentGroupName.isEmpty()
                     || currentGroupChannelList.isEmpty()) {
