@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Handler;
@@ -837,13 +838,25 @@ public class TVPlayerManager {
                 surfaceView.getHolder().addCallback(new android.view.SurfaceHolder.Callback() {
                     @Override
                     public void surfaceCreated(android.view.SurfaceHolder holder) {
+                        // 清除Surface残留画面（防花屏）
+                        try {
+                            Canvas canvas = holder.lockCanvas();
+                            if (canvas != null) {
+                                canvas.drawColor(Color.BLACK);
+                                holder.unlockCanvasAndPost(canvas);
+                            }
+                        } catch (Exception e) {
+                            Log.w(TAG, "清除Surface残留失败", e);
+                        }
                         surfaceReady = true;
                         if (player != null && playerView != null && playerView.getPlayer() != player) {
                             playerView.setPlayer(player);
                         }
                         if (pendingBindPlayer && player != null) {
                             pendingBindPlayer = false;
-                            player.play();
+                            if (!player.isPlaying()) {
+                                player.play();
+                            }
                         }
                         Log.d(TAG, "Surface创建成功，播放器已绑定");
                     }
@@ -856,14 +869,13 @@ public class TVPlayerManager {
                     @Override
                     public void surfaceDestroyed(android.view.SurfaceHolder holder) {
                         surfaceReady = false;
+                        // 仅解绑PlayerView，不暂停播放器（防花屏）
+                        // 播放器保持运行，音频继续，避免解码器flush/reinit导致花屏
                         if (playerView != null) {
                             playerView.setPlayer(null);
                         }
-                        if (player != null) {
-                            player.pause();
-                        }
                         pendingBindPlayer = true;
-                        Log.d(TAG, "Surface销毁，播放器已解绑（防花屏）");
+                        Log.d(TAG, "Surface销毁，播放器已解绑（不暂停，防花屏）");
                     }
                 });
                 android.view.Surface surface = surfaceView.getHolder().getSurface();
