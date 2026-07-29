@@ -48,8 +48,8 @@ public class SourceHealthChecker {
     private static final int FAIL_THRESHOLD = 3;
     /** 检测超时时间 */
     private static final int CHECK_TIMEOUT_MS = 8000;
-    /** 全量检测间隔（12小时） */
-    private static final long FULL_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000L;
+    /** 全量检测间隔（7天） */
+    private static final long FULL_CHECK_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000L;
     /** 单次批量检测的最大并发数 */
     private static final int MAX_CONCURRENT = 8;
 
@@ -209,7 +209,7 @@ public class SourceHealthChecker {
         long now = System.currentTimeMillis();
         long lastCheck = sp.getLong(KEY_LAST_CHECK, 0);
         if (now - lastCheck < FULL_CHECK_INTERVAL_MS) {
-            Log.d(TAG, "距上次全量检测不足12小时，跳过");
+            Log.d(TAG, "距上次全量检测不足7天，跳过");
             isFullCheckRunning = false;
             return;
         }
