@@ -56,12 +56,6 @@
             </intent-filter>
         </activity>
 
-        <!-- 频道列表页面 -->
-        <activity
-            android:name=".ChannelListActivity"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize" />
-
         <!-- 崩溃页面 -->
         <activity
             android:name=".CrashActivity"
