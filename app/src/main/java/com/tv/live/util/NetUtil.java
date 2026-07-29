@@ -64,20 +64,27 @@ public class NetUtil {
 
         String userAgent = "ExoPlayer";
 
-        // 🔧【已移除所有浏览器UA兜底逻辑】
-        // 无论请求什么网址，UA 只取决于：自定义 UA -> VLC -> ExoPlayer
+        // 虎牙CDN域名使用Chrome UA，避免被限速或返回低码率流
+        boolean isHuyaCdn = url != null && (url.contains("huya.com") || url.contains("huya.cn")
+                || url.contains("hyplay.com") || url.contains("bdys-cdn")
+                || url.contains("hycdn") || url.contains("msstatic.com"));
+
         if (sAppContext != null) {
             SharedPreferences sp = sAppContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
             String customUA = sp.getString("custom_user_agent", "");
             if (!TextUtils.isEmpty(customUA)) {
                 userAgent = customUA;
+            } else if (isHuyaCdn) {
+                // 虎牙CDN强制使用Chrome UA，避免限速
+                userAgent = "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
             } else {
-                // 如果没填自定义，则读取 "VLC 或 ExoPlayer" 的模式
-                String uaMode = sp.getString("user_agent_mode", "exo"); 
+                String uaMode = sp.getString("user_agent_mode", "exo");
                 if ("vlc".equals(uaMode)) {
                     userAgent = "VLC";
                 }
             }
+        } else if (isHuyaCdn) {
+            userAgent = "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
         }
         
         Log.d("NetUtil", "【UA检测】当前正在使用的请求头 User-Agent: " + userAgent);

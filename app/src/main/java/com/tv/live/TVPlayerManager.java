@@ -105,6 +105,9 @@ public class TVPlayerManager {
 
     private Channel currentChannel;
     private int backupRetryIndex = -1;
+    private int currentHuyaRoomId = -1;
+    private int huyaRefreshCount = 0;
+    private static final int MAX_HUYA_REFRESH = 3;
 
     private long initialPlayStartTime = 0;
     private int bufferCount = 0;
@@ -262,11 +265,20 @@ public class TVPlayerManager {
         }
 
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(2000, 45000, 800, 1500)
+                .setBufferDurationsMs(8000, 60000, 3000, 5000)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
 
         trackSelector = new DefaultTrackSelector(context);
+        trackSelector.setParameters(
+                trackSelector.buildUponParameters()
+                        .setMinVideoBitrate(800_000)
+                        .setExceedVideoConstraintsIfNecessary(false)
+                        .setExceedAudioConstraintsIfNecessary(false)
+                        .setMaxVideoBitrate(8_000_000)
+                        .setForceHighestSupportedBitrate(false)
+                        .build()
+        );
 
         player = new ExoPlayer.Builder(context)
                 .setRenderersFactory(renderersFactory)
@@ -338,6 +350,14 @@ public class TVPlayerManager {
                         listener.onPlayError(error.getMessage());
                     }
                     return;
+                }
+
+                // 虎牙源403错误：AntiCode过期，静默刷新URL
+                if (currentHuyaRoomId > 0 && isHttp403Error(error)) {
+                    Log.w(TAG, "虎牙源返回403，AntiCode可能过期，尝试静默刷新URL...");
+                    if (refreshHuyaUrl()) {
+                        return; // 刷新中，不走正常重试
+                    }
                 }
 
                 boolean isNetworkError = isNetworkError(error);
@@ -537,6 +557,50 @@ public class TVPlayerManager {
             depth++;
         }
         return false;
+    }
+
+    private boolean isHttp403Error(Throwable throwable) {
+        if (throwable == null) return false;
+        Throwable t = throwable;
+        int depth = 0;
+        while (t != null && depth < 20) {
+            String msg = t.getMessage();
+            if (msg != null && (msg.contains("403") || msg.contains("Forbidden"))) {
+                return true;
+            }
+            t = t.getCause();
+            depth++;
+        }
+        return false;
+    }
+
+    private boolean refreshHuyaUrl() {
+        if (currentHuyaRoomId <= 0) return false;
+        if (huyaRefreshCount >= MAX_HUYA_REFRESH) {
+            Log.w(TAG, "虎牙URL刷新次数已达上限(" + MAX_HUYA_REFRESH + ")，走正常重试流程");
+            currentHuyaRoomId = -1;
+            return false;
+        }
+        huyaRefreshCount++;
+        Log.d(TAG, "静默刷新虎牙URL（第" + huyaRefreshCount + "次），roomId=" + currentHuyaRoomId);
+        HuyaParser.clearCache();
+        HuyaParser.parse(currentHuyaRoomId, new HuyaParser.OnParseResultListener() {
+            @Override
+            public void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch) {
+                String realUrl = !TextUtils.isEmpty(hlsUrl) ? hlsUrl : flvUrl;
+                if (!TextUtils.isEmpty(realUrl)) {
+                    Log.d(TAG, "虎牙URL刷新成功，重新播放");
+                    retryCount = 0;
+                    isRetrying = false;
+                    doPlay(realUrl, 0);
+                }
+            }
+            @Override
+            public void onFailed(String errorMsg) {
+                Log.w(TAG, "虎牙URL刷新失败：" + errorMsg);
+            }
+        });
+        return true;
     }
 
     private boolean isNetworkUnavailable() {
@@ -935,6 +999,9 @@ public class TVPlayerManager {
                 autoRetry("虎牙房间号格式错误: " + url);
                 return;
             }
+            currentHuyaRoomId = roomId;
+            huyaRefreshCount = 0;
+            HuyaParser.clearCache();
             HuyaParser.parse(roomId, new HuyaParser.OnParseResultListener() {
                 @Override
                 public void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch) {
@@ -1026,13 +1093,26 @@ public class TVPlayerManager {
                     .setAllowCrossProtocolRedirects(sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL, true))
                     .setFollowRedirectsWithHeaders(sp.getBoolean(KEY_REDIRECT_FOLLOW_HEADERS, true))
                     .setIgnoreSslErrorRedirect(sp.getBoolean(KEY_REDIRECT_IGNORE_SSL, false))
-                    .setConnectTimeoutMs(8000)
-                    .setReadTimeoutMs(10000);
+                    .setConnectTimeoutMs(15000)
+                    .setReadTimeoutMs(20000);
 
-            MediaItem mediaItem = MediaItem.fromUri(currentUrl);
+            MediaItem mediaItem = MediaItem.fromUri(currentUrl)
+                    .buildUpon()
+                    .setLiveConfiguration(
+                            new MediaItem.LiveConfiguration.Builder()
+                                    .setTargetOffsetMs(3000)
+                                    .setMaxOffsetMs(8000)
+                                    .setMinOffsetMs(1000)
+                                    .setMaxPlaybackSpeed(1.04f)
+                                    .setMinPlaybackSpeed(0.97f)
+                                    .build()
+                    )
+                    .build();
             MediaSource mediaSource;
             if (isHlsUrl(currentUrl)) {
-                mediaSource = new HlsMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
+                mediaSource = new HlsMediaSource.Factory(httpFactory)
+                        .setAllowChunklessPreparation(true)
+                        .createMediaSource(mediaItem);
             } else {
                 mediaSource = new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem);
             }
@@ -1183,7 +1263,30 @@ public class TVPlayerManager {
         if (selected == null) {
             selected = snapshot.get(snapshot.size() - 1);
         }
-        dLog("切换清晰度到：" + selected.resolutionLabel + "，URL=" + selected.url);
+        dLog("切换清晰度到：" + selected.resolutionLabel);
+        currentResolutionLabel = selected.resolutionLabel;
+
+        // 优先使用TrackSelector无缝切换（不中断播放）
+        if (trackSelector != null && player != null
+                && player.getPlaybackState() != Player.STATE_IDLE
+                && player.getPlaybackState() != Player.STATE_ENDED) {
+            try {
+                trackSelector.setParameters(
+                        trackSelector.buildUponParameters()
+                                .setMaxVideoBitrate(selected.bandwidth > 0 ? selected.bandwidth : Integer.MAX_VALUE)
+                                .setMaxVideoSize(selected.width > 0 ? selected.width : Integer.MAX_VALUE,
+                                        selected.height > 0 ? selected.height : Integer.MAX_VALUE)
+                                .setForceHighestSupportedBitrate(false)
+                                .build()
+                );
+                dLog("已通过TrackSelector无缝切换码率，bandwidth=" + selected.bandwidth);
+                return;
+            } catch (Exception e) {
+                Log.w(TAG, "TrackSelector无缝切换失败，回退到重新播放", e);
+            }
+        }
+
+        // 回退方案：重新播放指定清晰度URL
         playUrlInternal(selected.url);
     }
 
