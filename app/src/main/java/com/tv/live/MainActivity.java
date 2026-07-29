@@ -125,6 +125,27 @@ public class MainActivity extends AppCompatActivity {
     private final StringBuilder numberInputBuffer = new StringBuilder();
     private final Runnable numberInputConfirmTask = () -> confirmNumberInputJump();
 
+    // 🟢【回看快速调节】长按左/右键重复触发进度调节
+    private static final long SEEK_REPEAT_DELAY_MS = 400;
+    private static final long SEEK_REPEAT_INTERVAL_MS = 200;
+    private int longPressKeyCode = -1;
+    private final Runnable longPressSeekRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (longPressKeyCode == -1 || !isInCatchUpMode) return;
+            if (playerControlManager == null) {
+                longPressKeyCode = -1;
+                return;
+            }
+            if (longPressKeyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                playerControlManager.seekBackward();
+            } else if (longPressKeyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                playerControlManager.seekForward();
+            }
+            mMainHandler.postDelayed(this, SEEK_REPEAT_INTERVAL_MS);
+        }
+    };
+
     private AlertDialog exitMenuDialog = null;
 
     private BroadcastReceiver unlockReceiver;
@@ -293,7 +314,13 @@ public class MainActivity extends AppCompatActivity {
                         }
                     } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
                         if (isInCatchUpMode && playerControlManager != null) {
-                            playerControlManager.seekBackward();
+                            // 🟢 回看模式：第一次按下立即触发一次，400ms 后开始每 200ms 重复
+                            if (event.getRepeatCount() == 0) {
+                                playerControlManager.seekBackward();
+                                longPressKeyCode = keyCode;
+                                mMainHandler.removeCallbacks(longPressSeekRunnable);
+                                mMainHandler.postDelayed(longPressSeekRunnable, SEEK_REPEAT_DELAY_MS);
+                            }
                             return true;
                         }
                         if (!panelOpen) {
@@ -302,7 +329,12 @@ public class MainActivity extends AppCompatActivity {
                         }
                     } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
                         if (isInCatchUpMode && playerControlManager != null) {
-                            playerControlManager.seekForward();
+                            if (event.getRepeatCount() == 0) {
+                                playerControlManager.seekForward();
+                                longPressKeyCode = keyCode;
+                                mMainHandler.removeCallbacks(longPressSeekRunnable);
+                                mMainHandler.postDelayed(longPressSeekRunnable, SEEK_REPEAT_DELAY_MS);
+                            }
                             return true;
                         }
                         if (!panelOpen) {
@@ -339,6 +371,13 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             } else if (action == KeyEvent.ACTION_UP) {
+                // 🟢 长按左/右键抬起时停止重复调节
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    if (longPressKeyCode == keyCode) {
+                        longPressKeyCode = -1;
+                        mMainHandler.removeCallbacks(longPressSeekRunnable);
+                    }
+                }
                 if (isOkKey(keyCode)) {
                     okKeyLongPressed = false;
                     okKeyTriggered = false;
@@ -471,6 +510,11 @@ public class MainActivity extends AppCompatActivity {
 
     public void setCatchUpMode(boolean enabled) {
         this.isInCatchUpMode = enabled;
+        if (!enabled) {
+            // 退出回看模式时清理长按状态
+            longPressKeyCode = -1;
+            mMainHandler.removeCallbacks(longPressSeekRunnable);
+        }
     }
 
     public ChannelPanelController getChannelPanelController() {
