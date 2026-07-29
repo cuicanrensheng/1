@@ -47,15 +47,17 @@ public class EpgManagerWrapper {
     private final Set<String> bookedSet = new HashSet<>();
     private final Map<Channel.EpgItem, String> epgEndTimeMap = new HashMap<>();
     private static final String ACTION_REMINDER = "com.tv.live.EPG_REMINDER";
-    
-    // 初始设为 -1，让面板打开时没有任何项被默认选中
-    private int selectedPosition = -1;
-    private int focusedPosition = -1;
-    
+
+    private static final int COLOR_BLUE = 0xFF40A9FF;
+    private static final int COLOR_BG_BLUE = 0x3340A9FF;
+    private static final int COLOR_WHITE = 0xFFFFFFFF;
+    private static final int COLOR_GRAY = 0xFFCCCCCC;
+
+    private int selectedPosition = 0;
     private int playingIndex = -1;
     private int selectDayIndex = 0;
-    
-    private BroadcastReceiver reminderReceiver; 
+
+    private BroadcastReceiver reminderReceiver;
 
     public EpgManagerWrapper(Context context, ListView lvEpg) {
         this.context = context;
@@ -65,34 +67,27 @@ public class EpgManagerWrapper {
         lvEpg.setFocusableInTouchMode(true);
         lvEpg.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
-        // 方向键/遥控器移动：同步选中状态，自动触发浅蓝背景（与频道列表/日期一致）
         lvEpg.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
-                selectedPosition = pos;
-                focusedPosition = pos;
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedPosition = position;
                 if (adapter != null) {
                     adapter.notifyDataSetChanged();
                 }
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
-                // 无焦点时保持当前选中（与频道列表/日期一致，不重置为-1）
             }
         });
 
-        // 触摸/点击：第一下移动高亮（显示浅蓝色背景+蓝字加粗），与频道列表/日期完全一致
         lvEpg.setOnItemClickListener((parent, view, position, id) -> {
             selectedPosition = position;
-            focusedPosition = position;
             if (adapter != null) {
                 adapter.notifyDataSetChanged();
             }
-            lvEpg.setSelection(position);
-            // 选中节目立刻触发（点击即执行回看/预约，与频道列表行为一致）
             TextView actionBtn = view.findViewById(R.id.tv_action);
             if (actionBtn != null && actionBtn.isEnabled()) {
-                actionBtn.postDelayed(() -> actionBtn.performClick(), 150);
+                actionBtn.performClick();
             }
         });
 
@@ -183,23 +178,19 @@ public class EpgManagerWrapper {
             final List<Channel.EpgItem> finalData = data;
             final Channel finalChannel = currentChannel;
             ((MainActivity) context).runOnUiThread(() -> {
-                // 每次刷新前，重置选中状态为 -1
-                selectedPosition = -1;
-                focusedPosition = -1;
-                
                 if (adapter == null) {
                     adapter = new EpgAdapter(context, finalChannel, finalData, selectDayIndex);
                     lvEpg.setAdapter(adapter);
                 } else {
                     adapter.setData(finalChannel, finalData, selectDayIndex);
                 }
-                
-                // 如果数据不为空，滚动到正在播放的节目位置
+
                 if (!finalData.isEmpty()) {
                     int focusPos = 0;
                     if (playingIndex >= 0 && playingIndex < finalData.size()) {
                         focusPos = playingIndex;
                     }
+                    selectedPosition = focusPos;
                     lvEpg.setSelection(focusPos);
                 }
                 
@@ -414,27 +405,17 @@ public class EpgManagerWrapper {
             holder.tv_title.setText(item.title);
 
             boolean isSelected = (position == selectedPosition);
-            boolean isPlaying = item.isPlaying && dayIndex == 0;
 
-            // 选中：蓝字+浅蓝色背景+加粗（与频道列表/日期完全一致）
             if (isSelected) {
-                holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
+                holder.tv_dayName.setTextColor(COLOR_BLUE);
+                holder.tv_time.setTextColor(COLOR_BLUE);
+                holder.tv_title.setTextColor(COLOR_BLUE);
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
-                convertView.setBackgroundColor(0x3340A9FF);
-            } else if (isPlaying) {
-                // ✅ 播放中状态：白字 + 透明背景（与频道列表规则一致，仅通过按钮颜色区分）
-                holder.tv_dayName.setTextColor(Color.WHITE);
-                holder.tv_time.setTextColor(Color.LTGRAY);
-                holder.tv_title.setTextColor(Color.WHITE);
-                holder.tv_title.setTypeface(null, Typeface.NORMAL);
-                convertView.setBackgroundColor(Color.TRANSPARENT);
+                convertView.setBackgroundColor(COLOR_BG_BLUE);
             } else {
-                // ✅ 未选中状态：白字 + 常规 + 透明背景
-                holder.tv_dayName.setTextColor(Color.WHITE);
-                holder.tv_time.setTextColor(Color.LTGRAY);
-                holder.tv_title.setTextColor(Color.WHITE);
+                holder.tv_dayName.setTextColor(COLOR_WHITE);
+                holder.tv_time.setTextColor(COLOR_GRAY);
+                holder.tv_title.setTextColor(COLOR_WHITE);
                 holder.tv_title.setTypeface(null, Typeface.NORMAL);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
             }
