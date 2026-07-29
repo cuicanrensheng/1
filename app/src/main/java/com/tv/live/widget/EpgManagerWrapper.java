@@ -61,64 +61,41 @@ public class EpgManagerWrapper {
         this.context = context;
         this.lvEpg = lvEpg;
         lvEpg.setItemsCanFocus(true);
+        lvEpg.setFocusable(true);
+        lvEpg.setFocusableInTouchMode(true);
         lvEpg.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-        
-        // 方向键移动：同步选中状态，自动触发浅蓝背景
+
+        // 方向键/遥控器移动：同步选中状态，自动触发浅蓝背景（与频道列表/日期一致）
         lvEpg.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
-                focusedPosition = pos;
                 selectedPosition = pos;
+                focusedPosition = pos;
                 if (adapter != null) {
                     adapter.notifyDataSetChanged();
                 }
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
-                selectedPosition = -1;
-                focusedPosition = -1;
-                if (adapter != null) {
-                    adapter.notifyDataSetChanged();
-                }
-            }
-        });
-        
-        lvEpg.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (adapter != null) {
-                    adapter.notifyDataSetChanged();
-                }
+                // 无焦点时保持当前选中（与频道列表/日期一致，不重置为-1）
             }
         });
 
-        // 触摸/确认键：第一下移动（显示浅蓝背景+蓝字加粗），第二下确认执行
-        lvEpg.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus) focusedPosition = -1;
+        // 触摸/点击：第一下移动高亮（显示浅蓝色背景+蓝字加粗），与频道列表/日期完全一致
+        lvEpg.setOnItemClickListener((parent, view, position, id) -> {
+            selectedPosition = position;
+            focusedPosition = position;
             if (adapter != null) {
                 adapter.notifyDataSetChanged();
             }
-        });
-
-
-
-        lvEpg.setOnItemClickListener((parent, view, position, id) -> {
-            if (position == selectedPosition) {
-                // ✅ 第二次点击确认：执行回看/预约
-                TextView actionBtn = view.findViewById(R.id.tv_action);
-                if (actionBtn != null && actionBtn.isEnabled()) {
-                    actionBtn.performClick();
-                }
-            } else {
-                // ✅ 第一次点击聚焦：只移动高亮，立刻显示浅蓝色背景
-                selectedPosition = position;
-                if (adapter != null) {
-                    adapter.notifyDataSetChanged();
-                }
-                lvEpg.setSelection(position);
+            lvEpg.setSelection(position);
+            // 选中节目立刻触发（点击即执行回看/预约，与频道列表行为一致）
+            TextView actionBtn = view.findViewById(R.id.tv_action);
+            if (actionBtn != null && actionBtn.isEnabled()) {
+                actionBtn.postDelayed(() -> actionBtn.performClick(), 150);
             }
         });
-        
+
         registerReminderReceiver();
     }
 
@@ -437,22 +414,15 @@ public class EpgManagerWrapper {
             holder.tv_title.setText(item.title);
 
             boolean isSelected = (position == selectedPosition);
-            boolean isFocused = (position == focusedPosition) && lvEpg.hasFocus();
             boolean isPlaying = item.isPlaying && dayIndex == 0;
 
-            // 焦点+选中：蓝字+浅蓝色背景；仅焦点：蓝字+透明背景
-            if (isFocused && isSelected) {
+            // 选中：蓝字+浅蓝色背景+加粗（与频道列表/日期完全一致）
+            if (isSelected) {
                 holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
                 holder.tv_title.setTypeface(null, Typeface.BOLD);
                 convertView.setBackgroundColor(0x3340A9FF);
-            } else if (isFocused) {
-                holder.tv_dayName.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_time.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_title.setTextColor(Color.parseColor("#40A9FF"));
-                holder.tv_title.setTypeface(null, Typeface.BOLD);
-                convertView.setBackgroundColor(Color.TRANSPARENT);
             } else if (isPlaying) {
                 // ✅ 播放中状态：白字 + 透明背景（与频道列表规则一致，仅通过按钮颜色区分）
                 holder.tv_dayName.setTextColor(Color.WHITE);
