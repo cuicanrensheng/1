@@ -7,7 +7,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Handler;
@@ -838,16 +837,6 @@ public class TVPlayerManager {
                 surfaceView.getHolder().addCallback(new android.view.SurfaceHolder.Callback() {
                     @Override
                     public void surfaceCreated(android.view.SurfaceHolder holder) {
-                        // 清除Surface残留画面（防花屏）
-                        try {
-                            Canvas canvas = holder.lockCanvas();
-                            if (canvas != null) {
-                                canvas.drawColor(Color.BLACK);
-                                holder.unlockCanvasAndPost(canvas);
-                            }
-                        } catch (Exception e) {
-                            Log.w(TAG, "清除Surface残留失败", e);
-                        }
                         surfaceReady = true;
                         if (player != null && playerView != null && playerView.getPlayer() != player) {
                             playerView.setPlayer(player);
@@ -857,6 +846,13 @@ public class TVPlayerManager {
                             if (!player.isPlaying()) {
                                 player.play();
                             }
+                            // 延迟兜底：确保播放器真正恢复渲染
+                            mHandler.postDelayed(() -> {
+                                if (player != null && !player.isPlaying()) {
+                                    Log.w(TAG, "Surface重建后播放器未恢复，强制重试");
+                                    player.play();
+                                }
+                            }, 500);
                         }
                         Log.d(TAG, "Surface创建成功，播放器已绑定");
                     }
