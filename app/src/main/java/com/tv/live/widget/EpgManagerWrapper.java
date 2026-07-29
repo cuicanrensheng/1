@@ -81,13 +81,19 @@ public class EpgManagerWrapper {
         });
 
         lvEpg.setOnItemClickListener((parent, view, position, id) -> {
-            selectedPosition = position;
-            if (adapter != null) {
-                adapter.notifyDataSetChanged();
-            }
-            TextView actionBtn = view.findViewById(R.id.tv_action);
-            if (actionBtn != null && actionBtn.isEnabled()) {
-                actionBtn.performClick();
+            if (position == selectedPosition) {
+                // 第二次点击：确认执行回看/预约
+                TextView actionBtn = view.findViewById(R.id.tv_action);
+                if (actionBtn != null && actionBtn.isEnabled()) {
+                    actionBtn.performClick();
+                }
+            } else {
+                // 第一次点击：仅选中高亮（浅蓝背景+蓝字），不触发回看
+                selectedPosition = position;
+                if (adapter != null) {
+                    adapter.notifyDataSetChanged();
+                }
+                lvEpg.setSelection(position);
             }
         });
 
