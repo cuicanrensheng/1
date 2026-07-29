@@ -1041,7 +1041,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (pipManager == null || !pipManager.isInPipMode()) {
             if (mPlayerManager != null) {
-                mPlayerManager.pause();
+                mPlayerManager.onBackground();
             }
         } else {
             if (mPlayerManager != null) {
@@ -1098,10 +1098,22 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private boolean wasWindowFocused = true;
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) displayManager.reapplyFullScreen();
+        if (hasFocus) {
+            displayManager.reapplyFullScreen();
+            if (!wasWindowFocused && mPlayerManager != null) {
+                mPlayerManager.resume();
+            }
+        } else {
+            if (mPlayerManager != null && !isOpeningSettings) {
+                mPlayerManager.pause();
+            }
+        }
+        wasWindowFocused = hasFocus;
         appCoreManager.onWindowFocusChanged(hasFocus);
     }
 

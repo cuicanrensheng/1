@@ -697,11 +697,21 @@ public class TVPlayerManager {
         }
     }
 
+    // Surface 状态追踪（修复：音量键/后台卡片花屏）
+    private boolean surfaceReady = false;
+    private boolean pendingBindPlayer = false;
+
     public void onForeground() {
         try {
             if (player != null && playerView != null) {
-                playerView.setPlayer(player);
-                player.play();
+                if (surfaceReady) {
+                    if (playerView.getPlayer() != player) {
+                        playerView.setPlayer(player);
+                    }
+                    player.play();
+                } else {
+                    pendingBindPlayer = true;
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "切前台异常", e);
@@ -710,9 +720,26 @@ public class TVPlayerManager {
 
     public void onBackground() {
         try {
-            if (player != null) player.pause();
+            if (player != null) {
+                player.pause();
+            }
+            if (playerView != null && surfaceReady) {
+                pendingBindPlayer = true;
+            }
         } catch (Exception e) {
             Log.e(TAG, "切后台异常", e);
+        }
+    }
+
+    public void detachPlayerView() {
+        try {
+            if (playerView != null) {
+                playerView.setPlayer(null);
+                surfaceReady = false;
+                pendingBindPlayer = true;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "解绑PlayerView异常", e);
         }
     }
 
@@ -720,8 +747,67 @@ public class TVPlayerManager {
         playerView = view;
         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         String rendererMode = sp.getString("renderer_type", "surface");
-        switchRenderer("texture".equals(rendererMode));
-        playerView.setPlayer(player);
+        boolean useTexture = "texture".equals(rendererMode);
+        switchRenderer(useTexture);
+
+        if (useTexture) {
+            playerView.setPlayer(player);
+            surfaceReady = true;
+            pendingBindPlayer = false;
+        } else {
+            View videoSurfaceView = playerView.getVideoSurfaceView();
+            if (videoSurfaceView instanceof android.view.SurfaceView) {
+                android.view.SurfaceView surfaceView = (android.view.SurfaceView) videoSurfaceView;
+                surfaceView.getHolder().addCallback(new android.view.SurfaceHolder.Callback() {
+                    @Override
+                    public void surfaceCreated(android.view.SurfaceHolder holder) {
+                        surfaceReady = true;
+                        if (player != null && playerView != null && playerView.getPlayer() != player) {
+                            playerView.setPlayer(player);
+                        }
+                        if (pendingBindPlayer && player != null) {
+                            pendingBindPlayer = false;
+                            player.play();
+                        }
+                        Log.d(TAG, "Surface创建成功，播放器已绑定");
+                    }
+
+                    @Override
+                    public void surfaceChanged(android.view.SurfaceHolder holder, int format, int width, int height) {
+                        Log.d(TAG, "Surface变化: " + width + "x" + height);
+                    }
+
+                    @Override
+                    public void surfaceDestroyed(android.view.SurfaceHolder holder) {
+                        surfaceReady = false;
+                        if (playerView != null) {
+                            playerView.setPlayer(null);
+                        }
+                        if (player != null) {
+                            player.pause();
+                        }
+                        pendingBindPlayer = true;
+                        Log.d(TAG, "Surface销毁，播放器已解绑（防花屏）");
+                    }
+                });
+                android.view.Surface surface = surfaceView.getHolder().getSurface();
+                if (surface != null && surface.isValid()) {
+                    surfaceReady = true;
+                    if (player != null && playerView.getPlayer() != player) {
+                        playerView.setPlayer(player);
+                    }
+                    pendingBindPlayer = false;
+                } else {
+                    surfaceReady = false;
+                    pendingBindPlayer = true;
+                }
+            } else {
+                playerView.setPlayer(player);
+                surfaceReady = true;
+                pendingBindPlayer = false;
+            }
+        }
+
         playerView.setUseController(false);
     }
 
