@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -1139,13 +1140,26 @@ public class MainActivity extends AppCompatActivity {
             appCoreManager.onPause();
         }
 
-        if (pipManager == null || !pipManager.isInPipMode()) {
-            if (mPlayerManager != null) {
-                mPlayerManager.onBackground();
-            }
-        } else {
+        // 系统小窗/分屏模式下 Activity 仍然可见，不暂停播放器
+        boolean isSystemVisible = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            isSystemVisible = isInMultiWindowMode() || isInPictureInPictureMode();
+        }
+
+        if (pipManager != null && pipManager.isInPipMode()) {
+            // App 内置画中画：保持播放
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
+            }
+        } else if (isSystemVisible) {
+            // 系统小窗/分屏：Activity 仍可见，保持播放不暂停
+            if (mPlayerManager != null) {
+                mPlayerManager.resume();
+            }
+        } else {
+            // 真正退到后台：暂停播放器
+            if (mPlayerManager != null) {
+                mPlayerManager.onBackground();
             }
         }
     }
@@ -1154,6 +1168,28 @@ public class MainActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         if (pipManager != null) pipManager.setStopCalled(true);
+
+        // 系统小窗/分屏模式下 onStop 也会触发，但 Activity 仍可见，不暂停
+        boolean isSystemVisible = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            isSystemVisible = isInMultiWindowMode() || isInPictureInPictureMode();
+        }
+        if (isSystemVisible) {
+            if (mPlayerManager != null) {
+                mPlayerManager.resume();
+            }
+        }
+    }
+
+    @Override
+    public void onMultiWindowModeChanged(boolean isInMultiWindowMode) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode);
+        if (isInMultiWindowMode) {
+            // 进入系统分屏/小窗，保持播放
+            if (mPlayerManager != null) {
+                mPlayerManager.resume();
+            }
+        }
     }
 
     @Override
