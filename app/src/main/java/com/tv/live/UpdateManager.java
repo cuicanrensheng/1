@@ -35,13 +35,16 @@ import java.net.URL;
 public class UpdateManager {
     private static final String TAG = "UpdateManager";
 
-    // ✅ 镜像地址池：按优先级依次尝试，确保国内电视网络可连通
-    // ghproxy 镜像优先，ghps 备用，jsdelivr 备用，raw.githubusercontent 直连兜底
+    // ✅ 镜像地址池：按优先级依次尝试
+    // 【1】GitHub 直连（无缓存，版本号最准确，国内外通吃；raw.githubusercontent 在国内大部分网络也能通）
+    // 【2】jsdelivr CDN（缓存约1分钟，适合国内加速）
+    // 【3】gh.api.99988866.xyz 代理（无强制缓存）
+    // 【4】ghproxy.com（缓存最重，作为兜底；如果把它放首位，会读到旧版本）
     private static final String[] UPDATE_JSON_MIRRORS = {
-            "https://ghproxy.com/https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json",
-            "https://gh.api.99988866.xyz/https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json",
+            "https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json",
             "https://cdn.jsdelivr.net/gh/cuicanrensheng/1@main/update.json",
-            "https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json"
+            "https://gh.api.99988866.xyz/https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json",
+            "https://ghproxy.com/https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json"
     };
     private static final String RELEASES_API_URL = "https://api.github.com/repos/cuicanrensheng/1/releases/latest";
     private static final String APK_FILE_NAME = "tv_live_update.apk";
