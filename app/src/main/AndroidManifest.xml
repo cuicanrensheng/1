@@ -83,6 +83,11 @@
                 <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <!-- 创维/酷开快速开机唤醒兜底：屏幕点亮 + 用户解锁 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SCREEN_ON" />
+                <action android:name="android.intent.action.USER_PRESENT" />
+            </intent-filter>
         </receiver>
 
         <!-- 延迟启动接收器 -->
@@ -94,6 +99,18 @@
                 <action android:name="com.tv.live.START_APP" />
             </intent-filter>
         </receiver>
+
+        <!-- JobScheduler 兜底服务 -->
+        <service
+            android:name=".BootJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
+
+        <!-- 开机自启临时前台服务（Android 10+ 后台启动限制兜底） -->
+        <service
+            android:name=".BootStartForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
 
         <!-- FileProvider -->
         <provider

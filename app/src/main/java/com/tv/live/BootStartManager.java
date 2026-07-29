@@ -83,6 +83,7 @@ public class BootStartManager {
         }
 
         String manufacturer = Build.MANUFACTURER;
+        String brand = Build.BRAND;
         if (manufacturer != null) {
             manufacturer = manufacturer.toLowerCase(Locale.ROOT);
             if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
@@ -99,6 +100,13 @@ public class BootStartManager {
             }
             if (manufacturer.contains("vivo") || manufacturer.contains("iqoo")) {
                 Log.d(TAG, "【自启】检测到 OriginOS 系统，需手动开启自启");
+                return BootStatus.SYSTEM_RESTRICTED;
+            }
+            // 创维 / 酷开 / 康佳等同属国产电视阵营，系统限制类似
+            if (manufacturer.contains("skyworth") || manufacturer.contains("coocaa")
+                    || (brand != null && (brand.toLowerCase(Locale.ROOT).contains("skyworth")
+                                          || brand.toLowerCase(Locale.ROOT).contains("coocaa")))) {
+                Log.d(TAG, "【自启】检测到创维/酷开系统，需手动开启自启");
                 return BootStatus.SYSTEM_RESTRICTED;
             }
         }
