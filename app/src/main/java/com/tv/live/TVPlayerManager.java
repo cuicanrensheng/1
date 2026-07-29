@@ -838,23 +838,12 @@ public class TVPlayerManager {
                     @Override
                     public void surfaceCreated(android.view.SurfaceHolder holder) {
                         surfaceReady = true;
-                        if (player != null && playerView != null && playerView.getPlayer() != player) {
-                            playerView.setPlayer(player);
+                        // 播放器从未解绑，无需重新绑定，确保播放即可
+                        if (player != null && !player.isPlaying()) {
+                            player.play();
                         }
-                        if (pendingBindPlayer && player != null) {
-                            pendingBindPlayer = false;
-                            if (!player.isPlaying()) {
-                                player.play();
-                            }
-                            // 延迟兜底：确保播放器真正恢复渲染
-                            mHandler.postDelayed(() -> {
-                                if (player != null && !player.isPlaying()) {
-                                    Log.w(TAG, "Surface重建后播放器未恢复，强制重试");
-                                    player.play();
-                                }
-                            }, 500);
-                        }
-                        Log.d(TAG, "Surface创建成功，播放器已绑定");
+                        pendingBindPlayer = false;
+                        Log.d(TAG, "Surface创建成功，播放器持续播放");
                     }
 
                     @Override
@@ -865,13 +854,11 @@ public class TVPlayerManager {
                     @Override
                     public void surfaceDestroyed(android.view.SurfaceHolder holder) {
                         surfaceReady = false;
-                        // 仅解绑PlayerView，不暂停播放器（防花屏）
-                        // 播放器保持运行，音频继续，避免解码器flush/reinit导致花屏
-                        if (playerView != null) {
-                            playerView.setPlayer(null);
-                        }
+                        // 不解绑播放器，不暂停播放
+                        // PlayerView内部自动处理Surface无效情况
+                        // 播放器持续运行，Surface重建后直接恢复画面
                         pendingBindPlayer = true;
-                        Log.d(TAG, "Surface销毁，播放器已解绑（不暂停，防花屏）");
+                        Log.d(TAG, "Surface销毁，播放器保持运行不解绑");
                     }
                 });
                 android.view.Surface surface = surfaceView.getHolder().getSurface();
