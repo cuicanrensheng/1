@@ -1738,10 +1738,22 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     /**
+     * 检测当前设备是否为 Android TV（原生支持 TIF）
+     */
+    private boolean isAndroidTvDevice() {
+        return getContext().getPackageManager().hasSystemFeature(
+                android.content.pm.PackageManager.FEATURE_LEANBACK);
+    }
+
+    /**
      * 更新 TIF 同步状态显示
      */
     private void updateTifStatus(TextView tvTifStatus) {
         if (tvTifStatus == null) return;
+        if (!isAndroidTvDevice()) {
+            tvTifStatus.setText("该设备不支持");
+            return;
+        }
         String inputId = getTifInputId();
         if (inputId == null) {
             tvTifStatus.setText("未激活");
@@ -1757,6 +1769,10 @@ public class SettingsDialog extends android.app.Dialog {
     private void syncChannelsToSystemTif() {
         new Thread(() -> {
             try {
+                if (!isAndroidTvDevice()) {
+                    mainHandler.post(() -> Toast.makeText(getContext(), "该设备不支持系统直播电视，请在 Android TV 设备上使用此功能", Toast.LENGTH_LONG).show());
+                    return;
+                }
                 String inputId = getTifInputId();
                 if (inputId == null) {
                     mainHandler.post(() -> Toast.makeText(getContext(), "TIF服务未激活，请先安装并配置系统直播电视", Toast.LENGTH_LONG).show());
