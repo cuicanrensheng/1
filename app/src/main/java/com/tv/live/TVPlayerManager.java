@@ -77,8 +77,10 @@ public class TVPlayerManager {
     public static final int DECODER_MODE_SOFT = 2;
     
     private static final int MAX_RETRY_COUNT = 2;
+    private static final int MAX_RETRY_COUNT_NETWORK = 5;
     private static final long STUCK_TIMEOUT = 20000;
     private static final long CHANNEL_NUM_HIDE_DELAY = 3000;
+    private static final long SOURCE_FAILED_COOLDOWN_MS = 30000;
 
     private static final String KEY_REDIRECT_MAX_COUNT = "redirect_max_count";
     private static final String KEY_REDIRECT_CROSS_DOMAIN = "redirect_cross_domain";
@@ -114,6 +116,7 @@ public class TVPlayerManager {
     private int retryCount = 0;
     private boolean isRetrying = false;
     private Runnable retryRunnable;
+    private long lastSourceFailedTime = 0;
 
     private long lastPositionUpdateTime = 0;
     private long lastPosition = 0;
@@ -336,15 +339,19 @@ public class TVPlayerManager {
                     depth++;
                 }
 
-                boolean backupSwitched = false;
-                if (!isRedirectError) {
-                    backupSwitched = trySwitchBackup();
+                if (isRedirectError) {
+                    if (listener != null) {
+                        listener.onPlayError(error.getMessage());
+                    }
+                    return;
                 }
 
-                boolean sourceFailedNotified = false;
-                if (!backupSwitched && sourceFailedListener != null) {
-                    sourceFailedListener.onSourceFailed();
-                    sourceFailedNotified = true;
+                boolean isNetworkError = isNetworkError(error);
+                if (isNetworkError && isNetworkUnavailable()) {
+                    Log.w(TAG, "网络不可用，暂不切台，等待网络恢复后重试...");
+                    autoRetry("网络不可用", error);
+                } else {
+                    autoRetry(isNetworkError ? "网络异常" : "播放异常", error);
                 }
 
                 if (listener != null) {
@@ -463,16 +470,35 @@ public class TVPlayerManager {
             return;
         }
         if (isRetrying) return;
-        if (retryCount >= MAX_RETRY_COUNT) {
-            Log.w(TAG, "重试次数已达上限：" + MAX_RETRY_COUNT + "，判定为失效源");
-            if (sourceFailedListener != null) {
-                mHandler.post(() -> sourceFailedListener.onSourceFailed());
+
+        boolean isNetworkError = isNetworkError(cause) || (reason != null && (reason.contains("网络") || reason.contains("卡住")));
+        int maxRetry = isNetworkError ? MAX_RETRY_COUNT_NETWORK : MAX_RETRY_COUNT;
+
+        if (retryCount >= maxRetry) {
+            Log.w(TAG, "重试次数已达上限：" + maxRetry + "（" + (isNetworkError ? "网络错误" : "源错误") + "），判定为失效源");
+
+            if (!isNetworkError || !isNetworkUnavailable()) {
+                boolean backupSwitched = trySwitchBackup();
+                if (!backupSwitched) {
+                    long now = System.currentTimeMillis();
+                    if (now - lastSourceFailedTime < SOURCE_FAILED_COOLDOWN_MS) {
+                        Log.w(TAG, "切台冷却中（" + (SOURCE_FAILED_COOLDOWN_MS / 1000) + "s），跳过本次自动切台");
+                        return;
+                    }
+                    lastSourceFailedTime = now;
+                    if (sourceFailedListener != null) {
+                        mHandler.post(() -> sourceFailedListener.onSourceFailed());
+                    }
+                }
+            } else {
+                Log.w(TAG, "网络不可用，不切台不切源，保持当前频道等待网络恢复");
             }
             return;
         }
         isRetrying = true;
         retryCount++;
-        Log.w(TAG, "自动重试（第" + retryCount + "次），原因：" + reason);
+        long delayMs = isNetworkError ? (2000L * (1L << (retryCount - 1))) : 3000L;
+        Log.w(TAG, "自动重试（第" + retryCount + "/" + maxRetry + "次），延迟" + delayMs + "ms，原因：" + reason);
         retryRunnable = () -> {
             isRetrying = false;
             if (!TextUtils.isEmpty(currentUrl)) {
@@ -480,7 +506,46 @@ public class TVPlayerManager {
             }
             retryRunnable = null;
         };
-        mHandler.postDelayed(retryRunnable, 3000);
+        mHandler.postDelayed(retryRunnable, delayMs);
+    }
+
+    private boolean isNetworkError(Throwable throwable) {
+        if (throwable == null) return false;
+        Throwable t = throwable;
+        int depth = 0;
+        while (t != null && depth < 20) {
+            String className = t.getClass().getName();
+            String msg = t.getMessage();
+            if (msg == null) msg = "";
+            if (className.contains("SocketTimeoutException")
+                    || className.contains("ConnectException")
+                    || className.contains("UnknownHostException")
+                    || className.contains("NetworkOnMainThreadException")
+                    || msg.contains("timeout")
+                    || msg.contains("timed out")
+                    || msg.contains("Connection")
+                    || msg.contains("connection")
+                    || msg.contains("unreachable")
+                    || msg.contains("ECONNRESET")
+                    || msg.contains("ECONNREFUSED")) {
+                return true;
+            }
+            t = t.getCause();
+            depth++;
+        }
+        return false;
+    }
+
+    private boolean isNetworkUnavailable() {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager)
+                    context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return false;
+            android.net.NetworkInfo info = cm.getActiveNetworkInfo();
+            return info == null || !info.isConnected();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public void setDecoderMode(int mode) {
