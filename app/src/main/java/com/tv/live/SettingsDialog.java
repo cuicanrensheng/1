@@ -21,6 +21,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.media.tv.TvInputInfo;
+import android.media.tv.TvInputManager;
+import android.content.ComponentName;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -39,6 +42,10 @@ import androidx.appcompat.widget.SwitchCompat;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import com.tv.live.tv.TvChannelSyncManager;
+import com.tv.live.util.CacheManager;
+import com.tv.live.PlaylistParser;
 
 public class SettingsDialog extends android.app.Dialog {
     private SwitchCompat sw_boot, sw_reverse, sw_pip;
@@ -216,6 +223,10 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void initSettingsItemList() {
+        View itemTifSync = findViewById(R.id.item_tif_sync);
+        TextView tvTifStatus = findViewById(R.id.tv_tif_status);
+        updateTifStatus(tvTifStatus);
+
         View[] items = {
             findViewById(R.id.item_boot),
             findViewById(R.id.item_reverse),
@@ -228,6 +239,7 @@ public class SettingsDialog extends android.app.Dialog {
             findViewById(R.id.item_redirect),
             findViewById(R.id.item_live_subscribe),
             findViewById(R.id.item_epg_subscribe),
+            itemTifSync,
             findViewById(R.id.item_check_update),
             findViewById(R.id.item_version_info),
             findViewById(R.id.item_exit_dialog)
@@ -314,6 +326,7 @@ public class SettingsDialog extends android.app.Dialog {
                 findViewById(R.id.item_redirect),
                 findViewById(R.id.item_live_subscribe),
                 findViewById(R.id.item_epg_subscribe),
+                findViewById(R.id.item_tif_sync),
                 findViewById(R.id.item_check_update),
                 findViewById(R.id.item_version_info),
                 findViewById(R.id.item_exit_dialog)
@@ -373,12 +386,15 @@ public class SettingsDialog extends android.app.Dialog {
                 showSubscriptionDialog("epg_history", "节目单订阅");
                 break;
             case 11:
-                updateManager.checkUpdate();
+                syncChannelsToSystemTif();
                 break;
             case 12:
-                showVersionInfoDialog();
+                updateManager.checkUpdate();
                 break;
             case 13:
+                showVersionInfoDialog();
+                break;
+            case 14:
                 boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", false);
                 boolean newState = !exitDialogEnabled;
                 sp.edit().putBoolean("exit_dialog_enable", newState).apply();
@@ -1594,6 +1610,7 @@ public class SettingsDialog extends android.app.Dialog {
                 findViewById(R.id.item_redirect),
                 findViewById(R.id.item_live_subscribe),
                 findViewById(R.id.item_epg_subscribe),
+                findViewById(R.id.item_tif_sync),
                 findViewById(R.id.item_check_update),
                 findViewById(R.id.item_version_info),
                 findViewById(R.id.item_exit_dialog)
@@ -1697,5 +1714,79 @@ public class SettingsDialog extends android.app.Dialog {
         } catch (Exception e) {
             android.util.Log.e("SettingsDialog", "refreshSettings 异常: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 获取 TIF InputId
+     */
+    private String getTifInputId() {
+        try {
+            TvInputManager tim = (TvInputManager) getContext().getSystemService(android.content.Context.TV_INPUT_SERVICE);
+            if (tim == null) return null;
+            ComponentName cn = new ComponentName(getContext(), com.tv.live.tv.LiveTvInputService.class);
+            for (TvInputInfo info : tim.getTvInputList()) {
+                if (info.getComponent().equals(cn)) {
+                    return info.getId();
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.e("SettingsDialog", "获取 TIF inputId 失败", e);
+        }
+        return null;
+    }
+
+    /**
+     * 更新 TIF 同步状态显示
+     */
+    private void updateTifStatus(TextView tvTifStatus) {
+        if (tvTifStatus == null) return;
+        String inputId = getTifInputId();
+        if (inputId == null) {
+            tvTifStatus.setText("未激活");
+            return;
+        }
+        int count = TvChannelSyncManager.getSyncedChannelCount(getContext(), inputId);
+        tvTifStatus.setText(count > 0 ? "已同步 " + count + " 个频道" : "未同步");
+    }
+
+    /**
+     * 同步频道到系统 TIF
+     */
+    private void syncChannelsToSystemTif() {
+        new Thread(() -> {
+            try {
+                String inputId = getTifInputId();
+                if (inputId == null) {
+                    mainHandler.post(() -> Toast.makeText(getContext(), "TIF服务未激活，请先安装并配置系统直播电视", Toast.LENGTH_LONG).show());
+                    return;
+                }
+
+                CacheManager cacheManager = CacheManager.getInstance(getContext());
+                String cacheContent = cacheManager.getFileCache("live_source");
+                if (cacheContent == null || cacheContent.isEmpty()) {
+                    mainHandler.post(() -> Toast.makeText(getContext(), "暂无频道数据，请先在主应用加载直播源", Toast.LENGTH_LONG).show());
+                    return;
+                }
+
+                List<Channel> channels = PlaylistParser.parseContent(cacheContent);
+                if (channels == null || channels.isEmpty()) {
+                    mainHandler.post(() -> Toast.makeText(getContext(), "频道解析失败", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+
+                int synced = TvChannelSyncManager.syncChannels(getContext(), inputId, channels);
+                mainHandler.post(() -> {
+                    Toast.makeText(getContext(), "同步完成: " + synced + "/" + channels.size() + " 个频道", Toast.LENGTH_LONG).show();
+                    View itemTifSync = findViewById(R.id.item_tif_sync);
+                    if (itemTifSync != null) {
+                        TextView tvTifStatus = itemTifSync.findViewById(R.id.tv_tif_status);
+                        updateTifStatus(tvTifStatus);
+                    }
+                });
+            } catch (Exception e) {
+                android.util.Log.e("SettingsDialog", "TIF同步异常", e);
+                mainHandler.post(() -> Toast.makeText(getContext(), "同步失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        }).start();
     }
 }

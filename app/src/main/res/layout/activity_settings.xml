@@ -382,6 +382,34 @@
                 android:layout_marginBottom="8dp"
                 android:background="#33FFFFFF"/>
 
+            <!-- 系统直播电视 (TIF) -->
+            <LinearLayout
+                android:id="@+id/item_tif_sync"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:focusable="true"
+                  android:nextFocusUp="@+id/item_epg_subscribe"
+                  android:nextFocusDown="@+id/item_check_update"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="系统直播电视"
+                    android:textColor="@color/setting_item_text_color"
+                    android:textSize="16sp" />
+                <TextView
+                    android:id="@+id/tv_tif_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="未同步"
+                    android:textColor="@color/setting_item_text_color"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
             <!-- 检查更新 -->
             <LinearLayout
                 android:id="@+id/item_check_update"
@@ -391,7 +419,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_epg_subscribe"
+                  android:nextFocusUp="@+id/item_tif_sync"
                   android:nextFocusDown="@+id/item_version_info"
                 android:clickable="true">
                 <TextView
