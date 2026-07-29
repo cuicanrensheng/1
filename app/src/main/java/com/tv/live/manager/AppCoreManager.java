@@ -149,6 +149,7 @@ public class AppCoreManager {
                     dataLoadListener.onLiveSourceLoaded(safeChannels, false);
                 }
                 log("【网络】直播源列表已更新");
+                triggerHealthCheck(safeChannels);
                 loadEpg();
             }
             @Override
@@ -162,6 +163,21 @@ public class AppCoreManager {
                 loadEpgCache();
             }
         });
+    }
+
+    private void triggerHealthCheck(List<Channel> channels) {
+        try {
+            com.tv.live.TVPlayerManager pm = com.tv.live.TVPlayerManager.getInstance(context);
+            if (pm != null) {
+                com.tv.live.util.SourceHealthChecker hc = pm.getHealthChecker();
+                if (hc != null && hc.isEnabled()) {
+                    hc.checkAll(channels);
+                    log("【健康检测】已触发后台全量源检测");
+                }
+            }
+        } catch (Exception e) {
+            log("【健康检测】触发异常: " + e.getMessage());
+        }
     }
 
     private void loadEpgCache() {

@@ -98,6 +98,7 @@ public class TVPlayerManager {
     private PlayerView playerView;
     private Player.Listener playerListener;
     private String currentUrl;
+    private com.tv.live.util.SourceHealthChecker healthChecker;
     private int currentChannelNumber = 0;
     private TextView channelNumberTextView;
     private String currentChannelName = "";
@@ -206,6 +207,7 @@ public class TVPlayerManager {
     private TVPlayerManager(Context context) {
         this.context = context;
         this.sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        this.healthChecker = new com.tv.live.util.SourceHealthChecker(context);
         mHandler = new Handler(Looper.getMainLooper());
 
         hideChannelRunnable = () -> hideChannelNum();
@@ -354,6 +356,12 @@ public class TVPlayerManager {
                     autoRetry(isNetworkError ? "网络异常" : "播放异常", error);
                 }
 
+                if (!isNetworkError && !isRedirectError) {
+                    if (healthChecker != null && currentChannel != null) {
+                        healthChecker.markFailed(currentUrl, currentChannel);
+                    }
+                }
+
                 if (listener != null) {
                     listener.onPlayError(error.getMessage());
                 }
@@ -370,6 +378,9 @@ public class TVPlayerManager {
                     retryCount = 0;
                     isRetrying = false;
                     startStuckDetection();
+                    if (healthChecker != null && !TextUtils.isEmpty(currentUrl)) {
+                        healthChecker.markSuccess(currentUrl);
+                    }
                     if (initialPlayStartTime == 0) {
                         initialPlayStartTime = System.currentTimeMillis();
                     }
@@ -1333,6 +1344,10 @@ public class TVPlayerManager {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public com.tv.live.util.SourceHealthChecker getHealthChecker() {
+        return healthChecker;
     }
 
     public void release() {
