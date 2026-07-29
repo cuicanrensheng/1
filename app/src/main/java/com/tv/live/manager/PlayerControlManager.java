@@ -119,6 +119,30 @@ public class PlayerControlManager {
         hideExoController();
     }
 
+    private static final long SEEK_STEP_MS = 10_000;
+
+    public void seekForward() {
+        MainActivity act = activity;
+        if (act == null || !act.isInCatchUpMode()) return;
+        if (act.getPlayerManager() == null) return;
+        long cur = act.getPlayerManager().getCurrentPosition();
+        long dur = act.getPlayerManager().getDuration();
+        if (dur <= 0) return;
+        long target = Math.min(cur + SEEK_STEP_MS, dur);
+        act.getPlayerManager().seekTo(target);
+        showExoController();
+    }
+
+    public void seekBackward() {
+        MainActivity act = activity;
+        if (act == null || !act.isInCatchUpMode()) return;
+        if (act.getPlayerManager() == null) return;
+        long cur = act.getPlayerManager().getCurrentPosition();
+        long target = Math.max(cur - SEEK_STEP_MS, 0);
+        act.getPlayerManager().seekTo(target);
+        showExoController();
+    }
+
     public void release() {
         mainHandler.removeCallbacksAndMessages(null);
     }

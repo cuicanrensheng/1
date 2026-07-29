@@ -1346,6 +1346,28 @@ public class TVPlayerManager {
         }
     }
 
+    public long getCurrentPosition() {
+        try {
+            return player != null ? player.getCurrentPosition() : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    public long getDuration() {
+        try {
+            return player != null ? player.getDuration() : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    public void seekTo(long positionMs) {
+        try {
+            if (player != null) player.seekTo(positionMs);
+        } catch (Exception ignored) {}
+    }
+
     public com.tv.live.util.SourceHealthChecker getHealthChecker() {
         return healthChecker;
     }

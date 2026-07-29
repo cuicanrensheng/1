@@ -134,6 +134,10 @@ public class MainActivity extends AppCompatActivity {
         return isInCatchUpMode;
     }
 
+    public TVPlayerManager getPlayerManager() {
+        return mPlayerManager;
+    }
+
     public PictureInPictureManager getPipManager() {
         return pipManager;
     }
@@ -285,11 +289,19 @@ public class MainActivity extends AppCompatActivity {
                             return true;
                         }
                     } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                        if (isInCatchUpMode && playerControlManager != null) {
+                            playerControlManager.seekBackward();
+                            return true;
+                        }
                         if (!panelOpen) {
                             channelPanelController.togglePanel();
                             return true;
                         }
                     } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        if (isInCatchUpMode && playerControlManager != null) {
+                            playerControlManager.seekForward();
+                            return true;
+                        }
                         if (!panelOpen) {
                             openSettings();
                             return true;
