@@ -674,20 +674,13 @@ public class TVPlayerManager {
         if (!(rawParent instanceof ViewGroup)) return;
         ViewGroup parent = (ViewGroup) rawParent;
 
-        View blackMask = new View(context);
-        blackMask.setBackgroundColor(Color.BLACK);
-        ViewGroup.LayoutParams maskParams = new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        parent.addView(blackMask, maskParams);
-        blackMask.bringToFront();
-
         isRenderingSwitching = true;
         bufferCount = 0;
-        long currentPosition = player.getCurrentPosition();
         boolean wasPlaying = player.isPlaying();
         boolean useController = playerView.getUseController();
         ViewGroup.LayoutParams layoutParams = playerView.getLayoutParams();
 
+        // 1. 先创建新PlayerView并绑定播放器（播放器不暂停，持续解码输出）
         int index = parent.indexOfChild(playerView);
         int styleRes = useTexture ? R.style.PlayerView_Texture : R.style.PlayerView_Surface;
         ContextThemeWrapper themedContext = new ContextThemeWrapper(context, styleRes);
@@ -710,29 +703,29 @@ public class TVPlayerManager {
                 break;
         }
         newPlayerView.setResizeMode(resizeMode);
+
+        // 2. 新View放到旧View下方（add到index+1位置，旧View在上）
         newPlayerView.setPlayer(player);
+        parent.addView(newPlayerView, index + 1, layoutParams);
 
-        parent.addView(newPlayerView, index, layoutParams);
-        playerView.setPlayer(null);
-        parent.removeView(playerView);
-        playerView = newPlayerView;
-
-        if (currentPosition > 0) player.seekTo(currentPosition);
-        if (wasPlaying) {
-            mHandler.postDelayed(() -> {
-                if (player != null && !player.isPlaying()) player.play();
-            }, 200);
-        }
-
+        // 3. 通知回调（重新注册Surface回调等）
         if (onPlayerViewRecreatedListener != null) {
             onPlayerViewRecreatedListener.onPlayerViewRecreated(newPlayerView);
         }
+
+        // 4. 延迟移除旧View：等新View渲染出首帧后再移除，避免黑屏
+        PlayerView oldPlayerView = playerView;
+        playerView = newPlayerView;
         playerView.requestFocus();
 
-        final ViewGroup parentFinal = parent;
-        playerView.postDelayed(() -> {
-            blackMask.animate().alpha(0f).setDuration(250).withEndAction(() -> parentFinal.removeView(blackMask)).start();
-        }, 100);
+        mHandler.postDelayed(() -> {
+            // 新View已渲染画面，安全移除旧View（不解绑播放器，因为已绑定到新View）
+            oldPlayerView.setPlayer(null);
+            parent.removeView(oldPlayerView);
+            if (wasPlaying && player != null && !player.isPlaying()) {
+                player.play();
+            }
+        }, 300);
 
         mCurrentUseTexture = useTexture;
         isRenderingSwitching = false;
