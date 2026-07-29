@@ -35,11 +35,13 @@ import java.net.URL;
 public class UpdateManager {
     private static final String TAG = "UpdateManager";
 
-    // ✅ 镜像地址池：按优先级依次尝试
-    // 【1】GitHub 直连（无缓存，版本号最准确，国内外通吃；raw.githubusercontent 在国内大部分网络也能通）
-    // 【2】jsdelivr CDN（缓存约1分钟，适合国内加速）
-    // 【3】gh.api.99988866.xyz 代理（无强制缓存）
-    // 【4】ghproxy.com（缓存最重，作为兜底；如果把它放首位，会读到旧版本）
+    // ============================================================
+    // ✅ 镜像地址池：
+    //  - 每个 URL 都附加 ?t=<时间戳_ms> 强制绕过 CDN 缓存
+    //  - 所有可用镜像全部请求（异步并发），取 versionCode 最大的作为结果
+    //    （解决 jsdelivr 缓存回退到 v2250、raw.githubusercontent 不通 组合导致误判“已是最新”）
+    //  - 最终兜底：GitHub Releases API（不会被 CDN 缓存）
+    // ============================================================
     private static final String[] UPDATE_JSON_MIRRORS = {
             "https://raw.githubusercontent.com/cuicanrensheng/1/main/update.json",
             "https://cdn.jsdelivr.net/gh/cuicanrensheng/1@main/update.json",
@@ -53,7 +55,7 @@ public class UpdateManager {
     private static boolean isDownloading = false;
 
     private final Context context;
-    private final SharedPreferences sp; 
+    private final SharedPreferences sp;
     private DownloadManager downloadManager;
     private long downloadId = -1;
     private BroadcastReceiver downloadCompleteReceiver;
