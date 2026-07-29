@@ -1,6 +1,6 @@
 {
-  "versionCode": 2251,
-  "versionName": "2.0.2251",
+  "versionCode": 2252,
+  "versionName": "2.0.2252",
   "message": "本次更新主要修复和优化：\n\n✅ 修复：ghproxy.com 不通时检查更新失败的问题\n✅ 新增：多镜像自动回退（ghproxy → ghps → jsdelivr → raw直连）\n✅ 新增：下载APK同样支持多镜像依次尝试\n✅ 优化：HTTP请求添加User-Agent，避免ghproxy偶发403\n\n感谢您的使用！\n",
-  "downloadUrl": "https://ghproxy.com/https://github.com/cuicanrensheng/1/releases/download/v2251/app-release.apk"
+  "downloadUrl": "https://ghproxy.com/https://github.com/cuicanrensheng/1/releases/download/v2252/app-release.apk"
 }
