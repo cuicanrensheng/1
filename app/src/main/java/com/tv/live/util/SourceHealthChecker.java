@@ -10,6 +10,7 @@ import com.tv.live.Channel;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -227,6 +228,11 @@ public class SourceHealthChecker {
                 futures.add(checkExecutor.submit(() -> {
                     String url = ch.getMainPlayUrl();
                     if (url != null && !url.isEmpty() && !isRemoved(url)) {
+                        // 🔧 对虎牙房间号跳过检测，直接认为可用
+                        if (isHuyaRoomUrl(url)) {
+                            // 跳过检测，不做任何操作
+                            return;
+                        }
                         totalChecked.incrementAndGet();
                         if (!checkUrl(url)) {
                             int fails = failCountMap.getOrDefault(url, 0) + 1;
@@ -248,6 +254,10 @@ public class SourceHealthChecker {
                 for (String url : backups) {
                     if (isRemoved(url)) continue;
                     futures.add(checkExecutor.submit(() -> {
+                        if (isHuyaRoomUrl(url)) {
+                            // 跳过检测，不做任何操作
+                            return;
+                        }
                         totalChecked.incrementAndGet();
                         if (!checkUrl(url)) {
                             int fails = failCountMap.getOrDefault(url, 0) + 1;
@@ -282,6 +292,26 @@ public class SourceHealthChecker {
                 });
             }
         });
+    }
+
+    // ============================================================
+    // 核心修改：虎牙房间号识别
+    // ============================================================
+    /** 判断是否为虎牙房间号 URL（如 http://www.huya.com/123456） */
+    private boolean isHuyaRoomUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        try {
+            URI uri = URI.create(url.trim());
+            String host = uri.getHost();
+            if (host == null) return false;
+            if (!host.contains("huya.com") && !host.contains("huya.cn")) return false;
+            String path = uri.getPath();
+            if (path == null || path.isEmpty()) return false;
+            String roomIdStr = path.replace("/", "").trim();
+            return roomIdStr.matches("\\d+");
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**
