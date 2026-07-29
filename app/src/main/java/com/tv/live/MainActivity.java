@@ -122,6 +122,9 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isInCatchUpMode = false;
 
+    private final StringBuilder numberInputBuffer = new StringBuilder();
+    private final Runnable numberInputConfirmTask = () -> confirmNumberInputJump();
+
     private AlertDialog exitMenuDialog = null;
 
     private BroadcastReceiver unlockReceiver;
@@ -370,15 +373,49 @@ public class MainActivity extends AppCompatActivity {
 
     private void handleNumberKey(int keyCode) {
         if (channelSourceList == null || channelSourceList.isEmpty()) return;
+        if (!number_channel_enable) return;
+
         int num = keyCode - KeyEvent.KEYCODE_0;
-        if (num >= 0 && num <= 9) {
-            if (num == 0) {
-                num = 10;
+        if (num < 0 || num > 9) return;
+
+        // 取消之前的确认任务
+        mMainHandler.removeCallbacks(numberInputConfirmTask);
+
+        // 累积输入数字
+        numberInputBuffer.append(num);
+
+        // 最多保留 4 位数字（防止溢出）
+        if (numberInputBuffer.length() > 4) {
+            numberInputBuffer.delete(0, numberInputBuffer.length() - 4);
+        }
+
+        // 显示正在输入的数字（如 "115-")
+        if (infoDisplayManager != null) {
+            infoDisplayManager.showChannelNumInput(numberInputBuffer.toString());
+        }
+
+        // 1.5 秒后自动确认跳转
+        mMainHandler.postDelayed(numberInputConfirmTask, 1500);
+    }
+
+    private void confirmNumberInputJump() {
+        if (numberInputBuffer.length() == 0) return;
+
+        try {
+            int channelNum = Integer.parseInt(numberInputBuffer.toString());
+            numberInputBuffer.setLength(0);
+
+            if (channelNum <= 0) return;
+
+            int targetIndex = channelNum - 1; // 频道号从 1 开始
+            if (targetIndex < 0) targetIndex = 0;
+            if (targetIndex >= channelSourceList.size()) {
+                targetIndex = channelSourceList.size() - 1;
             }
-            int targetIndex = num - 1;
-            if (targetIndex >= 0 && targetIndex < channelSourceList.size()) {
-                playChannel(channelSourceList.get(targetIndex), targetIndex);
-            }
+
+            playChannel(channelSourceList.get(targetIndex), targetIndex);
+        } catch (NumberFormatException e) {
+            numberInputBuffer.setLength(0);
         }
     }
 
@@ -779,6 +816,10 @@ public class MainActivity extends AppCompatActivity {
     private void playChannel(Channel channel, int index) {
         if (channel == null || channel.getPlayUrl() == null) return;
         currentPlayIndex = index;
+
+        // 切台时清空数字输入缓存
+        numberInputBuffer.setLength(0);
+        mMainHandler.removeCallbacks(numberInputConfirmTask);
         log("【播放】频道名称：" + channel.getName());
 
         if (isInCatchUpMode) {

@@ -206,10 +206,12 @@ public class SetupActivity extends Activity {
             TvInputManager tim = (TvInputManager) getSystemService(Context.TV_INPUT_SERVICE);
             if (tim == null) return null;
 
-            ComponentName cn = new ComponentName(this, LiveTvInputService.class);
+            String packageName = getPackageName();
+            String serviceName = LiveTvInputService.class.getName();
             for (TvInputInfo info : tim.getTvInputList()) {
-                if (info.getComponent().equals(cn)) {
-                    return info.getId();
+                String id = info.getId();
+                if (id != null && id.startsWith(packageName) && id.contains(serviceName)) {
+                    return id;
                 }
             }
         } catch (Exception e) {

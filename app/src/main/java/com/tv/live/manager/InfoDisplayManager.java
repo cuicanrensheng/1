@@ -120,6 +120,17 @@ public class InfoDisplayManager {
         tvChannelNum.setVisibility(View.GONE);
     }
 
+    /**
+     * 显示频道号输入中的数字（如 "115-"），用于快速跳转
+     */
+    public void showChannelNumInput(String input){
+        if(tvChannelNum == null) return;
+        tvChannelNum.setText(input + "-");
+        tvChannelNum.setVisibility(View.VISIBLE);
+        mainHandler.removeCallbacks(hideChannelNumTask);
+        mainHandler.postDelayed(hideChannelNumTask, CHANNEL_NUM_HIDE_DELAY);
+    }
+
     public void showInfoBar(Channel channel, TVPlayerManager.LiveInfo liveInfo){
         if(infoBar == null || channel == null) return;
         currentPlayChannel = channel;

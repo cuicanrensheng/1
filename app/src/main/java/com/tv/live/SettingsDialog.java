@@ -1723,10 +1723,12 @@ public class SettingsDialog extends android.app.Dialog {
         try {
             TvInputManager tim = (TvInputManager) getContext().getSystemService(android.content.Context.TV_INPUT_SERVICE);
             if (tim == null) return null;
-            ComponentName cn = new ComponentName(getContext(), com.tv.live.tv.LiveTvInputService.class);
+            String packageName = getContext().getPackageName();
+            String serviceName = com.tv.live.tv.LiveTvInputService.class.getName();
             for (TvInputInfo info : tim.getTvInputList()) {
-                if (info.getComponent().equals(cn)) {
-                    return info.getId();
+                String id = info.getId();
+                if (id != null && id.startsWith(packageName) && id.contains(serviceName)) {
+                    return id;
                 }
             }
         } catch (Exception e) {
