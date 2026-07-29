@@ -868,6 +868,9 @@ public class MainActivity extends AppCompatActivity {
             if (channelPanelController != null) {
                 try {
                     if (channelPanelController.isPanelOpen()) {
+                        if (channelPanelController.backFromRightPanel()) {
+                            return;
+                        }
                         channelPanelController.hidePanel();
                         return;
                     }

@@ -505,6 +505,20 @@ public class ChannelPanelController {
         }
     }
 
+    public boolean backFromRightPanel() {
+        if (rightPanelOpen) {
+            if (llRightPanel != null) llRightPanel.setVisibility(View.GONE);
+            if (llLeftPanel != null) llLeftPanel.setVisibility(View.VISIBLE);
+            rightPanelOpen = false;
+            epgPanelOpen = false;
+            panelLayout.post(() -> {
+                if (lvChannelList != null) lvChannelList.requestFocus();
+            });
+            return true;
+        }
+        return false;
+    }
+
     private void onBackGroupClicked() {
         if (rightPanelOpen) {
             if (llRightPanel != null) llRightPanel.setVisibility(View.GONE);
