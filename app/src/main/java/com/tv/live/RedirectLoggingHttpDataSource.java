@@ -112,7 +112,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             syncResponseCookies(connection, dataSpec.uri.toString());
             
             if (responseCode >= 200 && responseCode < 300) {
-                // 注意：打开连接时成功的日志在 openConnection 内部已经处理了，这里不再重复打印
+                // 打开连接时成功的日志在 openConnection 内部已经处理了，这里不再重复
             }
 
             if (responseCode < 200 || responseCode > 299) {
@@ -171,7 +171,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         long startTime = System.currentTimeMillis();
         final long MAX_TOTAL_DELAY = 15000;
 
-        // 🟢【增加原始请求链接】
+        // 🟢【打印原始请求链接】
         printLog(false, "请求链接: " + originalUrl);
 
         while (true) {
@@ -238,8 +238,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                 // 信任管理器扩展预留
             }
             
-            // 🟢【精简重定向日志：只保留次数和状态码，移除重复箭头链】
-            printLog(false, "重定向" + redirectCount + "次~ 状态码 " + respCode);
+            // 🟢【单次重定向记录：显示新链接，去掉了冗余 -> 箭头】
+            printLog(false, "重定向" + redirectCount + "次~ 状态码 " + respCode + ": " + redirectUrl);
             
             conn.disconnect();
             currentUrl = redirectUrl;
