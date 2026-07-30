@@ -1,58 +1,61 @@
 package com.tv.live.util;
 
-import java.util.ArrayList;
-import java.util.List;
+import android.text.TextUtils;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 /**
- * 用于收集和查看日志的简易收集器
+ * 日志收集器（单例）
+ * 用于在内存中缓存应用日志，供“网络调试日志”弹窗展示
  */
 public class LogCollector {
-    private static final int MAX_LOG_COUNT = 300; // 最多保存300条最新日志
-    private final List<String> logList = new ArrayList<>();
-    private static volatile LogCollector instance;
+    private static volatile LogCollector sInstance;
+    private final StringBuilder mLogBuilder;
 
-    private LogCollector() {}
+    private LogCollector() {
+        mLogBuilder = new StringBuilder();
+    }
 
     public static LogCollector getInstance() {
-        if (instance == null) {
+        if (sInstance == null) {
             synchronized (LogCollector.class) {
-                if (instance == null) {
-                    instance = new LogCollector();
+                if (sInstance == null) {
+                    sInstance = new LogCollector();
                 }
             }
         }
-        return instance;
+        return sInstance;
     }
 
-    // 添加一条日志
+    /**
+     * 添加一条日志
+     * @param tag 标签
+     * @param msg 日志内容
+     */
     public void addLog(String tag, String msg) {
-        String time = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-                .format(new java.util.Date());
-        String logEntry = "[" + time + "] " + tag + " -> " + msg;
-        synchronized (logList) {
-            logList.add(logEntry);
-            // 控制内存溢出，超过300条时移除最早的一条
-            if (logList.size() > MAX_LOG_COUNT) {
-                logList.remove(0);
-            }
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault());
+        String time = sdf.format(new Date());
+        mLogBuilder.append(time).append(" [").append(tag).append("] ").append(msg).append("\n");
+
+        // 防止内存泄漏：如果日志超过 10KB，自动截断前面的内容
+        if (mLogBuilder.length() > 1024 * 10) {
+            mLogBuilder.delete(0, 1024 * 2);
         }
     }
 
-    // 获取所有日志（用于弹窗显示）
+    /**
+     * 获取所有缓存的日志
+     */
     public String getAllLogs() {
-        StringBuilder sb = new StringBuilder();
-        synchronized (logList) {
-            for (String log : logList) {
-                sb.append(log).append("\n");
-            }
-        }
-        return sb.toString();
+        return mLogBuilder.toString();
     }
 
-    // 清空日志
-    public void clearLogs() {
-        synchronized (logList) {
-            logList.clear();
-        }
+    /**
+     * 清空所有缓存日志（对应弹窗中的“清空日志”按钮）
+     */
+    public void clear() {
+        mLogBuilder.setLength(0);
     }
 }
