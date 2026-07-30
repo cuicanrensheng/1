@@ -30,9 +30,11 @@ public class LogCollector {
     }
 
     public void addLog(String tag, String msg) {
-        // 🔴【白名单过滤】只允许重定向日志(空tag) 和 播放日志(tag="播放") 通过
-        if (!TextUtils.isEmpty(tag) && !"播放".equals(tag)) {
-            return; // 拦截并丢弃其他所有无关日志
+        // 🔴【白名单过滤】放行：空tag、播放日志、虎牙解析日志
+        if (!TextUtils.isEmpty(tag)
+                && !"播放".equals(tag)
+                && !"虎牙解析".equals(tag)) {
+            return; // 拦截其他无关日志
         }
 
         String time = sdf.format(new Date());
@@ -43,10 +45,10 @@ public class LogCollector {
             line = time + " " + msg;
         }
 
-        // 🟢【保持最新在前】始终在列表头部插入
+        // 🟢【最新日志放头部】
         logs.add(0, line);
 
-        // 限制缓存条数，防止内存溢出
+        // 最大缓存200行，防止内存暴涨
         if (logs.size() > 200) {
             logs.remove(logs.size() - 1);
         }
