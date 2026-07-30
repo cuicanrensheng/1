@@ -13,6 +13,9 @@ public class LogCollector {
     private final List<String> logs;
     private final SimpleDateFormat sdf;
 
+    // 🟢【新增】分割线特殊标记符
+    public static final String DIVIDER_TOKEN = "###DIVIDER###";
+
     private LogCollector() {
         logs = new LinkedList<>();
         sdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
@@ -30,13 +33,9 @@ public class LogCollector {
     }
 
     public void addLog(String tag, String msg) {
-        // 🔴【白名单过滤】放行：空tag、播放日志、虎牙解析日志
-        if (!TextUtils.isEmpty(tag)
-                && !"播放".equals(tag)
-                && !"虎牙解析".equals(tag)) {
-            return; // 拦截其他无关日志
+        if (!TextUtils.isEmpty(tag) && !"播放".equals(tag)) {
+            return;
         }
-
         String time = sdf.format(new Date());
         String line;
         if (!TextUtils.isEmpty(tag)) {
@@ -44,11 +43,17 @@ public class LogCollector {
         } else {
             line = time + " " + msg;
         }
-
-        // 🟢【最新日志放头部】
         logs.add(0, line);
+        if (logs.size() > 200) {
+            logs.remove(logs.size() - 1);
+        }
+    }
 
-        // 最大缓存200行，防止内存暴涨
+    // 🟢【新增】添加自动延长分割线
+    public void addDivider() {
+        String time = sdf.format(new Date());
+        // 先存入时间 + 特殊标记，等到显示时再替换成等号
+        logs.add(0, time + " " + DIVIDER_TOKEN);
         if (logs.size() > 200) {
             logs.remove(logs.size() - 1);
         }
