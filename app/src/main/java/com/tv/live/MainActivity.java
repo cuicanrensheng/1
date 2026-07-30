@@ -1121,10 +1121,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 🔴【核心修改】日志只会在点击“开始记录”后显示，并只保留“频道名称，播放地址”
     private void log(String msg) {
-        if (sp.getBoolean("log_enable", true)) {
+        // 只有当 debug_log_enable 为 true（即设置了“网络日志记录”已开启）时，才往弹窗写入日志
+        if (sp.getBoolean("debug_log_enable", false)) {
             Log.d("MainActivity", msg);
-            LogCollector.getInstance().addLog("MainActivity", msg);
+            // 改为使用 "播放" tag，从而通过 LogCollector 的白名单过滤，保留"频道名称"等播放类信息
+            LogCollector.getInstance().addLog("播放", msg);
         }
     }
 
