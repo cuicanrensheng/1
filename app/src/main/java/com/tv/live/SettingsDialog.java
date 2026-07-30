@@ -239,7 +239,7 @@ public class SettingsDialog extends android.app.Dialog {
             : getContext().getString(R.string.debug_log_status_off));
     }
 
-    // 🟢【修复按钮消失问题】强制设定按钮高度为 50dp
+    // 🟢【重构核心代码】彻底修复按钮消失、焦点丢失和布局挤压问题
     private void showDebugLogDialog() {
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
@@ -247,7 +247,7 @@ public class SettingsDialog extends android.app.Dialog {
             logs = getContext().getString(R.string.debug_log_empty);
         }
 
-        // 1. 主布局 (垂直)
+        // 1. 主布局 (垂直)，使用权重自动分配空间
         LinearLayout mainLayout = new LinearLayout(getContext());
         mainLayout.setOrientation(LinearLayout.VERTICAL);
         mainLayout.setBackgroundColor(Color.WHITE);
@@ -270,11 +270,10 @@ public class SettingsDialog extends android.app.Dialog {
         titleView.setPadding(0, 0, 0, dp2px(12));
         mainLayout.addView(titleView);
 
-        // 3. 日志内容 (滚动视图)
+        // 3. 日志内容 (滚动视图) - 修正为使用权重 (weight=1) 自动填满剩余空间
         ScrollView scrollView = new ScrollView(getContext());
         scrollView.setScrollbarFadingEnabled(false);
         scrollView.setVerticalScrollBarEnabled(true);
-        scrollView.setFillViewport(true);
 
         TextView msgView = new TextView(getContext());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -292,29 +291,78 @@ public class SettingsDialog extends android.app.Dialog {
                 ScrollView.LayoutParams.MATCH_PARENT,
                 ScrollView.LayoutParams.WRAP_CONTENT
         ));
-        mainLayout.addView(scrollView, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp2px(400)
-        ));
 
-        // 4. 🟢【按钮行】强制按钮高度 50dp，绝对防止消失！
+        // 🟢【核心修复】：使用 weight=1 确保空间不足时压缩的是滚动区域，而不是挤出按钮
+        LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0, 1f // 权重为1
+        );
+        mainLayout.addView(scrollView, scrollLp);
+
+        // 4. 🟢【按钮行】调整顺序为：开始记录 -> 清空 -> 关闭
         LinearLayout buttonRow = new LinearLayout(getContext());
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setPadding(0, dp2px(16), 0, 0);
 
-        // 🟢 关键修复：权重为1，高度固定50dp
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
                 0, dp2px(50), 1f);
         int margin = dp2px(4);
         btnParams.setMargins(margin, 0, margin, 0);
 
-        // 按钮1：开始/停止记录
+        // 带浅灰色边框的按钮背景
+        GradientDrawable buttonBg = new GradientDrawable();
+        buttonBg.setColor(Color.WHITE);
+        buttonBg.setStroke(dp2px(1), Color.parseColor("#D0D0D0"));
+        buttonBg.setCornerRadius(dp2px(6));
+
+        // 按钮 1：开始/停止记录
         Button btnStartStop = new Button(getContext());
         btnStartStop.setText(currentDebugState ? "停止记录" : "开始记录");
-        btnStartStop.setBackgroundColor(Color.WHITE);
+        btnStartStop.setBackground(buttonBg);
         btnStartStop.setTextColor(0xFF007AFF);
         btnStartStop.setLayoutParams(btnParams);
         btnStartStop.setGravity(Gravity.CENTER);
+        // 🟢【电视遥控器修复】：强制按钮可获取焦点
+        btnStartStop.setFocusable(true);
+        btnStartStop.setFocusableInTouchMode(true);
+
+        // 按钮 2：清空日志
+        Button btnClear = new Button(getContext());
+        btnClear.setText("清空日志");
+        btnClear.setBackground(buttonBg);
+        btnClear.setTextColor(0xFF007AFF);
+        btnClear.setLayoutParams(btnParams);
+        btnClear.setGravity(Gravity.CENTER);
+        btnClear.setFocusable(true);
+        btnClear.setFocusableInTouchMode(true);
+
+        // 按钮 3：关闭
+        Button btnClose = new Button(getContext());
+        btnClose.setText("关闭");
+        btnClose.setBackground(buttonBg);
+        btnClose.setTextColor(Color.BLACK);
+        btnClose.setLayoutParams(btnParams);
+        btnClose.setGravity(Gravity.CENTER);
+        btnClose.setFocusable(true);
+        btnClose.setFocusableInTouchMode(true);
+
+        // 5. 构建弹窗
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setView(mainLayout);
+        AlertDialog dialog = builder.create();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            
+            // 🟢【限制弹窗宽度】防止在异常宽屏下布局错乱
+            WindowManager.LayoutParams lp = dialog.getWindow().getAttributes();
+            int screenWidth = getContext().getResources().getDisplayMetrics().widthPixels;
+            lp.width = (int) (screenWidth * 0.85);
+            lp.gravity = Gravity.CENTER;
+            dialog.getWindow().setAttributes(lp);
+        }
+
+        // 6. 🟢【绑定点击事件】确保在 dialog.show() 之前绑定完毕，且没有任何重复
         btnStartStop.setOnClickListener(v -> {
             boolean newState = !currentDebugState;
             sp.edit().putBoolean(KEY_DEBUG_LOG_ENABLE, newState).apply();
@@ -333,54 +381,36 @@ public class SettingsDialog extends android.app.Dialog {
             getContext().sendBroadcast(intent);
         });
 
-        // 按钮2：关闭
-        Button btnClose = new Button(getContext());
-        btnClose.setText("关闭");
-        btnClose.setBackgroundColor(Color.WHITE);
-        btnClose.setTextColor(Color.BLACK);
-        btnClose.setLayoutParams(btnParams);
-        btnClose.setGravity(Gravity.CENTER);
-
-        // 按钮3：清空日志
-        Button btnClear = new Button(getContext());
-        btnClear.setText("清空日志");
-        btnClear.setBackgroundColor(Color.WHITE);
-        btnClear.setTextColor(0xFF007AFF);
-        btnClear.setLayoutParams(btnParams);
-        btnClear.setGravity(Gravity.CENTER);
         btnClear.setOnClickListener(v -> {
             LogCollector.getInstance().clear();
             Toast.makeText(getContext(), "日志已清空", Toast.LENGTH_SHORT).show();
         });
 
-        buttonRow.addView(btnStartStop);
-        buttonRow.addView(btnClose);
-        buttonRow.addView(btnClear);
-        mainLayout.addView(buttonRow);
-
-        // 5. 构建弹窗
-        AlertDialog dialog = new AlertDialog.Builder(getContext())
-                .setView(mainLayout)
-                .create();
-
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-
-        dialog.show();
-
-        final AlertDialog finalDialog = dialog;
         btnClose.setOnClickListener(v -> {
-            if (finalDialog != null) {
-                finalDialog.dismiss();
+            if (dialog != null) {
+                dialog.dismiss();
             }
         });
 
+        // 加入按钮行
+        buttonRow.addView(btnStartStop);
+        buttonRow.addView(btnClear);
+        buttonRow.addView(btnClose);
+        mainLayout.addView(buttonRow);
+
+        // 7. 显示弹窗
+        dialog.show();
+
+        // 8. 🟢【自动聚焦电视焦点】延迟给第一个按钮请求焦点
         mainHandler.postDelayed(() -> {
+            if (btnStartStop != null) {
+                btnStartStop.requestFocus();
+                android.util.Log.d("SettingsDialog", "已强制给「开始记录」按钮设置焦点");
+            }
             if (msgView != null && dialog.isShowing()) {
                 msgView.requestFocus();
             }
-        }, 200);
+        }, 300);
     }
 
     // ===== 以下代码保持原样 =====
