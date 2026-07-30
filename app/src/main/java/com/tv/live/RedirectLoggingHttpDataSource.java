@@ -187,8 +187,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             }
 
             if (redirectCount > maxRedirects) {
-                // 🟢【标红】重定向次数超限
-                printLog(true, "失败: 重定向次数超过限制(" + red(maxRedirects) + "次)");
+                // 🟢【标红 + 修复】将 int 转为 String 再传参
+                printLog(true, "失败: 重定向次数超过限制(" + red(String.valueOf(maxRedirects)) + "次)");
                 throw new RedirectFailedException("重定向次数超限", -1, originalUrl, currentUrl);
             }
             URL url = new URL(currentUrl);
@@ -220,8 +220,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             redirectCount++;
             String location = conn.getHeaderField("Location");
             if (TextUtils.isEmpty(location)) {
-                // 🟢【标红】重定向无 Location 头
-                printLog(true, "失败: 第" + red(redirectCount) + "次重定向无Location头");
+                // 🟢【标红 + 修复】将 int 转为 String 再传参
+                printLog(true, "失败: 第" + red(String.valueOf(redirectCount)) + "次重定向无Location头");
                 conn.disconnect();
                 throw new RedirectFailedException("重定向Location为空", respCode, originalUrl, currentUrl);
             }
