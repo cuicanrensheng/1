@@ -241,17 +241,16 @@ public class SettingsDialog extends android.app.Dialog {
 
     // 🟢【精简版日志弹窗】移除清空按钮，停止记录字体改为黑色
     private void showDebugLogDialog() {
+        // ... 此部分代码与原文件一致，保持不变 ...
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
         if (TextUtils.isEmpty(logs)) {
             logs = getContext().getString(R.string.debug_log_empty);
         }
 
-        // 🔴 将占位符替换为真正的 HTML 横线
         String finalLogs = logs.replace("###DIVIDER###", "<hr style=\"border:0; border-top:1px solid #D0D0D0; margin:6px 0;\">");
         String logsWithBr = finalLogs.replace("\n", "<br>");
 
-        // 1. 主布局 (垂直)
         LinearLayout mainLayout = new LinearLayout(getContext());
         mainLayout.setOrientation(LinearLayout.VERTICAL);
         mainLayout.setBackgroundColor(Color.WHITE);
@@ -265,7 +264,6 @@ public class SettingsDialog extends android.app.Dialog {
         int pad = dp2px(20);
         mainLayout.setPadding(pad, pad, pad, dp2px(12));
 
-        // 2. 标题
         TextView titleView = new TextView(getContext());
         titleView.setText(getContext().getString(R.string.debug_log_dialog_title));
         titleView.setTextColor(Color.BLACK);
@@ -274,7 +272,6 @@ public class SettingsDialog extends android.app.Dialog {
         titleView.setPadding(0, 0, 0, dp2px(12));
         mainLayout.addView(titleView);
 
-        // 3. 日志内容 (滚动视图) - 权重自动填满剩余空间
         ScrollView scrollView = new ScrollView(getContext());
         scrollView.setScrollbarFadingEnabled(false);
         scrollView.setVerticalScrollBarEnabled(true);
@@ -304,7 +301,6 @@ public class SettingsDialog extends android.app.Dialog {
         );
         mainLayout.addView(scrollView, scrollLp);
 
-        // 4. 🟢【按钮行】只保留开始/停止 和 关闭，平分宽度
         LinearLayout buttonRow = new LinearLayout(getContext());
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setPadding(0, dp2px(16), 0, 0);
@@ -322,10 +318,7 @@ public class SettingsDialog extends android.app.Dialog {
         Button btnStartStop = new Button(getContext());
         btnStartStop.setText(currentDebugState ? "停止记录" : "开始记录");
         btnStartStop.setBackground(buttonBg);
-        
-        // 🟢【核心修改】开始记录为蓝色，停止记录为黑色（与关闭按钮颜色一致）
         btnStartStop.setTextColor(currentDebugState ? Color.BLACK : 0xFF007AFF);
-        
         btnStartStop.setLayoutParams(btnParams);
         btnStartStop.setGravity(Gravity.CENTER);
         btnStartStop.setFocusable(true);
@@ -338,7 +331,6 @@ public class SettingsDialog extends android.app.Dialog {
         btnClose.setGravity(Gravity.CENTER);
         btnClose.setFocusable(true);
 
-        // 5. 构建弹窗
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setView(mainLayout);
         AlertDialog dialog = builder.create();
@@ -352,15 +344,11 @@ public class SettingsDialog extends android.app.Dialog {
             dialog.getWindow().setAttributes(lp);
         }
 
-        // 6. 绑定点击事件
         btnStartStop.setOnClickListener(v -> {
             boolean newState = !currentDebugState;
             sp.edit().putBoolean(KEY_DEBUG_LOG_ENABLE, newState).apply();
             btnStartStop.setText(newState ? "停止记录" : "开始记录");
-            
-            // 🟢 同步文字颜色：停止时黑色，开始后蓝色
             btnStartStop.setTextColor(newState ? Color.BLACK : 0xFF007AFF);
-            
             updateDebugLogStatus();
 
             if (!newState) {
@@ -385,10 +373,8 @@ public class SettingsDialog extends android.app.Dialog {
         buttonRow.addView(btnClose);
         mainLayout.addView(buttonRow);
 
-        // 7. 显示弹窗
         dialog.show();
 
-        // 8. 自动聚焦首个按钮（适用于电视遥控器）
         mainHandler.postDelayed(() -> {
             if (btnStartStop != null) {
                 btnStartStop.requestFocus();
@@ -586,6 +572,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showVersionInfoDialog() {
+        // ... 此部分代码与原文件一致，保持不变 ...
         String versionName = BuildConfig.VERSION_NAME;
         int versionCode = BuildConfig.VERSION_CODE;
         String updateNotes = updateManager.getUpdateMessage();
@@ -688,6 +675,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showNumberInputDialog(int currentValue, java.util.function.Consumer<Integer> onConfirmed) {
+        // ... 此部分代码与原文件一致，保持不变 ...
         LinearLayout dialogView = new LinearLayout(getContext());
         dialogView.setOrientation(LinearLayout.VERTICAL);
         dialogView.setBackgroundResource(R.drawable.dialog_bg_corner);
@@ -866,6 +854,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showCommonSelectionDialog(String title, String[] items, int checkedItem, java.util.function.Consumer<Integer> onSelected) {
+        // ... 此部分代码与原文件一致，保持不变 ...
         ListView listView = new ListView(getContext());
         listView.setBackgroundColor(Color.TRANSPARENT);
         listView.setDivider(new ColorDrawable(0x33FFFFFF));
@@ -961,6 +950,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showChannelLineDialog() {
+        // ... 此部分代码与原文件一致，保持不变 ...
         TVPlayerManager playerManager = TVPlayerManager.getInstance(getContext());
         Channel currentChannel = playerManager.getCurrentChannel();
         if (currentChannel == null) {
@@ -1041,6 +1031,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showResolutionDialog() {
+        // ... 此部分代码与原文件一致，保持不变 ...
         TVPlayerManager playerManager = TVPlayerManager.getInstance(getContext());
         if (playerManager == null) {
             return;
@@ -1105,6 +1096,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showDecoderModeDialog() {
+        // ... 此部分代码与原文件一致，保持不变 ...
         final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
         final String[] modeValues = {"auto", "hard", "soft"};
         String currentMode = sp.getString("decoder_mode", "auto");
@@ -1139,6 +1131,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showRendererModeDialog() {
+        // ... 此部分代码与原文件一致，保持不变 ...
         final String[] modes = {"SurfaceView（默认）", "TextureView（兼容）"};
         final String[] modeValues = {"surface", "texture"};
         String currentMode = sp.getString("renderer_type", "surface");
@@ -1172,6 +1165,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showRatioDialog() {
+        // ... 此部分代码与原文件一致，保持不变 ...
         final String[] ratios = {"全屏", "填充", "原始"};
         String currentMode = sp.getString("screen_ratio", "全屏");
         int checkedItem = 0;
@@ -1188,6 +1182,9 @@ public class SettingsDialog extends android.app.Dialog {
         });
     }
 
+    // ============================================================
+    // 🛠️ 核心修改区域：增强版订阅弹窗（区分触摸/按键、修复按钮、修复EPG）
+    // ============================================================
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(getContext(), spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
@@ -1262,21 +1259,69 @@ public class SettingsDialog extends android.app.Dialog {
         });
 
         int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+        
+        // ✅ 使用增强版 SubscriptionAdapter（内部类，支持复制/删除/切换）
         SubscriptionAdapter adapter = new SubscriptionAdapter(getContext(), sources);
         adapter.setSelectedPosition(currentDefault);
 
+        // ✅ 统一处理“切换”动作的方法（供触摸和按键共用）
+        java.util.function.BiConsumer<Integer, AlertDialog> performSwitch = (position, dialog) -> {
+            if (position < 0 || position >= sources.size()) return;
+            sourceManager.setDefault(position);
+            
+            Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+            intent.setPackage(getContext().getPackageName());
+            getContext().sendBroadcast(intent);
+            
+            Toast.makeText(getContext(), "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
+            adapter.setSelectedPosition(position);
+            adapter.notifyDataSetChanged();
+            
+            // 🛠️ 修复：切换后立即强制刷新 EPG，解决备用链接失效问题
+            refreshPlayerEpg();
+        };
+
+        // 1. 触摸点击：直接切换（触摸即执行）
+        lvSourceList.setOnItemClickListener((parent, view, position, id) -> {
+            performSwitch.accept(position, null);
+        });
+
+        // 2. 遥控器方向键选中：记录高亮位置
+        final int[] selectedPosHolder = {currentDefault};
+        lvSourceList.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedPosHolder[0] = position;
+                adapter.setSelectedPosition(position);  // 触发高亮更新
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        // 3. 遥控器确认键：执行切换（第一次选中，第二次确认）
+        lvSourceList.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+                    int pos = lvSourceList.getSelectedItemPosition();
+                    // 如果没有任何项被选中，则使用最后一次选中的位置
+                    if (pos < 0 || pos >= sources.size()) {
+                        pos = selectedPosHolder[0];
+                    }
+                    performSwitch.accept(pos, null);
+                    return true;
+                } else if (keyCode == KeyEvent.KEYCODE_BACK) {
+                    // 交给 dialog 处理
+                    return false;
+                }
+            }
+            return false;
+        });
+
+        // 4. 适配器监听：复制和删除由 Adapter 内部自行触发（详见 SubscriptionAdapter 内部类）
         adapter.setOnActionListener(new SubscriptionAdapter.OnActionListener() {
             @Override
             public void onSwitch(int position) {
-                sourceManager.setDefault(position);
-                
-                Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
-                intent.setPackage(getContext().getPackageName());
-                getContext().sendBroadcast(intent);
-                
-                Toast.makeText(getContext(), "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
-                adapter.setSelectedPosition(position);
-                adapter.notifyDataSetChanged();
+                // 该方法已由 performSwitch 取代，此处留空；触摸点击与按键确认通过 OnItemClickListener/OnKeyListener 触发
             }
 
             @Override
@@ -1295,7 +1340,9 @@ public class SettingsDialog extends android.app.Dialog {
                                 sourceManager.removeSource(realIndex);
                                 sources.clear();
                                 sources.addAll(sourceManager.getAllSources());
-                                adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
+                                // 更新选中位置
+                                int newDefaultPos = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+                                adapter.setSelectedPosition(newDefaultPos);
                                 adapter.notifyDataSetChanged();
                                 Toast.makeText(getContext(), "已删除", Toast.LENGTH_SHORT).show();
                             } else {
@@ -1312,9 +1359,24 @@ public class SettingsDialog extends android.app.Dialog {
                 deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
                 deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
             }
+
+            @Override
+            public void onCopy(String url) {
+                // 复制逻辑
+                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                android.content.ClipData clip = android.content.ClipData.newPlainText("URL", url);
+                clipboard.setPrimaryClip(clip);
+                Toast.makeText(getContext(), "已复制地址", Toast.LENGTH_SHORT).show();
+            }
         });
 
         lvSourceList.setAdapter(adapter);
+
+        // 确保初始高亮正确
+        if (currentDefault >= 0 && currentDefault < sources.size()) {
+            lvSourceList.setSelection(currentDefault);
+            adapter.setSelectedPosition(currentDefault);
+        }
 
         btnConfirm.setOnClickListener(v -> {
             String name = etName.getText().toString().trim();
@@ -1328,7 +1390,8 @@ public class SettingsDialog extends android.app.Dialog {
                 etUrl.setText("");
                 sources.clear();
                 sources.addAll(sourceManager.getAllSources());
-                adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
+                int newDefaultPos = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+                adapter.setSelectedPosition(newDefaultPos);
                 adapter.notifyDataSetChanged();
                 Toast.makeText(getContext(), "已添加，正在刷新...", Toast.LENGTH_SHORT).show();
                 
@@ -1353,21 +1416,7 @@ public class SettingsDialog extends android.app.Dialog {
         }
         dialog.setOnKeyListener((d, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-                    if (lvSourceList.hasFocus()) {
-                        int position = lvSourceList.getCheckedItemPosition();
-                        if (position >= 0 && position < sources.size()) {
-                            sourceManager.setDefault(position);
-                            Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
-                            intent.setPackage(getContext().getPackageName());
-                            getContext().sendBroadcast(intent);
-                            Toast.makeText(getContext(), "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
-                            adapter.setSelectedPosition(position);
-                            adapter.notifyDataSetChanged();
-                        }
-                        return true;
-                    }
-                } else if (keyCode == KeyEvent.KEYCODE_BACK) {
+                if (keyCode == KeyEvent.KEYCODE_BACK) {
                     dialog.dismiss();
                     return true;
                 }
@@ -1388,7 +1437,103 @@ public class SettingsDialog extends android.app.Dialog {
         }, 200);
     }
 
+    // 🛠️ 新增：强制刷新播放器的 EPG 源，修复切换备用链接失效问题
+    private void refreshPlayerEpg() {
+        TVPlayerManager playerManager = TVPlayerManager.getInstance(getContext());
+        if (playerManager != null) {
+            // 从 SourceManager 重新获取默认 EPG URL
+            String epgUrl = new SourceManager(getContext(), "epg_history").getDefaultUrl();
+            if (!TextUtils.isEmpty(epgUrl)) {
+                // 清除 EPG 缓存
+                CacheManager.getInstance(getContext()).clearEpgCache();
+                // 发送广播让主界面重新加载 EPG
+                Intent intent = new Intent("com.tv.live.REFRESH_EPG");
+                intent.setPackage(getContext().getPackageName());
+                getContext().sendBroadcast(intent);
+                
+                android.util.Log.d("SettingsDialog", "EPG 源已更新并强制刷新: " + epgUrl);
+            }
+        }
+    }
+
+    // ============================================================
+    // 🛠️ 增强版 SubscriptionAdapter（内部类，支持复制/删除/切换操作）
+    // ============================================================
+    private class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> {
+        private int selectedPos = -1;
+        private OnActionListener mListener;
+
+        public interface OnActionListener {
+            void onSwitch(int position);
+            void onDelete(int position);
+            void onCopy(String url);
+        }
+
+        public SubscriptionAdapter(android.content.Context context, List<SourceManager.SourceItem> objects) {
+            super(context, R.layout.item_subscription, objects);
+        }
+
+        public void setSelectedPosition(int pos) {
+            selectedPos = pos;
+            notifyDataSetChanged();
+        }
+
+        public void setOnActionListener(OnActionListener listener) {
+            this.mListener = listener;
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if (convertView == null) {
+                convertView = android.view.LayoutInflater.from(getContext()).inflate(R.layout.item_subscription, parent, false);
+            }
+            SourceManager.SourceItem item = getItem(position);
+            TextView tvName = convertView.findViewById(R.id.tv_name);
+            TextView tvUrl = convertView.findViewById(R.id.tv_url);
+            View btnCopy = convertView.findViewById(R.id.btn_copy);
+            View btnDelete = convertView.findViewById(R.id.btn_delete);
+
+            // 确保 ID 存在，若布局中没有，请自行在 item_subscription.xml 中添加 android:id="@+id/btn_copy" 和 @id/btn_delete
+            if (tvName != null) tvName.setText(item.name);
+            if (tvUrl != null) tvUrl.setText(item.url);
+
+            // 高亮当前选中的项
+            if (position == selectedPos) {
+                convertView.setBackgroundColor(0x3340A9FF);
+            } else {
+                convertView.setBackgroundColor(0x00000000);
+            }
+
+            // 绑定复制按钮
+            if (btnCopy != null) {
+                btnCopy.setFocusable(true);
+                btnCopy.setOnClickListener(v -> {
+                    if (mListener != null) {
+                        mListener.onCopy(item.url);
+                    }
+                });
+            }
+
+            // 绑定删除按钮
+            if (btnDelete != null) {
+                btnDelete.setFocusable(true);
+                btnDelete.setOnClickListener(v -> {
+                    if (mListener != null) {
+                        mListener.onDelete(position);
+                    }
+                });
+            }
+
+            return convertView;
+        }
+    }
+
+    // ============================================================
+    // 以下为原有配置对话框代码，与原文件一致，保持不变
+    // ============================================================
+
     private void showRedirectConfigDialog() {
+        // ... 此部分代码与原文件一致，保持不变 ...
         int currentMax = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
         boolean crossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN,true);
         boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
