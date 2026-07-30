@@ -241,7 +241,7 @@ public class SettingsDialog extends android.app.Dialog {
             : getContext().getString(R.string.debug_log_status_off));
     }
 
-    // 🟢【新增】显示调试日志对话框
+    // 🟢【修改】显示调试日志对话框（自定义布局，字体缩小至12sp）
     private void showDebugLogDialog() {
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
@@ -249,28 +249,82 @@ public class SettingsDialog extends android.app.Dialog {
             logs = getContext().getString(R.string.debug_log_empty);
         }
 
-        new AlertDialog.Builder(getContext())
-            .setTitle(getContext().getString(R.string.debug_log_dialog_title))
-            .setMessage(logs)
-            .setPositiveButton(getContext().getString(R.string.debug_log_clear), (dialog, which) -> {
-                LogCollector.getInstance().clear();
-                Toast.makeText(getContext(), "日志已清空", Toast.LENGTH_SHORT).show();
-            })
-            .setNegativeButton(getContext().getString(R.string.close), null)
-            .setNeutralButton(currentDebugState 
-                ? getContext().getString(R.string.debug_log_stop) 
-                : getContext().getString(R.string.debug_log_start), (dialog, which) -> {
-                boolean newState = !currentDebugState;
-                sp.edit().putBoolean(KEY_DEBUG_LOG_ENABLE, newState).apply();
-                updateDebugLogStatus();
-                Toast.makeText(getContext(), "网络日志记录已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
-                
-                // 通知 TVPlayerManager 刷新数据源配置（让下次播放生效）
-                Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
-                intent.setPackage(getContext().getPackageName());
-                getContext().sendBroadcast(intent);
-            })
-            .show();
+        // 🟢 创建自定义布局，统一风格并控制字号
+        LinearLayout layout = new LinearLayout(getContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundResource(R.drawable.dialog_bg_corner);
+        int pad = dp2px(16);
+        layout.setPadding(pad, pad, pad, pad);
+
+        TextView titleView = new TextView(getContext());
+        titleView.setText(getContext().getString(R.string.debug_log_dialog_title));
+        titleView.setTextColor(Color.WHITE);
+        titleView.setTextSize(20);
+        titleView.setTypeface(null, Typeface.BOLD);
+        titleView.setPadding(0, 0, 0, dp2px(8));
+        layout.addView(titleView);
+
+        ScrollView scrollView = new ScrollView(getContext());
+        scrollView.setScrollbarFadingEnabled(false);
+        scrollView.setVerticalScrollBarEnabled(true);
+        scrollView.setFillViewport(true);
+
+        TextView msgView = new TextView(getContext());
+        msgView.setText(logs);
+        msgView.setTextColor(Color.WHITE);
+        // 🔴【核心修改】设置为 12sp
+        msgView.setTextSize(12); 
+        msgView.setLineSpacing(0, 1.25f);
+        msgView.setFocusable(true);
+        msgView.setFocusableInTouchMode(true);
+
+        scrollView.addView(msgView, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+        ));
+        layout.addView(scrollView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp2px(380) // 限制高度，保证弹窗不会撑满屏幕
+        ));
+
+        // 🟢 构建弹窗
+        AlertDialog dialog = new AlertDialog.Builder(getContext())
+                .setView(layout)
+                .setPositiveButton(getContext().getString(R.string.debug_log_clear), (dialogInterface, which) -> {
+                    LogCollector.getInstance().clear();
+                    Toast.makeText(getContext(), "日志已清空", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton(getContext().getString(R.string.close), null)
+                .setNeutralButton(currentDebugState 
+                        ? getContext().getString(R.string.debug_log_stop) 
+                        : getContext().getString(R.string.debug_log_start), (dialogInterface, which) -> {
+                    boolean newState = !currentDebugState;
+                    sp.edit().putBoolean(KEY_DEBUG_LOG_ENABLE, newState).apply();
+                    updateDebugLogStatus();
+                    Toast.makeText(getContext(), "网络日志记录已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
+                    
+                    Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                    intent.setPackage(getContext().getPackageName());
+                    getContext().sendBroadcast(intent);
+                })
+                .create();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+
+        dialog.show();
+        
+        // 🟢 修正按钮文字颜色，让它和你的设置菜单白底黑字或者符合当前主题
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(0xFF40A9FF);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(0xFF40A9FF);
+
+        mainHandler.postDelayed(() -> {
+            if (msgView != null && dialog.isShowing()) {
+                msgView.requestFocus();
+            }
+        }, 200);
     }
 
     private void initSettingsItemList() {
