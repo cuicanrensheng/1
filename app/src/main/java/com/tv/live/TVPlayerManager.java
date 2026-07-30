@@ -1005,6 +1005,10 @@ public class TVPlayerManager {
             }
 
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
+
+            // 🔴【必须添加的代码】读取设置弹窗里的调试日志开关
+            boolean debugEnabled = sp.getBoolean("debug_log_enable", false);
+            httpFactory.setDebugLogEnabled(debugEnabled);
             
             Headers globalHeaders = NetUtil.getInstance().createCommonHeaders(currentUrl);
             reusableHeaderMap.clear();
