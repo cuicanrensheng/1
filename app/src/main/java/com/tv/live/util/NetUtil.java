@@ -63,16 +63,15 @@ public class NetUtil {
         Map<String, String> headerMap = new HashMap<>();
 
         String userAgent = "ExoPlayer";
-
-        // 🔧【已移除所有浏览器UA兜底逻辑】
-        // 无论请求什么网址，UA 只取决于：自定义 UA -> VLC -> ExoPlayer
-        if (sAppContext != null) {
+        if (url.contains("huya.com") || url.contains("huya.cn")) {
+            userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        } else if (sAppContext != null) {
             SharedPreferences sp = sAppContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+            
             String customUA = sp.getString("custom_user_agent", "");
             if (!TextUtils.isEmpty(customUA)) {
                 userAgent = customUA;
             } else {
-                // 如果没填自定义，则读取 "VLC 或 ExoPlayer" 的模式
                 String uaMode = sp.getString("user_agent_mode", "exo"); 
                 if ("vlc".equals(uaMode)) {
                     userAgent = "VLC";
@@ -88,8 +87,6 @@ public class NetUtil {
         headerMap.put("Icy-MetaData", "1"); 
         headerMap.put("Accept-Language", "zh-CN,zh;q=0.9");
 
-        // ⚠️【注意】Referer 和 Origin 依然保留针对部分平台的防盗链处理
-        // 这是为了确保下载 M3U 或视频流时不被 403 拦截，与 User-Agent 分离
         String referer, origin;
         if (url.contains("huya.com") || url.contains("huya.cn")) {
             referer = "https://www.huya.com/";
@@ -155,13 +152,21 @@ public class NetUtil {
         return mClient;
     }
 
-    public Response syncGetNoRedirect(String url) throws IOException {
+    // 🔴【核心修复】新增：绝对不跟随重定向的请求（防止虎牙 API 跳转回 HTML 网页）
+    public Response syncGetNoRedirectWithHeaders(String url, Map<String, String> customHeaders) throws IOException {
         Headers headers = createCommonHeaders(url);
-        Request request = new Request.Builder()
+        Request.Builder requestBuilder = new Request.Builder()
                 .url(url)
-                .headers(headers)
-                .get()
-                .build();
+                .headers(headers);
+        
+        if (customHeaders != null) {
+            for (Map.Entry<String, String> entry : customHeaders.entrySet()) {
+                requestBuilder.header(entry.getKey(), entry.getValue());
+            }
+        }
+        
+        Request request = requestBuilder.get().build();
+        // 创建独立的临时客户端，强制不跟随跳转
         OkHttpClient noRedirectClient = mClient.newBuilder()
                 .followRedirects(false)
                 .followSslRedirects(false)
