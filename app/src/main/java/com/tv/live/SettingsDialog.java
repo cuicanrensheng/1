@@ -239,7 +239,7 @@ public class SettingsDialog extends android.app.Dialog {
             : getContext().getString(R.string.debug_log_status_off));
     }
 
-    // 🟢【完全自定义布局】白色圆角窗口 + 按钮内嵌在窗口内部
+    // 🟢【修复按钮消失问题】强制设定按钮高度为 50dp
     private void showDebugLogDialog() {
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
@@ -253,7 +253,6 @@ public class SettingsDialog extends android.app.Dialog {
         mainLayout.setBackgroundColor(Color.WHITE);
         mainLayout.setElevation(dp2px(8));
         
-        // 手动绘制圆角白底
         GradientDrawable whiteCornerDrawable = new GradientDrawable();
         whiteCornerDrawable.setColor(Color.WHITE);
         whiteCornerDrawable.setCornerRadius(dp2px(24));
@@ -278,7 +277,6 @@ public class SettingsDialog extends android.app.Dialog {
         scrollView.setFillViewport(true);
 
         TextView msgView = new TextView(getContext());
-        // 🟢 渲染 HTML 颜色标签
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             msgView.setText(Html.fromHtml(logs, Html.FROM_HTML_MODE_COMPACT));
         } else {
@@ -299,13 +297,16 @@ public class SettingsDialog extends android.app.Dialog {
                 dp2px(400)
         ));
 
-        // 4. 🟢【按钮行】完全放在白色窗口内部
+        // 4. 🟢【按钮行】强制按钮高度 50dp，绝对防止消失！
         LinearLayout buttonRow = new LinearLayout(getContext());
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setPadding(0, dp2px(16), 0, 0);
 
+        // 🟢 关键修复：权重为1，高度固定50dp
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                0, dp2px(50), 1f);
+        int margin = dp2px(4);
+        btnParams.setMargins(margin, 0, margin, 0);
 
         // 按钮1：开始/停止记录
         Button btnStartStop = new Button(getContext());
@@ -320,7 +321,6 @@ public class SettingsDialog extends android.app.Dialog {
             btnStartStop.setText(newState ? "停止记录" : "开始记录");
             updateDebugLogStatus();
 
-            // 🟢【新增需求】点击停止记录时，自动清空日志
             if (!newState) {
                 LogCollector.getInstance().clear();
                 Toast.makeText(getContext(), "已停止记录并清空日志", Toast.LENGTH_SHORT).show();
@@ -369,7 +369,6 @@ public class SettingsDialog extends android.app.Dialog {
 
         dialog.show();
 
-        // 🟢【修复编译错误】匿名内部类访问的局部变量必须声明为 final
         final AlertDialog finalDialog = dialog;
         btnClose.setOnClickListener(v -> {
             if (finalDialog != null) {
@@ -377,7 +376,6 @@ public class SettingsDialog extends android.app.Dialog {
             }
         });
 
-        // 让日志框获得焦点
         mainHandler.postDelayed(() -> {
             if (msgView != null && dialog.isShowing()) {
                 msgView.requestFocus();
@@ -385,7 +383,7 @@ public class SettingsDialog extends android.app.Dialog {
         }, 200);
     }
 
-    // ===== 以下代码保持原样，不做修改 =====
+    // ===== 以下代码保持原样 =====
     private void initSettingsItemList() {
         View itemTifSync = findViewById(R.id.item_tif_sync);
         TextView tvTifStatus = findViewById(R.id.tv_tif_status);
