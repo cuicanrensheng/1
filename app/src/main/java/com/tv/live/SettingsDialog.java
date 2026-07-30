@@ -45,6 +45,7 @@ import java.util.List;
 
 import com.tv.live.tv.TvChannelSyncManager;
 import com.tv.live.util.CacheManager;
+import com.tv.live.util.LogCollector;
 import com.tv.live.PlaylistParser;
 
 public class SettingsDialog extends android.app.Dialog {
@@ -61,6 +62,10 @@ public class SettingsDialog extends android.app.Dialog {
     private TextView tv_version_short;
     
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
+    
+    // 🟢【新增】调试日志相关控件
+    private View itemDebugLog;
+    private TextView tv_debug_log_status;
     
     private SharedPreferences sp;
     private ScrollView scrollView;
@@ -83,18 +88,16 @@ public class SettingsDialog extends android.app.Dialog {
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
     private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
+    private static final String KEY_DEBUG_LOG_ENABLE = "debug_log_enable"; // 🟢 调试日志开关
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private int selectedItemPosition = 0;
 
-    // 🟢【新增】记录对话框打开的时间戳和忽略延迟
     private long mShowTime = 0;
-    private static final long IGNORE_KEY_DELAY_MS = 500; // 忽略打开后 500ms 内的按键
+    private static final long IGNORE_KEY_DELAY_MS = 500;
 
-    // 🛡️【电视防闪退】dismiss 防重入标志，避免 BACK 键 DOWN/UP 重复触发 dismiss
     private boolean isDismissing = false;
-    // 🛡️【电视防闪退】标记是否已经处理过 BACK 键，防止事件泄露触发 onBackPressed
     private boolean backHandled = false;
 
     public SettingsDialog(android.content.Context context) {
@@ -150,6 +153,10 @@ public class SettingsDialog extends android.app.Dialog {
 
         itemVersionInfo = findViewById(R.id.item_version_info);
         tv_version_short = findViewById(R.id.tv_version_short);
+        
+        // 🟢【新增】绑定调试日志控件
+        itemDebugLog = findViewById(R.id.item_debug_log);
+        tv_debug_log_status = findViewById(R.id.tv_debug_log_status);
         
         bootStartManager = new BootStartManager(getContext(), sp);
         sourceDialogManager = new SourceDialogManager(getContext(), sp);
@@ -207,6 +214,9 @@ public class SettingsDialog extends android.app.Dialog {
         boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", false);
         tv_exit_dialog_status.setText(exitDialogEnabled ? "开启" : "关闭");
 
+        // 🟢【新增】更新调试日志状态
+        updateDebugLogStatus();
+
         initSettingsItemList();
 
         webServerManager.start();
@@ -222,11 +232,53 @@ public class SettingsDialog extends android.app.Dialog {
         }
     }
 
+    // 🟢【新增】更新调试日志状态文本
+    private void updateDebugLogStatus() {
+        if (tv_debug_log_status == null) return;
+        boolean enabled = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
+        tv_debug_log_status.setText(enabled 
+            ? getContext().getString(R.string.debug_log_status_on) 
+            : getContext().getString(R.string.debug_log_status_off));
+    }
+
+    // 🟢【新增】显示调试日志对话框
+    private void showDebugLogDialog() {
+        boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
+        String logs = LogCollector.getInstance().getAllLogs();
+        if (TextUtils.isEmpty(logs)) {
+            logs = getContext().getString(R.string.debug_log_empty);
+        }
+
+        new AlertDialog.Builder(getContext())
+            .setTitle(getContext().getString(R.string.debug_log_dialog_title))
+            .setMessage(logs)
+            .setPositiveButton(getContext().getString(R.string.debug_log_clear), (dialog, which) -> {
+                LogCollector.getInstance().clear();
+                Toast.makeText(getContext(), "日志已清空", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton(getContext().getString(R.string.close), null)
+            .setNeutralButton(currentDebugState 
+                ? getContext().getString(R.string.debug_log_stop) 
+                : getContext().getString(R.string.debug_log_start), (dialog, which) -> {
+                boolean newState = !currentDebugState;
+                sp.edit().putBoolean(KEY_DEBUG_LOG_ENABLE, newState).apply();
+                updateDebugLogStatus();
+                Toast.makeText(getContext(), "网络日志记录已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
+                
+                // 通知 TVPlayerManager 刷新数据源配置（让下次播放生效）
+                Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                intent.setPackage(getContext().getPackageName());
+                getContext().sendBroadcast(intent);
+            })
+            .show();
+    }
+
     private void initSettingsItemList() {
         View itemTifSync = findViewById(R.id.item_tif_sync);
         TextView tvTifStatus = findViewById(R.id.tv_tif_status);
         updateTifStatus(tvTifStatus);
 
+        // 🟢【新增】将调试日志条目加入列表（共16项）
         View[] items = {
             findViewById(R.id.item_boot),
             findViewById(R.id.item_reverse),
@@ -242,7 +294,8 @@ public class SettingsDialog extends android.app.Dialog {
             itemTifSync,
             findViewById(R.id.item_check_update),
             findViewById(R.id.item_version_info),
-            findViewById(R.id.item_exit_dialog)
+            findViewById(R.id.item_exit_dialog),
+            itemDebugLog // 🟢 增加调试日志项
         };
 
         for (View item : items) {
@@ -306,9 +359,7 @@ public class SettingsDialog extends android.app.Dialog {
 
     @Override
     public void show() {
-        // 🟢【新增】记录对话框打开的时间
         mShowTime = System.currentTimeMillis();
-        // 🛡️【电视防闪退】重置防重入标志
         isDismissing = false;
         backHandled = false;
 
@@ -329,7 +380,8 @@ public class SettingsDialog extends android.app.Dialog {
                 findViewById(R.id.item_tif_sync),
                 findViewById(R.id.item_check_update),
                 findViewById(R.id.item_version_info),
-                findViewById(R.id.item_exit_dialog)
+                findViewById(R.id.item_exit_dialog),
+                itemDebugLog // 🟢 增加调试日志项
             };
             if (items.length > 0 && items[0] != null) {
                 items[0].requestFocus();
@@ -401,6 +453,10 @@ public class SettingsDialog extends android.app.Dialog {
                 tv_exit_dialog_status.setText(newState ? "开启" : "关闭");
                 Toast.makeText(getContext(), "退出弹窗已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
                 break;
+            // 🟢【新增】调试日志动作
+            case 15:
+                showDebugLogDialog();
+                break;
         }
     }
 
@@ -423,11 +479,6 @@ public class SettingsDialog extends android.app.Dialog {
         String sdkVersion = "Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")";
         String playerVersion = "androidx.media3 1.7.1";
 
-        // ============================================================
-        // ✅ 修复：把 UA / SDK 版本 / 播放器版本 放在前面，
-        //     避免被较长的更新日志挤出可视区域；
-        //     再包一层 ScrollView，保证内容多时可以滚动查看
-        // ============================================================
         StringBuilder sb = new StringBuilder();
         sb.append("版本信息: v").append(versionName).append(" (").append(versionCode).append(")\n\n");
         sb.append("UA: ").append(userAgent).append("\n\n");
@@ -439,7 +490,6 @@ public class SettingsDialog extends android.app.Dialog {
         String message = sb.toString();
         SpannableString spannableString = new SpannableString(message);
 
-        // 给各个字段标签加粗
         int p;
         p = message.indexOf("版本信息");
         if (p != -1) spannableString.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), p, p + 4, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -466,7 +516,6 @@ public class SettingsDialog extends android.app.Dialog {
         titleView.setPadding(0, 0, 0, dp2px(8));
         layout.addView(titleView);
 
-        // 内容用 ScrollView 包起来，长内容可滚动
         ScrollView scrollView = new ScrollView(getContext());
         scrollView.setScrollbarFadingEnabled(false);
         scrollView.setVerticalScrollBarEnabled(true);
@@ -486,7 +535,7 @@ public class SettingsDialog extends android.app.Dialog {
         ));
         layout.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp2px(380)   // 限定一个高度，保证滚动区域稳定
+                dp2px(380)
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(getContext())
@@ -691,9 +740,6 @@ public class SettingsDialog extends android.app.Dialog {
         }, 200);
     }
 
-    // ================================================================
-    // 🟢【优化：共用一个通用选择浮层窗口，强制圆角一致】
-    // ================================================================
     private void showCommonSelectionDialog(String title, String[] items, int checkedItem, java.util.function.Consumer<Integer> onSelected) {
         ListView listView = new ListView(getContext());
         listView.setBackgroundColor(Color.TRANSPARENT);
@@ -770,7 +816,7 @@ public class SettingsDialog extends android.app.Dialog {
         LinearLayout layout = new LinearLayout(getContext());
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setBackgroundResource(R.drawable.dialog_bg_corner);
-        layout.setPadding(24, 24, 24, 24); // ✅ 圆角边距撑开
+        layout.setPadding(24, 24, 24, 24);
 
         layout.addView(titleView);
         layout.addView(listView);
@@ -1017,9 +1063,6 @@ public class SettingsDialog extends android.app.Dialog {
         });
     }
 
-    // ================================================================
-    // 🔧【修复找回】直播源和节目单订阅方法
-    // ================================================================
     private void showSubscriptionDialog(String spKey, String title) {
         SourceManager sourceManager = new SourceManager(getContext(), spKey);
         List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
@@ -1596,8 +1639,8 @@ public class SettingsDialog extends android.app.Dialog {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 🛡️【电视防闪退】整体 try-catch，防止任何按键处理异常导致崩溃
         try {
+            // 🟢【新增】数组长度必须与 initSettingsItemList 一致（16项）
             View[] items = {
                 findViewById(R.id.item_boot),
                 findViewById(R.id.item_reverse),
@@ -1613,11 +1656,11 @@ public class SettingsDialog extends android.app.Dialog {
                 findViewById(R.id.item_tif_sync),
                 findViewById(R.id.item_check_update),
                 findViewById(R.id.item_version_info),
-                findViewById(R.id.item_exit_dialog)
+                findViewById(R.id.item_exit_dialog),
+                itemDebugLog // 🟢 调试日志
             };
 
             if (keyCode == KeyEvent.KEYCODE_BACK) {
-                // 🛡️【电视防闪退】标记 BACK 已处理，防止 UP 泄露触发 onBackPressed 二次 dismiss
                 backHandled = true;
                 dismiss();
                 return true;
@@ -1636,10 +1679,9 @@ public class SettingsDialog extends android.app.Dialog {
                     return true;
                 }
             } else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-                // 🟢【关键修复】增加防误触逻辑：如果打开时间不足 500ms 则忽略按键
                 if (System.currentTimeMillis() - mShowTime < IGNORE_KEY_DELAY_MS) {
                     android.util.Log.d("SettingsDialog", "忽略打开后短时间内的按键，防止误触");
-                    return true; // 拦截并消耗按键，但不执行任何操作
+                    return true;
                 }
                 performItemAction(selectedItemPosition);
                 return true;
@@ -1652,7 +1694,6 @@ public class SettingsDialog extends android.app.Dialog {
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        // 🛡️【电视防闪退】消耗 BACK UP 事件，防止未处理的 UP 泄露触发 Dialog.onBackPressed -> cancel() -> 二次 dismiss
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             return true;
         }
@@ -1666,8 +1707,6 @@ public class SettingsDialog extends android.app.Dialog {
 
     @Override
     public void onBackPressed() {
-        // 🛡️【电视防闪退】拦截 Dialog 默认的 onBackPressed -> cancel()，避免与 onKeyDown 中的 dismiss 重复调用
-        // dismiss 已由 onKeyDown 中的 BACK 处理触发，这里直接消耗，不调用 super.onBackPressed()
         if (!isDismissing) {
             dismiss();
         }
@@ -1675,8 +1714,6 @@ public class SettingsDialog extends android.app.Dialog {
 
     @Override
     public void dismiss() {
-        // 🛡️【电视防闪退】防重入：BACK DOWN 触发 dismiss 后，BACK UP 泄露触发的 onBackPressed 会被拦截，
-        // 但仍可能存在其他路径重复调用 dismiss，加标志保护避免二次释放资源
         if (isDismissing) {
             android.util.Log.d("SettingsDialog", "dismiss 已在执行中，忽略重复调用");
             return;
@@ -1705,7 +1742,6 @@ public class SettingsDialog extends android.app.Dialog {
             isDismissing = false;
         }
 
-        // 🔧 设置弹窗关闭后，立即通知主界面刷新配置
         try {
             MainActivity activity = MainActivity.getRunningInstance();
             if (activity != null && !activity.isFinishing()) {
@@ -1716,9 +1752,6 @@ public class SettingsDialog extends android.app.Dialog {
         }
     }
 
-    /**
-     * 获取 TIF InputId
-     */
     private String getTifInputId() {
         try {
             TvInputManager tim = (TvInputManager) getContext().getSystemService(android.content.Context.TV_INPUT_SERVICE);
@@ -1737,17 +1770,11 @@ public class SettingsDialog extends android.app.Dialog {
         return null;
     }
 
-    /**
-     * 检测当前设备是否为 Android TV（原生支持 TIF）
-     */
     private boolean isAndroidTvDevice() {
         return getContext().getPackageManager().hasSystemFeature(
                 android.content.pm.PackageManager.FEATURE_LEANBACK);
     }
 
-    /**
-     * 更新 TIF 同步状态显示
-     */
     private void updateTifStatus(TextView tvTifStatus) {
         if (tvTifStatus == null) return;
         if (!isAndroidTvDevice()) {
@@ -1763,9 +1790,6 @@ public class SettingsDialog extends android.app.Dialog {
         tvTifStatus.setText(count > 0 ? "已同步 " + count + " 个频道" : "未同步");
     }
 
-    /**
-     * 同步频道到系统 TIF
-     */
     private void syncChannelsToSystemTif() {
         new Thread(() -> {
             try {
