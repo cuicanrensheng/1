@@ -13,7 +13,7 @@ import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.HttpDataSource;
 
 import com.tv.live.exception.RedirectFailedException;
-import com.tv.live.util.LogCollector; // 🟢【新增】引入你的日志收集器
+import com.tv.live.util.LogCollector;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,10 +32,8 @@ import java.util.zip.GZIPInputStream;
 public class RedirectLoggingHttpDataSource extends BaseDataSource implements HttpDataSource {
     private static final String TAG = "RedirectHttp";
 
-    // 🟢【新增】调试模式开关
     private boolean debugLogEnabled = false; 
 
-    // 默认常量，可通过Factory覆盖
     private int maxRedirects = 5;
     private int connectTimeout = 10000;
     private int readTimeout = 15000;
@@ -57,19 +55,27 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         return sdf.format(new Date());
     }
 
-    // 🟢【新增】统一日志打印方法，支持收集器
+    // 🔴【关键修改】先强制打印到 Logcat，然后再判断是否写入 UI 收集器
     private void printLog(boolean isError, String msg) {
-        if (!debugLogEnabled) return; // 未开启调试模式则不输出
+        String finalMsg = "[" + getTimeStr() + "] " + msg;
+        
+        // ✅ 只要走到这里，必定会输出到 Android Studio 的 Logcat！
         if (isError) {
-            Log.e(TAG, msg);
-            LogCollector.getInstance().addLog(TAG, "[ERROR] " + msg);
+            Log.e(TAG, finalMsg);
         } else {
-            Log.d(TAG, msg);
-            LogCollector.getInstance().addLog(TAG, "[DEBUG] " + msg);
+            Log.d(TAG, finalMsg);
+        }
+
+        // ✅ 如果用户开启了 UI 调试开关，再额外写入 LogCollector（用于弹窗显示）
+        if (debugLogEnabled) {
+            if (isError) {
+                LogCollector.getInstance().addLog(TAG, "[ERROR] " + msg);
+            } else {
+                LogCollector.getInstance().addLog(TAG, "[DEBUG] " + msg);
+            }
         }
     }
 
-    // 🟢【新增】设置调试开关（供外部调用）
     public void setDebugLogEnabled(boolean enabled) {
         this.debugLogEnabled = enabled;
     }
@@ -108,9 +114,14 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             connection = openConnection(dataSpec);
             responseCode = connection.getResponseCode();
             syncResponseCookies(connection, dataSpec.uri.toString());
+            
+            if (responseCode >= 200 && responseCode < 300) {
+                printLog(false, "✅ 请求成功 (" + responseCode + "): " + dataSpec.uri.toString());
+            }
+
             if (responseCode < 200 || responseCode > 299) {
                 String responseMessage = connection.getResponseMessage();
-                printLog(true, "[" + getTimeStr() + "] ❌ 失败: HTTP " + responseMessage);
+                printLog(true, "❌ 失败: HTTP " + responseMessage);
                 throw new HttpDataSource.HttpDataSourceException(
                         "HTTP " + responseCode + " " + responseMessage,
                         dataSpec,
@@ -166,13 +177,13 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
 
         while (true) {
             if (System.currentTimeMillis() - startTime > MAX_TOTAL_DELAY) {
-                String logMsg = "[" + getTimeStr() + "] ❌ 失败: 重定向总耗时超时 (超过 " + MAX_TOTAL_DELAY + "ms)";
+                String logMsg = "❌ 失败: 重定向总耗时超时 (超过 " + MAX_TOTAL_DELAY + "ms)";
                 printLog(true, logMsg);
                 throw new RedirectFailedException("重定向总耗时超时", -1, originalUrl, currentUrl);
             }
 
             if (redirectCount > maxRedirects) {
-                String logMsg = "[" + getTimeStr() + "] ❌ 失败: 重定向次数超过限制(" + maxRedirects + "次)";
+                String logMsg = "❌ 失败: 重定向次数超过限制(" + maxRedirects + "次)";
                 printLog(true, logMsg);
                 throw new RedirectFailedException("重定向次数超限", -1, originalUrl, currentUrl);
             }
@@ -199,12 +210,13 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             boolean isRedirect = (respCode == 301 || respCode == 302
                     || respCode == 303 || respCode == 307 || respCode == 308);
             if (!isRedirect) {
+                printLog(false, "🔗 连接成功，响应码 " + respCode + ": " + currentUrl);
                 return conn;
             }
             redirectCount++;
             String location = conn.getHeaderField("Location");
             if (TextUtils.isEmpty(location)) {
-                String errLog = "[" + getTimeStr() + "] ❌ 失败: 第" + redirectCount + "次重定向无Location头";
+                String errLog = "❌ 失败: 第" + redirectCount + "次重定向无Location头";
                 printLog(true, errLog);
                 conn.disconnect();
                 throw new RedirectFailedException("重定向Location为空", respCode, originalUrl, currentUrl);
@@ -214,20 +226,23 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             Uri targetUri = Uri.parse(redirectUrl);
             boolean crossProtocol = !Objects.equals(baseUri.getScheme(), targetUri.getScheme());
             if (crossProtocol && !allowCrossProtocolRedirects) {
-                printLog(true, "[" + getTimeStr() + "] ❌ 失败: 禁止跨协议跳转");
+                printLog(true, "❌ 失败: 禁止跨协议跳转");
                 conn.disconnect();
                 throw new RedirectFailedException("跨协议重定向被禁用", respCode, originalUrl, redirectUrl);
             }
             boolean crossDomain = !Objects.equals(baseUri.getHost(), targetUri.getHost());
             boolean isInner = isInnerIp(targetUri.getHost());
             if (crossDomain && !allowCrossDomainRedirects && !isInner) {
-                printLog(true, "[" + getTimeStr() + "] ❌ 失败: 禁止跨域名跳转");
+                printLog(true, "❌ 失败: 禁止跨域名跳转");
                 conn.disconnect();
                 throw new RedirectFailedException("跨域名重定向被禁用", respCode, originalUrl, redirectUrl);
             }
             if (ignoreSslErrorRedirect && "https".equals(targetUri.getScheme())) {
                 // 信任管理器扩展预留
             }
+            
+            printLog(false, "🔄 重定向 (" + respCode + "): " + currentUrl + " -> " + redirectUrl);
+            
             conn.disconnect();
             currentUrl = redirectUrl;
         }
@@ -355,7 +370,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         }
     }
 
-    // ====================== 工厂类 ======================
     public static final class Factory implements DataSource.Factory {
         private final Map<String, String> defaultRequestProperties = new HashMap<>();
         private boolean allowCrossProtocolRedirects = true;
@@ -366,12 +380,10 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         private int connectTimeoutMs = 10000;
         private int readTimeoutMs = 15000;
         private String channelName = "";
-        // 🟢【新增】工厂开关，控制数据源是否输出日志
         private boolean debugLogEnabled = false; 
 
         public Factory() {}
 
-        // 🟢【新增】外部设置调试日志开关
         public Factory setDebugLogEnabled(boolean enabled) {
             this.debugLogEnabled = enabled;
             return this;
@@ -436,7 +448,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                     readTimeoutMs
             );
             source.setChannelName(channelName);
-            // 🟢【新增】向数据源注入调试开关
             source.setDebugLogEnabled(debugLogEnabled);
             return source;
         }
