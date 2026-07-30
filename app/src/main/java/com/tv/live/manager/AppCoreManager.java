@@ -11,7 +11,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-import androidx.core.content.ContextCompat; // 🔧 新增导入
+import androidx.core.content.ContextCompat;
 import com.tv.live.Channel;
 import com.tv.live.EpgManager;
 import com.tv.live.UrlConfig;
@@ -54,6 +54,69 @@ public class AppCoreManager {
     private OnDataLoadListener dataLoadListener;
     private OnRefreshListener refreshListener;
 
+    // 🔧 新增：是否只使用虎牙房间列表（默认 true）
+    private boolean useHuyaRooms = true;
+
+    // 🔧 新增：虎牙房间号数据（房间号, 标题, 分组）
+    private static final String[][] HUYA_ROOM_DATA = {
+        // ==================== 电影 ====================
+        {"11602047", "异形铁血战士", "电影"},
+        {"26355795", "惊悚电影", "电影"},
+        {"23863778", "漫威科幻剧", "电影"},
+        {"30080257", "科幻史诗巨作", "电影"},
+        {"11342421", "林正英僵尸系列", "电影"},
+        {"31308716", "林正英经典电影", "电影"},
+        {"11342412", "星爷经典不间断", "电影"},
+        {"30631746", "李连杰经典", "电影"},
+        {"30080234", "星球大战", "电影"},
+        {"11336571", "【女神系列】", "电影"},
+        {"30682679", "港片经典", "电影"},
+        {"30509122", "动作电影", "电影"},
+        {"31295293", "澳门电影", "电影"},
+        {"30985600", "高评分电影", "电影"},
+        {"31087618", "剧情电影", "电影"},
+        {"30951757", "三叉戟电影", "电影"},
+        {"30716827", "猛鬼系列", "电影"},
+        {"30951578", "真实事件改编", "电影"},
+        {"31311959", "惊悚电影", "电影"},
+        {"30968485", "金马影帝", "电影"},
+        {"26355784", "恐怖电影系列", "电影"},
+        // ==================== 电视剧 ====================
+        {"880256",   "怪奇物语", "电视剧"},
+        {"31055598", "康熙微服私访记", "电视剧"},
+        {"30612264", "封神榜", "电视剧"},
+        {"11342384", "新水浒", "电视剧"},
+        {"11602081", "老三国", "电视剧"},
+        {"11336726", "爱情公寓", "电视剧"},
+        {"11342425", "古代神探推理", "电视剧"},
+        {"11601964", "男主比女主穷", "电视剧"},
+        {"11352958", "少年包青天", "电视剧"},
+        {"31336243", "神探狄仁杰", "电视剧"},
+        {"11342396", "铁齿铜纪晓岚", "电视剧"},
+        {"31312768", "洪金宝成龙彪成电影", "电视剧"},
+        {"30080238", "李云龙", "电视剧"},
+        {"11352944", "新三国", "电视剧"},
+        {"31087618", "TVB 午夜场", "电视剧"},
+        {"23740156", "庆余年系列", "电视剧"},
+        {"30627334", "雍正王朝", "电视剧"},
+        {"30655127", "雍正王朝李卫当官", "电视剧"},
+        {"30080146", "寻秦记", "电视剧"},
+        // ==================== 动漫 ====================
+        {"31312788", "一人之下", "动漫"},
+        {"21059561", "五条悟", "动漫"},
+        {"29982655", "瑞克与莫蒂", "动漫"},
+        {"26355796", "食神小当家", "动漫"},
+        {"26355785", "世界杯来啦", "动漫"},
+        {"24314166", "林七夜之路", "动漫"},
+        {"20985850", "超自然武装", "动漫"},
+        {"30065341", "蜡笔小新", "动漫"},
+        {"11352919", "海绵宝宝", "动漫"},
+        {"21059565", "仙逆", "动漫"},
+        {"30080236", "柯南", "动漫"},
+        {"19807776", "科幻悬疑惊悚灾难", "动漫"},
+        {"30613314", "中华小当家", "动漫"}
+    };
+
     public interface OnDataLoadListener {
         void onLiveSourceLoaded(List<Channel> channels, boolean fromCache);
         void onLiveSourceFailed(String errorMsg);
@@ -75,23 +138,25 @@ public class AppCoreManager {
     }
 
     // ====================================================================
-    // ✅ NPE 防御：真机首次启动时 LiveSourceLoader 异步回调与 onDestroy() 存在竞态，
-    //             会导致 channelSourceList == null 或 channels == null → 崩。
-    //             以下两个包私有方法供 TDD 单元测试直接调用。
+    // ✅ NPE 防御
     // ====================================================================
 
-    /** @return channels 非 null（若原始为 null，则返回空 ArrayList；否则原对象） */
     static <T> List<T> sanitizeChannels(List<T> channels) {
         return (channels != null) ? channels : new ArrayList<>();
     }
 
-    /** @return existing 非 null（若原始为 null，则新建空 ArrayList；否则原对象） */
     static <T> List<T> ensureChannelListNotNull(List<T> existing) {
         return (existing != null) ? existing : new ArrayList<>();
     }
 
     // ========== 1. 直播源 & EPG 加载 ==========
     public void loadLiveAndEpg() {
+        // 🔧 如果启用虎牙房间列表，直接加载并返回
+        if (useHuyaRooms) {
+            loadHuyaRoomList();
+            return;
+        }
+
         log("【直播源】开始加载直播源...");
         isLoading = true;
 
@@ -130,11 +195,9 @@ public class AppCoreManager {
         LiveSourceLoader.getInstance(context).load(new LiveSourceLoader.LoadCallback() {
             @Override
             public void onSuccess(List<Channel> channels) {
-                // 🛡️ NPE 防御 1：PlaylistParser.parse 可能返回 null（网络失败 / 解析异常）
                 List<Channel> safeChannels = sanitizeChannels(channels);
                 log("【网络】直播源加载成功，频道总数：" + safeChannels.size());
                 synchronized (channelListLock) {
-                    // 🛡️ NPE 防御 2：onDestroy() 可能已把 channelSourceList 置 null（异步回调竞态）
                     channelSourceList = ensureChannelListNotNull(channelSourceList);
                     if (channelSourceList.isEmpty()) {
                         channelSourceList.clear();
@@ -163,6 +226,35 @@ public class AppCoreManager {
                 loadEpgCache();
             }
         });
+    }
+
+    // 🔧 新增：加载虎牙房间列表（按分组）
+    private void loadHuyaRoomList() {
+        isLoading = false;
+        timeoutHandler.removeCallbacksAndMessages(null);
+
+        List<Channel> huyaChannels = new ArrayList<>();
+        for (String[] pair : HUYA_ROOM_DATA) {
+            String roomId = pair[0];
+            String name = pair[1];
+            String group = pair[2]; // 分组名称
+            String roomUrl = "https://www.huya.com/" + roomId;
+            Channel ch = new Channel(name, roomUrl, group, roomId);
+            huyaChannels.add(ch);
+        }
+
+        synchronized (channelListLock) {
+            channelSourceList.clear();
+            channelSourceList.addAll(huyaChannels);
+        }
+
+        if (dataLoadListener != null) {
+            dataLoadListener.onLiveSourceLoaded(huyaChannels, false);
+        }
+        log("【虎牙】已加载 " + huyaChannels.size() + " 个房间，分组：电影/电视剧/动漫");
+
+        // 加载 EPG（虎牙暂不提供，可保留或跳过）
+        loadEpgCache();
     }
 
     private void triggerHealthCheck(List<Channel> channels) {
@@ -256,7 +348,6 @@ public class AppCoreManager {
         return new ArrayList<>(channelMap.values());
     }
 
-    // 🛠️ 加锁保护
     public void mergeChannels(List<Channel> newChannels) {
         synchronized (channelListLock) {
             Map<String, Channel> mergedMap = new LinkedHashMap<>();
@@ -302,7 +393,6 @@ public class AppCoreManager {
             public void onReceive(Context context, Intent intent) {
                 if ("com.tv.live.REFRESH_LIVE_AND_EPG".equals(intent.getAction())) {
                     new Thread(() -> {
-                        // ✅ 强制清空所有缓存（包括历史缓存和频道列表）
                         if (cacheManager != null) {
                             cacheManager.clearAll();
                             log("【缓存】已强制清除所有缓存，正在重新拉取最新数据");
@@ -311,14 +401,12 @@ public class AppCoreManager {
                             channelSourceList.clear();
                         }
 
-                        // ✅ 读取网页推送的 custom_live_url
                         SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
                         String customLive = sp.getString("custom_live_url", "");
                         if (!TextUtils.isEmpty(customLive)) {
                             UrlConfig.LIVE_URL = customLive;
                             log("【推送】成功读取到网页推送的直播源地址：" + customLive);
                         } else {
-                            // 回退到历史记录
                             SourceManager liveManager = new SourceManager(context, "live_history");
                             String defaultLive = liveManager.getDefaultUrl();
                             if (!TextUtils.isEmpty(defaultLive)) {
@@ -327,7 +415,6 @@ public class AppCoreManager {
                             }
                         }
 
-                        // EPG 同理
                         String customEpg = sp.getString("custom_epg_url", "");
                         if (!TextUtils.isEmpty(customEpg)) {
                             UrlConfig.EPG_URL = customEpg;
@@ -340,12 +427,10 @@ public class AppCoreManager {
                             }
                         }
 
-                        // ✅ 重置播放标记，确保加载完成后强制重新播放
                         hasPlayedWithCache = false;
                         if (refreshListener != null) {
                             refreshListener.onRefreshNeeded();
                         }
-                        // ✅ 重新加载（此时会使用新的 UrlConfig.LIVE_URL 发起网络请求）
                         loadLiveAndEpg();
                     }).start();
                 }
@@ -481,9 +566,7 @@ public class AppCoreManager {
                 channelSourceList.clear();
             }
 
-            // ✅ 关键修复：重置播放状态，确保加载完成后强制重新播放
             hasPlayedWithCache = false;
-
             loadLiveAndEpg();
         }).start();
     }
