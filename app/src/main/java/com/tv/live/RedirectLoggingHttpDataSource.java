@@ -55,24 +55,18 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         return sdf.format(new Date());
     }
 
-    // 🟢【统一日志打印】只为 UI 弹窗写入纯净格式的日志
     private void printLog(boolean isError, String msg) {
         String finalMsg = "[" + getTimeStr() + "] " + msg;
-        
-        // ✅ 始终输出到 Android Studio Logcat，方便开发调试
         if (isError) {
             Log.e(TAG, finalMsg);
         } else {
             Log.d(TAG, finalMsg);
         }
 
-        // ✅ 只有在开启了 UI 调试开关时才记入窗口弹窗
         if (debugLogEnabled) {
             if (isError) {
-                // 错误日志加上前缀以便区分
                 LogCollector.getInstance().addLog("", "[ERROR] " + msg);
             } else {
-                // 🔴【核心修改】写入弹窗时，不带任何前缀，只传纯净的 msg 给空 tag
                 LogCollector.getInstance().addLog("", msg);
             }
         }
@@ -117,9 +111,13 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             responseCode = connection.getResponseCode();
             syncResponseCookies(connection, dataSpec.uri.toString());
             
-            // 🟢【精简日志】成功获取响应时，只输出四个字
             if (responseCode >= 200 && responseCode < 300) {
-                printLog(false, "请求成功");
+                String uriStr = connection.getURL().toString();
+                if (dataSpec.position != C.POSITION_UNSET) {
+                    printLog(false, "请求成功 (分片): " + uriStr);
+                } else {
+                    printLog(false, "请求成功: " + uriStr);
+                }
             }
 
             if (responseCode < 200 || responseCode > 299) {
@@ -211,8 +209,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             boolean isRedirect = (respCode == 301 || respCode == 302
                     || respCode == 303 || respCode == 307 || respCode == 308);
             if (!isRedirect) {
-                // 🟢【精简日志】重定向结束，最终成功
-                printLog(false, "请求成功");
                 return conn;
             }
             redirectCount++;
@@ -242,8 +238,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                 // 信任管理器扩展预留
             }
             
-            // 🟢【精简日志】记录发生了几次重定向
-            printLog(false, "重定向" + redirectCount + "次~");
+            printLog(false, "重定向" + redirectCount + "次~: " + currentUrl + " -> " + redirectUrl);
             
             conn.disconnect();
             currentUrl = redirectUrl;
