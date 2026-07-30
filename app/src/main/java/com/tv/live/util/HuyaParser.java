@@ -25,10 +25,10 @@ public class HuyaParser {
     private static final ConcurrentHashMap<Integer, CacheItem> SOURCE_CACHE = new ConcurrentHashMap<>();
     private static final long CACHE_VALID_MS = 110 * 1000;
 
+    // 🟢 虎牙官方 API 接口
     private static final String API_MOBILE_ROOM = "https://m.huya.com/%d";
     private static final String API_PC_ROOM = "https://www.huya.com/%d";
     private static final String API_STREAM_INFO = "https://www.huya.com/cache.php?m=LiveList&do=getLivePlayInfo&roomId=%d";
-    private static final String API_CDN_TMP_LIST = "https://live.cdn.huya.com/liveHttpUI/getTmpLiveList?iGid=2135&iTmpId=2067&iPageNo=1&iPageSize=50";
 
     public interface OnParseResultListener {
         void onSuccess(String hlsUrl, String flvUrl, boolean isTogetherWatch);
@@ -132,44 +132,33 @@ public class HuyaParser {
         thread.start();
     }
 
+    /**
+     * 🟢【核心修改 1】获取网页 HTML，完全依赖 NetUtil 自动生成请求头（允许重定向）
+     */
     private static String fetchHtml(String urlPattern, int roomId) {
         try {
             String url = String.format(urlPattern, roomId);
-            
-            Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            headers.put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8");
-            headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
-            headers.put("Connection", "keep-alive");
-            headers.put("Referer", "https://www.huya.com/");
-            
-            Response response = NetUtil.getInstance().syncGetWithHeaders(url, headers);
+            // 使用 syncGet，NetUtil 内部会自动添加虎牙相关的 UA 和 Referer
+            Response response = NetUtil.getInstance().syncGet(url);
             if (!response.isSuccessful() || response.body() == null) {
                 Log.d("HuyaParser", "fetchHtml请求失败，状态码：" + response.code());
                 return "";
             }
-            
             return response.body().string();
-            
         } catch (IOException e) {
             Log.d("HuyaParser", "fetchHtml异常：" + e.getMessage());
         }
         return "";
     }
 
+    /**
+     * 🟢【核心修改 2】调用 API 接口，移除硬编码 Header，依赖 NetUtil 自动生成；同时强制不跟随重定向
+     */
     private static String fetchFromStreamInfoAPI(int roomId) {
         try {
             String url = String.format(Locale.ROOT, API_STREAM_INFO, roomId);
-            
-            Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-            headers.put("Accept", "application/json, text/plain, */*");
-            headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
-            headers.put("Connection", "keep-alive");
-            headers.put("Referer", "https://www.huya.com/" + roomId);
-            headers.put("Origin", "https://www.huya.com");
-            
-            Response response = NetUtil.getInstance().syncGetWithHeaders(url, headers);
+            // 调用 syncGetNoRedirect，NetUtil 内部会自动生成 UA 和 Header，且禁止跟随 302 跳转
+            Response response = NetUtil.getInstance().syncGetNoRedirect(url);
             if (!response.isSuccessful() || response.body() == null) {
                 Log.d("HuyaParser", "fetchFromStreamInfoAPI请求失败，状态码：" + response.code());
                 return "";
@@ -249,6 +238,8 @@ public class HuyaParser {
         }
         return "";
     }
+
+    // ================== 以下为正则提取工具方法，保持不变 ==================
 
     private static String extractUrlFromJsonString(String jsonStr) {
         try {
