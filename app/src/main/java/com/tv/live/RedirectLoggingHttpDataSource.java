@@ -1,19 +1,19 @@
 package com.tv.live;
 
-import android.annotation.SuppressLint; // 🟢【新增】必须导入这个包
+import android.annotation.SuppressLint;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Log;
 import android.webkit.CookieManager;
 
 import androidx.media3.common.C;
-import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.BaseDataSource;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.HttpDataSource;
 
 import com.tv.live.exception.RedirectFailedException;
+import com.tv.live.util.LogCollector; // 🟢【新增】引入你的日志收集器
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,22 +28,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.zip.GZIPInputStream;
 
-// 🟢【关键修复】删除 Kotlin 的 @file:OptIn，替换为 Java 支持的 @SuppressLint("UnsafeOptInUsageError")
 @SuppressLint("UnsafeOptInUsageError")
-/**
- * 【升级完整版】带重定向日志HTTP数据源
- * 升级新增：
- * 1. 全部重定向参数可动态配置：最大跳转数、跨域/跨协议开关、跳转携带头、忽略SSL
- * 2. 跳转Set-Cookie自动同步全局CookieManager
- * 3. 重定向失败抛出专属RedirectFailedException，上层区分错误不自动切台
- * 4. 可自定义连接/读取超时，不再硬编码
- * 5. 增加跨域名跳转校验拦截
- * 6. 完整工厂链式Setter，适配TVPlayerManager配置调用
- * 7. 跳转时完整继承/关闭请求头可控
- * 8. 内网域名自动豁免跨域限制
- */
 public class RedirectLoggingHttpDataSource extends BaseDataSource implements HttpDataSource {
     private static final String TAG = "RedirectHttp";
+
+    // 🟢【新增】调试模式开关
+    private boolean debugLogEnabled = false; 
+
     // 默认常量，可通过Factory覆盖
     private int maxRedirects = 5;
     private int connectTimeout = 10000;
@@ -61,10 +52,26 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
     private int responseCode = -1;
     private String currentChannelName = "";
 
-    // 🟢【优化】显式指定 Locale.ROOT，避免 DefaultLocale 警告，同时提升解析稳定性
     private String getTimeStr() {
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.ROOT);
         return sdf.format(new Date());
+    }
+
+    // 🟢【新增】统一日志打印方法，支持收集器
+    private void printLog(boolean isError, String msg) {
+        if (!debugLogEnabled) return; // 未开启调试模式则不输出
+        if (isError) {
+            Log.e(TAG, msg);
+            LogCollector.getInstance().addLog(TAG, "[ERROR] " + msg);
+        } else {
+            Log.d(TAG, msg);
+            LogCollector.getInstance().addLog(TAG, "[DEBUG] " + msg);
+        }
+    }
+
+    // 🟢【新增】设置调试开关（供外部调用）
+    public void setDebugLogEnabled(boolean enabled) {
+        this.debugLogEnabled = enabled;
     }
 
     protected RedirectLoggingHttpDataSource(
@@ -100,11 +107,10 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             transferInitializing(dataSpec);
             connection = openConnection(dataSpec);
             responseCode = connection.getResponseCode();
-            // 同步本次请求返回的Cookie到全局
             syncResponseCookies(connection, dataSpec.uri.toString());
             if (responseCode < 200 || responseCode > 299) {
                 String responseMessage = connection.getResponseMessage();
-                Log.e(TAG, "[" + getTimeStr() + "] ❌ 失败: HTTP " + responseMessage);
+                printLog(true, "[" + getTimeStr() + "] ❌ 失败: HTTP " + responseMessage);
                 throw new HttpDataSource.HttpDataSourceException(
                         "HTTP " + responseCode + " " + responseMessage,
                         dataSpec,
@@ -139,7 +145,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         }
     }
 
-    /** 同步响应Set-Cookie到全局CookieManager */
     private void syncResponseCookies(HttpURLConnection conn, String requestUrl) {
         Map<String, List<String>> headerMap = conn.getHeaderFields();
         List<String> cookieList = headerMap.get("Set-Cookie");
@@ -156,38 +161,33 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         int redirectCount = 0;
         Map<String, String> originHeaders = new HashMap<>(defaultRequestProperties);
         
-        // 🟢【新增优化】记录整个重定向过程的开始时间
         long startTime = System.currentTimeMillis();
-        final long MAX_TOTAL_DELAY = 15000; // 限制总耗时 15 秒
+        final long MAX_TOTAL_DELAY = 15000;
 
         while (true) {
-            // 🟢【新增优化】如果总耗时超过 15 秒，直接切断死循环，不再等待
             if (System.currentTimeMillis() - startTime > MAX_TOTAL_DELAY) {
                 String logMsg = "[" + getTimeStr() + "] ❌ 失败: 重定向总耗时超时 (超过 " + MAX_TOTAL_DELAY + "ms)";
-                Log.e(TAG, logMsg);
+                printLog(true, logMsg);
                 throw new RedirectFailedException("重定向总耗时超时", -1, originalUrl, currentUrl);
             }
 
             if (redirectCount > maxRedirects) {
                 String logMsg = "[" + getTimeStr() + "] ❌ 失败: 重定向次数超过限制(" + maxRedirects + "次)";
-                Log.e(TAG, logMsg);
+                printLog(true, logMsg);
                 throw new RedirectFailedException("重定向次数超限", -1, originalUrl, currentUrl);
             }
             URL url = new URL(currentUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            // 超时可配置
             conn.setConnectTimeout(connectTimeout);
             conn.setReadTimeout(readTimeout);
             conn.setDoInput(true);
             conn.setInstanceFollowRedirects(false);
             conn.setUseCaches(false);
-            // 填充请求头
             if (followRedirectsWithHeaders || redirectCount == 0) {
                 for (Map.Entry<String, String> entry : originHeaders.entrySet()) {
                     conn.setRequestProperty(entry.getKey(), entry.getValue());
                 }
             }
-            // Range分片
             if (dataSpec.position != C.POSITION_UNSET) {
                 String rangeValue = "bytes=" + dataSpec.position + "-";
                 if (dataSpec.length != C.LENGTH_UNSET) {
@@ -201,43 +201,38 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             if (!isRedirect) {
                 return conn;
             }
-            // ========== 处理3xx重定向 ==========
             redirectCount++;
             String location = conn.getHeaderField("Location");
             if (TextUtils.isEmpty(location)) {
                 String errLog = "[" + getTimeStr() + "] ❌ 失败: 第" + redirectCount + "次重定向无Location头";
-                Log.e(TAG, errLog);
+                printLog(true, errLog);
                 conn.disconnect();
                 throw new RedirectFailedException("重定向Location为空", respCode, originalUrl, currentUrl);
             }
             String redirectUrl = resolveRedirectUrl(currentUrl, location);
             Uri baseUri = Uri.parse(currentUrl);
             Uri targetUri = Uri.parse(redirectUrl);
-            // 跨协议校验
             boolean crossProtocol = !Objects.equals(baseUri.getScheme(), targetUri.getScheme());
             if (crossProtocol && !allowCrossProtocolRedirects) {
-                Log.e(TAG, "[" + getTimeStr() + "] ❌ 失败: 禁止跨协议跳转");
+                printLog(true, "[" + getTimeStr() + "] ❌ 失败: 禁止跨协议跳转");
                 conn.disconnect();
                 throw new RedirectFailedException("跨协议重定向被禁用", respCode, originalUrl, redirectUrl);
             }
-            // 跨域名校验 + 内网豁免
             boolean crossDomain = !Objects.equals(baseUri.getHost(), targetUri.getHost());
             boolean isInner = isInnerIp(targetUri.getHost());
             if (crossDomain && !allowCrossDomainRedirects && !isInner) {
-                Log.e(TAG, "[" + getTimeStr() + "] ❌ 失败: 禁止跨域名跳转");
+                printLog(true, "[" + getTimeStr() + "] ❌ 失败: 禁止跨域名跳转");
                 conn.disconnect();
                 throw new RedirectFailedException("跨域名重定向被禁用", respCode, originalUrl, redirectUrl);
             }
-            // SSL自签忽略逻辑（底层连接扩展预留，上层开关透传）
             if (ignoreSslErrorRedirect && "https".equals(targetUri.getScheme())) {
-                // 此处可扩展信任管理器，本数据源仅透传标记给上层工厂
+                // 信任管理器扩展预留
             }
             conn.disconnect();
             currentUrl = redirectUrl;
         }
     }
 
-    /** 判断是否内网IP，自动豁免跨域限制 */
     private boolean isInnerIp(String host) {
         if (host == null) return false;
         return host.startsWith("127.")
@@ -246,7 +241,6 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                 || host.equals("localhost");
     }
 
-    /** 自动拼接相对路径跳转地址 */
     private String resolveRedirectUrl(String baseUrl, String location) throws IOException {
         if (location.startsWith("http://") || location.startsWith("https://")) {
             return location;
@@ -361,7 +355,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         }
     }
 
-    // ====================== 完整工厂类【修复：实现DataSource.Factory，去掉泛型】 ======================
+    // ====================== 工厂类 ======================
     public static final class Factory implements DataSource.Factory {
         private final Map<String, String> defaultRequestProperties = new HashMap<>();
         private boolean allowCrossProtocolRedirects = true;
@@ -372,8 +366,16 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         private int connectTimeoutMs = 10000;
         private int readTimeoutMs = 15000;
         private String channelName = "";
+        // 🟢【新增】工厂开关，控制数据源是否输出日志
+        private boolean debugLogEnabled = false; 
 
         public Factory() {}
+
+        // 🟢【新增】外部设置调试日志开关
+        public Factory setDebugLogEnabled(boolean enabled) {
+            this.debugLogEnabled = enabled;
+            return this;
+        }
 
         public Factory setDefaultRequestProperties(Map<String, String> map) {
             defaultRequestProperties.clear();
@@ -434,6 +436,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                     readTimeoutMs
             );
             source.setChannelName(channelName);
+            // 🟢【新增】向数据源注入调试开关
+            source.setDebugLogEnabled(debugLogEnabled);
             return source;
         }
     }
