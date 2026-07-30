@@ -63,7 +63,6 @@ public class SettingsDialog extends android.app.Dialog {
     
     private LinearLayout itemLiveSubscribe, itemEpgSubscribe;
     
-    // 🟢【新增】调试日志相关控件
     private View itemDebugLog;
     private TextView tv_debug_log_status;
     
@@ -88,7 +87,7 @@ public class SettingsDialog extends android.app.Dialog {
     private static final String KEY_REDIRECT_SEND_COOKIE = "redirect_send_cookie";
     private static final String KEY_USER_AGENT_MODE = "user_agent_mode";
     private static final String KEY_CHANNEL_LINE_INDEX = "channel_line_index";
-    private static final String KEY_DEBUG_LOG_ENABLE = "debug_log_enable"; // 🟢 调试日志开关
+    private static final String KEY_DEBUG_LOG_ENABLE = "debug_log_enable";
 
     private Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -154,7 +153,6 @@ public class SettingsDialog extends android.app.Dialog {
         itemVersionInfo = findViewById(R.id.item_version_info);
         tv_version_short = findViewById(R.id.tv_version_short);
         
-        // 🟢【新增】绑定调试日志控件
         itemDebugLog = findViewById(R.id.item_debug_log);
         tv_debug_log_status = findViewById(R.id.tv_debug_log_status);
         
@@ -214,7 +212,6 @@ public class SettingsDialog extends android.app.Dialog {
         boolean exitDialogEnabled = sp.getBoolean("exit_dialog_enable", false);
         tv_exit_dialog_status.setText(exitDialogEnabled ? "开启" : "关闭");
 
-        // 🟢【新增】更新调试日志状态
         updateDebugLogStatus();
 
         initSettingsItemList();
@@ -232,7 +229,6 @@ public class SettingsDialog extends android.app.Dialog {
         }
     }
 
-    // 🟢【新增】更新调试日志状态文本
     private void updateDebugLogStatus() {
         if (tv_debug_log_status == null) return;
         boolean enabled = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
@@ -241,7 +237,7 @@ public class SettingsDialog extends android.app.Dialog {
             : getContext().getString(R.string.debug_log_status_off));
     }
 
-    // 🟢【修改】显示调试日志对话框（自定义布局，字体缩小至12sp）
+    // 🟢【已修改】显示调试日志对话框（按钮背景透明处理）
     private void showDebugLogDialog() {
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
@@ -249,7 +245,6 @@ public class SettingsDialog extends android.app.Dialog {
             logs = getContext().getString(R.string.debug_log_empty);
         }
 
-        // 🟢 创建自定义布局，统一风格并控制字号
         LinearLayout layout = new LinearLayout(getContext());
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setBackgroundResource(R.drawable.dialog_bg_corner);
@@ -272,7 +267,6 @@ public class SettingsDialog extends android.app.Dialog {
         TextView msgView = new TextView(getContext());
         msgView.setText(logs);
         msgView.setTextColor(Color.WHITE);
-        // 🔴【核心修改】设置为 12sp
         msgView.setTextSize(12); 
         msgView.setLineSpacing(0, 1.25f);
         msgView.setFocusable(true);
@@ -284,10 +278,9 @@ public class SettingsDialog extends android.app.Dialog {
         ));
         layout.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp2px(380) // 限制高度，保证弹窗不会撑满屏幕
+                dp2px(380)
         ));
 
-        // 🟢 构建弹窗
         AlertDialog dialog = new AlertDialog.Builder(getContext())
                 .setView(layout)
                 .setPositiveButton(getContext().getString(R.string.debug_log_clear), (dialogInterface, which) -> {
@@ -314,11 +307,24 @@ public class SettingsDialog extends android.app.Dialog {
         }
 
         dialog.show();
+
+        // 🟢【核心修改】统一清除按钮背景（与弹窗背景融合），仅保留文本颜色
+        Button positiveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        Button negativeBtn = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+        Button neutralBtn = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
         
-        // 🟢 修正按钮文字颜色，让它和你的设置菜单白底黑字或者符合当前主题
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(0xFF40A9FF);
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(0xFF40A9FF);
+        if (positiveBtn != null) {
+            positiveBtn.setBackgroundColor(Color.TRANSPARENT);
+            positiveBtn.setTextColor(0xFF40A9FF);
+        }
+        if (negativeBtn != null) {
+            negativeBtn.setBackgroundColor(Color.TRANSPARENT);
+            negativeBtn.setTextColor(Color.WHITE);
+        }
+        if (neutralBtn != null) {
+            neutralBtn.setBackgroundColor(Color.TRANSPARENT);
+            neutralBtn.setTextColor(0xFF40A9FF);
+        }
 
         mainHandler.postDelayed(() -> {
             if (msgView != null && dialog.isShowing()) {
@@ -332,7 +338,6 @@ public class SettingsDialog extends android.app.Dialog {
         TextView tvTifStatus = findViewById(R.id.tv_tif_status);
         updateTifStatus(tvTifStatus);
 
-        // 🟢【新增】将调试日志条目加入列表（共16项）
         View[] items = {
             findViewById(R.id.item_boot),
             findViewById(R.id.item_reverse),
@@ -349,7 +354,7 @@ public class SettingsDialog extends android.app.Dialog {
             findViewById(R.id.item_check_update),
             findViewById(R.id.item_version_info),
             findViewById(R.id.item_exit_dialog),
-            itemDebugLog // 🟢 增加调试日志项
+            itemDebugLog
         };
 
         for (View item : items) {
@@ -435,7 +440,7 @@ public class SettingsDialog extends android.app.Dialog {
                 findViewById(R.id.item_check_update),
                 findViewById(R.id.item_version_info),
                 findViewById(R.id.item_exit_dialog),
-                itemDebugLog // 🟢 增加调试日志项
+                itemDebugLog
             };
             if (items.length > 0 && items[0] != null) {
                 items[0].requestFocus();
@@ -507,7 +512,6 @@ public class SettingsDialog extends android.app.Dialog {
                 tv_exit_dialog_status.setText(newState ? "开启" : "关闭");
                 Toast.makeText(getContext(), "退出弹窗已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
                 break;
-            // 🟢【新增】调试日志动作
             case 15:
                 showDebugLogDialog();
                 break;
@@ -1694,7 +1698,6 @@ public class SettingsDialog extends android.app.Dialog {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         try {
-            // 🟢【新增】数组长度必须与 initSettingsItemList 一致（16项）
             View[] items = {
                 findViewById(R.id.item_boot),
                 findViewById(R.id.item_reverse),
@@ -1711,7 +1714,7 @@ public class SettingsDialog extends android.app.Dialog {
                 findViewById(R.id.item_check_update),
                 findViewById(R.id.item_version_info),
                 findViewById(R.id.item_exit_dialog),
-                itemDebugLog // 🟢 调试日志
+                itemDebugLog
             };
 
             if (keyCode == KeyEvent.KEYCODE_BACK) {
