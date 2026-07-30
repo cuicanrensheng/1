@@ -1,12 +1,10 @@
 package com.tv.live;
 
-import android.text.Html;
-import android.text.Spannable;
-import android.text.SpannableString;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import java.util.List;
-import android.content.pm.ActivityInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -16,25 +14,25 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Html;
 import android.text.InputFilter;
+import android.text.Spannable;
+import android.text.SpannableString;
 import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
-import android.media.tv.TvInputInfo;
-import android.media.tv.TvInputManager;
-import android.content.ComponentName;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.AdapterView;
 import android.widget.ListView;
-import android.widget.GridLayout;
-import android.view.Gravity;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -42,13 +40,13 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.SwitchCompat;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import com.tv.live.tv.TvChannelSyncManager;
 import com.tv.live.util.CacheManager;
 import com.tv.live.util.LogCollector;
 import com.tv.live.PlaylistParser;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class SettingsDialog extends android.app.Dialog {
     private SwitchCompat sw_boot, sw_reverse, sw_pip;
@@ -239,7 +237,7 @@ public class SettingsDialog extends android.app.Dialog {
             : getContext().getString(R.string.debug_log_status_off));
     }
 
-    // 🟢【精简版日志弹窗】移除清空按钮，停止记录字体改为黑色
+    // ======================== 日志弹窗 ========================
     private void showDebugLogDialog() {
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
@@ -247,11 +245,9 @@ public class SettingsDialog extends android.app.Dialog {
             logs = getContext().getString(R.string.debug_log_empty);
         }
 
-        // 🔴 将占位符替换为真正的 HTML 横线
         String finalLogs = logs.replace("###DIVIDER###", "<hr style=\"border:0; border-top:1px solid #D0D0D0; margin:6px 0;\">");
         String logsWithBr = finalLogs.replace("\n", "<br>");
 
-        // 1. 主布局 (垂直)
         LinearLayout mainLayout = new LinearLayout(getContext());
         mainLayout.setOrientation(LinearLayout.VERTICAL);
         mainLayout.setBackgroundColor(Color.WHITE);
@@ -265,7 +261,6 @@ public class SettingsDialog extends android.app.Dialog {
         int pad = dp2px(20);
         mainLayout.setPadding(pad, pad, pad, dp2px(12));
 
-        // 2. 标题
         TextView titleView = new TextView(getContext());
         titleView.setText(getContext().getString(R.string.debug_log_dialog_title));
         titleView.setTextColor(Color.BLACK);
@@ -274,19 +269,16 @@ public class SettingsDialog extends android.app.Dialog {
         titleView.setPadding(0, 0, 0, dp2px(12));
         mainLayout.addView(titleView);
 
-        // 3. 日志内容 (滚动视图) - 权重自动填满剩余空间
         ScrollView scrollView = new ScrollView(getContext());
         scrollView.setScrollbarFadingEnabled(false);
         scrollView.setVerticalScrollBarEnabled(true);
 
         TextView msgView = new TextView(getContext());
-        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             msgView.setText(Html.fromHtml(logsWithBr, Html.FROM_HTML_MODE_COMPACT));
         } else {
             msgView.setText(Html.fromHtml(logsWithBr));
         }
-        
         msgView.setTextColor(Color.DKGRAY);
         msgView.setTextSize(12); 
         msgView.setLineSpacing(0, 1.3f);
@@ -304,7 +296,6 @@ public class SettingsDialog extends android.app.Dialog {
         );
         mainLayout.addView(scrollView, scrollLp);
 
-        // 4. 🟢【按钮行】只保留开始/停止 和 关闭，平分宽度
         LinearLayout buttonRow = new LinearLayout(getContext());
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setPadding(0, dp2px(16), 0, 0);
@@ -322,10 +313,7 @@ public class SettingsDialog extends android.app.Dialog {
         Button btnStartStop = new Button(getContext());
         btnStartStop.setText(currentDebugState ? "停止记录" : "开始记录");
         btnStartStop.setBackground(buttonBg);
-        
-        // 🟢【核心修改】开始记录为蓝色，停止记录为黑色（与关闭按钮颜色一致）
         btnStartStop.setTextColor(currentDebugState ? Color.BLACK : 0xFF007AFF);
-        
         btnStartStop.setLayoutParams(btnParams);
         btnStartStop.setGravity(Gravity.CENTER);
         btnStartStop.setFocusable(true);
@@ -338,7 +326,6 @@ public class SettingsDialog extends android.app.Dialog {
         btnClose.setGravity(Gravity.CENTER);
         btnClose.setFocusable(true);
 
-        // 5. 构建弹窗
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setView(mainLayout);
         AlertDialog dialog = builder.create();
@@ -352,15 +339,11 @@ public class SettingsDialog extends android.app.Dialog {
             dialog.getWindow().setAttributes(lp);
         }
 
-        // 6. 绑定点击事件
         btnStartStop.setOnClickListener(v -> {
             boolean newState = !currentDebugState;
             sp.edit().putBoolean(KEY_DEBUG_LOG_ENABLE, newState).apply();
             btnStartStop.setText(newState ? "停止记录" : "开始记录");
-            
-            // 🟢 同步文字颜色：停止时黑色，开始后蓝色
             btnStartStop.setTextColor(newState ? Color.BLACK : 0xFF007AFF);
-            
             updateDebugLogStatus();
 
             if (!newState) {
@@ -385,10 +368,8 @@ public class SettingsDialog extends android.app.Dialog {
         buttonRow.addView(btnClose);
         mainLayout.addView(buttonRow);
 
-        // 7. 显示弹窗
         dialog.show();
 
-        // 8. 自动聚焦首个按钮（适用于电视遥控器）
         mainHandler.postDelayed(() -> {
             if (btnStartStop != null) {
                 btnStartStop.requestFocus();
@@ -399,7 +380,306 @@ public class SettingsDialog extends android.app.Dialog {
         }, 300);
     }
 
-    // ===== 以下为原有菜单代码，保持不变 =====
+    // ======================== 订阅窗口内部适配器 ========================
+    private class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> {
+        private int selectedPosition;
+        private OnActionListener actionListener;
+
+        public interface OnActionListener {
+            void onSwitch(int position);
+            void onDelete(int position);
+        }
+
+        public SubscriptionAdapter(Context context, List<SourceManager.SourceItem> objects) {
+            super(context, 0, objects);
+            selectedPosition = -1;
+        }
+
+        public void setSelectedPosition(int position) {
+            selectedPosition = position;
+            notifyDataSetChanged();
+        }
+
+        public void setOnActionListener(OnActionListener listener) {
+            this.actionListener = listener;
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if (convertView == null) {
+                convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_source, parent, false);
+            }
+
+            SourceManager.SourceItem item = getItem(position);
+
+            TextView tvName = convertView.findViewById(R.id.tv_source_name);
+            ImageView ivCheck = convertView.findViewById(R.id.iv_check);
+            ImageView ivCopy = convertView.findViewById(R.id.iv_copy);
+            ImageView ivDelete = convertView.findViewById(R.id.iv_delete);
+
+            if (item != null) {
+                tvName.setText(item.name);
+            }
+
+            // 🟢【修复触控/按键】
+            // 只保留遥控器可聚焦，移除触摸聚焦（手机点击直接触发）
+            ivCopy.setFocusable(true);
+            ivCopy.setFocusableInTouchMode(false);
+            ivDelete.setFocusable(true);
+            ivDelete.setFocusableInTouchMode(false);
+            
+            // 高亮当前选中的条目
+            if (position == selectedPosition) {
+                tvName.setTextColor(0xFF40A9FF);
+                ivCheck.setVisibility(View.VISIBLE);
+            } else {
+                tvName.setTextColor(Color.WHITE);
+                ivCheck.setVisibility(View.GONE);
+            }
+
+            // 复制功能
+            ivCopy.setOnClickListener(v -> {
+                if (item != null && !TextUtils.isEmpty(item.url)) {
+                    ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                    ClipData clip = ClipData.newPlainText("Source URL", item.url);
+                    clipboard.setPrimaryClip(clip);
+                    Toast.makeText(getContext(), "地址已复制到剪贴板", Toast.LENGTH_SHORT).show();
+                }
+            });
+
+            // 删除功能
+            ivDelete.setOnClickListener(v -> {
+                if (actionListener != null) {
+                    actionListener.onDelete(position);
+                }
+            });
+
+            // 整条点击切换源
+            convertView.setOnClickListener(v -> {
+                if (actionListener != null) {
+                    actionListener.onSwitch(position);
+                }
+            });
+
+            return convertView;
+        }
+    }
+
+    // ======================== 订阅窗口逻辑 ========================
+    private void showSubscriptionDialog(String spKey, String title) {
+        SourceManager sourceManager = new SourceManager(getContext(), spKey);
+        List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
+
+        android.view.LayoutInflater inflater = android.view.LayoutInflater.from(
+                new android.view.ContextThemeWrapper(getContext(), androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog)
+        );
+        View dialogView = inflater.inflate(R.layout.dialog_subscription, null);
+
+        ListView lvSourceList = dialogView.findViewById(R.id.lv_source_list);
+        ImageView ivQrCode = dialogView.findViewById(R.id.iv_qr_code);
+        TextView tvIpAddress = dialogView.findViewById(R.id.tv_ip_address);
+        TextView tvDialogTitle = dialogView.findViewById(R.id.tv_dialog_title);
+        LinearLayout llScanHeader = dialogView.findViewById(R.id.ll_scan_header);
+        EditText etName = dialogView.findViewById(R.id.et_name);
+        EditText etUrl = dialogView.findViewById(R.id.et_url);
+        Button btnClear = dialogView.findViewById(R.id.btn_clear);
+        Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
+        Button btnClose = dialogView.findViewById(R.id.btn_close);
+
+        boolean isLive = "live_history".equals(spKey);
+        tvIpAddress.setText(currentWebUrl);
+
+        if (isLive) {
+            if (tvDialogTitle != null) tvDialogTitle.setText(title);
+            if (llScanHeader != null) llScanHeader.setVisibility(View.VISIBLE);
+            if (ivQrCode != null) ivQrCode.setVisibility(View.VISIBLE);
+            
+            new Thread(() -> {
+                Bitmap qrBitmap = null;
+                try {
+                    qrBitmap = qrCodeManager.createQR(currentWebUrl, 240);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                final Bitmap finalQrBitmap = qrBitmap;
+                mainHandler.post(() -> {
+                    if (finalQrBitmap != null) {
+                        ivQrCode.setImageBitmap(finalQrBitmap);
+                    } else {
+                        ivQrCode.setBackgroundColor(Color.LTGRAY);
+                    }
+                });
+            }).start();
+
+            ivQrCode.setOnClickListener(v -> {
+                Toast.makeText(getContext(), "已生成二维码，请扫码", Toast.LENGTH_SHORT).show();
+            });
+            etName.setHint("请输入名称(选填)");
+            etUrl.setHint("请输入地址");
+        } else {
+            if (tvDialogTitle != null) tvDialogTitle.setText(title);
+            if (llScanHeader != null) llScanHeader.setVisibility(View.GONE);
+            if (ivQrCode != null) ivQrCode.setVisibility(View.GONE);
+            etName.setHint("请输入节目单名称(选填)");
+            etUrl.setHint("请输入EPG节目单地址");
+        }
+
+        // 🟢【修复触控/按键】EditText 只保留遥控器可聚焦
+        etName.setFocusable(true);
+        etName.setFocusableInTouchMode(false);
+        etUrl.setFocusable(true);
+        etUrl.setFocusableInTouchMode(false);
+
+        etName.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                lvSourceList.requestFocus();
+                return true;
+            }
+            return false;
+        });
+        etUrl.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                lvSourceList.requestFocus();
+                return true;
+            }
+            return false;
+        });
+
+        int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+        SubscriptionAdapter adapter = new SubscriptionAdapter(getContext(), sources);
+        adapter.setSelectedPosition(currentDefault);
+
+        adapter.setOnActionListener(new SubscriptionAdapter.OnActionListener() {
+            @Override
+            public void onSwitch(int position) {
+                sourceManager.setDefault(position);
+                
+                Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                intent.setPackage(getContext().getPackageName());
+                getContext().sendBroadcast(intent);
+                
+                Toast.makeText(getContext(), "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
+                adapter.setSelectedPosition(position);
+                adapter.notifyDataSetChanged();
+            }
+
+            @Override
+            public void onDelete(int position) {
+                if (position < 0 || position >= sources.size()) {
+                    return;
+                }
+                SourceManager.SourceItem item = sources.get(position);
+                
+                AlertDialog deleteDialog = new AlertDialog.Builder(getContext())
+                        .setTitle("确认删除")
+                        .setMessage("确定要删除「" + item.name + "」吗？")
+                        .setPositiveButton("删除", (d, w) -> {
+                            int realIndex = sourceManager.indexOfUrl(item.url);
+                            if (realIndex >= 0 && realIndex < sourceManager.size()) {
+                                sourceManager.removeSource(realIndex);
+                                sources.clear();
+                                sources.addAll(sourceManager.getAllSources());
+                                
+                                // 🟢 删除后重置当前选中索引
+                                int newDefaultIndex = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+                                adapter.setSelectedPosition(newDefaultIndex);
+                                adapter.notifyDataSetChanged();
+                                
+                                Toast.makeText(getContext(), "已删除", Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(getContext(), "删除失败，源未找到", Toast.LENGTH_SHORT).show();
+                            }
+                        })
+                        .create();
+                        
+                if (deleteDialog.getWindow() != null) {
+                    deleteDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                }
+                deleteDialog.show();
+                
+                deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
+                deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
+            }
+        });
+
+        lvSourceList.setAdapter(adapter);
+        // 🟢 移除列表项自身的触摸聚焦，防止手机点击一次只能选中
+        lvSourceList.setFocusableInTouchMode(false);
+
+        btnConfirm.setOnClickListener(v -> {
+            String name = etName.getText().toString().trim();
+            String url = etUrl.getText().toString().trim();
+            if (url.isEmpty()) {
+                Toast.makeText(getContext(), "地址不能为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (sourceManager.addSource(name, url)) {
+                etName.setText("");
+                etUrl.setText("");
+                sources.clear();
+                sources.addAll(sourceManager.getAllSources());
+                int newDefaultIndex = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+                adapter.setSelectedPosition(newDefaultIndex);
+                adapter.notifyDataSetChanged();
+                Toast.makeText(getContext(), "已添加，正在刷新...", Toast.LENGTH_SHORT).show();
+                
+                Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                intent.setPackage(getContext().getPackageName());
+                getContext().sendBroadcast(intent);
+            } else {
+                Toast.makeText(getContext(), "该地址已存在", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnClear.setOnClickListener(v -> {
+            etName.setText("");
+            etUrl.setText("");
+        });
+
+        AlertDialog dialog = new AlertDialog.Builder(getContext())
+                .setView(dialogView)
+                .create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.setOnKeyListener((d, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+                    if (lvSourceList.hasFocus()) {
+                        int position = lvSourceList.getCheckedItemPosition();
+                        if (position >= 0 && position < sources.size()) {
+                            sourceManager.setDefault(position);
+                            Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                            intent.setPackage(getContext().getPackageName());
+                            getContext().sendBroadcast(intent);
+                            Toast.makeText(getContext(), "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
+                            adapter.setSelectedPosition(position);
+                            adapter.notifyDataSetChanged();
+                        }
+                        return true;
+                    }
+                } else if (keyCode == KeyEvent.KEYCODE_BACK) {
+                    dialog.dismiss();
+                    return true;
+                }
+            }
+            return false;
+        });
+        dialog.show();
+        if (btnClose != null) {
+            btnClose.setOnClickListener(v -> dialog.dismiss());
+        }
+        mainHandler.postDelayed(() -> {
+            if (lvSourceList != null && dialog.isShowing()) {
+                lvSourceList.requestFocus();
+                if (currentDefault >= 0) {
+                    lvSourceList.setSelection(currentDefault);
+                }
+            }
+        }, 200);
+    }
+
+    // ======================== 原菜单代码 ========================
     private void initSettingsItemList() {
         View itemTifSync = findViewById(R.id.item_tif_sync);
         TextView tvTifStatus = findViewById(R.id.tv_tif_status);
@@ -1189,203 +1469,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showSubscriptionDialog(String spKey, String title) {
-        SourceManager sourceManager = new SourceManager(getContext(), spKey);
-        List<SourceManager.SourceItem> sources = sourceManager.getAllSources();
-
-        android.view.LayoutInflater inflater = android.view.LayoutInflater.from(
-                new android.view.ContextThemeWrapper(getContext(), androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog)
-        );
-        View dialogView = inflater.inflate(R.layout.dialog_subscription, null);
-
-        ListView lvSourceList = dialogView.findViewById(R.id.lv_source_list);
-        ImageView ivQrCode = dialogView.findViewById(R.id.iv_qr_code);
-        TextView tvIpAddress = dialogView.findViewById(R.id.tv_ip_address);
-        TextView tvDialogTitle = dialogView.findViewById(R.id.tv_dialog_title);
-        LinearLayout llScanHeader = dialogView.findViewById(R.id.ll_scan_header);
-        EditText etName = dialogView.findViewById(R.id.et_name);
-        EditText etUrl = dialogView.findViewById(R.id.et_url);
-        Button btnClear = dialogView.findViewById(R.id.btn_clear);
-        Button btnConfirm = dialogView.findViewById(R.id.btn_confirm);
-        Button btnClose = dialogView.findViewById(R.id.btn_close);
-
-        boolean isLive = "live_history".equals(spKey);
-        tvIpAddress.setText(currentWebUrl);
-
-        if (isLive) {
-            if (tvDialogTitle != null) tvDialogTitle.setText(title);
-            if (llScanHeader != null) llScanHeader.setVisibility(View.VISIBLE);
-            if (ivQrCode != null) ivQrCode.setVisibility(View.VISIBLE);
-            
-            new Thread(() -> {
-                Bitmap qrBitmap = null;
-                try {
-                    qrBitmap = qrCodeManager.createQR(currentWebUrl, 240);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                final Bitmap finalQrBitmap = qrBitmap;
-                mainHandler.post(() -> {
-                    if (finalQrBitmap != null) {
-                        ivQrCode.setImageBitmap(finalQrBitmap);
-                    } else {
-                        ivQrCode.setBackgroundColor(Color.LTGRAY);
-                    }
-                });
-            }).start();
-
-            ivQrCode.setOnClickListener(v -> {
-                Toast.makeText(getContext(), "已生成二维码，请扫码", Toast.LENGTH_SHORT).show();
-            });
-            etName.setHint("请输入名称(选填)");
-            etUrl.setHint("请输入地址");
-        } else {
-            if (tvDialogTitle != null) tvDialogTitle.setText(title);
-            if (llScanHeader != null) llScanHeader.setVisibility(View.GONE);
-            if (ivQrCode != null) ivQrCode.setVisibility(View.GONE);
-            etName.setHint("请输入节目单名称(选填)");
-            etUrl.setHint("请输入EPG节目单地址");
-        }
-
-        etName.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                lvSourceList.requestFocus();
-                return true;
-            }
-            return false;
-        });
-        etUrl.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                lvSourceList.requestFocus();
-                return true;
-            }
-            return false;
-        });
-
-        int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
-        SubscriptionAdapter adapter = new SubscriptionAdapter(getContext(), sources);
-        adapter.setSelectedPosition(currentDefault);
-
-        adapter.setOnActionListener(new SubscriptionAdapter.OnActionListener() {
-            @Override
-            public void onSwitch(int position) {
-                sourceManager.setDefault(position);
-                
-                Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
-                intent.setPackage(getContext().getPackageName());
-                getContext().sendBroadcast(intent);
-                
-                Toast.makeText(getContext(), "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
-                adapter.setSelectedPosition(position);
-                adapter.notifyDataSetChanged();
-            }
-
-            @Override
-            public void onDelete(int position) {
-                if (position < 0 || position >= sources.size()) {
-                    return;
-                }
-                SourceManager.SourceItem item = sources.get(position);
-                
-                AlertDialog deleteDialog = new AlertDialog.Builder(getContext())
-                        .setTitle("确认删除")
-                        .setMessage("确定要删除「" + item.name + "」吗？")
-                        .setPositiveButton("删除", (d, w) -> {
-                            int realIndex = sourceManager.indexOfUrl(item.url);
-                            if (realIndex >= 0 && realIndex < sourceManager.size()) {
-                                sourceManager.removeSource(realIndex);
-                                sources.clear();
-                                sources.addAll(sourceManager.getAllSources());
-                                adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
-                                adapter.notifyDataSetChanged();
-                                Toast.makeText(getContext(), "已删除", Toast.LENGTH_SHORT).show();
-                            } else {
-                                Toast.makeText(getContext(), "删除失败，源未找到", Toast.LENGTH_SHORT).show();
-                            }
-                        })
-                        .create();
-                        
-                if (deleteDialog.getWindow() != null) {
-                    deleteDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-                }
-                deleteDialog.show();
-                
-                deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
-                deleteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF55576A));
-            }
-        });
-
-        lvSourceList.setAdapter(adapter);
-
-        btnConfirm.setOnClickListener(v -> {
-            String name = etName.getText().toString().trim();
-            String url = etUrl.getText().toString().trim();
-            if (url.isEmpty()) {
-                Toast.makeText(getContext(), "地址不能为空", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (sourceManager.addSource(name, url)) {
-                etName.setText("");
-                etUrl.setText("");
-                sources.clear();
-                sources.addAll(sourceManager.getAllSources());
-                adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
-                adapter.notifyDataSetChanged();
-                Toast.makeText(getContext(), "已添加，正在刷新...", Toast.LENGTH_SHORT).show();
-                
-                Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
-                intent.setPackage(getContext().getPackageName());
-                getContext().sendBroadcast(intent);
-            } else {
-                Toast.makeText(getContext(), "该地址已存在", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        btnClear.setOnClickListener(v -> {
-            etName.setText("");
-            etUrl.setText("");
-        });
-
-        AlertDialog dialog = new AlertDialog.Builder(getContext())
-                .setView(dialogView)
-                .create();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-        dialog.setOnKeyListener((d, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-                    if (lvSourceList.hasFocus()) {
-                        int position = lvSourceList.getCheckedItemPosition();
-                        if (position >= 0 && position < sources.size()) {
-                            sourceManager.setDefault(position);
-                            Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
-                            intent.setPackage(getContext().getPackageName());
-                            getContext().sendBroadcast(intent);
-                            Toast.makeText(getContext(), "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
-                            adapter.setSelectedPosition(position);
-                            adapter.notifyDataSetChanged();
-                        }
-                        return true;
-                    }
-                } else if (keyCode == KeyEvent.KEYCODE_BACK) {
-                    dialog.dismiss();
-                    return true;
-                }
-            }
-            return false;
-        });
-        dialog.show();
-        if (btnClose != null) {
-            btnClose.setOnClickListener(v -> dialog.dismiss());
-        }
-        mainHandler.postDelayed(() -> {
-            if (lvSourceList != null && dialog.isShowing()) {
-                lvSourceList.requestFocus();
-                if (currentDefault >= 0) {
-                    lvSourceList.setSelection(currentDefault);
-                }
-            }
-        }, 200);
+        // 前面已经修改并提供了完整方法，此处不再重复
     }
 
     private void showRedirectConfigDialog() {
