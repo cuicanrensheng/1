@@ -23,10 +23,8 @@ public class HuyaParser {
     private static final Handler mMainHandler = new Handler(Looper.getMainLooper());
     
     private static final ConcurrentHashMap<Integer, CacheItem> SOURCE_CACHE = new ConcurrentHashMap<>();
-    // 缓存时间 2 分钟，够用且不频繁请求虎牙
     private static final long CACHE_VALID_MS = 120 * 1000;
 
-    // 🟢【核心修改】只保留虎牙目前最有效的两个接口
     private static final String API_LIVE_INFO = "https://www.huya.com/cache.php?m=Live&do=getLiveInfo&roomId=%d";
 
     public interface OnParseResultListener {
@@ -70,7 +68,7 @@ public class HuyaParser {
             String flvUrl = "";
 
             try {
-                // 🟢 首要尝试：访问虎牙官方 API (getLiveInfo)
+                // 🟢 首要尝试：访问虎牙官方 API
                 Log.d("HuyaParser", "尝试从 LiveInfo API 获取播放地址");
                 String result = fetchFromLiveInfoAPI(roomId);
                 if (!TextUtils.isEmpty(result)) {
@@ -82,18 +80,19 @@ public class HuyaParser {
                     Log.d("HuyaParser", "从 LiveInfo API 获取到地址：" + result);
                 }
 
-                // 🟡 备选：如果 API 失败，尝试用模拟浏览器 UA 拉取网页（最后防线，防止接口变动）
+                // 🟡 备选：如果 API 失败，尝试用模拟浏览器 UA 拉取网页
                 if (TextUtils.isEmpty(hlsUrl) && TextUtils.isEmpty(flvUrl)) {
                     Log.d("HuyaParser", "尝试从 PC 网页源码中抓取播放地址（备用方案）");
                     String pcHtml = fetchHtml("https://www.huya.com/%d", roomId);
                     if (!TextUtils.isEmpty(pcHtml)) {
-                        String[] result = extractUrlsFromHtml(pcHtml);
-                        if (!TextUtils.isEmpty(result[0])) {
-                            hlsUrl = result[0];
+                        // 🔧【修复冲突】这里将变量名从 result 改为 urls
+                        String[] urls = extractUrlsFromHtml(pcHtml);
+                        if (!TextUtils.isEmpty(urls[0])) {
+                            hlsUrl = urls[0];
                             Log.d("HuyaParser", "从 PC 网页抓取到 hls：" + hlsUrl);
                         }
-                        if (!TextUtils.isEmpty(result[1])) {
-                            flvUrl = result[1];
+                        if (!TextUtils.isEmpty(urls[1])) {
+                            flvUrl = urls[1];
                             Log.d("HuyaParser", "从 PC 网页抓取到 flv：" + flvUrl);
                         }
                     }
@@ -124,7 +123,6 @@ public class HuyaParser {
         try {
             String url = String.format(Locale.ROOT, API_LIVE_INFO, roomId);
             
-            // 模拟真实浏览器头部，防止 403 拦截
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             headers.put("Accept", "application/json, text/plain, */*");
@@ -142,21 +140,19 @@ public class HuyaParser {
             String jsonStr = response.body().string();
             Log.d("HuyaParser", "API 返回长度：" + jsonStr.length());
 
-            // 虎牙有时会抽风返回 HTML，非 JSON 直接跳过
             if (jsonStr.contains("<!DOCTYPE")) {
                 return "";
             }
 
             try {
                 JSONObject json = new JSONObject(jsonStr);
-                // 虎牙 API 包裹在 data 字段下
                 JSONObject data = json.optJSONObject("data");
                 if (data == null) {
                     Log.d("HuyaParser", "API JSON 中找不到 data 字段");
                     return "";
                 }
 
-                // 1. 最可靠的数据层级：data.stream
+                // 1. data.stream
                 JSONObject stream = data.optJSONObject("stream");
                 if (stream != null) {
                     String hls = stream.optString("hls");
@@ -165,7 +161,7 @@ public class HuyaParser {
                     if (!TextUtils.isEmpty(flv)) return flv;
                 }
 
-                // 2. 备用层级：data.gameLiveInfo.liveStreamInfo
+                // 2. data.gameLiveInfo.liveStreamInfo
                 JSONObject gameLiveInfo = data.optJSONObject("gameLiveInfo");
                 if (gameLiveInfo != null) {
                     JSONObject streamInfo = gameLiveInfo.optJSONObject("liveStreamInfo");
@@ -190,7 +186,7 @@ public class HuyaParser {
                     }
                 }
 
-                // 3. 备用层级 2：data.liveData.tLiveInfo.tLiveStreamInfo.vMultiStreamInfo
+                // 3. data.liveData.tLiveInfo.tLiveStreamInfo.vMultiStreamInfo
                 JSONObject liveData = data.optJSONObject("liveData");
                 if (liveData != null) {
                     JSONObject tLiveInfo = liveData.optJSONObject("tLiveInfo");
@@ -199,7 +195,6 @@ public class HuyaParser {
                         if (tLiveStreamInfo != null) {
                             JSONArray vMultiStreamInfo = tLiveStreamInfo.optJSONArray("vMultiStreamInfo");
                             if (vMultiStreamInfo != null && vMultiStreamInfo.length() > 0) {
-                                // 取最高画质（通常第一个就是）
                                 JSONObject streamItem = vMultiStreamInfo.getJSONObject(0);
                                 if (streamItem != null) {
                                     String sHlsUrl = streamItem.optString("sHlsUrl");
@@ -226,7 +221,6 @@ public class HuyaParser {
 
             } catch (Exception e) {
                 Log.d("HuyaParser", "API 返回非标准 JSON，尝试用正则提取");
-                // 如果 JSON 解析失败（虎牙偶尔返回渣格式），强行用正则捞
                 return extractUrlFromJsonString(jsonStr);
             }
             
@@ -258,12 +252,8 @@ public class HuyaParser {
         return "";
     }
 
-    /**
-     * 🔧 万能正则：从 JSON 或 HTML 中强行抠出 m3u8 和 flv 链接（带 antiCode 保护）
-     */
     private static String extractUrlFromJsonString(String jsonStr) {
         try {
-            // 提取 sHlsUrl 和 sHlsAntiCode
             Pattern hlsUrlPattern = Pattern.compile("\"sHlsUrl\"\\s*:\\s*\"([^\"]+)\"");
             Matcher matcher = hlsUrlPattern.matcher(jsonStr);
             if (matcher.find()) {
@@ -276,7 +266,6 @@ public class HuyaParser {
                 return hlsUrl;
             }
 
-            // 提取 sFlvUrl 和 sFlvAntiCode
             Pattern flvUrlPattern = Pattern.compile("\"sFlvUrl\"\\s*:\\s*\"([^\"]+)\"");
             matcher = flvUrlPattern.matcher(jsonStr);
             if (matcher.find()) {
@@ -289,7 +278,6 @@ public class HuyaParser {
                 return flvUrl;
             }
 
-            // 最后防线：找 .m3u8 或 .flv 结尾的链接
             Pattern httpM3u8 = Pattern.compile("https?://[^\"'\\s,]+\\.m3u8[^\"'\\s,]*");
             matcher = httpM3u8.matcher(jsonStr);
             if (matcher.find()) {
@@ -312,7 +300,6 @@ public class HuyaParser {
         String hlsUrl = "";
         String flvUrl = "";
         try {
-            // 虎牙网页源码里经常会出现这两种模式
             Pattern sHlsUrlPattern = Pattern.compile("\"sHlsUrl\"\\s*:\\s*\"([^\"]+)\"");
             Matcher matcher = sHlsUrlPattern.matcher(html);
             if (matcher.find()) {
