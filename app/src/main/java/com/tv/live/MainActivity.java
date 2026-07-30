@@ -890,6 +890,9 @@ public class MainActivity extends AppCompatActivity {
                 log("【画中画】同步频道信息失败：" + e.getMessage());
             }
         }
+
+        // 🟢【新增】在每次切台完成时添加分割线
+        LogCollector.getInstance().addLog("", "==============================");
     }
 
     public void togglePanel() {
