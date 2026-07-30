@@ -238,7 +238,7 @@ public class SettingsDialog extends android.app.Dialog {
             : getContext().getString(R.string.debug_log_status_off));
     }
 
-    // 🟢【显示日志弹窗：白色圆角窗口 + 按钮白色背景】
+    // 🟢【完全自定义布局】白色圆角窗口 + 按钮内嵌在窗口内部
     private void showDebugLogDialog() {
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
@@ -246,27 +246,31 @@ public class SettingsDialog extends android.app.Dialog {
             logs = getContext().getString(R.string.debug_log_empty);
         }
 
-        LinearLayout layout = new LinearLayout(getContext());
-        layout.setOrientation(LinearLayout.VERTICAL);
+        // 1. 主布局 (垂直)
+        LinearLayout mainLayout = new LinearLayout(getContext());
+        mainLayout.setOrientation(LinearLayout.VERTICAL);
+        mainLayout.setBackgroundColor(Color.WHITE);
+        mainLayout.setElevation(dp2px(8));
         
-        // 🟢 动态生成白色圆角背景 (24dp 圆角)
+        // 手动绘制圆角白底
         GradientDrawable whiteCornerDrawable = new GradientDrawable();
         whiteCornerDrawable.setColor(Color.WHITE);
         whiteCornerDrawable.setCornerRadius(dp2px(24));
-        layout.setBackground(whiteCornerDrawable);
+        mainLayout.setBackground(whiteCornerDrawable);
         
         int pad = dp2px(20);
-        layout.setPadding(pad, pad, pad, pad);
-        layout.setElevation(dp2px(8));
+        mainLayout.setPadding(pad, pad, pad, dp2px(12));
 
+        // 2. 标题
         TextView titleView = new TextView(getContext());
         titleView.setText(getContext().getString(R.string.debug_log_dialog_title));
         titleView.setTextColor(Color.BLACK);
         titleView.setTextSize(20);
         titleView.setTypeface(null, Typeface.BOLD);
         titleView.setPadding(0, 0, 0, dp2px(12));
-        layout.addView(titleView);
+        mainLayout.addView(titleView);
 
+        // 3. 日志内容 (滚动视图)
         ScrollView scrollView = new ScrollView(getContext());
         scrollView.setScrollbarFadingEnabled(false);
         scrollView.setVerticalScrollBarEnabled(true);
@@ -284,30 +288,70 @@ public class SettingsDialog extends android.app.Dialog {
                 ScrollView.LayoutParams.MATCH_PARENT,
                 ScrollView.LayoutParams.WRAP_CONTENT
         ));
-        layout.addView(scrollView, new LinearLayout.LayoutParams(
+        mainLayout.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp2px(400)
+                dp2px(400) // 限制高度
         ));
 
+        // 4. 🟢【按钮行】完全放在白色窗口内部
+        LinearLayout buttonRow = new LinearLayout(getContext());
+        buttonRow.setOrientation(LinearLayout.HORIZONTAL);
+        buttonRow.setPadding(0, dp2px(16), 0, 0); // 上边距与内容隔开
+
+        // 按钮布局参数：平均分配宽度
+        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+
+        // 按钮1：开始/停止记录
+        Button btnStartStop = new Button(getContext());
+        btnStartStop.setText(currentDebugState ? "停止记录" : "开始记录");
+        btnStartStop.setBackgroundColor(Color.WHITE);
+        btnStartStop.setTextColor(0xFF007AFF);
+        btnStartStop.setLayoutParams(btnParams);
+        btnStartStop.setGravity(Gravity.CENTER);
+        btnStartStop.setOnClickListener(v -> {
+            boolean newState = !currentDebugState;
+            sp.edit().putBoolean(KEY_DEBUG_LOG_ENABLE, newState).apply();
+            btnStartStop.setText(newState ? "停止记录" : "开始记录");
+            updateDebugLogStatus();
+            Toast.makeText(getContext(), "网络日志记录已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
+            
+            Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+            intent.setPackage(getContext().getPackageName());
+            getContext().sendBroadcast(intent);
+        });
+
+        // 按钮2：关闭
+        Button btnClose = new Button(getContext());
+        btnClose.setText("关闭");
+        btnClose.setBackgroundColor(Color.WHITE);
+        btnClose.setTextColor(Color.BLACK);
+        btnClose.setLayoutParams(btnParams);
+        btnClose.setGravity(Gravity.CENTER);
+        btnClose.setOnClickListener(v -> {
+            if (dialog != null) dialog.dismiss();
+        });
+
+        // 按钮3：清空日志
+        Button btnClear = new Button(getContext());
+        btnClear.setText("清空日志");
+        btnClear.setBackgroundColor(Color.WHITE);
+        btnClear.setTextColor(0xFF007AFF);
+        btnClear.setLayoutParams(btnParams);
+        btnClear.setGravity(Gravity.CENTER);
+        btnClear.setOnClickListener(v -> {
+            LogCollector.getInstance().clear();
+            Toast.makeText(getContext(), "日志已清空", Toast.LENGTH_SHORT).show();
+        });
+
+        buttonRow.addView(btnStartStop);
+        buttonRow.addView(btnClose);
+        buttonRow.addView(btnClear);
+        mainLayout.addView(buttonRow);
+
+        // 5. 构建弹窗 (不用原生按钮)
         AlertDialog dialog = new AlertDialog.Builder(getContext())
-                .setView(layout)
-                .setPositiveButton(getContext().getString(R.string.debug_log_clear), (dialogInterface, which) -> {
-                    LogCollector.getInstance().clear();
-                    Toast.makeText(getContext(), "日志已清空", Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton(getContext().getString(R.string.close), null)
-                .setNeutralButton(currentDebugState 
-                        ? getContext().getString(R.string.debug_log_stop) 
-                        : getContext().getString(R.string.debug_log_start), (dialogInterface, which) -> {
-                    boolean newState = !currentDebugState;
-                    sp.edit().putBoolean(KEY_DEBUG_LOG_ENABLE, newState).apply();
-                    updateDebugLogStatus();
-                    Toast.makeText(getContext(), "网络日志记录已" + (newState ? "开启" : "关闭"), Toast.LENGTH_SHORT).show();
-                    
-                    Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
-                    intent.setPackage(getContext().getPackageName());
-                    getContext().sendBroadcast(intent);
-                })
+                .setView(mainLayout)
                 .create();
 
         if (dialog.getWindow() != null) {
@@ -316,25 +360,7 @@ public class SettingsDialog extends android.app.Dialog {
 
         dialog.show();
 
-        // 🟢【核心修改】按钮背景统一改为白色，与窗口底色完美融合
-        Button positiveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-        Button negativeBtn = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
-        Button neutralBtn = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
-        
-        int primaryColor = 0xFF007AFF; // 蓝色
-        if (positiveBtn != null) {
-            positiveBtn.setBackgroundColor(Color.WHITE);
-            positiveBtn.setTextColor(primaryColor);
-        }
-        if (negativeBtn != null) {
-            negativeBtn.setBackgroundColor(Color.WHITE);
-            negativeBtn.setTextColor(Color.BLACK);
-        }
-        if (neutralBtn != null) {
-            neutralBtn.setBackgroundColor(Color.WHITE);
-            neutralBtn.setTextColor(primaryColor);
-        }
-
+        // 让日志框获得焦点
         mainHandler.postDelayed(() -> {
             if (msgView != null && dialog.isShowing()) {
                 msgView.requestFocus();
