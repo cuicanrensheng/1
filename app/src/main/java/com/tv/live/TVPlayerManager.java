@@ -947,7 +947,6 @@ public class TVPlayerManager {
                 }
                 @Override
                 public void onFailed(String errorMsg) {
-                    // 解析失败 -> 尝试备用源（若存在）
                     if (!trySwitchBackup()) {
                         if (sourceFailedListener != null) {
                             mHandler.post(() -> sourceFailedListener.onSourceFailed());
@@ -968,7 +967,12 @@ public class TVPlayerManager {
             if (player == null || url == null || url.trim().isEmpty()) return;
 
             String playUrl = url.trim();
-            if (currentChannel != null) {
+
+            // 🟢【核心修复】检测是否是 m3u8 或 flv 这种可以直接播放的流地址
+            boolean isRealStream = isHlsUrl(playUrl) || playUrl.toLowerCase(Locale.ROOT).endsWith(".flv");
+
+            if (currentChannel != null && !isRealStream) {
+                // 只有传入的不是流地址（比如未解析的虎牙房间号，或者第三方代理页面）才走线路切换
                 SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
                 String channelKey = currentChannel.getChannelId();
                 if (TextUtils.isEmpty(channelKey)) {
@@ -995,7 +999,9 @@ public class TVPlayerManager {
                 currentUrl = playUrl;
                 dLog("切换线路后播放：" + currentUrl);
             } else {
+                // 直接使用传入的 URL（可能是 HuyaParser 解析出的真实流地址，也可能是其他非频道线路直链）
                 currentUrl = playUrl;
+                dLog("直接播放地址：" + currentUrl);
             }
 
             if (isHlsUrl(currentUrl)) {
@@ -1006,7 +1012,7 @@ public class TVPlayerManager {
 
             RedirectLoggingHttpDataSource.Factory httpFactory = new RedirectLoggingHttpDataSource.Factory();
 
-            // 🔴【必须添加的代码】读取设置弹窗里的调试日志开关
+            // 🔴【调试开关】读取设置弹窗里的调试日志开关
             boolean debugEnabled = sp.getBoolean("debug_log_enable", false);
             httpFactory.setDebugLogEnabled(debugEnabled);
             
