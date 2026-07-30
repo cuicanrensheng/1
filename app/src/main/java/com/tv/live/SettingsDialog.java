@@ -1,5 +1,6 @@
 package com.tv.live;
 
+import android.text.Html;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.content.Intent;
@@ -238,7 +239,7 @@ public class SettingsDialog extends android.app.Dialog {
             : getContext().getString(R.string.debug_log_status_off));
     }
 
-    // 🟢【完全自定义布局】白色圆角窗口 + 按钮内嵌在窗口内部
+    // 🟢【核心修改】日志弹窗支持 HTML 颜色渲染
     private void showDebugLogDialog() {
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
@@ -246,13 +247,11 @@ public class SettingsDialog extends android.app.Dialog {
             logs = getContext().getString(R.string.debug_log_empty);
         }
 
-        // 1. 主布局 (垂直)
         LinearLayout mainLayout = new LinearLayout(getContext());
         mainLayout.setOrientation(LinearLayout.VERTICAL);
         mainLayout.setBackgroundColor(Color.WHITE);
         mainLayout.setElevation(dp2px(8));
         
-        // 手动绘制圆角白底
         GradientDrawable whiteCornerDrawable = new GradientDrawable();
         whiteCornerDrawable.setColor(Color.WHITE);
         whiteCornerDrawable.setCornerRadius(dp2px(24));
@@ -261,7 +260,6 @@ public class SettingsDialog extends android.app.Dialog {
         int pad = dp2px(20);
         mainLayout.setPadding(pad, pad, pad, dp2px(12));
 
-        // 2. 标题
         TextView titleView = new TextView(getContext());
         titleView.setText(getContext().getString(R.string.debug_log_dialog_title));
         titleView.setTextColor(Color.BLACK);
@@ -270,14 +268,20 @@ public class SettingsDialog extends android.app.Dialog {
         titleView.setPadding(0, 0, 0, dp2px(12));
         mainLayout.addView(titleView);
 
-        // 3. 日志内容 (滚动视图)
         ScrollView scrollView = new ScrollView(getContext());
         scrollView.setScrollbarFadingEnabled(false);
         scrollView.setVerticalScrollBarEnabled(true);
         scrollView.setFillViewport(true);
 
         TextView msgView = new TextView(getContext());
-        msgView.setText(logs);
+        
+        // 🟢【核心修改】使用 Html.fromHtml 渲染带有红色标签的日志
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            msgView.setText(Html.fromHtml(logs, Html.FROM_HTML_MODE_COMPACT));
+        } else {
+            msgView.setText(Html.fromHtml(logs));
+        }
+        
         msgView.setTextColor(Color.DKGRAY);
         msgView.setTextSize(12); 
         msgView.setLineSpacing(0, 1.3f);
@@ -290,19 +294,16 @@ public class SettingsDialog extends android.app.Dialog {
         ));
         mainLayout.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp2px(400) // 限制高度
+                dp2px(400)
         ));
 
-        // 4. 🟢【按钮行】完全放在白色窗口内部
         LinearLayout buttonRow = new LinearLayout(getContext());
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
-        buttonRow.setPadding(0, dp2px(16), 0, 0); // 上边距与内容隔开
+        buttonRow.setPadding(0, dp2px(16), 0, 0);
 
-        // 按钮布局参数：平均分配宽度
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
 
-        // 按钮1：开始/停止记录
         Button btnStartStop = new Button(getContext());
         btnStartStop.setText(currentDebugState ? "停止记录" : "开始记录");
         btnStartStop.setBackgroundColor(Color.WHITE);
@@ -321,7 +322,6 @@ public class SettingsDialog extends android.app.Dialog {
             getContext().sendBroadcast(intent);
         });
 
-        // 按钮2：关闭
         Button btnClose = new Button(getContext());
         btnClose.setText("关闭");
         btnClose.setBackgroundColor(Color.WHITE);
@@ -332,7 +332,6 @@ public class SettingsDialog extends android.app.Dialog {
             if (dialog != null) dialog.dismiss();
         });
 
-        // 按钮3：清空日志
         Button btnClear = new Button(getContext());
         btnClear.setText("清空日志");
         btnClear.setBackgroundColor(Color.WHITE);
@@ -349,7 +348,6 @@ public class SettingsDialog extends android.app.Dialog {
         buttonRow.addView(btnClear);
         mainLayout.addView(buttonRow);
 
-        // 5. 构建弹窗 (不用原生按钮)
         AlertDialog dialog = new AlertDialog.Builder(getContext())
                 .setView(mainLayout)
                 .create();
@@ -360,7 +358,6 @@ public class SettingsDialog extends android.app.Dialog {
 
         dialog.show();
 
-        // 让日志框获得焦点
         mainHandler.postDelayed(() -> {
             if (msgView != null && dialog.isShowing()) {
                 msgView.requestFocus();
