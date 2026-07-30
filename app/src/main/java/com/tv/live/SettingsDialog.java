@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -237,7 +238,7 @@ public class SettingsDialog extends android.app.Dialog {
             : getContext().getString(R.string.debug_log_status_off));
     }
 
-    // 🟢【已修改】显示调试日志对话框（按钮背景透明处理）
+    // 🟢【显示日志弹窗：白色圆角窗口 + 按钮白色背景】
     private void showDebugLogDialog() {
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
@@ -247,16 +248,23 @@ public class SettingsDialog extends android.app.Dialog {
 
         LinearLayout layout = new LinearLayout(getContext());
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setBackgroundResource(R.drawable.dialog_bg_corner);
-        int pad = dp2px(16);
+        
+        // 🟢 动态生成白色圆角背景 (24dp 圆角)
+        GradientDrawable whiteCornerDrawable = new GradientDrawable();
+        whiteCornerDrawable.setColor(Color.WHITE);
+        whiteCornerDrawable.setCornerRadius(dp2px(24));
+        layout.setBackground(whiteCornerDrawable);
+        
+        int pad = dp2px(20);
         layout.setPadding(pad, pad, pad, pad);
+        layout.setElevation(dp2px(8));
 
         TextView titleView = new TextView(getContext());
         titleView.setText(getContext().getString(R.string.debug_log_dialog_title));
-        titleView.setTextColor(Color.WHITE);
+        titleView.setTextColor(Color.BLACK);
         titleView.setTextSize(20);
         titleView.setTypeface(null, Typeface.BOLD);
-        titleView.setPadding(0, 0, 0, dp2px(8));
+        titleView.setPadding(0, 0, 0, dp2px(12));
         layout.addView(titleView);
 
         ScrollView scrollView = new ScrollView(getContext());
@@ -266,9 +274,9 @@ public class SettingsDialog extends android.app.Dialog {
 
         TextView msgView = new TextView(getContext());
         msgView.setText(logs);
-        msgView.setTextColor(Color.WHITE);
+        msgView.setTextColor(Color.DKGRAY);
         msgView.setTextSize(12); 
-        msgView.setLineSpacing(0, 1.25f);
+        msgView.setLineSpacing(0, 1.3f);
         msgView.setFocusable(true);
         msgView.setFocusableInTouchMode(true);
 
@@ -278,7 +286,7 @@ public class SettingsDialog extends android.app.Dialog {
         ));
         layout.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp2px(380)
+                dp2px(400)
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(getContext())
@@ -308,22 +316,23 @@ public class SettingsDialog extends android.app.Dialog {
 
         dialog.show();
 
-        // 🟢【核心修改】统一清除按钮背景（与弹窗背景融合），仅保留文本颜色
+        // 🟢【核心修改】按钮背景统一改为白色，与窗口底色完美融合
         Button positiveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         Button negativeBtn = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
         Button neutralBtn = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
         
+        int primaryColor = 0xFF007AFF; // 蓝色
         if (positiveBtn != null) {
-            positiveBtn.setBackgroundColor(Color.TRANSPARENT);
-            positiveBtn.setTextColor(0xFF40A9FF);
+            positiveBtn.setBackgroundColor(Color.WHITE);
+            positiveBtn.setTextColor(primaryColor);
         }
         if (negativeBtn != null) {
-            negativeBtn.setBackgroundColor(Color.TRANSPARENT);
-            negativeBtn.setTextColor(Color.WHITE);
+            negativeBtn.setBackgroundColor(Color.WHITE);
+            negativeBtn.setTextColor(Color.BLACK);
         }
         if (neutralBtn != null) {
-            neutralBtn.setBackgroundColor(Color.TRANSPARENT);
-            neutralBtn.setTextColor(0xFF40A9FF);
+            neutralBtn.setBackgroundColor(Color.WHITE);
+            neutralBtn.setTextColor(primaryColor);
         }
 
         mainHandler.postDelayed(() -> {
@@ -333,6 +342,7 @@ public class SettingsDialog extends android.app.Dialog {
         }, 200);
     }
 
+    // ===== 以下代码保持原样，不做修改 =====
     private void initSettingsItemList() {
         View itemTifSync = findViewById(R.id.item_tif_sync);
         TextView tvTifStatus = findViewById(R.id.tv_tif_status);
