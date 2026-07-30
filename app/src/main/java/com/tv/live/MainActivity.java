@@ -1121,14 +1121,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 🔴【核心修改】日志只会在点击“开始记录”后显示，并只保留“频道名称，播放地址”
+    // 🔴【核心修改】严格控制的日志写入
     private void log(String msg) {
-        // 只有当 debug_log_enable 为 true（即设置了“网络日志记录”已开启）时，才往弹窗写入日志
-        if (sp.getBoolean("debug_log_enable", false)) {
-            Log.d("MainActivity", msg);
-            // 改为使用 "播放" tag，从而通过 LogCollector 的白名单过滤，保留"频道名称"等播放类信息
-            LogCollector.getInstance().addLog("播放", msg);
+        if (!sp.getBoolean("debug_log_enable", false)) {
+            return; // 没开记录开关，直接拦截
         }
+        Log.d("MainActivity", msg);
+        // 传入 "播放" tag 以通过白名单过滤
+        LogCollector.getInstance().addLog("播放", msg);
     }
 
     @Override
@@ -1143,24 +1143,20 @@ public class MainActivity extends AppCompatActivity {
             appCoreManager.onPause();
         }
 
-        // 系统小窗/分屏模式下 Activity 仍然可见，不暂停播放器
         boolean isSystemVisible = false;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             isSystemVisible = isInMultiWindowMode() || isInPictureInPictureMode();
         }
 
         if (pipManager != null && pipManager.isInPipMode()) {
-            // App 内置画中画：保持播放
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
             }
         } else if (isSystemVisible) {
-            // 系统小窗/分屏：Activity 仍可见，保持播放不暂停
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
             }
         } else {
-            // 真正退到后台：暂停播放器
             if (mPlayerManager != null) {
                 mPlayerManager.onBackground();
             }
@@ -1172,7 +1168,6 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
         if (pipManager != null) pipManager.setStopCalled(true);
 
-        // 系统小窗/分屏模式下 onStop 也会触发，但 Activity 仍可见，不暂停
         boolean isSystemVisible = false;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             isSystemVisible = isInMultiWindowMode() || isInPictureInPictureMode();
@@ -1188,7 +1183,6 @@ public class MainActivity extends AppCompatActivity {
     public void onMultiWindowModeChanged(boolean isInMultiWindowMode) {
         super.onMultiWindowModeChanged(isInMultiWindowMode);
         if (isInMultiWindowMode) {
-            // 进入系统分屏/小窗，保持播放
             if (mPlayerManager != null) {
                 mPlayerManager.resume();
             }
@@ -1275,7 +1269,6 @@ public class MainActivity extends AppCompatActivity {
         if (pipManager != null) pipManager.release();
         
         if (mPlayerManager != null) {
-            // 先把所有监听器置空，彻底断绝后台线程调用 runOnUiThread 的可能
             mPlayerManager.setOnPlayStateListener(null);
             mPlayerManager.setOnLiveInfoUpdateListener(null);
             mPlayerManager.setOnSourceFailedListener(null);
