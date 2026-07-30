@@ -865,7 +865,6 @@ public class MainActivity extends AppCompatActivity {
         // 切台时清空数字输入缓存
         numberInputBuffer.setLength(0);
         mMainHandler.removeCallbacks(numberInputConfirmTask);
-        log("【播放】频道名称：" + channel.getName());
 
         if (isInCatchUpMode) {
             exitPlaybackMode();
