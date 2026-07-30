@@ -68,7 +68,6 @@ public class HuyaParser {
             String flvUrl = "";
 
             try {
-                // 🟢 首要尝试：访问虎牙官方 API
                 Log.d("HuyaParser", "尝试从 LiveInfo API 获取播放地址");
                 String result = fetchFromLiveInfoAPI(roomId);
                 if (!TextUtils.isEmpty(result)) {
@@ -80,12 +79,10 @@ public class HuyaParser {
                     Log.d("HuyaParser", "从 LiveInfo API 获取到地址：" + result);
                 }
 
-                // 🟡 备选：如果 API 失败，尝试用模拟浏览器 UA 拉取网页
                 if (TextUtils.isEmpty(hlsUrl) && TextUtils.isEmpty(flvUrl)) {
                     Log.d("HuyaParser", "尝试从 PC 网页源码中抓取播放地址（备用方案）");
                     String pcHtml = fetchHtml("https://www.huya.com/%d", roomId);
                     if (!TextUtils.isEmpty(pcHtml)) {
-                        // 🔧【修复冲突】这里将变量名从 result 改为 urls
                         String[] urls = extractUrlsFromHtml(pcHtml);
                         if (!TextUtils.isEmpty(urls[0])) {
                             hlsUrl = urls[0];
@@ -116,9 +113,6 @@ public class HuyaParser {
         thread.start();
     }
 
-    /**
-     * 🟢【核心修改】请求虎牙最新 getLiveInfo API
-     */
     private static String fetchFromLiveInfoAPI(int roomId) {
         try {
             String url = String.format(Locale.ROOT, API_LIVE_INFO, roomId);
