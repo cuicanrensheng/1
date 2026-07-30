@@ -79,18 +79,19 @@ public class HuyaParser {
                     Log.d("HuyaParser", "从 LiveInfo API 获取到地址：" + result);
                 }
 
+                // 🟢【新增核心】如果 API 失败，直接从完整网页 HTML 源码中提取播放地址
                 if (TextUtils.isEmpty(hlsUrl) && TextUtils.isEmpty(flvUrl)) {
-                    Log.d("HuyaParser", "尝试从 PC 网页源码中抓取播放地址（备用方案）");
+                    Log.d("HuyaParser", "尝试从 PC 网页 HTML 源码中提取播放地址");
                     String pcHtml = fetchHtml("https://www.huya.com/%d", roomId);
                     if (!TextUtils.isEmpty(pcHtml)) {
                         String[] urls = extractUrlsFromHtml(pcHtml);
                         if (!TextUtils.isEmpty(urls[0])) {
                             hlsUrl = urls[0];
-                            Log.d("HuyaParser", "从 PC 网页抓取到 hls：" + hlsUrl);
+                            Log.d("HuyaParser", "从 PC 网页源码提取到 hls：" + hlsUrl);
                         }
                         if (!TextUtils.isEmpty(urls[1])) {
                             flvUrl = urls[1];
-                            Log.d("HuyaParser", "从 PC 网页抓取到 flv：" + flvUrl);
+                            Log.d("HuyaParser", "从 PC 网页源码提取到 flv：" + flvUrl);
                         }
                     }
                 }
@@ -127,12 +128,10 @@ public class HuyaParser {
             
             Response response = NetUtil.getInstance().syncGetWithHeaders(url, headers);
             if (!response.isSuccessful() || response.body() == null) {
-                Log.d("HuyaParser", "API 请求失败，状态码：" + response.code());
                 return "";
             }
             
             String jsonStr = response.body().string();
-            Log.d("HuyaParser", "API 返回长度：" + jsonStr.length());
 
             if (jsonStr.contains("<!DOCTYPE")) {
                 return "";
@@ -141,21 +140,14 @@ public class HuyaParser {
             try {
                 JSONObject json = new JSONObject(jsonStr);
                 JSONObject data = json.optJSONObject("data");
-                if (data == null) {
-                    Log.d("HuyaParser", "API JSON 中找不到 data 字段");
-                    return "";
-                }
+                if (data == null) return "";
 
-                // 1. data.stream
                 JSONObject stream = data.optJSONObject("stream");
                 if (stream != null) {
                     String hls = stream.optString("hls");
-                    String flv = stream.optString("flv");
                     if (!TextUtils.isEmpty(hls)) return hls;
-                    if (!TextUtils.isEmpty(flv)) return flv;
                 }
 
-                // 2. data.gameLiveInfo.liveStreamInfo
                 JSONObject gameLiveInfo = data.optJSONObject("gameLiveInfo");
                 if (gameLiveInfo != null) {
                     JSONObject streamInfo = gameLiveInfo.optJSONObject("liveStreamInfo");
@@ -163,71 +155,21 @@ public class HuyaParser {
                         String sHlsUrl = streamInfo.optString("sHlsUrl");
                         String sHlsAntiCode = streamInfo.optString("sHlsAntiCode");
                         if (!TextUtils.isEmpty(sHlsUrl)) {
-                            if (!TextUtils.isEmpty(sHlsAntiCode)) {
-                                sHlsUrl += "?" + sHlsAntiCode;
-                            }
+                            if (!TextUtils.isEmpty(sHlsAntiCode)) sHlsUrl += "?" + sHlsAntiCode;
                             return sHlsUrl;
                         }
-                        
-                        String sFlvUrl = streamInfo.optString("sFlvUrl");
-                        String sFlvAntiCode = streamInfo.optString("sFlvAntiCode");
-                        if (!TextUtils.isEmpty(sFlvUrl)) {
-                            if (!TextUtils.isEmpty(sFlvAntiCode)) {
-                                sFlvUrl += "?" + sFlvAntiCode;
-                            }
-                            return sFlvUrl;
-                        }
                     }
                 }
 
-                // 3. data.liveData.tLiveInfo.tLiveStreamInfo.vMultiStreamInfo
-                JSONObject liveData = data.optJSONObject("liveData");
-                if (liveData != null) {
-                    JSONObject tLiveInfo = liveData.optJSONObject("tLiveInfo");
-                    if (tLiveInfo != null) {
-                        JSONObject tLiveStreamInfo = tLiveInfo.optJSONObject("tLiveStreamInfo");
-                        if (tLiveStreamInfo != null) {
-                            JSONArray vMultiStreamInfo = tLiveStreamInfo.optJSONArray("vMultiStreamInfo");
-                            if (vMultiStreamInfo != null && vMultiStreamInfo.length() > 0) {
-                                JSONObject streamItem = vMultiStreamInfo.getJSONObject(0);
-                                if (streamItem != null) {
-                                    String sHlsUrl = streamItem.optString("sHlsUrl");
-                                    String sHlsAntiCode = streamItem.optString("sHlsAntiCode");
-                                    if (!TextUtils.isEmpty(sHlsUrl)) {
-                                        if (!TextUtils.isEmpty(sHlsAntiCode)) {
-                                            sHlsUrl += "?" + sHlsAntiCode;
-                                        }
-                                        return sHlsUrl;
-                                    }
-                                    String sFlvUrl = streamItem.optString("sFlvUrl");
-                                    String sFlvAntiCode = streamItem.optString("sFlvAntiCode");
-                                    if (!TextUtils.isEmpty(sFlvUrl)) {
-                                        if (!TextUtils.isEmpty(sFlvAntiCode)) {
-                                            sFlvUrl += "?" + sFlvAntiCode;
-                                        }
-                                        return sFlvUrl;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-            } catch (Exception e) {
-                Log.d("HuyaParser", "API 返回非标准 JSON，尝试用正则提取");
-                return extractUrlFromJsonString(jsonStr);
-            }
+            } catch (Exception ignored) {}
             
-        } catch (IOException e) {
-            Log.d("HuyaParser", "fetchFromLiveInfoAPI 异常：" + e.getMessage());
-        }
+        } catch (IOException e) {}
         return "";
     }
 
     private static String fetchHtml(String urlPattern, int roomId) {
         try {
             String url = String.format(urlPattern, roomId);
-            
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             headers.put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8");
@@ -236,9 +178,7 @@ public class HuyaParser {
             headers.put("Referer", "https://www.huya.com/");
             
             Response response = NetUtil.getInstance().syncGetWithHeaders(url, headers);
-            if (!response.isSuccessful() || response.body() == null) {
-                return "";
-            }
+            if (!response.isSuccessful() || response.body() == null) return "";
             return response.body().string();
         } catch (IOException e) {
             Log.d("HuyaParser", "fetchHtml 异常：" + e.getMessage());
@@ -246,74 +186,41 @@ public class HuyaParser {
         return "";
     }
 
-    private static String extractUrlFromJsonString(String jsonStr) {
-        try {
-            Pattern hlsUrlPattern = Pattern.compile("\"sHlsUrl\"\\s*:\\s*\"([^\"]+)\"");
-            Matcher matcher = hlsUrlPattern.matcher(jsonStr);
-            if (matcher.find()) {
-                String hlsUrl = matcher.group(1);
-                Pattern antiPattern = Pattern.compile("\"sHlsAntiCode\"\\s*:\\s*\"([^\"]+)\"");
-                Matcher antiMatcher = antiPattern.matcher(jsonStr);
-                if (antiMatcher.find()) {
-                    hlsUrl += "?" + antiMatcher.group(1);
-                }
-                return hlsUrl;
-            }
-
-            Pattern flvUrlPattern = Pattern.compile("\"sFlvUrl\"\\s*:\\s*\"([^\"]+)\"");
-            matcher = flvUrlPattern.matcher(jsonStr);
-            if (matcher.find()) {
-                String flvUrl = matcher.group(1);
-                Pattern antiPattern = Pattern.compile("\"sFlvAntiCode\"\\s*:\\s*\"([^\"]+)\"");
-                Matcher antiMatcher = antiPattern.matcher(jsonStr);
-                if (antiMatcher.find()) {
-                    flvUrl += "?" + antiMatcher.group(1);
-                }
-                return flvUrl;
-            }
-
-            Pattern httpM3u8 = Pattern.compile("https?://[^\"'\\s,]+\\.m3u8[^\"'\\s,]*");
-            matcher = httpM3u8.matcher(jsonStr);
-            if (matcher.find()) {
-                return URLDecoder.decode(matcher.group(0), "UTF-8");
-            }
-            
-            Pattern httpFlv = Pattern.compile("https?://[^\"'\\s,]+\\.flv[^\"'\\s,]*");
-            matcher = httpFlv.matcher(jsonStr);
-            if (matcher.find()) {
-                return URLDecoder.decode(matcher.group(0), "UTF-8");
-            }
-
-        } catch (Exception e) {
-            Log.d("HuyaParser", "extractUrlFromJsonString 异常：" + e.getMessage());
-        }
-        return "";
-    }
-
+    // 🟢【重点修复】更新了 3 种匹配虎牙网页源码中 "sHlsUrl" 和 "sHlsAntiCode" 的正则
     private static String[] extractUrlsFromHtml(String html) {
         String hlsUrl = "";
         String flvUrl = "";
         try {
-            Pattern sHlsUrlPattern = Pattern.compile("\"sHlsUrl\"\\s*:\\s*\"([^\"]+)\"");
-            Matcher matcher = sHlsUrlPattern.matcher(html);
+            // 匹配 1：标准 JSON 字段匹配 (包含 sHlsAntiCode)
+            Pattern pattern1 = Pattern.compile("\"sHlsUrl\"\\s*:\\s*\"([^\"]+)\"[^}]*\"sHlsAntiCode\"\\s*:\\s*\"([^\"]+)\"");
+            Matcher matcher = pattern1.matcher(html);
             if (matcher.find()) {
-                hlsUrl = matcher.group(1);
-                Pattern sHlsAntiPattern = Pattern.compile("\"sHlsAntiCode\"\\s*:\\s*\"([^\"]+)\"");
-                Matcher antiMatcher = sHlsAntiPattern.matcher(html);
-                if (antiMatcher.find()) {
-                    hlsUrl = hlsUrl + "?" + antiMatcher.group(1);
+                hlsUrl = matcher.group(1) + "?" + matcher.group(2);
+            }
+
+            // 匹配 2：如果没找到 AntiCode，只找 sHlsUrl
+            if (TextUtils.isEmpty(hlsUrl)) {
+                Pattern pattern2 = Pattern.compile("\"sHlsUrl\"\\s*:\\s*\"([^\"]+)\"");
+                matcher = pattern2.matcher(html);
+                if (matcher.find()) {
+                    hlsUrl = matcher.group(1);
                 }
             }
 
-            Pattern sFlvUrlPattern = Pattern.compile("\"sFlvUrl\"\\s*:\\s*\"([^\"]+)\"");
-            matcher = sFlvUrlPattern.matcher(html);
+            // 匹配 3：直接找 .m3u8 结尾的链接（最后的兜底）
+            if (TextUtils.isEmpty(hlsUrl)) {
+                Pattern pattern3 = Pattern.compile("https?://[^\"'\\s<>]+\\.m3u8[^\"'\\s<>]*");
+                matcher = pattern3.matcher(html);
+                if (matcher.find()) {
+                    hlsUrl = matcher.group(0);
+                }
+            }
+
+            // 匹配 FLV 地址
+            Pattern flvPattern = Pattern.compile("\"sFlvUrl\"\\s*:\\s*\"([^\"]+)\"");
+            matcher = flvPattern.matcher(html);
             if (matcher.find()) {
                 flvUrl = matcher.group(1);
-                Pattern sFlvAntiPattern = Pattern.compile("\"sFlvAntiCode\"\\s*:\\s*\"([^\"]+)\"");
-                Matcher antiMatcher = sFlvAntiPattern.matcher(html);
-                if (antiMatcher.find()) {
-                    flvUrl = flvUrl + "?" + antiMatcher.group(1);
-                }
             }
 
         } catch (Exception e) {
@@ -322,11 +229,6 @@ public class HuyaParser {
         return new String[]{hlsUrl, flvUrl};
     }
 
-    public static void clearCache() {
-        SOURCE_CACHE.clear();
-    }
-
-    public static void release() {
-        SOURCE_CACHE.clear();
-    }
+    public static void clearCache() { SOURCE_CACHE.clear(); }
+    public static void release() { SOURCE_CACHE.clear(); }
 }
