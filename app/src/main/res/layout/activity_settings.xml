@@ -448,7 +448,7 @@
                 android:paddingEnd="8dp"
                 android:focusable="true"
                 android:nextFocusUp="@+id/item_check_update"
-                android:nextFocusDown="@+id/item_debug_log"  <!-- 🟢 修改：跳转到调试日志 -->
+                android:nextFocusDown="@+id/item_debug_log"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -482,14 +482,14 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="网络调试日志"
+                    android:text="@string/debug_log_title"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="16sp" />
                 <TextView
                     android:id="@+id/tv_debug_log_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="已关闭"
+                    android:text="@string/debug_log_status_off"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -511,7 +511,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                android:nextFocusUp="@+id/item_debug_log" <!-- 🟢 修改：从调试日志返回 -->
+                android:nextFocusUp="@+id/item_debug_log"
                 android:nextFocusDown="@+id/item_exit_dialog"
                 android:clickable="true">
                 <TextView
