@@ -50,8 +50,8 @@
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_boot"
-                  android:nextFocusDown="@+id/item_reverse"
+                android:nextFocusUp="@+id/item_boot"
+                android:nextFocusDown="@+id/item_reverse"
                 android:clickable="true">
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -91,8 +91,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_boot"
-                  android:nextFocusDown="@+id/item_pip"
+                android:nextFocusUp="@+id/item_boot"
+                android:nextFocusDown="@+id/item_pip"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -118,8 +118,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_reverse"
-                  android:nextFocusDown="@+id/item_channel_line"
+                android:nextFocusUp="@+id/item_reverse"
+                android:nextFocusDown="@+id/item_channel_line"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -136,7 +136,7 @@
                     android:clickable="false" />
             </LinearLayout>
 
-            <!-- 🔧【清理一起看】原 item_together_watch 菜单项已直接被隐藏，下方焦点自动跳转到 channel_line -->
+            <!-- 一起看（已隐藏） -->
             <LinearLayout
                 android:id="@+id/item_together_watch"
                 android:layout_width="match_parent"
@@ -171,8 +171,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_pip"
-                  android:nextFocusDown="@+id/item_resolution"
+                android:nextFocusUp="@+id/item_pip"
+                android:nextFocusDown="@+id/item_resolution"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -199,8 +199,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_channel_line"
-                  android:nextFocusDown="@+id/item_decoder"
+                android:nextFocusUp="@+id/item_channel_line"
+                android:nextFocusDown="@+id/item_decoder"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -227,8 +227,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_resolution"
-                  android:nextFocusDown="@+id/item_renderer"
+                android:nextFocusUp="@+id/item_resolution"
+                android:nextFocusDown="@+id/item_renderer"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -255,8 +255,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_decoder"
-                  android:nextFocusDown="@+id/tv_screen_ratio"
+                android:nextFocusUp="@+id/item_decoder"
+                android:nextFocusDown="@+id/tv_screen_ratio"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -287,8 +287,8 @@
                 android:textSize="16sp"
                 android:focusable="true"
                 android:background="@drawable/item_settings_bg"
-                  android:nextFocusUp="@+id/item_renderer"
-                  android:nextFocusDown="@+id/item_redirect"
+                android:nextFocusUp="@+id/item_renderer"
+                android:nextFocusDown="@+id/item_redirect"
                 android:clickable="true"/>
 
             <!-- 分隔线 -->
@@ -310,8 +310,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/tv_screen_ratio"
-                  android:nextFocusDown="@+id/item_live_subscribe"
+                android:nextFocusUp="@+id/tv_screen_ratio"
+                android:nextFocusDown="@+id/item_live_subscribe"
                 android:clickable="true">
                 <TextView
                     android:layout_width="wrap_content"
@@ -343,8 +343,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_redirect"
-                  android:nextFocusDown="@+id/item_epg_subscribe"
+                android:nextFocusUp="@+id/item_redirect"
+                android:nextFocusDown="@+id/item_epg_subscribe"
                 android:clickable="true">
                 <TextView
                     android:layout_width="wrap_content"
@@ -363,8 +363,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_live_subscribe"
-                  android:nextFocusDown="@+id/item_check_update"
+                android:nextFocusUp="@+id/item_live_subscribe"
+                android:nextFocusDown="@+id/item_check_update"
                 android:clickable="true">
                 <TextView
                     android:layout_width="wrap_content"
@@ -391,8 +391,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_epg_subscribe"
-                  android:nextFocusDown="@+id/item_check_update"
+                android:nextFocusUp="@+id/item_epg_subscribe"
+                android:nextFocusDown="@+id/item_check_update"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -419,8 +419,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_tif_sync"
-                  android:nextFocusDown="@+id/item_version_info"
+                android:nextFocusUp="@+id/item_tif_sync"
+                android:nextFocusDown="@+id/item_version_info"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -447,8 +447,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_check_update"
-                  android:nextFocusDown="@+id/item_log"
+                android:nextFocusUp="@+id/item_check_update"
+                android:nextFocusDown="@+id/item_debug_log"  <!-- 🟢 修改：跳转到调试日志 -->
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
@@ -462,6 +462,34 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/version_2_0"
+                    android:textColor="@color/setting_item_text_color"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- 🟢【新增】网络调试日志 -->
+            <LinearLayout
+                android:id="@+id/item_debug_log"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:focusable="true"
+                android:nextFocusUp="@+id/item_version_info"
+                android:nextFocusDown="@+id/item_exit_dialog"
+                android:clickable="true">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="网络调试日志"
+                    android:textColor="@color/setting_item_text_color"
+                    android:textSize="16sp" />
+                <TextView
+                    android:id="@+id/tv_debug_log_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="已关闭"
                     android:textColor="@color/setting_item_text_color"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -483,8 +511,8 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:focusable="true"
-                  android:nextFocusUp="@+id/item_version_info"
-                  android:nextFocusDown="@+id/item_exit_dialog"
+                android:nextFocusUp="@+id/item_debug_log" <!-- 🟢 修改：从调试日志返回 -->
+                android:nextFocusDown="@+id/item_exit_dialog"
                 android:clickable="true">
                 <TextView
                     android:layout_width="0dp"
