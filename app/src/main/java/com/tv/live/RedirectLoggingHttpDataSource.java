@@ -112,12 +112,7 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             syncResponseCookies(connection, dataSpec.uri.toString());
             
             if (responseCode >= 200 && responseCode < 300) {
-                String uriStr = connection.getURL().toString();
-                if (dataSpec.position != C.POSITION_UNSET) {
-                    printLog(false, "请求成功 (分片): " + uriStr);
-                } else {
-                    printLog(false, "请求成功: " + uriStr);
-                }
+                // 注意：打开连接时成功的日志在 openConnection 内部已经处理了，这里不再重复打印
             }
 
             if (responseCode < 200 || responseCode > 299) {
@@ -176,6 +171,9 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
         long startTime = System.currentTimeMillis();
         final long MAX_TOTAL_DELAY = 15000;
 
+        // 🟢【增加原始请求链接】
+        printLog(false, "请求链接: " + originalUrl);
+
         while (true) {
             if (System.currentTimeMillis() - startTime > MAX_TOTAL_DELAY) {
                 printLog(true, "失败: 重定向总耗时超时");
@@ -209,6 +207,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
             boolean isRedirect = (respCode == 301 || respCode == 302
                     || respCode == 303 || respCode == 307 || respCode == 308);
             if (!isRedirect) {
+                // 🟢【最终成功地址 + 状态码】
+                printLog(false, "请求成功 状态码 " + respCode + ": " + currentUrl);
                 return conn;
             }
             redirectCount++;
@@ -238,7 +238,8 @@ public class RedirectLoggingHttpDataSource extends BaseDataSource implements Htt
                 // 信任管理器扩展预留
             }
             
-            printLog(false, "重定向" + redirectCount + "次~: " + currentUrl + " -> " + redirectUrl);
+            // 🟢【精简重定向日志：只保留次数和状态码，移除重复箭头链】
+            printLog(false, "重定向" + redirectCount + "次~ 状态码 " + respCode);
             
             conn.disconnect();
             currentUrl = redirectUrl;
