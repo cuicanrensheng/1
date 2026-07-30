@@ -54,10 +54,7 @@ public class AppCoreManager {
     private OnDataLoadListener dataLoadListener;
     private OnRefreshListener refreshListener;
 
-    // 🔧 新增：是否只使用虎牙房间列表（默认 true）
-    private boolean useHuyaRooms = true;
-
-    // 🔧 新增：虎牙房间号数据（房间号, 标题, 分组）
+    // 🔧 虎牙房间号数据（房间号, 标题, 分组）
     private static final String[][] HUYA_ROOM_DATA = {
         // ==================== 电影 ====================
         {"11602047", "异形铁血战士", "电影"},
@@ -131,15 +128,11 @@ public class AppCoreManager {
     }
 
     public AppCoreManager(Context context, TVPlayerManager playerManager, AppConfig appConfig) {
-        this.context = context.getApplicationContext(); // 防止内存泄漏
+        this.context = context.getApplicationContext();
         this.playerManager = playerManager;
         this.appConfig = appConfig;
         this.cacheManager = CacheManager.getInstance(context);
     }
-
-    // ====================================================================
-    // ✅ NPE 防御
-    // ====================================================================
 
     static <T> List<T> sanitizeChannels(List<T> channels) {
         return (channels != null) ? channels : new ArrayList<>();
@@ -151,12 +144,6 @@ public class AppCoreManager {
 
     // ========== 1. 直播源 & EPG 加载 ==========
     public void loadLiveAndEpg() {
-        // 🔧 如果启用虎牙房间列表，直接加载并返回
-        if (useHuyaRooms) {
-            loadHuyaRoomList();
-            return;
-        }
-
         log("【直播源】开始加载直播源...");
         isLoading = true;
 
@@ -214,7 +201,11 @@ public class AppCoreManager {
                 log("【网络】直播源列表已更新");
                 triggerHealthCheck(safeChannels);
                 loadEpg();
+
+                // 🔧 不管网络是否加载成功，都在最后追加虎牙房间（独立分组）
+                appendHuyaRoomList();
             }
+
             @Override
             public void onError(String errorMsg) {
                 log("【网络】直播源加载失败：" + errorMsg);
@@ -224,37 +215,42 @@ public class AppCoreManager {
                     dataLoadListener.onLiveSourceFailed(errorMsg);
                 }
                 loadEpgCache();
+
+                // 🔧 即使网络加载失败，仍然可以显示出缓存 + 虎牙列表
+                appendHuyaRoomList();
             }
         });
     }
 
-    // 🔧 新增：加载虎牙房间列表（按分组）
-    private void loadHuyaRoomList() {
-        isLoading = false;
-        timeoutHandler.removeCallbacksAndMessages(null);
+    // 🔧 追加虎牙列表到现有列表（加“虎牙”前缀，完全独立）
+    private void appendHuyaRoomList() {
+        if (HUYA_ROOM_DATA == null || HUYA_ROOM_DATA.length == 0) return;
 
         List<Channel> huyaChannels = new ArrayList<>();
         for (String[] pair : HUYA_ROOM_DATA) {
             String roomId = pair[0];
             String name = pair[1];
-            String group = pair[2]; // 分组名称
+            String originalGroup = pair[2];
+            // 🟢 关键修改：给分组名加上“虎牙”前缀，永远独立显示
+            String group = "虎牙" + originalGroup;
             String roomUrl = "https://www.huya.com/" + roomId;
             Channel ch = new Channel(name, roomUrl, group, roomId);
             huyaChannels.add(ch);
         }
 
         synchronized (channelListLock) {
-            channelSourceList.clear();
+            // 直接追加到列表尾部，不打乱原有列表
             channelSourceList.addAll(huyaChannels);
         }
 
         if (dataLoadListener != null) {
-            dataLoadListener.onLiveSourceLoaded(huyaChannels, false);
+            List<Channel> fullList;
+            synchronized (channelListLock) {
+                fullList = new ArrayList<>(channelSourceList);
+            }
+            dataLoadListener.onLiveSourceLoaded(fullList, false);
         }
-        log("【虎牙】已加载 " + huyaChannels.size() + " 个房间，分组：电影/电视剧/动漫");
-
-        // 加载 EPG（虎牙暂不提供，可保留或跳过）
-        loadEpgCache();
+        log("【虎牙】已追加 " + huyaChannels.size() + " 个房间（独立分组：虎牙电影 / 虎牙电视剧 / 虎牙动漫）");
     }
 
     private void triggerHealthCheck(List<Channel> channels) {
