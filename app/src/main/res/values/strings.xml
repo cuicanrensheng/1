@@ -61,4 +61,17 @@
     <string name="icon_check">✓</string>
     <string name="icon_copy">📋</string>
     <string name="icon_delete">🗑️</string>
+
+    <!-- ============================================================ -->
+    <!-- 🟢【新增】网络调试日志相关字符串 -->
+    <!-- ============================================================ -->
+    <string name="debug_log_title">网络调试日志</string>
+    <string name="debug_log_status_off">已关闭</string>
+    <string name="debug_log_status_on">已开启（正在记录）</string>
+    
+    <string name="debug_log_dialog_title">📡 网络调试日志</string>
+    <string name="debug_log_clear">清空日志</string>
+    <string name="debug_log_start">开始记录</string>
+    <string name="debug_log_stop">停止记录</string>
+    <string name="debug_log_empty">暂无日志。\n\n提示：请先在下方开启“记录网络日志”，然后重新播放一个频道。</string>
 </resources>
