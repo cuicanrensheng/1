@@ -234,7 +234,8 @@ public class AppCoreManager {
             // 🟢 关键修改：给分组名加上“虎牙”前缀，永远独立显示
             String group = "虎牙" + originalGroup;
             String roomUrl = "https://www.huya.com/" + roomId;
-            Channel ch = new Channel(name, roomUrl, group, roomId);
+            // 🟢 关键修改：给 channelId 加上 "hy_" 前缀，用于后续精确识别（避免误判）
+            Channel ch = new Channel(name, roomUrl, group, "hy_" + roomId);
             huyaChannels.add(ch);
         }
 
