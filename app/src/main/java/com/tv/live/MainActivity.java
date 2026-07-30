@@ -473,6 +473,7 @@ public class MainActivity extends AppCompatActivity {
         stopLogUpdate();
     }
 
+    // 🟢【核心修改】自动计算长度，让分割线完美铺满屏幕
     private void startLogUpdate() {
         if (logUpdateRunnable != null) return;
         logUpdateRunnable = new Runnable() {
@@ -482,7 +483,27 @@ public class MainActivity extends AppCompatActivity {
                     stopLogUpdate();
                     return;
                 }
+
                 String logs = LogCollector.getInstance().getAllLogs();
+
+                // 🔴 检测并替换特殊的分割线标记
+                if (logs.contains(LogCollector.DIVIDER_TOKEN)) {
+                    int viewWidth = tvLogContent.getMeasuredWidth();
+                    int eqCount = 30; // 最小兜底值
+
+                    if (viewWidth > 0) {
+                        // 测量单个 "=" 字符的像素宽度
+                        float eqWidth = tvLogContent.getPaint().measureText("=");
+                        eqCount = (int) (viewWidth / eqWidth);
+                        if (eqCount > 200) eqCount = 200; // 防止极端情况太长
+                    }
+
+                    // 生成指定数量的 "="
+                    String eqString = new String(new char[eqCount]).replace('\0', '=');
+                    // 将标记替换为生成的等号
+                    logs = logs.replace(LogCollector.DIVIDER_TOKEN, eqString);
+                }
+
                 tvLogContent.setText(logs);
                 logScrollView.post(() -> logScrollView.fullScroll(View.FOCUS_DOWN));
                 mMainHandler.postDelayed(this, 300);
@@ -891,8 +912,10 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 🟢【新增】在每次切台完成时添加分割线
-        LogCollector.getInstance().addLog("", "==============================");
+        // 🟢【修改为自动延长分割线】
+        if (sp.getBoolean("debug_log_enable", false)) {
+            LogCollector.getInstance().addDivider();
+        }
     }
 
     public void togglePanel() {
