@@ -152,7 +152,22 @@ public class NetUtil {
         return mClient;
     }
 
-    // 🔴【核心修复】新增：绝对不跟随重定向的请求（防止虎牙 API 跳转回 HTML 网页）
+    // 🔴【修复编译错误 1】匹配 LiveSourceLoader 调用的无参方法，且强制不跟随重定向
+    public Response syncGetNoRedirect(String url) throws IOException {
+        Headers headers = createCommonHeaders(url);
+        Request request = new Request.Builder()
+                .url(url)
+                .headers(headers)
+                .get()
+                .build();
+        OkHttpClient noRedirectClient = mClient.newBuilder()
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build();
+        return noRedirectClient.newCall(request).execute();
+    }
+
+    // 🔴【修复编译错误 2】用于 HuyaParser 的有参方法，强制不跟随重定向
     public Response syncGetNoRedirectWithHeaders(String url, Map<String, String> customHeaders) throws IOException {
         Headers headers = createCommonHeaders(url);
         Request.Builder requestBuilder = new Request.Builder()
@@ -166,7 +181,6 @@ public class NetUtil {
         }
         
         Request request = requestBuilder.get().build();
-        // 创建独立的临时客户端，强制不跟随跳转
         OkHttpClient noRedirectClient = mClient.newBuilder()
                 .followRedirects(false)
                 .followSslRedirects(false)
