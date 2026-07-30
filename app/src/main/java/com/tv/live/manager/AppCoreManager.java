@@ -54,66 +54,6 @@ public class AppCoreManager {
     private OnDataLoadListener dataLoadListener;
     private OnRefreshListener refreshListener;
 
-    // 🔧 虎牙房间号数据（房间号, 标题, 分组）
-    private static final String[][] HUYA_ROOM_DATA = {
-        // ==================== 电影 ====================
-        {"11602047", "异形铁血战士", "电影"},
-        {"26355795", "惊悚电影", "电影"},
-        {"23863778", "漫威科幻剧", "电影"},
-        {"30080257", "科幻史诗巨作", "电影"},
-        {"11342421", "林正英僵尸系列", "电影"},
-        {"31308716", "林正英经典电影", "电影"},
-        {"11342412", "星爷经典不间断", "电影"},
-        {"30631746", "李连杰经典", "电影"},
-        {"30080234", "星球大战", "电影"},
-        {"11336571", "【女神系列】", "电影"},
-        {"30682679", "港片经典", "电影"},
-        {"30509122", "动作电影", "电影"},
-        {"31295293", "澳门电影", "电影"},
-        {"30985600", "高评分电影", "电影"},
-        {"31087618", "剧情电影", "电影"},
-        {"30951757", "三叉戟电影", "电影"},
-        {"30716827", "猛鬼系列", "电影"},
-        {"30951578", "真实事件改编", "电影"},
-        {"31311959", "惊悚电影", "电影"},
-        {"30968485", "金马影帝", "电影"},
-        {"26355784", "恐怖电影系列", "电影"},
-        // ==================== 电视剧 ====================
-        {"880256",   "怪奇物语", "电视剧"},
-        {"31055598", "康熙微服私访记", "电视剧"},
-        {"30612264", "封神榜", "电视剧"},
-        {"11342384", "新水浒", "电视剧"},
-        {"11602081", "老三国", "电视剧"},
-        {"11336726", "爱情公寓", "电视剧"},
-        {"11342425", "古代神探推理", "电视剧"},
-        {"11601964", "男主比女主穷", "电视剧"},
-        {"11352958", "少年包青天", "电视剧"},
-        {"31336243", "神探狄仁杰", "电视剧"},
-        {"11342396", "铁齿铜纪晓岚", "电视剧"},
-        {"31312768", "洪金宝成龙彪成电影", "电视剧"},
-        {"30080238", "李云龙", "电视剧"},
-        {"11352944", "新三国", "电视剧"},
-        {"31087618", "TVB 午夜场", "电视剧"},
-        {"23740156", "庆余年系列", "电视剧"},
-        {"30627334", "雍正王朝", "电视剧"},
-        {"30655127", "雍正王朝李卫当官", "电视剧"},
-        {"30080146", "寻秦记", "电视剧"},
-        // ==================== 动漫 ====================
-        {"31312788", "一人之下", "动漫"},
-        {"21059561", "五条悟", "动漫"},
-        {"29982655", "瑞克与莫蒂", "动漫"},
-        {"26355796", "食神小当家", "动漫"},
-        {"26355785", "世界杯来啦", "动漫"},
-        {"24314166", "林七夜之路", "动漫"},
-        {"20985850", "超自然武装", "动漫"},
-        {"30065341", "蜡笔小新", "动漫"},
-        {"11352919", "海绵宝宝", "动漫"},
-        {"21059565", "仙逆", "动漫"},
-        {"30080236", "柯南", "动漫"},
-        {"19807776", "科幻悬疑惊悚灾难", "动漫"},
-        {"30613314", "中华小当家", "动漫"}
-    };
-
     public interface OnDataLoadListener {
         void onLiveSourceLoaded(List<Channel> channels, boolean fromCache);
         void onLiveSourceFailed(String errorMsg);
@@ -201,9 +141,6 @@ public class AppCoreManager {
                 log("【网络】直播源列表已更新");
                 triggerHealthCheck(safeChannels);
                 loadEpg();
-
-                // 🔧 不管网络是否加载成功，都在最后追加虎牙房间（独立分组）
-                appendHuyaRoomList();
             }
 
             @Override
@@ -215,43 +152,8 @@ public class AppCoreManager {
                     dataLoadListener.onLiveSourceFailed(errorMsg);
                 }
                 loadEpgCache();
-
-                // 🔧 即使网络加载失败，仍然可以显示出缓存 + 虎牙列表
-                appendHuyaRoomList();
             }
         });
-    }
-
-    // 🔧 追加虎牙列表到现有列表（加“虎牙”前缀，完全独立）
-    private void appendHuyaRoomList() {
-        if (HUYA_ROOM_DATA == null || HUYA_ROOM_DATA.length == 0) return;
-
-        List<Channel> huyaChannels = new ArrayList<>();
-        for (String[] pair : HUYA_ROOM_DATA) {
-            String roomId = pair[0];
-            String name = pair[1];
-            String originalGroup = pair[2];
-            // 🟢 关键修改：给分组名加上“虎牙”前缀，永远独立显示
-            String group = "虎牙" + originalGroup;
-            String roomUrl = "https://www.huya.com/" + roomId;
-            // 🟢 关键修改：给 channelId 加上 "hy_" 前缀，用于后续精确识别（避免误判）
-            Channel ch = new Channel(name, roomUrl, group, "hy_" + roomId);
-            huyaChannels.add(ch);
-        }
-
-        synchronized (channelListLock) {
-            // 直接追加到列表尾部，不打乱原有列表
-            channelSourceList.addAll(huyaChannels);
-        }
-
-        if (dataLoadListener != null) {
-            List<Channel> fullList;
-            synchronized (channelListLock) {
-                fullList = new ArrayList<>(channelSourceList);
-            }
-            dataLoadListener.onLiveSourceLoaded(fullList, false);
-        }
-        log("【虎牙】已追加 " + huyaChannels.size() + " 个房间（独立分组：虎牙电影 / 虎牙电视剧 / 虎牙动漫）");
     }
 
     private void triggerHealthCheck(List<Channel> channels) {
