@@ -416,6 +416,7 @@ public class TVPlayerManager {
         player.addListener(playerListener);
     }
 
+    // 🔴【核心修复】在 trySwitchBackup 里拦截虎牙房间号死循环
     private boolean trySwitchBackup() {
         if (currentChannel == null || currentChannel.getBackupUrls().isEmpty()) {
             return false;
@@ -431,6 +432,13 @@ public class TVPlayerManager {
             return false;
         }
         String backupUrl = backups.get(backupRetryIndex);
+        
+        // 🔴 如果备用源也是虎牙房间号，直接跳过，递归尝试下一个！
+        if (isHuyaRoomUrl(backupUrl)) {
+            Log.w(TAG, "备用源是虎牙房间号，跳过！尝试下一个...");
+            return trySwitchBackup();
+        }
+        
         dLog("尝试切换到备用源：" + backupUrl);
         playUrlInternal(backupUrl);
         return true;
@@ -947,10 +955,9 @@ public class TVPlayerManager {
                 }
                 @Override
                 public void onFailed(String errorMsg) {
-                    if (!trySwitchBackup()) {
-                        if (sourceFailedListener != null) {
-                            mHandler.post(() -> sourceFailedListener.onSourceFailed());
-                        }
+                    Log.e(TAG, "虎牙解析失败，跳过当前源: " + errorMsg);
+                    if (sourceFailedListener != null) {
+                        mHandler.post(() -> sourceFailedListener.onSourceFailed());
                     }
                 }
             });
