@@ -44,7 +44,7 @@ import androidx.media3.ui.PlayerView;
 import androidx.core.content.ContextCompat;
 
 import com.tv.live.util.NetUtil;
-import com.tv.live.util.HuyaParser;  // 🔧 新增导入
+import com.tv.live.util.HuyaParser;
 import com.tv.live.exception.RedirectFailedException;
 
 import java.io.BufferedReader;
@@ -1010,6 +1010,21 @@ public class TVPlayerManager {
             reusableHeaderMap.clear();
             for (String name : globalHeaders.names()) {
                 reusableHeaderMap.put(name, globalHeaders.get(name));
+            }
+
+            // 🟢 新增：只有以 "hy_" 开头的 channelId 才强制使用浏览器 UA
+            boolean isHyChannel = false;
+            if (currentChannel != null) {
+                String cid = currentChannel.getChannelId();
+                if (cid != null && cid.startsWith("hy_")) {
+                    isHyChannel = true;
+                }
+            }
+            if (isHyChannel) {
+                reusableHeaderMap.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36");
+                dLog("【UA】检测到虎牙专属源，已启用浏览器 UA");
+            } else {
+                dLog("【UA】普通源，使用默认 UA");
             }
 
             SharedPreferences sp = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
