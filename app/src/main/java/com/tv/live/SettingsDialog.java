@@ -239,13 +239,17 @@ public class SettingsDialog extends android.app.Dialog {
             : getContext().getString(R.string.debug_log_status_off));
     }
 
-    // 🟢【最终修复】完美兼顾手机单次触摸 + TV遥控器焦点
+    // 🟢【精简版日志弹窗】移除清空按钮，停止记录字体改为黑色
     private void showDebugLogDialog() {
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
         if (TextUtils.isEmpty(logs)) {
             logs = getContext().getString(R.string.debug_log_empty);
         }
+
+        // 🔴 将占位符替换为真正的 HTML 横线
+        String finalLogs = logs.replace("###DIVIDER###", "<hr style=\"border:0; border-top:1px solid #D0D0D0; margin:6px 0;\">");
+        String logsWithBr = finalLogs.replace("\n", "<br>");
 
         // 1. 主布局 (垂直)
         LinearLayout mainLayout = new LinearLayout(getContext());
@@ -276,9 +280,6 @@ public class SettingsDialog extends android.app.Dialog {
         scrollView.setVerticalScrollBarEnabled(true);
 
         TextView msgView = new TextView(getContext());
-
-        // 将换行符 \n 转为 HTML 兼容的 <br>
-        String logsWithBr = logs.replace("\n", "<br>");
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             msgView.setText(Html.fromHtml(logsWithBr, Html.FROM_HTML_MODE_COMPACT));
@@ -299,11 +300,11 @@ public class SettingsDialog extends android.app.Dialog {
 
         LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                0, 1f // 权重为1
+                0, 1f
         );
         mainLayout.addView(scrollView, scrollLp);
 
-        // 4. 🟢【按钮行】
+        // 4. 🟢【按钮行】只保留开始/停止 和 关闭，平分宽度
         LinearLayout buttonRow = new LinearLayout(getContext());
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setPadding(0, dp2px(16), 0, 0);
@@ -321,19 +322,13 @@ public class SettingsDialog extends android.app.Dialog {
         Button btnStartStop = new Button(getContext());
         btnStartStop.setText(currentDebugState ? "停止记录" : "开始记录");
         btnStartStop.setBackground(buttonBg);
-        btnStartStop.setTextColor(0xFF007AFF);
+        
+        // 🟢【核心修改】开始记录为蓝色，停止记录为黑色（与关闭按钮颜色一致）
+        btnStartStop.setTextColor(currentDebugState ? Color.BLACK : 0xFF007AFF);
+        
         btnStartStop.setLayoutParams(btnParams);
         btnStartStop.setGravity(Gravity.CENTER);
-        btnStartStop.setFocusable(true); // 👈 保留：TV 遥控器可以选中
-        // 🔴【核心修复】移除 setFocusableInTouchMode(true)，手机单次触摸直接触发点击！
-
-        Button btnClear = new Button(getContext());
-        btnClear.setText("清空日志");
-        btnClear.setBackground(buttonBg);
-        btnClear.setTextColor(0xFF007AFF);
-        btnClear.setLayoutParams(btnParams);
-        btnClear.setGravity(Gravity.CENTER);
-        btnClear.setFocusable(true);
+        btnStartStop.setFocusable(true);
 
         Button btnClose = new Button(getContext());
         btnClose.setText("关闭");
@@ -362,6 +357,10 @@ public class SettingsDialog extends android.app.Dialog {
             boolean newState = !currentDebugState;
             sp.edit().putBoolean(KEY_DEBUG_LOG_ENABLE, newState).apply();
             btnStartStop.setText(newState ? "停止记录" : "开始记录");
+            
+            // 🟢 同步文字颜色：停止时黑色，开始后蓝色
+            btnStartStop.setTextColor(newState ? Color.BLACK : 0xFF007AFF);
+            
             updateDebugLogStatus();
 
             if (!newState) {
@@ -376,11 +375,6 @@ public class SettingsDialog extends android.app.Dialog {
             getContext().sendBroadcast(intent);
         });
 
-        btnClear.setOnClickListener(v -> {
-            LogCollector.getInstance().clear();
-            Toast.makeText(getContext(), "日志已清空", Toast.LENGTH_SHORT).show();
-        });
-
         btnClose.setOnClickListener(v -> {
             if (dialog != null) {
                 dialog.dismiss();
@@ -388,7 +382,6 @@ public class SettingsDialog extends android.app.Dialog {
         });
 
         buttonRow.addView(btnStartStop);
-        buttonRow.addView(btnClear);
         buttonRow.addView(btnClose);
         mainLayout.addView(buttonRow);
 
@@ -406,7 +399,7 @@ public class SettingsDialog extends android.app.Dialog {
         }, 300);
     }
 
-    // ===== 以下代码保持原样 =====
+    // ===== 以下为原有菜单代码，保持不变 =====
     private void initSettingsItemList() {
         View itemTifSync = findViewById(R.id.item_tif_sync);
         TextView tvTifStatus = findViewById(R.id.tv_tif_status);
