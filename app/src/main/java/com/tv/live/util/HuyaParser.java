@@ -137,7 +137,8 @@ public class HuyaParser {
             String url = String.format(urlPattern, roomId);
             
             Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            // 🟢 修改点1：解析PC/移动端网页时使用 Chrome/126
+            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36");
             headers.put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8");
             headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
             headers.put("Connection", "keep-alive");
@@ -162,7 +163,8 @@ public class HuyaParser {
             String url = String.format(Locale.ROOT, API_STREAM_INFO, roomId);
             
             Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            // 🟢 修改点2：API 请求也统一为 Chrome/126，避免被识别为非浏览器
+            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36");
             headers.put("Accept", "application/json, text/plain, */*");
             headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
             headers.put("Connection", "keep-alive");
