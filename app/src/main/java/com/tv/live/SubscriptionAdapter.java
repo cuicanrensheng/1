@@ -18,7 +18,7 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
     private int selectedPosition = -1;
     private OnActionListener actionListener;
 
-    // 🟢 新增：保存从外部传入的布局资源 ID
+    // 🟢 保存从外部传入的布局资源 ID
     private int layoutResId;
 
     // 🟢 保护地址常量
@@ -30,9 +30,11 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
     private static final int COLOR_NORMAL = 0xFFFFFFFF;
     private static final int COLOR_NORMAL_BG = 0x333545;
 
+    // 🟢【核心修复】添加 onCopy 方法，与 SettingsDialog 的调用保持同步
     public interface OnActionListener {
         void onSwitch(int position);
         void onDelete(int position);
+        void onCopy(String url);  // <--- 必须加上这一行！
     }
 
     // 🟢 修改构造函数：传入 layoutResId 参数
@@ -58,7 +60,6 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
     public View getView(int position, View convertView, ViewGroup parent) {
         ViewHolder holder;
         if (convertView == null) {
-            // 🟢 关键修改：使用传入的 layoutResId，而不是硬编码 R.layout.xxx
             convertView = LayoutInflater.from(getContext()).inflate(layoutResId, parent, false);
             holder = new ViewHolder();
             holder.tvCheck = convertView.findViewById(R.id.tv_check);
