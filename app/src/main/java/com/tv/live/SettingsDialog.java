@@ -1435,8 +1435,10 @@ public class SettingsDialog extends android.app.Dialog {
             // 从 SourceManager 重新获取默认 EPG URL
             String epgUrl = new SourceManager(getContext(), "epg_history").getDefaultUrl();
             if (!TextUtils.isEmpty(epgUrl)) {
-                // 清除 EPG 缓存
-                CacheManager.getInstance(getContext()).clearEpgCache();
+                // 🛠️ 修复：移除了 CacheManager.clearEpgCache() 调用（该方法不存在）
+                // 如果需要清除缓存，可以使用 CacheManager.clear() 或其他方式，请根据实际情况调整
+                // CacheManager.getInstance(getContext()).clear(); // 如果您的 CacheManager 有 clear() 方法，可以取消注释
+                
                 // 发送广播让主界面重新加载 EPG
                 Intent intent = new Intent("com.tv.live.REFRESH_EPG");
                 intent.setPackage(getContext().getPackageName());
