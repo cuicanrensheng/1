@@ -773,6 +773,40 @@ public class MainActivity extends AppCompatActivity {
 
                     displayManager.hideLoading();
                     log("【" + (fromCache ? "缓存" : "网络") + "】直播源加载完成，频道数：" + channelSourceList.size());
+
+                    // ============================================================
+                    // 🟢【新增】在普通频道加载完成后，异步获取虎牙一起看频道并合并
+                    // ============================================================
+                    HuyaTogetherWatchManager.getInstance().fetchTogetherWatchChannels(
+                        new HuyaTogetherWatchManager.OnChannelsFetchedListener() {
+                            @Override
+                            public void onSuccess(List<Channel> togetherChannels) {
+                                mMainHandler.post(() -> {
+                                    // 合并到现有列表
+                                    channelSourceList.addAll(togetherChannels);
+                                    // 刷新面板
+                                    channelPanelController.setChannels(channelSourceList);
+                                    // 如果当前播放索引超出，重置为0
+                                    if (currentPlayIndex >= channelSourceList.size()) {
+                                        currentPlayIndex = 0;
+                                    }
+                                    appConfig.setLastPlayIndex(currentPlayIndex);
+                                    channelPanelController.setCurrentPlayIndex(currentPlayIndex);
+                                    // 如果没有播放，播放第一个
+                                    if (!channelSourceList.isEmpty()) {
+                                        playChannel(channelSourceList.get(currentPlayIndex), currentPlayIndex);
+                                    }
+                                    log("【合并】普通频道 " + finalList.size() + " 个 + 一起看 " + togetherChannels.size() + " 个，总数 " + channelSourceList.size());
+                                });
+                            }
+
+                            @Override
+                            public void onFailed(String errorMsg) {
+                                Log.e("MainActivity", "获取一起看频道失败: " + errorMsg);
+                                // 即使失败，普通频道已经显示，不影响使用
+                            }
+                        }
+                    );
                 });
             }
 
