@@ -873,6 +873,7 @@ public class SettingsDialog extends android.app.Dialog {
         listView.setPadding(0, 16, 0, 16);
 
         final int[] pendingPos = {checkedItem};
+        final AlertDialog[] dialogHolder = new AlertDialog[1];
 
         class CustomAdapter extends ArrayAdapter<String> {
             private int selectedPos;
@@ -914,7 +915,7 @@ public class SettingsDialog extends android.app.Dialog {
             adapter.setSelectedPos(position);
             listView.setItemChecked(position, true);
             onSelected.accept(position);
-            dialog.dismiss();
+            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
         });
 
         listView.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -938,7 +939,7 @@ public class SettingsDialog extends android.app.Dialog {
                     if (selected >= 0 && selected < items.length) {
                         if (pendingPos[0] == selected) {
                             onSelected.accept(selected);
-                            dialog.dismiss();
+                            if (dialogHolder[0] != null) dialogHolder[0].dismiss();
                         } else {
                             pendingPos[0] = selected;
                             adapter.setSelectedPos(selected);
@@ -948,7 +949,7 @@ public class SettingsDialog extends android.app.Dialog {
                         return true;
                     }
                 } else if (keyCode == KeyEvent.KEYCODE_BACK) {
-                    dialog.dismiss();
+                    if (dialogHolder[0] != null) dialogHolder[0].dismiss();
                     return true;
                 }
             }
@@ -970,15 +971,15 @@ public class SettingsDialog extends android.app.Dialog {
         layout.addView(titleView);
         layout.addView(listView);
 
-        AlertDialog dialog = new AlertDialog.Builder(getContext())
+        dialogHolder[0] = new AlertDialog.Builder(getContext())
                 .setView(layout)
                 .create();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        if (dialogHolder[0].getWindow() != null) {
+            dialogHolder[0].getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
-        dialog.show();
+        dialogHolder[0].show();
         mainHandler.postDelayed(() -> {
-            if (listView != null && dialog.isShowing()) {
+            if (listView != null && dialogHolder[0] != null && dialogHolder[0].isShowing()) {
                 listView.requestFocus();
             }
         }, 200);
