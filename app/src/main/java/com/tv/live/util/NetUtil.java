@@ -151,4 +151,24 @@ public class NetUtil {
     public OkHttpClient getClient() {
         return mClient;
     }
+
+    // ========================== 新增方法 ==========================
+    /**
+     * 同步 GET 请求，**不跟随重定向**（用于检测跳转或获取原始响应头）
+     * @param url 请求 URL
+     * @return Response 对象
+     * @throws IOException 网络异常
+     */
+    public Response syncGetNoRedirect(String url) throws IOException {
+        OkHttpClient noRedirectClient = mClient.newBuilder()
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build();
+        Request request = new Request.Builder()
+                .url(url)
+                .headers(createCommonHeaders(url))
+                .get()
+                .build();
+        return noRedirectClient.newCall(request).execute();
+    }
 }
