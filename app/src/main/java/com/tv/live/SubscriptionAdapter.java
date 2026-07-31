@@ -1,5 +1,5 @@
 package com.tv.live;
-import com.tv.live.R; 
+
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -18,11 +18,13 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
     private int selectedPosition = -1;
     private OnActionListener actionListener;
 
-    // 🟢【核心修复】直接将原生的默认地址写死，避免因为 UrlConfig 被动态覆盖导致保护失效
+    // 🟢 新增：保存从外部传入的布局资源 ID
+    private int layoutResId;
+
+    // 🟢 保护地址常量
     private static final String PROTECTED_LIVE_URL = "https://raw.githubusercontent.com/cuicanrensheng/IPTV/refs/heads/main/playlist1.m3u";
     private static final String PROTECTED_EPG_URL = "https://e.erw.cc/all.xml.gz";
 
-    // 🟢 颜色常量优化，避免重复解析
     private static final int COLOR_SELECTED = 0xFF40A9FF;
     private static final int COLOR_SELECTED_BG = 0x3340A9FF;
     private static final int COLOR_NORMAL = 0xFFFFFFFF;
@@ -33,8 +35,10 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         void onDelete(int position);
     }
 
-    public SubscriptionAdapter(Context context, List<SourceManager.SourceItem> items) {
-        super(context, 0, items);
+    // 🟢 修改构造函数：传入 layoutResId 参数
+    public SubscriptionAdapter(Context context, List<SourceManager.SourceItem> items, int layoutResId) {
+        super(context, layoutResId, items);
+        this.layoutResId = layoutResId;
     }
 
     public void setSelectedPosition(int position) {
@@ -54,7 +58,8 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
     public View getView(int position, View convertView, ViewGroup parent) {
         ViewHolder holder;
         if (convertView == null) {
-            convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_subscription_list, parent, false);
+            // 🟢 关键修改：使用传入的 layoutResId，而不是硬编码 R.layout.xxx
+            convertView = LayoutInflater.from(getContext()).inflate(layoutResId, parent, false);
             holder = new ViewHolder();
             holder.tvCheck = convertView.findViewById(R.id.tv_check);
             holder.tvUrl = convertView.findViewById(R.id.tv_url);
@@ -76,9 +81,6 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         }
         holder.tvUrl.setText(displayText);
 
-        // =================================================================
-        // 🛡️ 核心修复：只要匹配到硬编码的原生地址，无论如何都保护（隐藏删除按钮）
-        // =================================================================
         boolean isProtected = item.url != null && !item.url.isEmpty() &&
                 (item.url.equals(PROTECTED_LIVE_URL) || item.url.equals(PROTECTED_EPG_URL));
 
@@ -108,7 +110,6 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         final int finalPosition = position;
 
         finalView.setOnFocusChangeListener((v, hasFocus) -> {
-            android.util.Log.d("Subscription", "onFocusChange pos:" + finalPosition + ", hasFocus:" + hasFocus);
             if (hasFocus) {
                 selectedPosition = finalPosition;
                 notifyDataSetChanged();
@@ -116,7 +117,6 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         });
 
         finalView.setOnKeyListener((v, keyCode, event) -> {
-            android.util.Log.d("Subscription", "onKey pos:" + finalPosition + ", keyCode:" + keyCode + ", action:" + event.getAction());
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
                     if (actionListener != null && finalPosition >= 0 && finalPosition < getCount()) {
