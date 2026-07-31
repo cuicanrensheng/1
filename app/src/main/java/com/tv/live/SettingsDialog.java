@@ -1252,8 +1252,7 @@ public class SettingsDialog extends android.app.Dialog {
         int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
         
         // ✅ 使用增强版 SubscriptionAdapter（支持复制/删除/切换）- 动态获取布局ID，无R符号依赖
-        int layoutId = getContext().getResources().getIdentifier("item_subscription_list", "layout", getContext().getPackageName());
-        SubscriptionAdapter adapter = new SubscriptionAdapter(getContext(), sources, layoutId);
+        SubscriptionAdapter adapter = new SubscriptionAdapter(getContext(), sources, R.layout.item_subscription_list);
         adapter.setSelectedPosition(currentDefault);
 
         // ✅ 统一处理“切换”动作的方法（供触摸和按键共用）
