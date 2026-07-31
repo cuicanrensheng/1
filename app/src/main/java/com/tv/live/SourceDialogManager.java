@@ -279,27 +279,60 @@ public class SourceDialogManager {
             }
         });
         // ===== 列表项点击 =====
+        final int[] pendingKeyPos = {-1};
         dialog.getListView().setOnItemClickListener((parent, view, position, id) -> {
             SourceManager.SourceItem item = displayItems.get(position);
             String saveKey = key.contains("live") ? KEY_CUSTOM_LIVE : KEY_CUSTOM_EPG;
             sp.edit().putString(saveKey, item.url).apply();
             int realPos = sourceManager.indexOfUrl(item.url);
             
-            // 🟢【修复2】无论是否第一项，都进行 moveToTop，增强界面交互反馈
             if (realPos >= 0) {
                 sourceManager.moveToTop(realPos);
             }
             
-            // 🔧 修复：发送显式 Intent
             Intent clickIntent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
             clickIntent.setPackage(context.getPackageName());
             context.sendBroadcast(clickIntent);
             
             refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
             adapter.setSelectedPosition(0);
-            // 🟢 替换为原生日志
+            pendingKeyPos[0] = -1;
             Log.d(TAG, "【设置】切换" + title + "：" + item.name);
             Toast.makeText(context, "已切换，正在刷新…", Toast.LENGTH_SHORT).show();
+        });
+
+        dialog.getListView().setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                if (keyCode == android.view.KeyEvent.KEYCODE_ENTER || keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER) {
+                    int selected = dialog.getListView().getSelectedItemPosition();
+                    if (selected >= 0 && selected < displayItems.size()) {
+                        if (pendingKeyPos[0] != selected) {
+                            pendingKeyPos[0] = selected;
+                            adapter.setSelectedPosition(selected);
+                            Toast.makeText(context, "再次按确认键切换", Toast.LENGTH_SHORT).show();
+                            return true;
+                        } else {
+                            SourceManager.SourceItem item = displayItems.get(selected);
+                            String saveKey = key.contains("live") ? KEY_CUSTOM_LIVE : KEY_CUSTOM_EPG;
+                            sp.edit().putString(saveKey, item.url).apply();
+                            int realPos = sourceManager.indexOfUrl(item.url);
+                            if (realPos >= 0) {
+                                sourceManager.moveToTop(realPos);
+                            }
+                            Intent clickIntent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
+                            clickIntent.setPackage(context.getPackageName());
+                            context.sendBroadcast(clickIntent);
+                            refreshDisplayList(sourceManager, displayItems, adapter, searchEt.getText().toString());
+                            adapter.setSelectedPosition(0);
+                            pendingKeyPos[0] = -1;
+                            Log.d(TAG, "【设置】键盘切换" + title + "：" + item.name);
+                            Toast.makeText(context, "已切换，正在刷新…", Toast.LENGTH_SHORT).show();
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
         });
     }
     // ====================================================================

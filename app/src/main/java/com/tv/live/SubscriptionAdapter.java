@@ -16,13 +16,12 @@ import java.util.List;
 public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> {
 
     private int selectedPosition = -1;
+    private int pendingKeyPosition = -1;
     private OnActionListener actionListener;
 
-    // 🟢【核心修复】直接将原生的默认地址写死，避免因为 UrlConfig 被动态覆盖导致保护失效
     private static final String PROTECTED_LIVE_URL = "https://raw.githubusercontent.com/cuicanrensheng/IPTV/refs/heads/main/playlist1.m3u";
     private static final String PROTECTED_EPG_URL = "https://e.erw.cc/all.xml.gz";
 
-    // 🟢 颜色常量优化，避免重复解析
     private static final int COLOR_SELECTED = 0xFF40A9FF;
     private static final int COLOR_SELECTED_BG = 0x3340A9FF;
     private static final int COLOR_NORMAL = 0xFFFFFFFF;
@@ -76,9 +75,6 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         }
         holder.tvUrl.setText(displayText);
 
-        // =================================================================
-        // 🛡️ 核心修复：只要匹配到硬编码的原生地址，无论如何都保护（隐藏删除按钮）
-        // =================================================================
         boolean isProtected = item.url != null && !item.url.isEmpty() &&
                 (item.url.equals(PROTECTED_LIVE_URL) || item.url.equals(PROTECTED_EPG_URL));
 
@@ -108,7 +104,6 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         final int finalPosition = position;
 
         finalView.setOnFocusChangeListener((v, hasFocus) -> {
-            android.util.Log.d("Subscription", "onFocusChange pos:" + finalPosition + ", hasFocus:" + hasFocus);
             if (hasFocus) {
                 selectedPosition = finalPosition;
                 notifyDataSetChanged();
@@ -116,15 +111,43 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
         });
 
         finalView.setOnKeyListener((v, keyCode, event) -> {
-            android.util.Log.d("Subscription", "onKey pos:" + finalPosition + ", keyCode:" + keyCode + ", action:" + event.getAction());
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-                    if (actionListener != null && finalPosition >= 0 && finalPosition < getCount()) {
-                        actionListener.onSwitch(finalPosition);
+                    if (pendingKeyPosition != finalPosition) {
+                        pendingKeyPosition = finalPosition;
+                        selectedPosition = finalPosition;
+                        notifyDataSetChanged();
+                        android.widget.Toast.makeText(getContext(), "再次按确认键切换", android.widget.Toast.LENGTH_SHORT).show();
+                        return true;
+                    } else {
+                        if (actionListener != null && finalPosition >= 0 && finalPosition < getCount()) {
+                            actionListener.onSwitch(finalPosition);
+                        }
+                        pendingKeyPosition = -1;
+                        return true;
                     }
-                    return true;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
                     holder.btnCopy.requestFocus();
+                    return true;
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    if (finalPosition > 0) {
+                        android.view.View prevItem = parent.getChildAt(finalPosition - 1);
+                        if (prevItem != null) {
+                            prevItem.requestFocus();
+                        }
+                    }
+                    return true;
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    if (finalPosition < getCount() - 1) {
+                        android.view.View nextItem = parent.getChildAt(finalPosition + 1);
+                        if (nextItem != null) {
+                            nextItem.requestFocus();
+                        }
+                    }
+                    return true;
+                }
+            } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
                     return true;
                 }
             }
@@ -138,8 +161,17 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
                     cm.setPrimaryClip(ClipData.newPlainText("source_url", item.url));
                     android.widget.Toast.makeText(getContext(), "已复制地址", android.widget.Toast.LENGTH_SHORT).show();
                     return true;
-                } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && holder.btnDelete.getVisibility() == View.VISIBLE) {
-                    holder.btnDelete.requestFocus();
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    if (holder.btnDelete.getVisibility() == View.VISIBLE) {
+                        holder.btnDelete.requestFocus();
+                    } else {
+                        if (finalPosition < getCount() - 1) {
+                            android.view.View nextItem = parent.getChildAt(finalPosition + 1);
+                            if (nextItem != null) {
+                                nextItem.requestFocus();
+                            }
+                        }
+                    }
                     return true;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
                     finalView.requestFocus();
@@ -159,6 +191,14 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
                     holder.btnCopy.requestFocus();
                     return true;
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    if (finalPosition < getCount() - 1) {
+                        android.view.View nextItem = parent.getChildAt(finalPosition + 1);
+                        if (nextItem != null) {
+                            nextItem.requestFocus();
+                        }
+                    }
+                    return true;
                 }
             }
             return false;
@@ -166,7 +206,23 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
 
         convertView.setOnClickListener(v -> {
             if (actionListener != null && position >= 0 && position < getCount()) {
+                selectedPosition = position;
+                pendingKeyPosition = -1;
                 actionListener.onSwitch(position);
+            }
+        });
+
+        holder.btnCopy.setOnClickListener(v -> {
+            if (item.url != null && !item.url.isEmpty()) {
+                ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(ClipData.newPlainText("source_url", item.url));
+                android.widget.Toast.makeText(getContext(), "已复制地址", android.widget.Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        holder.btnDelete.setOnClickListener(v -> {
+            if (actionListener != null && position >= 0 && position < getCount()) {
+                actionListener.onDelete(position);
             }
         });
 

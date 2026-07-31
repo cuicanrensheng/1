@@ -910,25 +910,49 @@ public class SettingsDialog extends android.app.Dialog {
         listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         listView.setItemChecked(checkedItem, true);
         listView.setOnItemClickListener((parent, view, position, id) -> {
-            if (pendingPos[0] == position) {
-                onSelected.accept(position);
-            } else {
-                pendingPos[0] = position;
-                adapter.setSelectedPos(position);
-                listView.setItemChecked(position, true);
-            }
+            pendingPos[0] = position;
+            adapter.setSelectedPos(position);
+            listView.setItemChecked(position, true);
+            onSelected.accept(position);
+            dialog.dismiss();
         });
 
         listView.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                pendingPos[0] = position;
-                adapter.setSelectedPos(position);
+                if (pendingPos[0] != position) {
+                    pendingPos[0] = position;
+                    adapter.setSelectedPos(position);
+                }
             }
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
             }
+        });
+
+        listView.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                    int selected = listView.getSelectedItemPosition();
+                    if (selected >= 0 && selected < items.length) {
+                        if (pendingPos[0] == selected) {
+                            onSelected.accept(selected);
+                            dialog.dismiss();
+                        } else {
+                            pendingPos[0] = selected;
+                            adapter.setSelectedPos(selected);
+                            listView.setItemChecked(selected, true);
+                            Toast.makeText(getContext(), "再次按确认键选择", Toast.LENGTH_SHORT).show();
+                        }
+                        return true;
+                    }
+                } else if (keyCode == KeyEvent.KEYCODE_BACK) {
+                    dialog.dismiss();
+                    return true;
+                }
+            }
+            return false;
         });
 
         TextView titleView = new TextView(getContext());
@@ -1276,7 +1300,11 @@ public class SettingsDialog extends android.app.Dialog {
                 
                 Toast.makeText(getContext(), "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
                 adapter.setSelectedPosition(position);
-                adapter.notifyDataSetChanged();
+                lvSourceList.post(() -> {
+                    adapter.notifyDataSetChanged();
+                    lvSourceList.setSelection(position);
+                    lvSourceList.requestFocus();
+                });
             }
 
             @Override
@@ -1295,8 +1323,15 @@ public class SettingsDialog extends android.app.Dialog {
                                 sourceManager.removeSource(realIndex);
                                 sources.clear();
                                 sources.addAll(sourceManager.getAllSources());
-                                adapter.setSelectedPosition(sourceManager.indexOfUrl(sourceManager.getDefaultUrl()));
-                                adapter.notifyDataSetChanged();
+                                int newDefaultPos = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
+                                adapter.setSelectedPosition(newDefaultPos);
+                                lvSourceList.post(() -> {
+                                    adapter.notifyDataSetChanged();
+                                    if (newDefaultPos >= 0) {
+                                        lvSourceList.setSelection(newDefaultPos);
+                                    }
+                                    lvSourceList.requestFocus();
+                                });
                                 Toast.makeText(getContext(), "已删除", Toast.LENGTH_SHORT).show();
                             } else {
                                 Toast.makeText(getContext(), "删除失败，源未找到", Toast.LENGTH_SHORT).show();
@@ -1355,7 +1390,7 @@ public class SettingsDialog extends android.app.Dialog {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
                     if (lvSourceList.hasFocus()) {
-                        int position = lvSourceList.getCheckedItemPosition();
+                        int position = adapter.getSelectedPosition();
                         if (position >= 0 && position < sources.size()) {
                             sourceManager.setDefault(position);
                             Intent intent = new Intent("com.tv.live.REFRESH_LIVE_AND_EPG");
@@ -1363,7 +1398,11 @@ public class SettingsDialog extends android.app.Dialog {
                             getContext().sendBroadcast(intent);
                             Toast.makeText(getContext(), "已切换到：" + sources.get(position).name, Toast.LENGTH_SHORT).show();
                             adapter.setSelectedPosition(position);
-                            adapter.notifyDataSetChanged();
+                            lvSourceList.post(() -> {
+                                adapter.notifyDataSetChanged();
+                                lvSourceList.setSelection(position);
+                                lvSourceList.requestFocus();
+                            });
                         }
                         return true;
                     }
