@@ -144,9 +144,9 @@ public class HuyaTogetherWatchManager {
 
         public Channel toChannel() {
             String displayName = roomName;
-            Channel channel = new Channel(displayName, String.valueOf(roomId), 
-                                         category, String.valueOf(roomId), true, roomId);
-            return channel;
+            // 🔴 修正：必须构造完整的虎牙网页地址，否则播放器无法识别
+            String huyaUrl = "https://www.huya.com/" + roomId;
+            return new Channel(displayName, huyaUrl, category, String.valueOf(roomId), true, roomId);
         }
     }
 
@@ -223,8 +223,15 @@ public class HuyaTogetherWatchManager {
                     postFailed(listener, "网络请求异常：" + e.getMessage());
                 }
             } catch (Exception e) {
-                e.printStackTrace();
-                postFailed(listener, "解析数据异常：" + e.getMessage());
+                Log.e(TAG, "解析数据异常，尝试使用备用数据", e);
+                List<TogetherWatchRoom> rooms = getFallbackRooms();
+                if (!rooms.isEmpty()) {
+                    mRoomList = rooms;
+                    mLastFetchTime = now;
+                    postSuccess(listener, rooms);
+                } else {
+                    postFailed(listener, "解析数据异常：" + e.getMessage());
+                }
             }
         });
     }
