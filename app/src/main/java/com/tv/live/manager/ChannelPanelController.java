@@ -352,10 +352,29 @@ public class ChannelPanelController {
         channelListManagerEpg.setChannels(channelSourceList, index);
         epgManagerWrapper.refresh(ch, channelSourceList, currentSelectedDateIndex);
 
-        // 已移除所有 setFocusable / requestFocus，让 ListView 自身管理焦点
+        restoreChannelListInteractivity();
 
         if (channelChangeListener != null) {
             channelChangeListener.onChannelChanged(ch, index);
+        }
+    }
+
+    private void restoreChannelListInteractivity() {
+        if (lvChannelList != null) {
+            lvChannelList.post(() -> {
+                lvChannelList.setClickable(true);
+                lvChannelList.setFocusable(true);
+                lvChannelList.setFocusableInTouchMode(true);
+                lvChannelList.requestFocus();
+                lvChannelList.setSelection(getChannelListSelection());
+            });
+        }
+        if (lvChannelListEpg != null) {
+            lvChannelListEpg.post(() -> {
+                lvChannelListEpg.setClickable(true);
+                lvChannelListEpg.setFocusable(true);
+                lvChannelListEpg.setFocusableInTouchMode(true);
+            });
         }
     }
 
@@ -403,7 +422,6 @@ public class ChannelPanelController {
         boolean willOpen = !isPanelOpen();
 
         if (willOpen) {
-            // 确保 OK 键只打开左侧面板，关闭右侧面板
             if (llRightPanel != null) {
                 llRightPanel.setVisibility(View.GONE);
             }
@@ -435,13 +453,7 @@ public class ChannelPanelController {
             }
 
             if (isPanelOpen()) {
-                // ✅ 打开面板时，主动把焦点交给频道列表
-                lvChannelList.requestFocus();
-                // 滚动到当前播放频道
-                lvChannelList.setSelection(getChannelListSelection());
-            } else {
-                // ❌ 移除 clearFocus，让焦点自然回到播放器
-                // panelLayout.clearFocus();
+                restoreChannelListInteractivity();
             }
         }, 100);
 

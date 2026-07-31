@@ -154,6 +154,22 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
             return false;
         });
 
+        holder.btnCopy.setOnTouchListener((v, event) -> {
+            if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                v.setPressed(true);
+                return true;
+            } else if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
+                v.setPressed(false);
+                if (item.url != null && !item.url.isEmpty()) {
+                    ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                    cm.setPrimaryClip(ClipData.newPlainText("source_url", item.url));
+                    android.widget.Toast.makeText(getContext(), "已复制地址", android.widget.Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            }
+            return false;
+        });
+
         holder.btnCopy.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
@@ -177,6 +193,20 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
                     finalView.requestFocus();
                     return true;
                 }
+            }
+            return false;
+        });
+
+        holder.btnDelete.setOnTouchListener((v, event) -> {
+            if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                v.setPressed(true);
+                return true;
+            } else if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
+                v.setPressed(false);
+                if (actionListener != null && finalPosition >= 0 && finalPosition < getCount()) {
+                    actionListener.onDelete(finalPosition);
+                }
+                return true;
             }
             return false;
         });
@@ -209,20 +239,6 @@ public class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> 
                 selectedPosition = position;
                 pendingKeyPosition = -1;
                 actionListener.onSwitch(position);
-            }
-        });
-
-        holder.btnCopy.setOnClickListener(v -> {
-            if (item.url != null && !item.url.isEmpty()) {
-                ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-                cm.setPrimaryClip(ClipData.newPlainText("source_url", item.url));
-                android.widget.Toast.makeText(getContext(), "已复制地址", android.widget.Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        holder.btnDelete.setOnClickListener(v -> {
-            if (actionListener != null && position >= 0 && position < getCount()) {
-                actionListener.onDelete(position);
             }
         });
 

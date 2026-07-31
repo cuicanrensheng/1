@@ -151,6 +151,9 @@ public class TVPlayerManager {
     private SharedPreferences sp;
     private String currentResolutionLabel = "自适应";
 
+    private List<String> catchUpFallbackUrls = null;
+    private int catchUpFallbackIndex = -1;
+
     private static final ExecutorService sPlaylistExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "TVPlayer-PlaylistParser");
         t.setDaemon(true);
@@ -418,6 +421,14 @@ public class TVPlayerManager {
 
     // 🔴【核心修复】在 trySwitchBackup 里拦截虎牙房间号死循环
     private boolean trySwitchBackup() {
+        if (catchUpFallbackUrls != null && !catchUpFallbackUrls.isEmpty()
+                && catchUpFallbackIndex < catchUpFallbackUrls.size()) {
+            String fallbackUrl = catchUpFallbackUrls.get(catchUpFallbackIndex);
+            catchUpFallbackIndex++;
+            dLog("尝试切换回看备用源：" + fallbackUrl);
+            playUrlInternal(fallbackUrl);
+            return true;
+        }
         if (currentChannel == null || currentChannel.getBackupUrls().isEmpty()) {
             return false;
         }
@@ -433,7 +444,6 @@ public class TVPlayerManager {
         }
         String backupUrl = backups.get(backupRetryIndex);
         
-        // 🔴 如果备用源也是虎牙房间号，直接跳过，递归尝试下一个！
         if (isHuyaRoomUrl(backupUrl)) {
             Log.w(TAG, "备用源是虎牙房间号，跳过！尝试下一个...");
             return trySwitchBackup();
@@ -880,6 +890,8 @@ public class TVPlayerManager {
         if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
         this.currentChannel = channel;
         this.backupRetryIndex = -1;
+        this.catchUpFallbackUrls = null;
+        this.catchUpFallbackIndex = -1;
         if (channel != null && TextUtils.isEmpty(this.currentChannelName)) {
             this.currentChannelName = channel.getName();
         }
@@ -889,6 +901,23 @@ public class TVPlayerManager {
         initialPlayStartTime = 0;
         resetPerformanceStats();
         playUrlInternal(url, 0);
+    }
+
+    public void playUrlWithFallbacks(String primaryUrl, String channelName, Channel channel, List<String> fallbackUrls) {
+        if (!TextUtils.isEmpty(channelName)) this.currentChannelName = channelName;
+        this.currentChannel = channel;
+        this.backupRetryIndex = -1;
+        this.catchUpFallbackUrls = fallbackUrls;
+        this.catchUpFallbackIndex = 0;
+        if (channel != null && TextUtils.isEmpty(this.currentChannelName)) {
+            this.currentChannelName = channel.getName();
+        }
+        cancelRetry();
+        retryCount = 0;
+        isRetrying = false;
+        initialPlayStartTime = 0;
+        resetPerformanceStats();
+        playUrlInternal(primaryUrl, 0);
     }
 
     public Channel getCurrentChannel() {

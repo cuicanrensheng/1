@@ -56,6 +56,8 @@ public class EpgManagerWrapper {
     private int selectedPosition = 0;
     private int playingIndex = -1;
     private int selectDayIndex = 0;
+    private boolean isTouching = false;
+    private int pendingConfirmPosition = -1;
 
     private BroadcastReceiver reminderReceiver;
 
@@ -80,20 +82,46 @@ public class EpgManagerWrapper {
             }
         });
 
+        lvEpg.setOnTouchListener((v, event) -> {
+            if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                isTouching = true;
+            } else if (event.getAction() == android.view.MotionEvent.ACTION_UP
+                    || event.getAction() == android.view.MotionEvent.ACTION_CANCEL) {
+                isTouching = false;
+            }
+            return false;
+        });
+
         lvEpg.setOnItemClickListener((parent, view, position, id) -> {
-            if (position == selectedPosition) {
-                // 第二次点击：确认执行回看/预约
+            if (isTouching) {
+                // 触摸操作：即点即触发（一次点击 = 立即执行）
                 TextView actionBtn = view.findViewById(R.id.tv_action);
                 if (actionBtn != null && actionBtn.isEnabled()) {
                     actionBtn.performClick();
                 }
-            } else {
-                // 第一次点击：仅选中高亮（浅蓝背景+蓝字），不触发回看
                 selectedPosition = position;
                 if (adapter != null) {
                     adapter.notifyDataSetChanged();
                 }
-                lvEpg.setSelection(position);
+            } else {
+                // 按键操作：第一次选中高亮，第二次确认执行
+                if (position == pendingConfirmPosition) {
+                    // 第二次OK按压：确认执行
+                    TextView actionBtn = view.findViewById(R.id.tv_action);
+                    if (actionBtn != null && actionBtn.isEnabled()) {
+                        actionBtn.performClick();
+                    }
+                    pendingConfirmPosition = -1;
+                } else {
+                    // 第一次选中：高亮 + 提示
+                    pendingConfirmPosition = position;
+                    selectedPosition = position;
+                    if (adapter != null) {
+                        adapter.notifyDataSetChanged();
+                    }
+                    lvEpg.setSelection(position);
+                    Toast.makeText(context, "再次按确认键执行", Toast.LENGTH_SHORT).show();
+                }
             }
         });
 
@@ -337,8 +365,18 @@ public class EpgManagerWrapper {
                         endCal.set(Calendar.SECOND, 0);
                         String startStr = sdfFull.format(startCal.getTime());
                         String endStr = sdfFull.format(endCal.getTime());
-                        String catchUrl = liveUrl.contains("PLTV") ? liveUrl.replace("PLTV", "TVOD") : liveUrl;
-                        catchUrl += catchUrl.contains("?") ? "&playseek=" + startStr + "-" + endStr : "?playseek=" + startStr + "-" + endStr;
+
+                        List<String> catchUrls = new ArrayList<>();
+                        List<String> urlsToTry = new ArrayList<>();
+                        urlsToTry.add(currentChannel.getMainPlayUrl());
+                        urlsToTry.addAll(currentChannel.getBackupUrls());
+
+                        for (String baseUrl : urlsToTry) {
+                            if (TextUtils.isEmpty(baseUrl)) continue;
+                            String catchUrl = baseUrl.contains("PLTV") ? baseUrl.replace("PLTV", "TVOD") : baseUrl;
+                            catchUrl += catchUrl.contains("?") ? "&playseek=" + startStr + "-" + endStr : "?playseek=" + startStr + "-" + endStr;
+                            catchUrls.add(catchUrl);
+                        }
 
                         if (ctx instanceof MainActivity) {
                             MainActivity activity = (MainActivity) ctx;
@@ -348,7 +386,13 @@ public class EpgManagerWrapper {
                             }
                             activity.setCatchUpMode(true);
                             activity.showExoController();
-                            activity.mPlayerManager.playUrl(catchUrl);
+                            if (!catchUrls.isEmpty()) {
+                                activity.mPlayerManager.playUrlWithFallbacks(
+                                        catchUrls.get(0),
+                                        currentChannel.getName(),
+                                        currentChannel,
+                                        catchUrls);
+                            }
                         }
                         Toast.makeText(ctx, "回看：" + item.title, Toast.LENGTH_SHORT).show();
                     } catch (Exception e) {
