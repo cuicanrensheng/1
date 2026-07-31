@@ -1251,8 +1251,9 @@ public class SettingsDialog extends android.app.Dialog {
 
         int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
         
-        // ✅ 使用增强版 SubscriptionAdapter（支持复制/删除/切换）
-        SubscriptionAdapter adapter = new SubscriptionAdapter(getContext(), sources, R.layout.item_subscription_list);
+        // ✅ 使用增强版 SubscriptionAdapter（支持复制/删除/切换）- 动态获取布局ID，无R符号依赖
+        int layoutId = getContext().getResources().getIdentifier("item_subscription_list", "layout", getContext().getPackageName());
+        SubscriptionAdapter adapter = new SubscriptionAdapter(getContext(), sources, layoutId);
         adapter.setSelectedPosition(currentDefault);
 
         // ✅ 统一处理“切换”动作的方法（供触摸和按键共用）
@@ -1446,83 +1447,6 @@ public class SettingsDialog extends android.app.Dialog {
                 
                 android.util.Log.d("SettingsDialog", "EPG 源已更新并强制刷新: " + epgUrl);
             }
-        }
-    }
-
-    // ============================================================
-    // 🛠️ 增强版 SubscriptionAdapter（适配您的新布局）
-    // ============================================================
-    private class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> {
-        private int selectedPos = -1;
-        private OnActionListener mListener;
-
-        public interface OnActionListener {
-            void onSwitch(int position);
-            void onDelete(int position);
-            void onCopy(String url);
-        }
-
-        public SubscriptionAdapter(android.content.Context context, List<SourceManager.SourceItem> objects) {
-            super(context, R.layout.item_subscription, objects);
-        }
-
-        public void setSelectedPosition(int pos) {
-            selectedPos = pos;
-            notifyDataSetChanged();
-        }
-
-        public void setOnActionListener(OnActionListener listener) {
-            this.mListener = listener;
-        }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            if (convertView == null) {
-                convertView = android.view.LayoutInflater.from(getContext()).inflate(R.layout.item_subscription, parent, false);
-            }
-            SourceManager.SourceItem item = getItem(position);
-            
-            // 获取控件
-            TextView tvName = convertView.findViewById(R.id.tv_name);
-            TextView tvUrl = convertView.findViewById(R.id.tv_url);
-            View tvCheck = convertView.findViewById(R.id.tv_check);
-            View btnCopy = convertView.findViewById(R.id.btn_copy);
-            View btnDelete = convertView.findViewById(R.id.btn_delete);
-
-            // 设置数据
-            if (tvName != null) tvName.setText(item.name);
-            if (tvUrl != null) tvUrl.setText(item.url);
-
-            // ✅ 高亮处理：使用背景色 + 打勾标记
-            if (position == selectedPos) {
-                convertView.setBackgroundColor(0x3340A9FF); // 淡蓝色背景
-                if (tvCheck != null) tvCheck.setVisibility(View.VISIBLE); // 显示勾选
-            } else {
-                convertView.setBackgroundColor(0x00000000); // 透明背景
-                if (tvCheck != null) tvCheck.setVisibility(View.GONE);   // 隐藏勾选
-            }
-
-            // 📋 复制按钮事件（已修复）
-            if (btnCopy != null) {
-                btnCopy.setFocusable(true);
-                btnCopy.setOnClickListener(v -> {
-                    if (mListener != null) {
-                        mListener.onCopy(item.url);
-                    }
-                });
-            }
-
-            // 🗑️ 删除按钮事件（已修复）
-            if (btnDelete != null) {
-                btnDelete.setFocusable(true);
-                btnDelete.setOnClickListener(v -> {
-                    if (mListener != null) {
-                        mListener.onDelete(position);
-                    }
-                });
-            }
-
-            return convertView;
         }
     }
 
