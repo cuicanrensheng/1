@@ -241,7 +241,6 @@ public class SettingsDialog extends android.app.Dialog {
 
     // 🟢【精简版日志弹窗】移除清空按钮，停止记录字体改为黑色
     private void showDebugLogDialog() {
-        // ... 此部分代码与原文件一致，保持不变 ...
         boolean currentDebugState = sp.getBoolean(KEY_DEBUG_LOG_ENABLE, false);
         String logs = LogCollector.getInstance().getAllLogs();
         if (TextUtils.isEmpty(logs)) {
@@ -572,7 +571,6 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showVersionInfoDialog() {
-        // ... 此部分代码与原文件一致，保持不变 ...
         String versionName = BuildConfig.VERSION_NAME;
         int versionCode = BuildConfig.VERSION_CODE;
         String updateNotes = updateManager.getUpdateMessage();
@@ -675,7 +673,6 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showNumberInputDialog(int currentValue, java.util.function.Consumer<Integer> onConfirmed) {
-        // ... 此部分代码与原文件一致，保持不变 ...
         LinearLayout dialogView = new LinearLayout(getContext());
         dialogView.setOrientation(LinearLayout.VERTICAL);
         dialogView.setBackgroundResource(R.drawable.dialog_bg_corner);
@@ -854,7 +851,6 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showCommonSelectionDialog(String title, String[] items, int checkedItem, java.util.function.Consumer<Integer> onSelected) {
-        // ... 此部分代码与原文件一致，保持不变 ...
         ListView listView = new ListView(getContext());
         listView.setBackgroundColor(Color.TRANSPARENT);
         listView.setDivider(new ColorDrawable(0x33FFFFFF));
@@ -950,7 +946,6 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showChannelLineDialog() {
-        // ... 此部分代码与原文件一致，保持不变 ...
         TVPlayerManager playerManager = TVPlayerManager.getInstance(getContext());
         Channel currentChannel = playerManager.getCurrentChannel();
         if (currentChannel == null) {
@@ -1031,7 +1026,6 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showResolutionDialog() {
-        // ... 此部分代码与原文件一致，保持不变 ...
         TVPlayerManager playerManager = TVPlayerManager.getInstance(getContext());
         if (playerManager == null) {
             return;
@@ -1096,7 +1090,6 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showDecoderModeDialog() {
-        // ... 此部分代码与原文件一致，保持不变 ...
         final String[] modes = {"自动（推荐）", "硬解", "软解（兼容性好）"};
         final String[] modeValues = {"auto", "hard", "soft"};
         String currentMode = sp.getString("decoder_mode", "auto");
@@ -1131,7 +1124,6 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showRendererModeDialog() {
-        // ... 此部分代码与原文件一致，保持不变 ...
         final String[] modes = {"SurfaceView（默认）", "TextureView（兼容）"};
         final String[] modeValues = {"surface", "texture"};
         String currentMode = sp.getString("renderer_type", "surface");
@@ -1165,7 +1157,6 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     private void showRatioDialog() {
-        // ... 此部分代码与原文件一致，保持不变 ...
         final String[] ratios = {"全屏", "填充", "原始"};
         String currentMode = sp.getString("screen_ratio", "全屏");
         int checkedItem = 0;
@@ -1260,7 +1251,7 @@ public class SettingsDialog extends android.app.Dialog {
 
         int currentDefault = sourceManager.indexOfUrl(sourceManager.getDefaultUrl());
         
-        // ✅ 使用增强版 SubscriptionAdapter（内部类，支持复制/删除/切换）
+        // ✅ 使用增强版 SubscriptionAdapter（支持复制/删除/切换）
         SubscriptionAdapter adapter = new SubscriptionAdapter(getContext(), sources);
         adapter.setSelectedPosition(currentDefault);
 
@@ -1317,11 +1308,11 @@ public class SettingsDialog extends android.app.Dialog {
             return false;
         });
 
-        // 4. 适配器监听：复制和删除由 Adapter 内部自行触发（详见 SubscriptionAdapter 内部类）
+        // 4. 适配器监听：复制和删除由 Adapter 内部自行触发
         adapter.setOnActionListener(new SubscriptionAdapter.OnActionListener() {
             @Override
             public void onSwitch(int position) {
-                // 该方法已由 performSwitch 取代，此处留空；触摸点击与按键确认通过 OnItemClickListener/OnKeyListener 触发
+                // 该方法已由 performSwitch 取代，此处留空
             }
 
             @Override
@@ -1457,7 +1448,7 @@ public class SettingsDialog extends android.app.Dialog {
     }
 
     // ============================================================
-    // 🛠️ 增强版 SubscriptionAdapter（内部类，支持复制/删除/切换操作）
+    // 🛠️ 增强版 SubscriptionAdapter（适配您的新布局）
     // ============================================================
     private class SubscriptionAdapter extends ArrayAdapter<SourceManager.SourceItem> {
         private int selectedPos = -1;
@@ -1488,23 +1479,28 @@ public class SettingsDialog extends android.app.Dialog {
                 convertView = android.view.LayoutInflater.from(getContext()).inflate(R.layout.item_subscription, parent, false);
             }
             SourceManager.SourceItem item = getItem(position);
+            
+            // 获取控件
             TextView tvName = convertView.findViewById(R.id.tv_name);
             TextView tvUrl = convertView.findViewById(R.id.tv_url);
+            View tvCheck = convertView.findViewById(R.id.tv_check);
             View btnCopy = convertView.findViewById(R.id.btn_copy);
             View btnDelete = convertView.findViewById(R.id.btn_delete);
 
-            // 确保 ID 存在，若布局中没有，请自行在 item_subscription.xml 中添加 android:id="@+id/btn_copy" 和 @id/btn_delete
+            // 设置数据
             if (tvName != null) tvName.setText(item.name);
             if (tvUrl != null) tvUrl.setText(item.url);
 
-            // 高亮当前选中的项
+            // ✅ 高亮处理：使用背景色 + 打勾标记
             if (position == selectedPos) {
-                convertView.setBackgroundColor(0x3340A9FF);
+                convertView.setBackgroundColor(0x3340A9FF); // 淡蓝色背景
+                if (tvCheck != null) tvCheck.setVisibility(View.VISIBLE); // 显示勾选
             } else {
-                convertView.setBackgroundColor(0x00000000);
+                convertView.setBackgroundColor(0x00000000); // 透明背景
+                if (tvCheck != null) tvCheck.setVisibility(View.GONE);   // 隐藏勾选
             }
 
-            // 绑定复制按钮
+            // 📋 复制按钮事件（已修复）
             if (btnCopy != null) {
                 btnCopy.setFocusable(true);
                 btnCopy.setOnClickListener(v -> {
@@ -1514,7 +1510,7 @@ public class SettingsDialog extends android.app.Dialog {
                 });
             }
 
-            // 绑定删除按钮
+            // 🗑️ 删除按钮事件（已修复）
             if (btnDelete != null) {
                 btnDelete.setFocusable(true);
                 btnDelete.setOnClickListener(v -> {
@@ -1533,7 +1529,6 @@ public class SettingsDialog extends android.app.Dialog {
     // ============================================================
 
     private void showRedirectConfigDialog() {
-        // ... 此部分代码与原文件一致，保持不变 ...
         int currentMax = sp.getInt(KEY_REDIRECT_MAX_COUNT,5);
         boolean crossDomain = sp.getBoolean(KEY_REDIRECT_CROSS_DOMAIN,true);
         boolean crossProto = sp.getBoolean(KEY_REDIRECT_CROSS_PROTOCOL,true);
