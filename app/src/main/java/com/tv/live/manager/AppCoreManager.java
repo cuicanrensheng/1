@@ -19,7 +19,6 @@ import com.tv.live.config.AppConfig;
 import com.tv.live.loader.LiveSourceLoader;
 import com.tv.live.util.CacheManager;
 import com.tv.live.SourceManager;
-// 🟢 新增导入：虎牙直播加载器
 import com.tv.live.loader.HuyaLiveLoader;
 
 import java.util.ArrayList;
@@ -145,7 +144,7 @@ public class AppCoreManager {
                 triggerHealthCheck(safeChannels);
                 loadEpg();
 
-                // 🟢 新增：在主源加载完成后，异步加载虎牙“一起看”频道
+                // 新增：在主源加载完成后，异步加载虎牙“一起看”频道
                 loadHuyaTogetherWatchChannels();
             }
 
@@ -162,14 +161,8 @@ public class AppCoreManager {
         });
     }
 
-    // 🟢 新增方法：异步加载虎牙“一起看”频道并合并到现有列表
+    // 新增方法：异步加载虎牙“一起看”频道并合并到现有列表（已移除开关判断）
     private void loadHuyaTogetherWatchChannels() {
-        // 如果配置中关闭了虎牙功能，则跳过
-        if (appConfig != null && !appConfig.isHuyaEnabled()) {
-            log("【虎牙】功能已关闭，不加载");
-            return;
-        }
-
         new Thread(() -> {
             HuyaLiveLoader loader = new HuyaLiveLoader(context);
             List<Channel> huyaChannels = loader.loadSync(); // 同步获取（内部已有缓存）
@@ -180,8 +173,6 @@ public class AppCoreManager {
                 }
                 // 通知 UI 刷新（不触发重新加载主源）
                 if (dataLoadListener != null) {
-                    // 注意：这里复用 onLiveSourceLoaded，但第二个参数 fromCache 传 false 表示新数据
-                    // 实际不会引起重复加载，仅更新列表
                     dataLoadListener.onLiveSourceLoaded(new ArrayList<>(channelSourceList), false);
                 }
             } else {
