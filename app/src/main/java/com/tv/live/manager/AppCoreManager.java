@@ -161,22 +161,20 @@ public class AppCoreManager {
         });
     }
 
-    // 修复后的方法：UI 刷新切到主线程
+    // 新增方法：异步加载虎牙“一起看”频道并合并到现有列表（已移除开关判断）
     private void loadHuyaTogetherWatchChannels() {
         new Thread(() -> {
             HuyaLiveLoader loader = new HuyaLiveLoader(context);
-            List<Channel> huyaChannels = loader.loadSync();
+            List<Channel> huyaChannels = loader.loadSync(); // 同步获取（内部已有缓存）
             if (huyaChannels != null && !huyaChannels.isEmpty()) {
                 log("【虎牙】加载到 " + huyaChannels.size() + " 个一起看频道");
                 synchronized (channelListLock) {
                     mergeChannels(huyaChannels);
                 }
-                // ✅ 关键修复：使用主线程 Handler 刷新 UI
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    if (dataLoadListener != null) {
-                        dataLoadListener.onLiveSourceLoaded(new ArrayList<>(channelSourceList), false);
-                    }
-                });
+                // 通知 UI 刷新（不触发重新加载主源）
+                if (dataLoadListener != null) {
+                    dataLoadListener.onLiveSourceLoaded(new ArrayList<>(channelSourceList), false);
+                }
             } else {
                 log("【虎牙】未获取到一起看频道");
             }
