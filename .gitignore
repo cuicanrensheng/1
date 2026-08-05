@@ -1,0 +1,34 @@
+# Android Studio
+.idea/
+*.iml
+local.properties
+.DS_Store
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Keystore
+*.keystore
+*.jks
+!app/release.keystore
+
+# Generated files
+gen/
+*.log
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+*.swp
+*.swo
+
+# Project specific
+lint-baseline/
+lint-report/
+lint-results*.html
+build/reports/
