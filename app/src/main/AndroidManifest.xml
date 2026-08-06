@@ -41,8 +41,8 @@
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:hardwareAccelerated="true"
-        android:largeHeap="true"
-        android:multiDexEnabled="true">   <!-- ✅ 显式声明支持 MultiDex -->
+        android:largeHeap="true">
+        <!-- ✅ 已移除 android:multiDexEnabled="true"，该属性仅在 Gradle 中声明即可 -->
 
         <!-- 主 Activity -->
         <activity
