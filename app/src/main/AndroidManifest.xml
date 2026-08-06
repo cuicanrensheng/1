@@ -41,7 +41,8 @@
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:hardwareAccelerated="true"
-        android:largeHeap="true">
+        android:largeHeap="true"
+        android:multiDexEnabled="true">   <!-- ✅ 显式声明支持 MultiDex -->
 
         <!-- 主 Activity -->
         <activity
@@ -129,7 +130,6 @@
         </activity>
 
         <!-- 2. TIF 核心服务 -->
-        <!-- ✅ 注意：这里已改成了 .tv.LiveTvInputService -->
         <service
             android:name=".tv.LiveTvInputService"
             android:permission="android.permission.BIND_TV_INPUT"
